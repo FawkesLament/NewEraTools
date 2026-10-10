@@ -1,0 +1,76 @@
+local _, ns = ...
+
+if ns.Api.Client.GetLocale() ~= "enUS" then
+    return
+end
+
+local L = ns.L
+
+L.MAIN_PANEL_WELCOME = "Welcome to NewEraTools. Developer: RD"
+L.MAIN_PANEL_SCALE_TOOLTIP = "Zoom the panel (the mouse wheel works too)"
+L.MAIN_PANEL_SCALE_PERCENT = "%d%%"
+
+L.PANEL_GROUP_RAID_LEADER = "Raid Leader Tools"
+L.PANEL_GROUP_VENOMOUS_ABYSS = "The Venomous Abyss"
+
+L.MINIMAP_TOOLTIP_CLICK = "Click to open the menu."
+L.MINIMAP_TOOLTIP_DRAG = "Drag to move this button."
+
+L.FEATURE_ON = "On"
+L.FEATURE_OFF = "Off"
+
+L.RAID_LOTTERY_TITLE = "Raid Lottery"
+L.RAID_LOTTERY_ROLE_ALL = "All"
+L.RAID_LOTTERY_ROLE_DAMAGER = "DPS"
+L.RAID_LOTTERY_ROLE_HEALER = "Healer"
+L.RAID_LOTTERY_ROLE_TANK = "Tank"
+L.RAID_LOTTERY_COUNT_LABEL = "Number of Players"
+L.RAID_LOTTERY_DRAW = "Start Lottery"
+L.RAID_LOTTERY_SUMMARY = "Eligible: %d / %d"
+L.RAID_LOTTERY_EXCLUDED_HEADER = "Excluded Players (%d)"
+L.RAID_LOTTERY_CLEAR_EXCLUDED = "Clear Exclusions"
+L.RAID_LOTTERY_EMPTY_ROSTER = "Not in a raid."
+L.RAID_LOTTERY_BLOCKED_NOT_IN_RAID = "You are not in a raid."
+L.RAID_LOTTERY_BLOCKED_NOT_LEADER = "Only the raid leader or an assistant can use Raid Lottery."
+L.RAID_LOTTERY_NOT_ENOUGH = "Not enough eligible members: need %d, have %d."
+L.RAID_LOTTERY_RESULT_HEADER = "This round's lucky winners (%s):"
+L.RAID_LOTTERY_RESULT_HEADER_EXCLUDED = "This round's lucky winners (%s, %d excluded):"
+L.RAID_LOTTERY_LEFT_RAID = "Left the raid; stopped announcing results."
+
+L.SSZORAK_TITLE = "Sszorak (M5)"
+L.SSZORAK_MAP_ENABLED = "Encounter Map"
+L.SSZORAK_GROUP_LABEL = "My Group"
+L.SSZORAK_GROUP_LEFT = "Left Side"
+L.SSZORAK_GROUP_RIGHT = "Right Side"
+L.SSZORAK_MAP_SCALE = "Scale"
+L.SSZORAK_MAP_SCALE_TOOLTIP = "Zoom the arena map (the mouse wheel works too)"
+L.SSZORAK_ENTRANCE = "Entrance"
+L.SSZORAK_EXIT = "Exit"
+L.SSZORAK_BOSS = "Boss"
+L.SSZORAK_YOU = "You"
+L.SSZORAK_MARKERS_HEADER = "Marker Assignment"
+L.SSZORAK_MARKERS_RESET = "Restore Defaults"
+L.SSZORAK_MARKERS_HINT = "Click a marker outside a wall to change it."
+L.SSZORAK_MARKER_SWAP = "Swaps with another wall"
+L.SSZORAK_PREVIEW = "Preview"
+L.SSZORAK_BROADCAST = "Sync to Raid"
+L.SSZORAK_BROADCAST_NOT_IN_RAID = "You are not in a raid."
+L.SSZORAK_BROADCAST_NOT_LEADER = "Only the raid leader or an assistant can send the marker assignment."
+L.SSZORAK_BROADCAST_SENT = "Sent the Sszorak marker assignment to the raid."
+L.SSZORAK_BROADCAST_FAILED = "The game refused to send the marker assignment. Try again later."
+L.SSZORAK_MARKERS_RECEIVED = "%s updated the Sszorak marker assignment."
+L.SSZORAK_WIND_HELPER = "Wind Vent Helper"
+L.SSZORAK_WIND_HELPER_TOOLTIP = "Click all 3 wind vents to calculate the best cyst placements"
+L.SSZORAK_WIND_HELPER_PROGRESS = "Wind vents selected: %d/%d"
+L.SSZORAK_WIND_HELPER_ROUND1 = "Round 1: %s"
+L.SSZORAK_WIND_HELPER_ROUND2 = "Round 2: %s"
+L.SSZORAK_WIND_HELPER_MARKER_SEP = ", "
+
+L.WORLD_MARKER_STAR = "Star"
+L.WORLD_MARKER_CIRCLE = "Circle"
+L.WORLD_MARKER_DIAMOND = "Diamond"
+L.WORLD_MARKER_TRIANGLE = "Triangle"
+L.WORLD_MARKER_MOON = "Moon"
+L.WORLD_MARKER_SQUARE = "Square"
+L.WORLD_MARKER_CROSS = "Cross"
+L.WORLD_MARKER_SKULL = "Skull"

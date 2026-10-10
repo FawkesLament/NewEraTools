@@ -1,0 +1,8 @@
+package-as: NewEraTools
+
+ignore:
+  - tests
+  - AGENTS.md
+  - .luacheckrc
+  - .stylua.toml
+  - .vscode

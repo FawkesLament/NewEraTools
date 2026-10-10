@@ -1,0 +1,65 @@
+# NewEraTools: project rules
+
+A World of Warcraft (retail) addon written in Lua 5.1. These rules apply to people and AI agents alike.
+
+## Layout
+
+```
+NewEraTools.toc   Loads one XML manifest per layer, then Main.lua.
+<folder>.xml      Each folder's manifest: lists its .lua files and sub-folder manifests, in load order.
+Main.lua          Entry point: loads saved variables and starts modules.
+core/             Pure Lua: namespace, utilities, locale table, database, module registry.
+api/              The only code that calls Blizzard game functions or listens to game events.
+locales/          Translations. zhCN.lua is the base locale and defines every key.
+ui/               Shared UI: assets and theme, widget helpers, layout, main panel, minimap button.
+modules/<group>/  One folder per sidebar group, named after its PanelGroups key (raid_leader/).
+modules/<group>/<name>/  One folder per feature: <Name>.lua (logic) and <Name>UI.lua (UI).
+modules/*.lua     The only files directly in modules/: content shared by features (PanelGroups.lua).
+media/            Textures.
+tests/            Unit tests run outside the game. WoW never loads them.
+```
+
+## Architecture
+
+1. Layers load in this order: `core` → `api` → `locales` → `ui` → `modules` → `Main.lua`. A file may use only the layers loaded before it. Every folder with Lua files or sub-folders has a manifest named after the folder (`raid_leader/raid_leader.xml`) using `<Script file="..."/>` for its files and `<Include file="..."/>` for sub-folders; paths are relative to the manifest. The exception is feature folders: they have no manifest, and their group's manifest lists their files directly (`<Script file="raid_lottery\RaidLottery.lua"/>`). Manifests only list files; UI is built in Lua, not XML.
+2. Only `api/` touches game state: Blizzard functions, constants and events. It returns plain tables and offers callbacks (e.g. `Group.OnChanged`) instead of raw events. API version differences are handled inside `api/`, once, at load time. Keep wrappers thin: if a game function's signature already fits, assign it directly (`Timer.After = C_Timer.After`), and don't allocate tables per call in anything that may run often.
+3. Frame and widget calls (`CreateFrame`, `GameTooltip`, ...) are allowed only in `ui/` and `*UI.lua` files. Template, texture, atlas and font names, plus shared spacing, sizes and colors, live in `ui/Assets.lua`. Place widgets with `ui/Layout.lua` (stacks, rows, grids) instead of fixed offsets from the container's top, and let buttons size to their text.
+4. Logic files (`core/`, module `<Name>.lua`, shared files in `modules/`) use only plain Lua and `ns`.
+5. Every feature is a module: `ns.Modules.New(name, { defaults = ... })`. `self.db` holds its saved settings. `OnInit` runs for all modules, then `OnEnable` for all modules. Feature modules never reference each other; they may use UI services such as `ns.MainPanel` and shared content such as `ns.PanelGroups`. Shared content in `modules/` is data, not a module, and is loaded by `modules/modules.xml` before any feature. `ui/` stays generic: it never names a feature or a group.
+6. Loading a file only defines things. Frames, events and slash commands are set up in `OnEnable`.
+7. All shared state lives in the `ns` table. Globals are limited to `NewEraToolsDB`, slash commands and named frames, all prefixed `NewEraTools`.
+8. No user-visible string literals in code: use `L.KEY`, defined in `locales/zhCN.lua`.
+9. To change the shape of saved data, bump `SCHEMA_VERSION` in `core/Database.lua` and add a migration.
+
+## Adding a feature
+
+1. Logic in `modules/<group>/<snake_name>/<Name>.lua`, where `<group>` is the lowercased `ns.PanelGroups` key of the feature's sidebar group; UI in `<Name>UI.lua`, which calls `ns.MainPanel:RegisterSection` from `OnEnable` with that `group`. A new group goes into `modules/PanelGroups.lua` with a unique `order`, gets a `modules/<group>/<group>.xml` manifest, and is included from `modules/modules.xml`.
+2. List both files in `modules/<group>/<group>.xml` as `<snake_name>\<Name>.lua`, logic first.
+3. Add strings to `locales/zhCN.lua` (and other locales).
+4. A new game API call goes into an `api/` function, gets a fake in `tests/helpers/fakes/`, and is listed in `.luacheckrc`. New `api/` files are added to `api/api.xml`.
+5. Add tests in `tests/modules/<group>/<snake_name>/<Name>_spec.lua`.
+
+## Code style
+
+- Folders use `lower_snake_case`. Lua files use `PascalCase` and are named after the table they define.
+- 4-space indentation, double quotes, trailing commas in multi-line tables, lines of 120 characters or fewer (`stylua .`).
+- `PascalCase` for functions and module tables, `camelCase` for locals and fields, `UPPER_SNAKE` for constants and locale keys.
+- Library tables (`Util`, `Api.*`) use dot functions. Modules use colon methods (`function Module:Foo()`).
+- File order: `local addonName, ns = ...`, then imports, constants, state, private `local function`s, public API, lifecycle hooks.
+- Public functions and data shapes carry LuaLS annotations (`---@param`, `---@return`, `---@class`).
+- Comments explain why or state a constraint; they don't narrate the code.
+
+## Testing
+
+- Run `luajit tests/run.lua` from the addon folder (any Lua 5.1 interpreter works). Specs use a busted-compatible subset.
+- Tests load the addon through the TOC and its manifests with `api/` swapped for fakes. `ui/`, `*UI.lua` and `Main.lua` are skipped; `ui/Layout.lua` is tested separately with fake frames.
+- Standard Lua functions (e.g. `math.random`) are not wrapped. Stub them in `before_each` and restore them in `after_each`; addon code must look them up at call time, not cache them at load.
+- Meta tests check that the TOC and manifests match the files on disk (nothing missing, unlisted or listed twice) and that every locale key is defined.
+- UI changes need an in-game check: `/reload`, open `/netools`, and try the feature (raid features need a raid).
+
+## WoW constraints
+
+- Addon code runs in Lua 5.1 with no `require`, `io` or `os`. Files share state only through `ns`.
+- Update `## Interface` in the TOC after major game patches.
+- Never hardcode `Interface\AddOns\...` paths; use `ns.Assets`.
+- Renaming the saved variable or a module discards its saved settings unless a migration carries them over.
