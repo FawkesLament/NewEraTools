@@ -1,0 +1,86 @@
+local Fs = require("helpers.fs")
+
+local Loader = {}
+
+Loader.ADDON_NAME = "NewEraTools"
+Loader.TOC_PATH = "NewEraTools.toc"
+
+local FAKES_PATH = "tests/helpers/fakes/"
+
+---@class LoadOrderEntry
+---@field path string  Forward-slash path from the addon folder.
+---@field listedBy string  The TOC or XML manifest that references it.
+
+local function Normalize(path)
+    return (path:gsub("\\", "/"))
+end
+
+local function DirectoryOf(path)
+    return path:match("^(.*/)") or ""
+end
+
+local AddEntry
+
+local function ReadManifest(path, entries)
+    local source = Fs.ReadFile(path):gsub("<!%-%-.-%-%->", "")
+    local directory = DirectoryOf(path)
+    for tag, file in source:gmatch("<(%a+)%s+file%s*=%s*\"([^\"]+)\"") do
+        if tag == "Script" or tag == "Include" then
+            AddEntry(directory .. Normalize(file), path, entries)
+        end
+    end
+end
+
+function AddEntry(path, listedBy, entries)
+    table.insert(entries, { path = path, listedBy = listedBy })
+    if path:find("%.xml$") and Fs.Exists(path) then
+        ReadManifest(path, entries)
+    end
+end
+
+---Every file the TOC loads, in load order, following XML manifests through <Script> and <Include>.
+---Manifests appear before the files they list. Missing files are included so callers can report them.
+---@return LoadOrderEntry[]
+function Loader.ReadLoadOrder()
+    local entries = {}
+    for line in io.lines(Loader.TOC_PATH) do
+        line = line:gsub("\r$", ""):match("^%s*(.-)%s*$")
+        if line ~= "" and not line:find("^#") then
+            AddEntry(Normalize(line), Loader.TOC_PATH, entries)
+        end
+    end
+    return entries
+end
+
+---@return string[]  Lua files in load order.
+function Loader.ReadLuaFiles()
+    local files = {}
+    for _, entry in ipairs(Loader.ReadLoadOrder()) do
+        if entry.path:find("%.lua$") then
+            table.insert(files, entry.path)
+        end
+    end
+    return files
+end
+
+local function IsSkipped(path)
+    return path == "Main.lua" or path:find("^ui/") ~= nil or path:find("UI%.lua$") ~= nil
+end
+
+---Loads the addon into a fresh namespace the way WoW does, replacing each api/ file with its fake
+---from tests/helpers/fakes/ and skipping UI files and Main.lua.
+---@return table ns
+function Loader.Load()
+    local ns = {}
+    for _, path in ipairs(Loader.ReadLuaFiles()) do
+        local apiName = path:match("^api/(.+)%.lua$")
+        if apiName then
+            ns.Api[apiName] = dofile(FAKES_PATH .. apiName .. ".lua")()
+        elseif not IsSkipped(path) then
+            assert(loadfile(path))(Loader.ADDON_NAME, ns)
+        end
+    end
+    return ns
+end
+
+return Loader
