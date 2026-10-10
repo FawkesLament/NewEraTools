@@ -231,11 +231,11 @@ local function CreateScaleControl(frame, header, closeButton)
     value:SetJustifyH("RIGHT")
     value:SetPoint("RIGHT", closeButton, "LEFT", -Spacing.MEDIUM, 0)
 
-    local slider = Widgets.CreateSlider(header, SCALE_MIN, SCALE_MAX, SCALE_STEP)
+    local slider = Widgets.CreateSlider(header, SCALE_MIN, SCALE_MAX, SCALE_STEP, true)
     slider:SetPoint("RIGHT", value, "LEFT", -Spacing.MEDIUM, 0)
-    Widgets.AttachTooltip(slider, "ANCHOR_BOTTOM", function(tooltip)
-        tooltip:SetText(L.MAIN_PANEL_SCALE_TOOLTIP)
-    end)
+
+    local label = Widgets.CreateLabel(header, Fonts.SMALL_MUTED, L.MAIN_PANEL_SCALE)
+    label:SetPoint("RIGHT", slider, "LEFT", -Spacing.MEDIUM, 0)
 
     local function ShowValue(scale)
         value:SetFormattedText(L.MAIN_PANEL_SCALE_PERCENT, math.floor(scale * 100 + 0.5))
@@ -397,7 +397,7 @@ function MainPanel:Toggle()
 end
 
 function MainPanel:OnEnable()
-    ns.Api.Slash.Register("NEWERATOOLS", { "/netools" }, function()
+    ns.Api.Slash.Register("NEWERATOOLS", { "/netools", "/ne2s" }, function()
         self:Toggle()
     end)
 end

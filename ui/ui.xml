@@ -3,6 +3,7 @@
     <Script file="Widgets.lua"/>
     <Script file="Layout.lua"/>
     <Script file="FeatureSection.lua"/>
+    <Script file="FloatingWindow.lua"/>
     <Script file="MainPanel.lua"/>
     <Script file="MinimapButton.lua"/>
 </Ui>

@@ -6,6 +6,9 @@
     <Script file="Unit.lua"/>
     <Script file="Group.lua"/>
     <Script file="Encounter.lua"/>
+    <Script file="Combat.lua"/>
+    <Script file="CombatLog.lua"/>
+    <Script file="Instance.lua"/>
     <Script file="Chat.lua"/>
     <Script file="AddonMessage.lua"/>
 </Ui>

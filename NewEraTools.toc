@@ -1,9 +1,9 @@
 ## Interface: 120100
 ## Title: NewEraTools
-## Notes: A toolbox addon. Type /netools to open the menu.
+## Notes: A toolbox addon. Type /ne2s to open the menu.
 ## Author: R.D.
 ## Version: 0.1.0
-## IconTexture: Interface\Icons\INV_Misc_QuestionMark
+## IconTexture: Interface\AddOns\NewEraTools\media\icons\mini_logo
 ## SavedVariables: NewEraToolsDB
 
 core\core.xml
