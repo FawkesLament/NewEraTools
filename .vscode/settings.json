@@ -28,5 +28,6 @@
         "UISpecialFrames",
         "STANDARD_TEXT_FONT",
         "ScrollUtil"
-    ]
+    ],
+    "stylua.targetReleaseVersion": "latest"
 }

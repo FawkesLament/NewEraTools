@@ -128,6 +128,23 @@ function Layout.Row(row, widgets, spacing, inset)
     end
 end
 
+---Splits `row` into two equal-width cells with `gap` between them.
+---@param row Frame
+---@param gap number  Space between the cells.
+---@return Frame left, Frame right
+function Layout.SplitRow(row, gap)
+    local halfGap = gap / 2
+    local left = CreateFrame("Frame", nil, row)
+    local right = CreateFrame("Frame", nil, row)
+    left:SetPoint("TOPLEFT")
+    left:SetPoint("BOTTOMLEFT")
+    left:SetPoint("RIGHT", row, "CENTER", -halfGap, 0)
+    right:SetPoint("TOPRIGHT")
+    right:SetPoint("BOTTOMRIGHT")
+    right:SetPoint("LEFT", row, "CENTER", halfGap, 0)
+    return left, right
+end
+
 ---@param index integer  1-based cell index, filled left to right, then top to bottom.
 ---@param columns integer
 ---@param cellWidth number

@@ -1,8 +1,48 @@
 return function()
     local Timer = { now = 0, pending = {} }
 
+    function Timer.GetTime()
+        return Timer.now
+    end
+
     function Timer.After(seconds, callback)
         table.insert(Timer.pending, { due = Timer.now + seconds, callback = callback })
+    end
+
+    ---Repeating timer matching C_Timer.NewTicker: first fire after `seconds`.
+    function Timer.NewTicker(seconds, callback, iterations)
+        local ticker = { cancelled = false, fires = 0 }
+
+        local function Schedule()
+            if ticker.cancelled then
+                return
+            end
+            if iterations and ticker.fires >= iterations then
+                return
+            end
+            table.insert(Timer.pending, {
+                due = Timer.now + seconds,
+                callback = function()
+                    if ticker.cancelled then
+                        return
+                    end
+                    ticker.fires = ticker.fires + 1
+                    callback(ticker)
+                    Schedule()
+                end,
+            })
+        end
+
+        function ticker:Cancel()
+            self.cancelled = true
+        end
+
+        function ticker:IsCancelled()
+            return self.cancelled
+        end
+
+        Schedule()
+        return ticker
     end
 
     ---Fires every callback that is due at or before `Timer.now`, including ones they queue.

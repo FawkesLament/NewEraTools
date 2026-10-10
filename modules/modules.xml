@@ -2,4 +2,6 @@
     <Script file="PanelGroups.lua"/>
     <Include file="raid_leader\raid_leader.xml"/>
     <Include file="venomous_abyss\venomous_abyss.xml"/>
+    <Include file="combat_monitoring\combat_monitoring.xml"/>
 </Ui>
+

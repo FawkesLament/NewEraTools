@@ -334,14 +334,20 @@ end
 ---@param maxValue number
 ---@param step number
 ---@return Slider
-function Widgets.CreateSlider(parent, minValue, maxValue, step)
+---Creates a horizontal slider. Drag the thumb to change the value.
+---@param parent Frame
+---@param minValue number
+---@param maxValue number
+---@param step number
+---@param allowMouseWheel boolean|nil  When true, the mouse wheel steps the value. Defaults to false.
+---@return Slider
+function Widgets.CreateSlider(parent, minValue, maxValue, step, allowMouseWheel)
     local slider = CreateFrame("Slider", nil, parent)
     slider:SetOrientation("HORIZONTAL")
     slider:SetSize(Sizes.SLIDER_WIDTH, Sizes.SLIDER_HEIGHT)
     slider:SetMinMaxValues(minValue, maxValue)
     slider:SetValueStep(step)
     slider:SetObeyStepOnDrag(true)
-    slider:EnableMouseWheel(true)
 
     local track = slider:CreateTexture(nil, "BACKGROUND")
     track:SetHeight(Sizes.SLIDER_TRACK)
@@ -360,17 +366,22 @@ function Widgets.CreateSlider(parent, minValue, maxValue, step)
     fill:SetPoint("RIGHT", thumb, "CENTER")
     fill:SetColorTexture(Widgets.UnpackColor(Colors.ACCENT))
 
-    slider:SetScript("OnMouseWheel", function(self, delta)
-        if not self:IsEnabled() then
-            return
-        end
-        self:SetValue(self:GetValue() + delta * step)
-    end)
+    if allowMouseWheel then
+        slider:EnableMouseWheel(true)
+        slider:SetScript("OnMouseWheel", function(self, delta)
+            if not self:IsEnabled() then
+                return
+            end
+            self:SetValue(self:GetValue() + delta * step)
+        end)
+    end
     -- FeatureSection (and callers) use SetEnabled; Slider only has Enable/Disable natively.
     function slider:SetEnabled(enabled)
         if enabled then
             self:Enable()
-            self:EnableMouseWheel(true)
+            if allowMouseWheel then
+                self:EnableMouseWheel(true)
+            end
         else
             self:Disable()
             self:EnableMouseWheel(false)

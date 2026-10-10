@@ -2,6 +2,7 @@ local _, ns = ...
 local L = ns.L
 local Assets = ns.Assets
 local FeatureSection = ns.FeatureSection
+local FloatingWindow = ns.FloatingWindow
 local Layout = ns.Layout
 local Widgets = ns.Widgets
 local SszorakMapUI = ns.SszorakMapUI
@@ -138,32 +139,9 @@ local function ShowPicker(anchor, edge)
     picker:Show()
 end
 
-local function RestoreWindowPosition(frame)
-    local position = Sszorak:GetMapPosition()
-    frame:ClearAllPoints()
-    frame:SetPoint(position.point, UIParent, position.relativePoint, position.x, position.y)
-end
-
-local function SaveWindowPosition(frame)
-    local point, _, relativePoint, x, y = frame:GetPoint()
-    Sszorak:SetMapPosition({ point = point, relativePoint = relativePoint, x = x, y = y })
-end
-
--- Keeps the window's center where it is on screen; anchor offsets are in the frame's own scale.
 local function ApplyWindowScale(scale)
-    if not window then
-        return
-    end
-    local oldScale = window:GetScale()
-    if math.abs(oldScale - scale) < 0.001 then
-        return
-    end
-    local x, y = window:GetCenter()
-    window:SetScale(scale)
-    if x then
-        window:ClearAllPoints()
-        window:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x * oldScale / scale, y * oldScale / scale)
-        SaveWindowPosition(window)
+    if window then
+        window:SetWindowScale(scale)
     end
 end
 
@@ -216,30 +194,6 @@ end
 
 local function TogglePreview()
     SetPreviewVisible(not previewVisible)
-end
-
--- Laid over the top of the window rather than given its own row: the space above the octagon's top edge
--- is empty apart from one marker icon in the middle, so the drag strip and close button fit there.
-local function CreateWindowHeader(frame)
-    local header = CreateFrame("Frame", nil, frame)
-    header:SetPoint("TOPLEFT", Sizes.BORDER, -Sizes.BORDER)
-    header:SetPoint("TOPRIGHT", -Sizes.BORDER, -Sizes.BORDER)
-    header:SetHeight(Sizes.CLOSE_BUTTON)
-    header:SetFrameLevel(frame:GetFrameLevel() + 2)
-    header:EnableMouse(true)
-    header:RegisterForDrag("LeftButton")
-    header:SetScript("OnDragStart", function()
-        frame:StartMoving()
-    end)
-    header:SetScript("OnDragStop", function()
-        frame:StopMovingOrSizing()
-        SaveWindowPosition(frame)
-    end)
-
-    windowCloseButton = Widgets.CreateCloseButton(header, function()
-        SetPreviewVisible(false)
-    end)
-    windowCloseButton:SetPoint("RIGHT")
 end
 
 local function FormatMarkerList(edges)
@@ -312,14 +266,19 @@ local function OnWindowEdgeMarkerClick(_, edge)
 end
 
 function CreateArenaWindow()
-    local frame = Widgets.CreateSurface(UIParent, Colors.BG_TRANSLUCENT, Colors.BORDER)
-    frame:SetFrameStrata("DIALOG")
-    frame:SetToplevel(true)
-    frame:SetClampedToScreen(true)
-    frame:SetMovable(true)
-    frame:SetScale(Sszorak:GetMapScale())
-    RestoreWindowPosition(frame)
-    frame:Hide()
+    -- Header overlays the empty space above the octagon so the drag strip and close button fit there.
+    local frame = FloatingWindow.Create({
+        scale = Sszorak:GetMapScale(),
+        position = Sszorak:GetMapPosition(),
+        onPositionChanged = function(position)
+            Sszorak:SetMapPosition(position)
+        end,
+        closable = true,
+        onClose = function()
+            SetPreviewVisible(false)
+        end,
+    })
+    windowCloseButton = frame.closeButton
 
     local stack = Layout.Stack(frame, {
         paddingX = Spacing.LARGE,
@@ -367,7 +326,6 @@ function CreateArenaWindow()
     }
 
     frame:SetSize(arena.width + 2 * Spacing.LARGE, stack:GetHeight())
-    CreateWindowHeader(frame)
     return frame
 end
 
@@ -398,15 +356,7 @@ local function BuildMapContent(content)
     local body = Layout.Stack(content)
 
     local controlsRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local groupCell = CreateFrame("Frame", nil, controlsRow)
-    local scaleCell = CreateFrame("Frame", nil, controlsRow)
-    local halfGap = Spacing.MEDIUM / 2
-    groupCell:SetPoint("TOPLEFT")
-    groupCell:SetPoint("BOTTOMLEFT")
-    groupCell:SetPoint("RIGHT", controlsRow, "CENTER", -halfGap, 0)
-    scaleCell:SetPoint("TOPRIGHT")
-    scaleCell:SetPoint("BOTTOMRIGHT")
-    scaleCell:SetPoint("LEFT", controlsRow, "CENTER", halfGap, 0)
+    local groupCell, scaleCell = Layout.SplitRow(controlsRow, Spacing.MEDIUM)
 
     local groupLabel = Widgets.CreateLabel(groupCell, Fonts.BODY, L.SSZORAK_GROUP_LABEL)
     groupLabel:SetJustifyH("LEFT")
