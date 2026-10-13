@@ -41,8 +41,9 @@ end
 
 ---Runs `setup` while inside `encounterID` (and while enabled). `setup` must return a cleanup function;
 ---that cleanup always runs when the fight ends or when disabled — so subscriptions cannot outlive the pull.
+---`setup` receives the `difficultyID` from the matching ENCOUNTER_START (and again if re-enabled mid-fight).
 ---@param encounterID number
----@param setup fun(): (fun()|nil)
+---@param setup fun(difficultyID: number): (fun()|nil)
 ---@return EncounterWhileIn
 function Encounter.WhileIn(encounterID, setup)
     assert(type(encounterID) == "number", "Encounter.WhileIn requires encounterID")
@@ -50,6 +51,7 @@ function Encounter.WhileIn(encounterID, setup)
 
     local enabled = true
     local inside = false
+    local difficultyID = 0
     ---@type fun()|nil
     local cleanup = nil
 
@@ -59,7 +61,7 @@ function Encounter.WhileIn(encounterID, setup)
             if cleanup then
                 return
             end
-            cleanup = setup() or function() end
+            cleanup = setup(difficultyID) or function() end
             return
         end
         if not cleanup then
@@ -70,10 +72,11 @@ function Encounter.WhileIn(encounterID, setup)
         leave()
     end
 
-    Encounter.OnStart(function(id)
+    Encounter.OnStart(function(id, _, startDifficultyID)
         if id ~= encounterID then
             return
         end
+        difficultyID = startDifficultyID or 0
         inside = true
         Sync()
     end)

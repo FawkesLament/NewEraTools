@@ -78,6 +78,7 @@ return function()
 
         local enabled = true
         local inside = false
+        local difficultyID = 0
         local cleanup = nil
 
         local function Sync()
@@ -86,7 +87,7 @@ return function()
                 if cleanup then
                     return
                 end
-                cleanup = setup() or function() end
+                cleanup = setup(difficultyID) or function() end
                 return
             end
             if not cleanup then
@@ -97,10 +98,11 @@ return function()
             leave()
         end
 
-        Encounter.OnStart(function(id)
+        Encounter.OnStart(function(id, _, startDifficultyID)
             if id ~= encounterID then
                 return
             end
+            difficultyID = startDifficultyID or 0
             inside = true
             Sync()
         end)

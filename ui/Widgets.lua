@@ -141,6 +141,14 @@ local function CreateFlatButton(parent, variant, onClick)
     button:SetScript("OnDisable", function(self)
         self:SetAlpha(DISABLED_ALPHA)
     end)
+    -- SetEnabled must sync fade even when already disabled: Disable() does not re-fire
+    -- OnDisable, and FeatureSection forces alpha to 1 while a parent feature is off.
+    local rawSetEnabled = button.SetEnabled
+    function button:SetEnabled(enabled)
+        enabled = enabled == true
+        rawSetEnabled(self, enabled)
+        self:SetAlpha(enabled and 1 or DISABLED_ALPHA)
+    end
     button:SetScript("OnClick", onClick)
     return button
 end
@@ -501,6 +509,11 @@ function Widgets.CreateDropdown(parent, items, onSelect)
     function dropdown:SetEnabled(enabled)
         dropdownEnabled = enabled == true
         trigger:SetEnabled(dropdownEnabled)
+        -- Fade the outer frame; keep the trigger opaque so FeatureSection (or this call) does
+        -- not stack DISABLED_ALPHA on both. Callers that unlock without RefreshContentInteractive
+        -- still restore opacity here.
+        trigger:SetAlpha(1)
+        self:SetAlpha(dropdownEnabled and 1 or DISABLED_ALPHA)
         if not dropdownEnabled then
             CloseMenu()
         end

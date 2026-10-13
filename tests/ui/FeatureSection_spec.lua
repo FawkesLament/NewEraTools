@@ -208,6 +208,33 @@ describe("FeatureSection", function()
         assert.equals(1, child.alpha)
     end)
 
+    it("re-applies disabled fade for locked children when the feature turns back on", function()
+        local section = CreateSection({ enabled = false })
+        local locked = FakeFrame(section.content)
+        local nested = FakeFrame(locked)
+        -- Stays disabled while the feature is on (e.g. a feed-order slot waiting on an earlier one).
+        function locked:SetEnabled()
+            self.enabled = false
+        end
+        function locked:IsEnabled()
+            return false
+        end
+        function nested:SetEnabled(enabled)
+            self.enabled = enabled == true
+        end
+        section:SetContentHeight(40)
+        section:SetEnabled(false)
+        assert.equals(1, locked.alpha)
+        assert.equals(1, nested.alpha)
+
+        section:SetEnabled(true)
+        assert.is_false(locked.enabled)
+        assert.equals(0.4, locked.alpha)
+        -- Nested SetEnabled targets stay gated but opaque under the locked parent's fade.
+        assert.is_false(nested.enabled)
+        assert.equals(1, nested.alpha)
+    end)
+
     it("keeps configuration callbacks for enable changes only", function()
         local enabledChanges = {}
         local section = CreateSection({
