@@ -608,19 +608,49 @@ function Widgets.CreateExpandButton(parent, onClick)
     return button
 end
 
+---Creates a borderless square button showing a single glyph character.
+---@param parent Frame
+---@param glyph string
+---@param onClick fun(button: Button)
+---@return Button
+function Widgets.CreateGlyphButton(parent, glyph, onClick)
+    local button = CreateFrame("Button", nil, parent)
+    button:SetSize(Sizes.CLOSE_BUTTON, Sizes.CLOSE_BUTTON)
+    Widgets.AddHoverHighlight(button)
+
+    local label = Widgets.CreateLabel(button, Fonts.GLYPH, glyph)
+    label:SetPoint("CENTER")
+
+    function button:SetGlyph(text)
+        label:SetText(text)
+    end
+
+    button:SetScript("OnClick", onClick)
+    return button
+end
+
 ---Creates a borderless square button showing a close glyph.
 ---@param parent Frame
 ---@param onClick fun(button: Button)
 ---@return Button
 function Widgets.CreateCloseButton(parent, onClick)
-    local button = CreateFrame("Button", nil, parent)
-    button:SetSize(Sizes.CLOSE_BUTTON, Sizes.CLOSE_BUTTON)
-    Widgets.AddHoverHighlight(button)
+    return Widgets.CreateGlyphButton(parent, Assets.Glyphs.CLOSE, onClick)
+end
 
-    local glyph = Widgets.CreateLabel(button, Fonts.GLYPH, Assets.Glyphs.CLOSE)
-    glyph:SetPoint("CENTER")
+---@class CollapseButton: Button
+---@field SetCollapsed fun(self: CollapseButton, collapsed: boolean)  Shows − when expanded, + when collapsed.
 
-    button:SetScript("OnClick", onClick)
+---Creates a borderless square button that toggles between collapse (−) and expand (+) glyphs.
+---@param parent Frame
+---@param onClick fun(button: Button)
+---@return CollapseButton
+function Widgets.CreateCollapseButton(parent, onClick)
+    local button = Widgets.CreateGlyphButton(parent, Assets.Glyphs.COLLAPSE, onClick) --[[@as CollapseButton]]
+
+    function button:SetCollapsed(collapsed)
+        self:SetGlyph(collapsed and Assets.Glyphs.EXPAND or Assets.Glyphs.COLLAPSE)
+    end
+
     return button
 end
 

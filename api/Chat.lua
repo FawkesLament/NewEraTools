@@ -13,8 +13,18 @@ Chat.ReplaceIconAndGroupExpressions = C_ChatInfo.ReplaceIconAndGroupExpressions
 
 ---Calls `callback` with the raid leader message text (may be a secret value during encounters).
 ---@param callback fun(message: string)
+---@return fun()  Unsubscribe.
 function Chat.OnRaidLeaderMessage(callback)
-    ns.Api.GameEvents.Listen("CHAT_MSG_RAID_LEADER", function(message)
+    return ns.Api.GameEvents.Listen("CHAT_MSG_RAID_LEADER", function(message)
+        callback(message)
+    end)
+end
+
+---Calls `callback` with the raid warning message text (may be a secret value during encounters).
+---@param callback fun(message: string)
+---@return fun()  Unsubscribe.
+function Chat.OnRaidWarningMessage(callback)
+    return ns.Api.GameEvents.Listen("CHAT_MSG_RAID_WARNING", function(message)
         callback(message)
     end)
 end

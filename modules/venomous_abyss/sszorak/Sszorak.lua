@@ -20,6 +20,8 @@ local ENCOUNTER_ID = 3420
 local BOSS_X = 0.7
 -- How far each group stands above or below the boss.
 local GROUP_OFFSET = 0.25
+-- Path tip sits on each edge's outward bisector at this fraction of the apothem (1).
+local PATH_ARROW_RADIUS = 4 / 5
 -- Same range as the main panel scale control.
 local MAP_SCALE_MIN = 0.8
 local MAP_SCALE_MAX = 1.5
@@ -105,6 +107,8 @@ local DEFAULT_EDGE_MARKERS = {
 ---@field OnEdgeMarkersChanged fun(self: Sszorak)|nil  Defined by the UI file; called after the assignment changes.
 ---@field OnEncounterChanged fun(self: Sszorak)|nil  Defined by the UI file; called when this boss fight starts or ends.
 ---@field OnPositionsChanged fun(self: Sszorak)|nil  Defined by the UI file; called when the animated dots move.
+---@field OnMapAnimationStarted fun(self: Sszorak)|nil  Defined by the UI file; pull/test timeline began.
+---@field OnMapAnimationStopped fun(self: Sszorak)|nil  Defined by the UI file; pull/test timeline ended.
 ---@field OnRaidLeaderMessagesChanged fun(self: Sszorak)|nil  Defined by the UI file; saved callouts were cleared or appended.
 ---@field OnCalloutChanged fun(self: Sszorak)|nil  Defined by the UI file; on-screen callout text was shown or cleared.
 local Sszorak = ns.Modules.New("Sszorak", {
@@ -146,6 +150,7 @@ Sszorak.CALLOUT_MODE_NORMAL = CALLOUT_MODE_NORMAL
 Sszorak.CALLOUT_MODE_JAILBREAK = CALLOUT_MODE_JAILBREAK
 Sszorak.RAID_ROLE_MEMBER = RAID_ROLE_MEMBER
 Sszorak.RAID_ROLE_COMMANDER = RAID_ROLE_COMMANDER
+Sszorak.PATH_ARROW_RADIUS = PATH_ARROW_RADIUS
 
 -- Session-only: GetTime() when the current pull/test timeline started.
 local pullStartTime = nil
@@ -337,19 +342,40 @@ function Sszorak:GetArenaVertices()
     return vertices
 end
 
+---Midpoint of arena edge `edge` (1–ARENA_SIDES), including entrance and exit.
+---For a regular octagon with apothem 1 this point lies on the edge and on its outward bisector.
+---@param edge integer
+---@return ArenaPoint
+function Sszorak:GetEdgeMidpoint(edge)
+    assert(
+        type(edge) == "number" and edge >= 1 and edge <= ARENA_SIDES and edge % 1 == 0,
+        "Invalid edge: " .. tostring(edge)
+    )
+    local vertices = self:GetArenaVertices()
+    local from, to = vertices[edge], vertices[edge % ARENA_SIDES + 1]
+    return { x = (from.x + to.x) / 2, y = (from.y + to.y) / 2 }
+end
+
+---Path-arrow tip for `edge`: on the outward perpendicular bisector at PATH_ARROW_RADIUS from center.
+---@param edge integer
+---@return ArenaPoint
+function Sszorak:GetEdgePathPoint(edge)
+    local mid = self:GetEdgeMidpoint(edge)
+    return { x = mid.x * PATH_ARROW_RADIUS, y = mid.y * PATH_ARROW_RADIUS }
+end
+
 ---@return ArenaEdgeMarker[]  One per marked edge, in edge order.
 function Sszorak:GetEdgeMarkers()
-    local vertices = self:GetArenaVertices()
     local markers = {}
     for edge = 1, ARENA_SIDES do
         local marker = self.db.edgeMarkers[edge]
         if marker then
-            local from, to = vertices[edge], vertices[edge % ARENA_SIDES + 1]
+            local mid = self:GetEdgeMidpoint(edge)
             table.insert(markers, {
                 edge = edge,
                 marker = marker,
-                x = (from.x + to.x) / 2,
-                y = (from.y + to.y) / 2,
+                x = mid.x,
+                y = mid.y,
             })
         end
     end
@@ -487,6 +513,18 @@ function Sszorak:IsInEncounter()
     return fight ~= nil and fight:IsInside()
 end
 
+---Whether a pull or map-test timeline is running.
+---@return boolean
+function Sszorak:IsMapAnimating()
+    return pullStartTime ~= nil
+end
+
+---Whether the boss/group dots are at the entrance-side home station.
+---@return boolean
+function Sszorak:IsAtHomeStation()
+    return positionStation == STATION_HOME
+end
+
 ---Elapsed timeline seconds since the current pull/test started (scaled by animation rate).
 ---@return number
 function Sszorak:GetTimelineElapsed()
@@ -499,6 +537,18 @@ end
 local function NotifyPositionsChanged()
     if Sszorak.OnPositionsChanged then
         Sszorak:OnPositionsChanged()
+    end
+end
+
+local function NotifyMapAnimationStarted()
+    if Sszorak.OnMapAnimationStarted then
+        Sszorak:OnMapAnimationStarted()
+    end
+end
+
+local function NotifyMapAnimationStopped()
+    if Sszorak.OnMapAnimationStopped then
+        Sszorak:OnMapAnimationStopped()
     end
 end
 
@@ -556,6 +606,7 @@ function Sszorak:StartMapAnimation(options)
     pullStartTime = Timer.GetTime()
     positionStation = STATION_HOME
     NotifyPositionsChanged()
+    NotifyMapAnimationStarted()
     SchedulePositionTimeline(token)
 end
 
@@ -565,6 +616,7 @@ function Sszorak:StopMapAnimation()
     animRate = 1
     pullStartTime = nil
     SetPositionStation(STATION_HOME)
+    NotifyMapAnimationStopped()
 end
 
 local function NotifyEncounterChanged()

@@ -31,15 +31,20 @@ Sszorak.WARNING_TIME_WINDOW = WARNING_TIME_WINDOW
 Sszorak.WARNING_ANCHORS = WARNING_ANCHORS
 Sszorak.WARNING_ANCHOR_GROUP_SIZE = WARNING_ANCHOR_GROUP_SIZE
 
+---Outcome of resolving a saved raid-leader message (or a fixed callout like exit).
+---A non-nil resolve always has `hudMessage`. Modes return `nil` when nothing should be shown
+---(e.g. jailbreak has not identified a marker yet) — an empty table is not used for that.
+---`hudMessage` is not always derivable from `targetEdge` (normal keeps RL text; exit uses locale).
+---`targetEdge` is the map path tip (`nil` = no arrow); the marker on that edge is from the assignment.
 ---@class SszorakCalloutResolve
----@field hudMessage any|nil  Opaque / formatted text for SetFormattedText.
----@field targetEdge integer|nil  Jailbreak: arrow destination edge.
----@field targetMarker WorldMarker|nil
+---@field hudMessage any  Opaque / formatted text for SetFormattedText; required.
+---@field targetEdge integer|nil  Arena edge for the path overlay (e.g. exit or jailbreak destination).
 
 ---@class SszorakCalloutMode
 ---@field id string
----@field Resolve fun(self: SszorakCalloutMode, savedMessage: any, context: table|nil): SszorakCalloutResolve
+---@field Resolve fun(self: SszorakCalloutMode, savedMessage: any, context: table|nil): SszorakCalloutResolve|nil
 ---@field GetEdgeMacroBody fun(self: SszorakCalloutMode, edge: integer, assignment: table<integer, WorldMarker>): string
+---@field Listen fun(self: SszorakCalloutMode): fun()  Subscribe mode listeners; returns unsubscribe.
 
 ---@type table<string, SszorakCalloutMode>
 local modes = {}
@@ -56,12 +61,17 @@ local calloutToken = 0
 -- Session-only: last resolve payload (for map overlays); cleared with the HUD callout.
 ---@type SszorakCalloutResolve|nil
 local displayedResolve = nil
+-- True after OnEnable has asked the active mode to listen (mode switches rebind while true).
+local calloutModeListening = false
+---@type fun()|nil
+local stopCalloutModeListeners = nil
 
 ---@param mode SszorakCalloutMode
 function Sszorak.RegisterCalloutMode(mode)
     assert(type(mode) == "table" and type(mode.id) == "string", "Bad callout mode")
     assert(type(mode.Resolve) == "function", "Callout mode requires Resolve")
     assert(type(mode.GetEdgeMacroBody) == "function", "Callout mode requires GetEdgeMacroBody")
+    assert(type(mode.Listen) == "function", "Callout mode requires Listen")
     modes[mode.id] = mode
 end
 
@@ -87,6 +97,23 @@ function Sszorak:GetCalloutMode()
     return Sszorak.CALLOUT_MODE_NORMAL
 end
 
+local function StopCalloutModeListeners()
+    if not stopCalloutModeListeners then
+        return
+    end
+    local stop = stopCalloutModeListeners
+    stopCalloutModeListeners = nil
+    stop()
+end
+
+local function RestartCalloutModeListeners()
+    if not calloutModeListening then
+        return
+    end
+    StopCalloutModeListeners()
+    stopCalloutModeListeners = Sszorak:GetActiveCalloutMode():Listen() or function() end
+end
+
 ---@param modeId string
 function Sszorak:SetCalloutMode(modeId)
     assert(modes[modeId], "Unknown callout mode: " .. tostring(modeId))
@@ -94,8 +121,15 @@ function Sszorak:SetCalloutMode(modeId)
         return
     end
     self.db.calloutMode = modeId
+    RestartCalloutModeListeners()
     -- Macro bodies are mode-specific; sync is bound from SszorakMacros.lua.
     Sszorak.RequestMacroSync()
+end
+
+---Starts the active callout mode's listeners. Called from OnEnable; mode switches rebind while active.
+function Sszorak:ListenForCalloutMode()
+    calloutModeListening = true
+    RestartCalloutModeListeners()
 end
 
 local function NotifyRaidLeaderMessagesChanged()
@@ -123,14 +157,15 @@ local function ClearDisplayedCallout()
 end
 
 ---Shows a resolved callout until `duration` elapses or the callout is cleared.
----@param resolve SszorakCalloutResolve
+---No-ops when `resolve` is nil (mode: nothing to show). Non-nil resolves require `hudMessage`.
+---@param resolve SszorakCalloutResolve|nil
 ---@param duration number
 ---@param appendTimer boolean|nil
 local function ShowResolvedCallout(resolve, duration, appendTimer)
-    local message = resolve.hudMessage
-    if message == nil then
+    if resolve == nil then
         return
     end
+    local message = assert(resolve.hudMessage, "SszorakCalloutResolve requires hudMessage")
     calloutToken = calloutToken + 1
     local token = calloutToken
     displayedResolve = resolve
@@ -223,6 +258,17 @@ local function TrySaveRaidLeaderMessage(message)
     NotifyRaidLeaderMessagesChanged()
 end
 
+---Shared by every callout mode: raid-leader capture + encounter-warning matching. Returns unsubscribe.
+---@return fun()
+function Sszorak.SubscribeSharedCalloutListeners()
+    local stopWarning = Encounter.OnWarning(OnEncounterWarning)
+    local stopRaidLeader = Chat.OnRaidLeaderMessage(TrySaveRaidLeaderMessage)
+    return function()
+        stopWarning()
+        stopRaidLeader()
+    end
+end
+
 function Sszorak:BeginRaidLeaderCapture()
     raidLeaderCapture = true
     ClearRaidLeaderMessages()
@@ -260,16 +306,6 @@ end
 
 function Sszorak:ClearRaidLeaderMessages()
     ClearRaidLeaderMessages()
-end
-
----Matches ENCOUNTER_WARNING events to saved raid callouts during this boss fight. Called from OnEnable.
-function Sszorak:ListenForEncounterWarnings()
-    Encounter.OnWarning(OnEncounterWarning)
-end
-
----Registers the raid leader chat handler; capture runs only during a fight or map test. Called from OnEnable.
-function Sszorak:ListenForRaidLeaderMessages()
-    Chat.OnRaidLeaderMessage(TrySaveRaidLeaderMessage)
 end
 
 ---@return boolean  Whether raid leader messages are being captured.

@@ -38,7 +38,8 @@ Assets.STATUS_BAR_TEXTURE_DEFAULT = "flat"
 Assets.Templates = {
     BACKDROP = "BackdropTemplate",
     SCROLL_BAR = "MinimalScrollBar",
-    SECURE_ACTION_BUTTON = "SecureActionButtonTemplate",
+    -- SecureHandlerBaseTemplate allows WrapScript for one-shot clicks during combat lockdown.
+    SECURE_ACTION_BUTTON = "SecureActionButtonTemplate,SecureHandlerBaseTemplate",
 }
 
 Assets.Glyphs = {
@@ -46,6 +47,9 @@ Assets.Glyphs = {
     -- ASCII, since not every locale font has the Unicode minus sign.
     DECREASE = "-",
     INCREASE = "+",
+    -- Panel title-bar collapse / expand (same ASCII glyphs as the steppers).
+    COLLAPSE = "―",
+    EXPAND = "＋",
 }
 
 Assets.Colors = {
@@ -84,6 +88,8 @@ Assets.Icons = {
     WARNING = "Interface\\DialogFrame\\UI-Dialog-Icon-AlertNew",
     -- Standard placeholder when a spell ID has no resolvable icon.
     QUESTION_MARK = "Interface\\Icons\\INV_Misc_QuestionMark",
+    -- Minimap player arrow (points up); rotate with SetRotation for path tips.
+    PATH_ARROW = "Interface\\Minimap\\MinimapArrow",
 }
 
 local FONT_PREFIX = ns.ADDON_NAME .. "Font"
@@ -151,6 +157,10 @@ Assets.Sizes = {
     HEADER_HEIGHT = 48,
     HEADER_LOGO = 32,
     CLOSE_BUTTON = 22,
+    -- Compact title bar when a settings panel is collapsed (outer frame height).
+    COLLAPSED_PANEL_HEIGHT = 40,
+    -- Fits logo + title + Edit Layout + collapse/close without the scale chrome.
+    COLLAPSED_PANEL_WIDTH = 300,
     SLIDER_WIDTH = 96,
     SLIDER_HEIGHT = 16,
     SLIDER_TRACK = 2,

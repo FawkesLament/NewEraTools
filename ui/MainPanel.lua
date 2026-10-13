@@ -2,6 +2,7 @@ local _, ns = ...
 local L = ns.L
 local Assets = ns.Assets
 local Combat = ns.Api.Combat
+local CollapsiblePanel = ns.CollapsiblePanel
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
 local Util = ns.Util
@@ -223,26 +224,18 @@ local function ApplyScale(frame, scale)
     end
 end
 
-local function CreateScaleControl(frame, header, closeButton)
-    local value = Widgets.CreateLabel(header, Fonts.SMALL_MUTED)
+---Scale slider + label; parented to a chrome frame so the whole group can hide when collapsed.
+local function CreateScaleControl(frame, chrome, anchorRight)
+    local value = Widgets.CreateLabel(chrome, Fonts.SMALL_MUTED)
     value:SetWidth(Sizes.SLIDER_VALUE_WIDTH)
     value:SetJustifyH("RIGHT")
-    value:SetPoint("RIGHT", closeButton, "LEFT", -Spacing.MEDIUM, 0)
+    value:SetPoint("RIGHT", anchorRight, "LEFT", -Spacing.MEDIUM, 0)
 
-    local slider = Widgets.CreateSlider(header, SCALE_MIN, SCALE_MAX, SCALE_STEP, true)
+    local slider = Widgets.CreateSlider(chrome, SCALE_MIN, SCALE_MAX, SCALE_STEP, true)
     slider:SetPoint("RIGHT", value, "LEFT", -Spacing.MEDIUM, 0)
 
-    local label = Widgets.CreateLabel(header, Fonts.SMALL_MUTED, L.MAIN_PANEL_SCALE)
+    local label = Widgets.CreateLabel(chrome, Fonts.SMALL_MUTED, L.MAIN_PANEL_SCALE)
     label:SetPoint("RIGHT", slider, "LEFT", -Spacing.MEDIUM, 0)
-
-    local editLayout = Widgets.CreateButton(header, L.LAYOUT_EDIT, function()
-        if Combat.IsInCombat() or Combat.IsLockedDown() then
-            Util.Print(L.LAYOUT_EDIT_IN_COMBAT)
-            return
-        end
-        LayoutEditor.BeginGlobal()
-    end)
-    editLayout:SetPoint("RIGHT", label, "LEFT", -Spacing.MEDIUM, 0)
 
     local function ShowValue(scale)
         value:SetFormattedText(L.MAIN_PANEL_SCALE_PERCENT, math.floor(scale * 100 + 0.5))
@@ -296,28 +289,75 @@ local function CreateHeader(frame)
         frame:Hide()
     end)
     closeButton:SetPoint("RIGHT", -Spacing.MEDIUM, 0)
-    CreateScaleControl(frame, header, closeButton)
+
+    local collapseButton = Widgets.CreateCollapseButton(header, function()
+        frame.collapse:Toggle()
+    end)
+    collapseButton:SetPoint("RIGHT", closeButton, "LEFT", -Spacing.MEDIUM, 0)
+
+    -- Stays visible while collapsed so layout editing stays reachable from the title bar.
+    local editLayout = Widgets.CreateButton(header, L.LAYOUT_EDIT, function()
+        if Combat.IsInCombat() or Combat.IsLockedDown() then
+            Util.Print(L.LAYOUT_EDIT_IN_COMBAT)
+            return
+        end
+        LayoutEditor.BeginGlobal()
+    end)
+    editLayout:SetPoint("RIGHT", collapseButton, "LEFT", -Spacing.MEDIUM, 0)
+
+    local scaleChrome = CreateFrame("Frame", nil, header)
+    scaleChrome:SetPoint("TOPLEFT")
+    scaleChrome:SetPoint("BOTTOMRIGHT", editLayout, "BOTTOMLEFT", -Spacing.MEDIUM, 0)
+    CreateScaleControl(frame, scaleChrome, editLayout)
 
     local divider = CreateDivider(header)
     divider:SetHeight(Sizes.BORDER)
     divider:SetPoint("TOPLEFT", header, "BOTTOMLEFT")
     divider:SetPoint("TOPRIGHT", header, "BOTTOMRIGHT")
 
+    header.welcome = welcome
+    header.scaleChrome = scaleChrome
+    header.collapseButton = collapseButton
+    header.divider = divider
     return header
 end
 
-local function CreateSidebar(frame, header)
-    local sidebar = Widgets.CreateSurface(frame, Colors.SURFACE)
-    sidebar:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -Sizes.BORDER)
-    sidebar:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", Sizes.BORDER, Sizes.BORDER)
+local function CreateBody(frame, header)
+    local body = CreateFrame("Frame", nil, frame)
+    body:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -Sizes.BORDER)
+    body:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -Sizes.BORDER, Sizes.BORDER)
+
+    local sidebar = Widgets.CreateSurface(body, Colors.SURFACE)
+    sidebar:SetPoint("TOPLEFT")
+    sidebar:SetPoint("BOTTOMLEFT")
     sidebar:SetWidth(SIDEBAR_WIDTH)
 
-    local divider = CreateDivider(sidebar)
-    divider:SetWidth(Sizes.BORDER)
-    divider:SetPoint("TOPLEFT", sidebar, "TOPRIGHT")
-    divider:SetPoint("BOTTOMLEFT", sidebar, "BOTTOMRIGHT")
+    local sidebarDivider = CreateDivider(sidebar)
+    sidebarDivider:SetWidth(Sizes.BORDER)
+    sidebarDivider:SetPoint("TOPLEFT", sidebar, "TOPRIGHT")
+    sidebarDivider:SetPoint("BOTTOMLEFT", sidebar, "BOTTOMRIGHT")
 
-    return sidebar
+    local scrollFrame = CreateFrame("ScrollFrame", nil, body)
+    scrollFrame:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", Spacing.XLARGE, -Spacing.LARGE)
+    scrollFrame:SetPoint(
+        "BOTTOMRIGHT",
+        body,
+        "BOTTOMRIGHT",
+        -(Spacing.XLARGE + Sizes.SCROLL_BAR_WIDTH + Spacing.SMALL),
+        Spacing.LARGE
+    )
+
+    local scrollBar = CreateFrame("EventFrame", nil, body, Assets.Templates.SCROLL_BAR)
+    scrollBar:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", Spacing.MEDIUM, 0)
+    scrollBar:SetPoint("BOTTOMLEFT", scrollFrame, "BOTTOMRIGHT", Spacing.MEDIUM, 0)
+    -- Installs its own scroll and range handlers, so ours must be hooked afterwards.
+    ScrollUtil.InitScrollFrameWithScrollBar(scrollFrame, scrollBar)
+
+    local content = CreateFrame("Frame", nil, scrollFrame)
+    content:SetSize(1, 1)
+    scrollFrame:SetScrollChild(content)
+
+    return body, sidebar, scrollFrame, content
 end
 
 local function CreatePanel()
@@ -332,31 +372,10 @@ local function CreatePanel()
     frame:Hide()
 
     local header = CreateHeader(frame)
-
-    local sidebar = CreateSidebar(frame, header)
+    local body, sidebar, scrollFrame, content = CreateBody(frame, header)
     frame.sidebar = sidebar
     frame.navStack = Layout.Stack(sidebar, { paddingY = Spacing.MEDIUM })
-
-    local scrollFrame = CreateFrame("ScrollFrame", nil, frame)
-    scrollFrame:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", Spacing.XLARGE, -Spacing.LARGE)
-    scrollFrame:SetPoint(
-        "BOTTOMRIGHT",
-        frame,
-        "BOTTOMRIGHT",
-        -(Spacing.XLARGE + Sizes.SCROLL_BAR_WIDTH + Spacing.SMALL),
-        Spacing.LARGE
-    )
     frame.scrollFrame = scrollFrame
-
-    local scrollBar = CreateFrame("EventFrame", nil, frame, Assets.Templates.SCROLL_BAR)
-    scrollBar:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", Spacing.MEDIUM, 0)
-    scrollBar:SetPoint("BOTTOMLEFT", scrollFrame, "BOTTOMRIGHT", Spacing.MEDIUM, 0)
-    -- Installs its own scroll and range handlers, so ours must be hooked afterwards.
-    ScrollUtil.InitScrollFrameWithScrollBar(scrollFrame, scrollBar)
-
-    local content = CreateFrame("Frame", nil, scrollFrame)
-    content:SetSize(1, 1)
-    scrollFrame:SetScrollChild(content)
     frame.content = content
     frame.sectionStack = Layout.Stack(content, { spacing = SECTION_SPACING })
 
@@ -366,6 +385,19 @@ local function CreatePanel()
     scrollFrame:HookScript("OnVerticalScroll", function()
         UpdateSelection(frame)
     end)
+
+    frame.collapse = CollapsiblePanel.Attach({
+        frame = frame,
+        body = body,
+        header = header,
+        expandedChrome = { header.welcome, header.scaleChrome, header.divider },
+        collapsedWidth = Sizes.COLLAPSED_PANEL_WIDTH,
+        collapsedHeight = Sizes.COLLAPSED_PANEL_HEIGHT,
+        onExpandedChanged = function(expanded)
+            header.collapseButton:SetCollapsed(not expanded)
+        end,
+    })
+    header.collapseButton:SetCollapsed(false)
 
     frame.sections = {}
     frame.groupHeaders = {}

@@ -110,6 +110,39 @@ describe("Sszorak", function()
         end)
     end)
 
+    describe("GetEdgeMidpoint", function()
+        it("matches GetEdgeMarkers for markable edges", function()
+            for _, edgeMarker in ipairs(Sszorak:GetEdgeMarkers()) do
+                local mid = Sszorak:GetEdgeMidpoint(edgeMarker.edge)
+                AssertNear(edgeMarker.x, mid.x)
+                AssertNear(edgeMarker.y, mid.y)
+            end
+        end)
+
+        it("returns the exit wall midpoint", function()
+            local mid = Sszorak:GetEdgeMidpoint(Sszorak.EXIT_EDGE)
+            AssertNear(-1, mid.x)
+            AssertNear(0, mid.y)
+        end)
+
+        it("rejects out-of-range edges", function()
+            assert.is_false(pcall(Sszorak.GetEdgeMidpoint, Sszorak, 0))
+            assert.is_false(pcall(Sszorak.GetEdgeMidpoint, Sszorak, Sszorak.ARENA_SIDES + 1))
+        end)
+    end)
+
+    describe("GetEdgePathPoint", function()
+        it("lies on the edge bisector at PATH_ARROW_RADIUS from the center", function()
+            for edge = 1, Sszorak.ARENA_SIDES do
+                local mid = Sszorak:GetEdgeMidpoint(edge)
+                local tip = Sszorak:GetEdgePathPoint(edge)
+                AssertNear(mid.x * Sszorak.PATH_ARROW_RADIUS, tip.x)
+                AssertNear(mid.y * Sszorak.PATH_ARROW_RADIUS, tip.y)
+                AssertNear(Sszorak.PATH_ARROW_RADIUS, math.sqrt(tip.x * tip.x + tip.y * tip.y))
+            end
+        end)
+    end)
+
     describe("marker assignment", function()
         local function StartWithSaved(edgeMarkers)
             ns = Loader.Load()
@@ -502,6 +535,39 @@ describe("Sszorak", function()
             local x = BossX()
             Timer.Advance(Sszorak.POSITION_TIMELINE[#Sszorak.POSITION_TIMELINE].time)
             AssertNear(x, BossX())
+        end)
+
+        it("reports animating and home-station state for map click tracking", function()
+            assert.is_false(Sszorak:IsMapAnimating())
+            assert.is_true(Sszorak:IsAtHomeStation())
+
+            local started, stopped = 0, 0
+            Sszorak.OnMapAnimationStarted = function()
+                started = started + 1
+            end
+            Sszorak.OnMapAnimationStopped = function()
+                stopped = stopped + 1
+            end
+
+            Sszorak:StartMapAnimation()
+            assert.is_true(Sszorak:IsMapAnimating())
+            assert.is_true(Sszorak:IsAtHomeStation())
+            assert.equals(1, started)
+
+            Timer.Advance(Sszorak.POSITION_TIMELINE[1].time)
+            assert.is_false(Sszorak:IsAtHomeStation())
+
+            Timer.Advance(Sszorak.POSITION_TIMELINE[3].time - Sszorak.POSITION_TIMELINE[1].time)
+            -- Timeline[3] is center again; home is timeline[4] at 130s.
+            assert.is_false(Sszorak:IsAtHomeStation())
+            Timer.Advance(Sszorak.POSITION_TIMELINE[4].time - Sszorak.POSITION_TIMELINE[3].time)
+            assert.is_true(Sszorak:IsAtHomeStation())
+            assert.is_true(Sszorak:IsMapAnimating())
+
+            Sszorak:StopMapAnimation()
+            assert.is_false(Sszorak:IsMapAnimating())
+            assert.is_true(Sszorak:IsAtHomeStation())
+            assert.equals(1, stopped)
         end)
 
         it("starts on encounter pull and stops when the fight ends", function()

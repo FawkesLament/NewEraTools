@@ -13,7 +13,14 @@ local Sszorak = ns.Modules.Get("Sszorak")
 
 local WALL_THICKNESS = 2
 local GATE_THICKNESS = 4
+-- Callout path from "You" to the resolved edge (exit / jailbreak destination).
+local PATH_LINE_THICKNESS = 3
+local PATH_TIP_SIZE = 10
 local EDGE_MARKER_SIZE = 20
+-- Enlarged icon after a commander fires that edge's callout macro during a pull/test.
+local EDGE_MARKER_HIGHLIGHT_SIZE = 32
+-- After this many distinct edge macros fire in a home-station cycle, further clicks are locked.
+local EDGE_CLICK_LOCK_COUNT = 3
 -- Clickable frame around each marker; larger than the icon so markers are easy to hit.
 local EDGE_MARKER_HIT_SIZE = 56
 -- Gap between a wall and the near side of its marker icon.
@@ -22,6 +29,19 @@ local EDGE_MARKER_GAP = Spacing.MEDIUM
 local EDGE_MARKER_REACH = EDGE_MARKER_GAP + EDGE_MARKER_SIZE / 2 + EDGE_MARKER_HIT_SIZE / 2
 
 local HALO_ALPHA = 0.3
+
+-- Unprotected host: click-used flags can be cleared mid-combat when dots return home.
+-- Secure marker buttons read these via FrameRef + WrapScript (SetAttribute on protected frames is locked).
+---@type Frame|nil
+local edgeClickState
+
+local function GetEdgeClickState()
+    if not edgeClickState then
+        edgeClickState = CreateFrame("Frame")
+        edgeClickState:Hide()
+    end
+    return edgeClickState
+end
 
 local GATES = {
     [Sszorak.ENTRANCE_EDGE] = { color = Colors.ACCENT, text = L.SSZORAK_ENTRANCE },
@@ -55,14 +75,26 @@ local OTHER_GROUP_STYLE = { size = 8, color = Colors.TEXT_MUTED }
 ---@field edgeMarkerMacroName fun(edge: integer): string|nil  When set, markers are SecureActionButtons that run that macro.
 ---@field followsRotation boolean|nil  Turns with the map rotation setting.
 
+---@class ArenaPathMarker
+---@field edge integer  Fixed destination edge this path aims at.
+---@field from ArenaPoint
+---@field to ArenaPoint
+---@field line Line
+---@field tip Texture
+
 ---@class ArenaCanvas: Frame
 ---@field scale number
 ---@field rotated boolean
 ---@field placements function[]
 ---@field bossMarker ArenaPositionMarker|nil
 ---@field groupMarkers table<string, ArenaPositionMarker>|nil
+---@field pathMarkers table<integer, ArenaPathMarker>|nil
 ---@field edgeIcons table<integer, Texture>
 ---@field edgeButtons table<integer, Button>
+---@field edgeHighlighted table<integer, boolean>|nil
+
+-- Callout shows a path from "You" to this edge (nil = hidden).
+local pathArrowTargetEdge = nil
 
 ---@class ArenaRow
 ---@field row Frame
@@ -113,6 +145,11 @@ local function DrawEdge(canvas, from, to, thickness, color, sublevel)
     end)
 end
 
+local function CopyPoint(dest, src)
+    dest.x = src.x
+    dest.y = src.y
+end
+
 local function CreateDot(canvas, point, sublevel)
     local dot = canvas:CreateTexture(nil, "OVERLAY", nil, sublevel)
     AddPlacement(canvas, function()
@@ -130,6 +167,100 @@ local function PaintDot(dot, size, color, alpha)
     dot:SetSize(size, size)
     local r, g, b = Widgets.UnpackColor(color)
     dot:SetColorTexture(r, g, b, alpha)
+end
+
+local function PlacePathLine(canvas, line, from, to)
+    line:SetStartPoint("CENTER", canvas, ToCanvas(canvas, from.x, from.y))
+    line:SetEndPoint("CENTER", canvas, ToCanvas(canvas, to.x, to.y))
+end
+
+local function SetPathMarkerShown(marker, shown)
+    marker.line:SetShown(shown)
+    marker.tip:SetShown(shown)
+end
+
+---@param canvas ArenaCanvas
+---@param edge integer
+---@return ArenaPathMarker
+local function CreatePathMarker(canvas, edge)
+    local from = { x = 0, y = 0 }
+    local to = { x = 0, y = 0 }
+    -- Above walls so the path stays visible over the octagon.
+    local line = canvas:CreateLine(nil, "ARTWORK", nil, 2)
+    line:SetThickness(PATH_LINE_THICKNESS)
+    line:SetColorTexture(Widgets.UnpackColor(Colors.WARNING))
+    local tip = CreateDot(canvas, to, 2)
+    PaintDot(tip, PATH_TIP_SIZE, Colors.WARNING, 1)
+    AddPlacement(canvas, function()
+        PlacePathLine(canvas, line, from, to)
+    end)
+    ---@type ArenaPathMarker
+    local marker = {
+        edge = edge,
+        from = from,
+        to = to,
+        line = line,
+        tip = tip,
+    }
+    SetPathMarkerShown(marker, false)
+    return marker
+end
+
+---@param canvas ArenaCanvas
+local function CreatePathMarkers(canvas)
+    canvas.pathMarkers = {}
+    for edge = 1, Sszorak.ARENA_SIDES do
+        canvas.pathMarkers[edge] = CreatePathMarker(canvas, edge)
+    end
+end
+
+---@param edge integer
+---@return boolean
+local function ShouldShowPathMarker(edge)
+    return pathArrowTargetEdge == edge
+end
+
+---Updates one edge's path from the current "You" position. Hides when `shown` is false.
+---@param canvas ArenaCanvas
+---@param edge integer
+---@param shown boolean
+local function UpdateCanvasPathMarker(canvas, edge, shown)
+    local marker = canvas.pathMarkers and canvas.pathMarkers[edge]
+    if not marker then
+        return
+    end
+    if not shown then
+        SetPathMarkerShown(marker, false)
+        return
+    end
+    local from = Sszorak:GetGroupPosition(Sszorak:GetPlayerGroup())
+    local to = Sszorak:GetEdgePathPoint(edge)
+    local dx = to.x - from.x
+    local dy = to.y - from.y
+    if dx * dx + dy * dy < 1e-12 then
+        SetPathMarkerShown(marker, false)
+        return
+    end
+    CopyPoint(marker.from, from)
+    CopyPoint(marker.to, to)
+    SetPathMarkerShown(marker, true)
+    PlacePathLine(canvas, marker.line, marker.from, marker.to)
+end
+
+---@param canvas ArenaCanvas
+local function SyncCanvasPathMarkers(canvas)
+    if not canvas.pathMarkers then
+        return
+    end
+    for edge = 1, Sszorak.ARENA_SIDES do
+        UpdateCanvasPathMarker(canvas, edge, ShouldShowPathMarker(edge))
+    end
+end
+
+local function SyncAllPathMarkers()
+    for _, canvas in ipairs(canvases) do
+        SyncCanvasPathMarkers(canvas)
+    end
 end
 
 ---@class ArenaPositionMarker
@@ -207,6 +338,7 @@ local function CreatePositionMarkers(canvas)
         canvas.groupMarkers[group] = CreateMarker(canvas, Sszorak:GetGroupPosition(group))
     end
     StyleGroupMarkers(canvas)
+    CreatePathMarkers(canvas)
 end
 
 local function RefreshPositionMarkers(canvas)
@@ -214,7 +346,44 @@ local function RefreshPositionMarkers(canvas)
     for group, marker in pairs(canvas.groupMarkers) do
         MoveMarker(marker, Sszorak:GetGroupPosition(group))
     end
+    -- Keep path tips on "You" as the dots move during a callout.
+    SyncCanvasPathMarkers(canvas)
     PlaceAll(canvas)
+end
+
+---Secure pre-click: while armed, first press per edge runs the macro; lock all after N edges.
+local EDGE_MACRO_CLICK_WRAP = string.format(
+    [[
+    local state = self:GetFrameRef("clickState")
+    if not state:GetAttribute("armed") then
+        return
+    end
+    local used = tonumber(state:GetAttribute("usedCount")) or 0
+    if used >= %d then
+        return false
+    end
+    local id = self:GetAttribute("sszEdge")
+    local key = "c" .. id
+    if state:GetAttribute(key) then
+        return false
+    end
+    state:SetAttribute(key, true)
+    state:SetAttribute("usedCount", used + 1)
+]],
+    EDGE_CLICK_LOCK_COUNT
+)
+
+local function SetEdgeIconHighlighted(canvas, edge, highlighted)
+    local icon = canvas.edgeIcons[edge]
+    if not icon then
+        return
+    end
+    canvas.edgeHighlighted = canvas.edgeHighlighted or {}
+    canvas.edgeHighlighted[edge] = highlighted or nil
+    icon:SetSize(
+        highlighted and EDGE_MARKER_HIGHLIGHT_SIZE or EDGE_MARKER_SIZE,
+        highlighted and EDGE_MARKER_HIGHLIGHT_SIZE or EDGE_MARKER_SIZE
+    )
 end
 
 ---@param options ArenaCanvasOptions
@@ -229,6 +398,20 @@ local function CreateEdgeMarkerButton(canvas, edge, options)
         button:RegisterForClicks("AnyUp", "AnyDown")
         button:SetAttribute("type", "macro")
         button:SetAttribute("macro", macroName)
+        -- One-shot + highlight while a pull/test is armed (see SetEdgeClickTrackingArmed).
+        local clickState = GetEdgeClickState()
+        button:SetAttribute("sszEdge", edge)
+        button:SetFrameRef("clickState", clickState)
+        button:WrapScript(button, "OnClick", EDGE_MACRO_CLICK_WRAP)
+        button:HookScript("PostClick", function()
+            if not clickState:GetAttribute("armed") then
+                return
+            end
+            if not clickState:GetAttribute("c" .. edge) then
+                return
+            end
+            SetEdgeIconHighlighted(canvas, edge, true)
+        end)
     else
         button:RegisterForClicks("LeftButtonUp")
         button:SetScript("OnClick", function(self)
@@ -382,8 +565,10 @@ end
 function SszorakMapUI.ApplyRotation(arena)
     local canvas = arena.canvas
     canvas.rotated = Sszorak:IsMapRotated()
-    PlaceAll(canvas)
     StyleGroupMarkers(canvas)
+    -- Player group follows rotation; rebuild paths from the new "You" dot.
+    SyncCanvasPathMarkers(canvas)
+    PlaceAll(canvas)
     SszorakMapUI.LayoutArenaRow(arena)
 end
 
@@ -399,6 +584,14 @@ function SszorakMapUI.RefreshPositionMarkers()
             RefreshPositionMarkers(canvas)
         end
     end
+end
+
+---Shows a path line from the player's group ("You") to `targetEdge` with a tip dot, or hides it when nil.
+---Only canvases with position markers are updated.
+---@param targetEdge integer|nil
+function SszorakMapUI.SetPathArrow(targetEdge)
+    pathArrowTargetEdge = targetEdge
+    SyncAllPathMarkers()
 end
 
 ---Binds or clears SecureActionButton macros on floating-map edge markers.
@@ -423,4 +616,40 @@ function SszorakMapUI.SetEdgeMacroClicksEnabled(enabled)
         end
     end
     return true
+end
+
+local function ClearEdgeClickUsedFlags()
+    local clickState = GetEdgeClickState()
+    for _, edge in ipairs(Sszorak.MARKABLE_EDGES) do
+        clickState:SetAttribute("c" .. edge, nil)
+    end
+    clickState:SetAttribute("usedCount", nil)
+end
+
+local function ClearEdgeClickHighlights()
+    for _, canvas in ipairs(canvases) do
+        if canvas.edgeHighlighted then
+            for edge in pairs(canvas.edgeHighlighted) do
+                SetEdgeIconHighlighted(canvas, edge, false)
+            end
+        end
+    end
+end
+
+---Clears per-edge "already clicked" flags and icon highlights (safe during combat lockdown).
+function SszorakMapUI.ResetEdgeClickHighlights()
+    ClearEdgeClickUsedFlags()
+    ClearEdgeClickHighlights()
+end
+
+---Arms one-shot macro clicks for commander pull/test. Unprotected attributes; safe in combat.
+---@param armed boolean
+function SszorakMapUI.SetEdgeClickTrackingArmed(armed)
+    local clickState = GetEdgeClickState()
+    if armed then
+        clickState:SetAttribute("armed", true)
+    else
+        clickState:SetAttribute("armed", nil)
+        SszorakMapUI.ResetEdgeClickHighlights()
+    end
 end

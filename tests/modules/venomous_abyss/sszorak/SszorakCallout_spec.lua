@@ -10,14 +10,17 @@ describe("SszorakCallout", function()
     end)
 
     describe("callout mode", function()
-        local function RegisterTestJailbreak()
+        local function RegisterTestJailbreak(resolveFn)
             Sszorak.RegisterCalloutMode({
                 id = Sszorak.CALLOUT_MODE_JAILBREAK,
-                Resolve = function(_self, savedMessage, _context)
+                Resolve = resolveFn or function(_self, savedMessage, _context)
                     return { hudMessage = savedMessage }
                 end,
                 GetEdgeMacroBody = function(_self, _edge, _assignment)
                     return "/raid {rt1}"
+                end,
+                Listen = function()
+                    return Sszorak.SubscribeSharedCalloutListeners()
                 end,
             })
         end
@@ -68,6 +71,18 @@ describe("SszorakCallout", function()
             assert.is_false(pcall(Sszorak.SetCalloutMode, Sszorak, "banana"))
             assert.equals(Sszorak.CALLOUT_MODE_NORMAL, Sszorak:GetCalloutMode())
         end)
+
+        it("requires Listen on registered modes", function()
+            assert.is_false(pcall(Sszorak.RegisterCalloutMode, {
+                id = "broken",
+                Resolve = function()
+                    return { hudMessage = "x" }
+                end,
+                GetEdgeMacroBody = function()
+                    return "/raid {rt1}"
+                end,
+            }))
+        end)
     end)
 
     describe("raid leader messages", function()
@@ -91,7 +106,7 @@ describe("SszorakCallout", function()
             Chat = ns.Api.Chat
             Encounter = ns.Api.Encounter
             Timer = ns.Api.Timer
-            Sszorak:ListenForRaidLeaderMessages()
+            Sszorak:ListenForCalloutMode()
             Sszorak:ListenForEncounter()
         end)
 
@@ -200,9 +215,8 @@ describe("SszorakCallout", function()
             Chat = ns.Api.Chat
             Encounter = ns.Api.Encounter
             Timer = ns.Api.Timer
-            Sszorak:ListenForRaidLeaderMessages()
+            Sszorak:ListenForCalloutMode()
             Sszorak:ListenForEncounter()
-            Sszorak:ListenForEncounterWarnings()
         end)
 
         it("ignores warnings outside the boss fight", function()
@@ -304,6 +318,31 @@ describe("SszorakCallout", function()
                 { point = "TOP", relativePoint = "CENTER", x = 12, y = -40 },
                 Sszorak:GetCalloutPosition()
             )
+        end)
+
+        it("skips the HUD when Resolve returns nil", function()
+            Sszorak.RegisterCalloutMode({
+                id = Sszorak.CALLOUT_MODE_JAILBREAK,
+                Resolve = function()
+                    return nil
+                end,
+                GetEdgeMacroBody = function()
+                    return "/raid {rt1}"
+                end,
+                Listen = function()
+                    return Sszorak.SubscribeSharedCalloutListeners()
+                end,
+            })
+            Sszorak:SetCalloutMode(Sszorak.CALLOUT_MODE_JAILBREAK)
+            Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
+            Chat.FireRaidLeader("{rt1}")
+            Timer.Advance(Sszorak.WARNING_ANCHORS[1])
+            Encounter.FireWarning({
+                severity = Sszorak.WARNING_SEVERITY,
+                duration = Sszorak.WARNING_DURATION,
+            })
+            assert.equals(nil, Sszorak:GetDisplayedCallout())
+            assert.equals(nil, Sszorak:GetDisplayedCalloutResolve())
         end)
     end)
 end)
