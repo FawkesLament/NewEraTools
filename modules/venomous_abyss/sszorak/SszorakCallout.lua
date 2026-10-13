@@ -17,7 +17,6 @@ local WARNING_SEVERITY = 2
 local WARNING_DURATION = 3.5
 local WARNING_DURATION_TOLERANCE = 0.1
 local WARNING_TIME_WINDOW = 1.2
-local WARNING_ANCHORS = { 32, 34, 79, 81, 159, 161, 206, 208, 285.5, 287.5, 332.5, 334.5 }
 -- Anchors are processed in groups of this size; the index within the group selects a saved message.
 local WARNING_ANCHOR_GROUP_SIZE = 4
 
@@ -28,7 +27,6 @@ Sszorak.WARNING_SEVERITY = WARNING_SEVERITY
 Sszorak.WARNING_DURATION = WARNING_DURATION
 Sszorak.WARNING_DURATION_TOLERANCE = WARNING_DURATION_TOLERANCE
 Sszorak.WARNING_TIME_WINDOW = WARNING_TIME_WINDOW
-Sszorak.WARNING_ANCHORS = WARNING_ANCHORS
 Sszorak.WARNING_ANCHOR_GROUP_SIZE = WARNING_ANCHOR_GROUP_SIZE
 
 ---Outcome of resolving a saved raid-leader message (or a fixed callout like exit).
@@ -208,7 +206,7 @@ end
 local function FindMatchingAnchorIndex(elapsed)
     local bestIndex
     local bestDistance
-    for index, anchor in ipairs(WARNING_ANCHORS) do
+    for index, anchor in ipairs(Sszorak.ACTIVE_SCHEDULE.warningAnchors) do
         local distance = math.abs(elapsed - anchor)
         if distance <= WARNING_TIME_WINDOW and (not bestDistance or distance < bestDistance) then
             bestIndex = index

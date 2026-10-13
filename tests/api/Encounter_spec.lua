@@ -78,4 +78,14 @@ describe("Encounter.WhileIn", function()
         Encounter.FireEnd(10, "Boss", 16, 20, 1)
         assert.is_false(handle:IsActive())
     end)
+
+    it("passes ENCOUNTER_START difficultyID to setup", function()
+        local seen
+        Encounter.WhileIn(10, function(difficultyID)
+            seen = difficultyID
+            return function() end
+        end)
+        Encounter.FireStart(10, "Boss", 15, 20)
+        assert.equals(15, seen)
+    end)
 end)

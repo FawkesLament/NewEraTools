@@ -92,7 +92,7 @@ describe("SszorakCallout", function()
 
         local function HomeReturnTime(index)
             local count = 0
-            for _, entry in ipairs(Sszorak.POSITION_TIMELINE) do
+            for _, entry in ipairs(Sszorak.ACTIVE_SCHEDULE.positionTimeline) do
                 if entry.station == 1 then
                     count = count + 1
                     if count == index then
@@ -177,7 +177,7 @@ describe("SszorakCallout", function()
             Chat.FireRaidLeader("second")
             Chat.FireRaidLeader("third")
             local rate = Sszorak.ANIM_PREVIEW_RATE
-            local timeline = Sszorak.POSITION_TIMELINE
+            local timeline = Sszorak.ACTIVE_SCHEDULE.positionTimeline
 
             Timer.Advance(timeline[1].time / rate)
             assert.equals("first", Sszorak:GetDisplayedCallout())
@@ -194,7 +194,7 @@ describe("SszorakCallout", function()
             Chat.FireRaidLeader("first")
             Chat.FireRaidLeader("second")
             Chat.FireRaidLeader("third")
-            Timer.Advance(Sszorak.POSITION_TIMELINE[1].time)
+            Timer.Advance(Sszorak.ACTIVE_SCHEDULE.positionTimeline[1].time)
             assert.equals(nil, Sszorak:GetDisplayedCallout())
         end)
     end)
@@ -227,7 +227,7 @@ describe("SszorakCallout", function()
         it("ignores warnings that fail severity or duration checks", function()
             Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
             Chat.FireRaidLeader("one")
-            Timer.Advance(Sszorak.WARNING_ANCHORS[1])
+            Timer.Advance(Sszorak.ACTIVE_SCHEDULE.warningAnchors[1])
             Encounter.FireWarning({ severity = 1, duration = Sszorak.WARNING_DURATION })
             assert.equals(nil, Sszorak:GetDisplayedCallout())
             Encounter.FireWarning({
@@ -240,7 +240,7 @@ describe("SszorakCallout", function()
         it("ignores warnings outside every anchor window", function()
             Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
             Chat.FireRaidLeader("one")
-            Timer.Advance(Sszorak.WARNING_ANCHORS[1] + Sszorak.WARNING_TIME_WINDOW + 0.01)
+            Timer.Advance(Sszorak.ACTIVE_SCHEDULE.warningAnchors[1] + Sszorak.WARNING_TIME_WINDOW + 0.01)
             FireValidWarning()
             assert.equals(nil, Sszorak:GetDisplayedCallout())
         end)
@@ -250,19 +250,19 @@ describe("SszorakCallout", function()
             Chat.FireRaidLeader("first")
             Chat.FireRaidLeader("second")
             Chat.FireRaidLeader("third")
-            Timer.Advance(Sszorak.WARNING_ANCHORS[2])
+            Timer.Advance(Sszorak.ACTIVE_SCHEDULE.warningAnchors[2])
             FireValidWarning()
             assert.equals("second", Sszorak:GetDisplayedCallout())
         end)
 
         it("shows the exit callout for the 4th warning in each anchor group", function()
             Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
-            Timer.Advance(Sszorak.WARNING_ANCHORS[4])
+            Timer.Advance(Sszorak.ACTIVE_SCHEDULE.warningAnchors[4])
             FireValidWarning()
             assert.equals(ns.L.SSZORAK_EXIT, Sszorak:GetDisplayedCallout())
             assert.equals(Sszorak.EXIT_EDGE, Sszorak:GetDisplayedCalloutResolve().targetEdge)
 
-            Timer.Advance(Sszorak.WARNING_ANCHORS[8] - Sszorak.WARNING_ANCHORS[4])
+            Timer.Advance(Sszorak.ACTIVE_SCHEDULE.warningAnchors[8] - Sszorak.ACTIVE_SCHEDULE.warningAnchors[4])
             FireValidWarning()
             assert.equals(ns.L.SSZORAK_EXIT, Sszorak:GetDisplayedCallout())
         end)
@@ -270,7 +270,7 @@ describe("SszorakCallout", function()
         it("expands raid-target chat tags to texture escapes for display", function()
             Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
             Chat.FireRaidLeader("{rt1}")
-            Timer.Advance(Sszorak.WARNING_ANCHORS[1])
+            Timer.Advance(Sszorak.ACTIVE_SCHEDULE.warningAnchors[1])
             FireValidWarning()
             assert.equals(
                 "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t",
@@ -290,7 +290,7 @@ describe("SszorakCallout", function()
         it("accepts duration within tolerance and clears after the encounter callout duration", function()
             Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
             Chat.FireRaidLeader("first")
-            Timer.Advance(Sszorak.WARNING_ANCHORS[1])
+            Timer.Advance(Sszorak.ACTIVE_SCHEDULE.warningAnchors[1])
             Encounter.FireWarning({
                 severity = Sszorak.WARNING_SEVERITY,
                 duration = Sszorak.WARNING_DURATION - 0.05,
@@ -305,7 +305,7 @@ describe("SszorakCallout", function()
         it("clears the displayed callout when the fight ends", function()
             Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
             Chat.FireRaidLeader("first")
-            Timer.Advance(Sszorak.WARNING_ANCHORS[1])
+            Timer.Advance(Sszorak.ACTIVE_SCHEDULE.warningAnchors[1])
             FireValidWarning()
             assert.equals("first", Sszorak:GetDisplayedCallout())
             Encounter.FireEnd(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20, 1)
@@ -336,7 +336,7 @@ describe("SszorakCallout", function()
             Sszorak:SetCalloutMode(Sszorak.CALLOUT_MODE_JAILBREAK)
             Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
             Chat.FireRaidLeader("{rt1}")
-            Timer.Advance(Sszorak.WARNING_ANCHORS[1])
+            Timer.Advance(Sszorak.ACTIVE_SCHEDULE.warningAnchors[1])
             Encounter.FireWarning({
                 severity = Sszorak.WARNING_SEVERITY,
                 duration = Sszorak.WARNING_DURATION,

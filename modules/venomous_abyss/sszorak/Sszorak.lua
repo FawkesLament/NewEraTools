@@ -5,6 +5,7 @@ local AddonMessage = ns.Api.AddonMessage
 local Encounter = ns.Api.Encounter
 local Group = ns.Api.Group
 local Timer = ns.Api.Timer
+local Timeline = ns.SszorakTimeline
 
 -- Addon message prefixes are limited to 16 characters.
 local MESSAGE_PREFIX = "NewEraToolsSsz"
@@ -28,29 +29,13 @@ local MAP_SCALE_MAX = 1.5
 local MAP_SCALE_STEP = 0.05
 -- Preview plays the same timeline this many times faster than a real pull.
 local ANIM_PREVIEW_RATE = 10
--- Horizontal stations: home (entrance / left side), center, far (exit / right side).
-local STATION_HOME = 1
-local STATION_CENTER = 2
-local STATION_FAR = 3
+local STATION_HOME = Timeline.STATION_HOME
+local STATION_CENTER = Timeline.STATION_CENTER
+local STATION_FAR = Timeline.STATION_FAR
 local STATION_X = {
     [STATION_HOME] = BOSS_X,
     [STATION_CENTER] = 0,
     [STATION_FAR] = -BOSS_X,
-}
--- Elapsed encounter seconds when dots jump to each station (starts on home at 0; frozen after the last entry).
-local POSITION_TIMELINE = {
-    { time = 38.7, station = STATION_CENTER },
-    { time = 50, station = STATION_FAR },
-    { time = 75.3, station = STATION_CENTER },
-    { time = 130, station = STATION_HOME },
-    { time = 165.8, station = STATION_CENTER },
-    { time = 177, station = STATION_FAR },
-    { time = 212.8, station = STATION_CENTER },
-    { time = 257.1, station = STATION_HOME },
-    { time = 292.8, station = STATION_CENTER },
-    { time = 304.1, station = STATION_FAR },
-    { time = 339.8, station = STATION_CENTER },
-    { time = 384.1, station = STATION_HOME },
 }
 -- Edges that carry world markers (everything except entrance and exit).
 local MARKABLE_EDGES = { 2, 3, 4, 6, 7, 8 }
@@ -140,7 +125,6 @@ Sszorak.ENCOUNTER_ID = ENCOUNTER_ID
 Sszorak.MAP_SCALE_MIN = MAP_SCALE_MIN
 Sszorak.MAP_SCALE_MAX = MAP_SCALE_MAX
 Sszorak.MAP_SCALE_STEP = MAP_SCALE_STEP
-Sszorak.POSITION_TIMELINE = POSITION_TIMELINE
 Sszorak.ANIM_PREVIEW_RATE = ANIM_PREVIEW_RATE
 Sszorak.STATION_HOME = STATION_HOME
 Sszorak.STATION_CENTER = STATION_CENTER
@@ -151,6 +135,14 @@ Sszorak.CALLOUT_MODE_JAILBREAK = CALLOUT_MODE_JAILBREAK
 Sszorak.RAID_ROLE_MEMBER = RAID_ROLE_MEMBER
 Sszorak.RAID_ROLE_COMMANDER = RAID_ROLE_COMMANDER
 Sszorak.PATH_ARROW_RADIUS = PATH_ARROW_RADIUS
+
+-- Session-only: schedule for the current pull / map test (heroic when difficulty is unknown).
+---@type SszorakTimelineSchedule
+Sszorak.ACTIVE_SCHEDULE = Timeline.GetSchedule()
+
+local function SetActiveSchedule(difficultyID)
+    Sszorak.ACTIVE_SCHEDULE = Timeline.GetSchedule(difficultyID)
+end
 
 -- Session-only: GetTime() when the current pull/test timeline started.
 local pullStartTime = nil
@@ -574,7 +566,7 @@ end
 
 -- Schedules every timeline jump. `token` must still match `animToken` when each fires.
 local function SchedulePositionTimeline(token)
-    for _, entry in ipairs(POSITION_TIMELINE) do
+    for _, entry in ipairs(Sszorak.ACTIVE_SCHEDULE.positionTimeline) do
         Timer.After(entry.time / animRate, function()
             if token ~= animToken then
                 return
@@ -586,6 +578,7 @@ end
 
 ---Starts map test mode: fast timeline plus raid leader capture until `EndMapTest`.
 function Sszorak:StartMapTest()
+    SetActiveSchedule(nil)
     calloutHooks.beginCapture()
     self:StartMapAnimation({ rate = ANIM_PREVIEW_RATE })
 end
@@ -596,7 +589,7 @@ function Sszorak:EndMapTest()
     self:StopMapAnimation()
 end
 
----Starts (or restarts) the map animation from home and follows the fixed position timeline.
+---Starts (or restarts) the map animation from home and follows `ACTIVE_SCHEDULE`.
 ---@param options MapAnimationOptions|nil
 function Sszorak:StartMapAnimation(options)
     options = options or {}
@@ -628,8 +621,9 @@ end
 ---Starts watching for this boss fight. Called from OnEnable.
 ---Map test mode (`StartMapTest`) is separate and does not use this scope.
 function Sszorak:ListenForEncounter()
-    fight = Encounter.WhileIn(ENCOUNTER_ID, function()
+    fight = Encounter.WhileIn(ENCOUNTER_ID, function(difficultyID)
         -- Always restart from pull, even if preview was already animating.
+        SetActiveSchedule(difficultyID)
         calloutHooks.beginCapture()
         Sszorak:StartMapAnimation()
         NotifyEncounterChanged()

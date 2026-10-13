@@ -33,6 +33,11 @@ ns.FeatureSection = FeatureSection
 
 ---Disables clickable descendants without stacking another fade on top of a dimmed parent.
 ---Nested FeatureSections are gated via SetParentFeatureEnabled so their own On/Off is preserved.
+---
+---Alpha policy: while the feature is off, interactive children are forced opaque so only
+---`content`'s dim shows. While on, enabled children are opaque; children that stay disabled
+---(custom SetEnabled locks) get DISABLED_ALPHA. Walking into a locked child uses `enabled=false`
+---so nested SetEnabled targets (e.g. dropdown triggers) stay gated but opaque under that fade.
 ---@param frame Frame
 ---@param enabled boolean
 function FeatureSection.SetSubtreeInteractive(frame, enabled)
@@ -42,13 +47,16 @@ function FeatureSection.SetSubtreeInteractive(frame, enabled)
             child:SetParentFeatureEnabled(enabled)
         elseif child.SetEnabled then
             child:SetEnabled(enabled)
-            -- When the feature is off, keep children opaque so only the parent dim shows.
-            -- When on, restore opacity for enabled widgets but leave intentionally disabled
-            -- ones (e.g. locked feed-order dropdowns) on their own disabled fade.
-            if not enabled or not child.IsEnabled or child:IsEnabled() then
+            if not enabled then
                 child:SetAlpha(1)
+                FeatureSection.SetSubtreeInteractive(child, false)
+            elseif not child.IsEnabled or child:IsEnabled() then
+                child:SetAlpha(1)
+                FeatureSection.SetSubtreeInteractive(child, true)
+            else
+                child:SetAlpha(DISABLED_ALPHA)
+                FeatureSection.SetSubtreeInteractive(child, false)
             end
-            FeatureSection.SetSubtreeInteractive(child, enabled)
         else
             FeatureSection.SetSubtreeInteractive(child, enabled)
         end

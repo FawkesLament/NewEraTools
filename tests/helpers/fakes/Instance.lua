@@ -2,6 +2,8 @@ return function()
     local Instance = {
         DIFFICULTY_MYTHIC_KEYSTONE = 8,
         DIFFICULTY_MYTHIC_DUNGEON = 23,
+        DIFFICULTY_HEROIC_RAID = 15,
+        DIFFICULTY_MYTHIC_RAID = 16,
         info = {
             name = "",
             instanceType = "none",

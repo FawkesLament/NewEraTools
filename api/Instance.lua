@@ -6,9 +6,14 @@ ns.Api.Instance = Instance
 -- Mythic Keystone / Mythic (M0) dungeon difficulties.
 local DIFFICULTY_MYTHIC_KEYSTONE = 8
 local DIFFICULTY_MYTHIC_DUNGEON = 23
+-- Primary raid difficulties (ENCOUNTER_START / GetInstanceInfo).
+local DIFFICULTY_HEROIC_RAID = 15
+local DIFFICULTY_MYTHIC_RAID = 16
 
 Instance.DIFFICULTY_MYTHIC_KEYSTONE = DIFFICULTY_MYTHIC_KEYSTONE
 Instance.DIFFICULTY_MYTHIC_DUNGEON = DIFFICULTY_MYTHIC_DUNGEON
+Instance.DIFFICULTY_HEROIC_RAID = DIFFICULTY_HEROIC_RAID
+Instance.DIFFICULTY_MYTHIC_RAID = DIFFICULTY_MYTHIC_RAID
 
 ---@class InstanceInfo
 ---@field name string
