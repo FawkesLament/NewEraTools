@@ -421,6 +421,20 @@ describe("Sszorak", function()
             return Sszorak:GetBossPosition().x
         end
 
+        local function AdvanceTimeline(fromTime, toTime)
+            Timer.Advance(toTime - fromTime)
+        end
+
+        local function ExpectedX(station, homeX)
+            if station == 1 then
+                return homeX
+            end
+            if station == 2 then
+                return 0
+            end
+            return -homeX
+        end
+
         before_each(function()
             Timer = ns.Api.Timer
             moves = 0
@@ -435,28 +449,28 @@ describe("Sszorak", function()
             AssertNear(BossX(), Sszorak:GetGroupPosition("B").x)
         end)
 
-        it("moves through center, the far side, center again, then home, and loops", function()
+        it("follows the fixed position timeline and freezes on the last station", function()
             local homeX = BossX()
             Sszorak:StartMapAnimation()
             assert.equals(1, moves)
             AssertNear(homeX, BossX())
 
-            Timer.Advance(Sszorak.ANIM_T1)
-            AssertNear(0, BossX())
-            Timer.Advance(Sszorak.ANIM_T2 - Sszorak.ANIM_T1)
-            AssertNear(-homeX, BossX())
-            Timer.Advance(Sszorak.ANIM_T3 - Sszorak.ANIM_T2)
-            AssertNear(0, BossX())
-            Timer.Advance(Sszorak.ANIM_T4 - Sszorak.ANIM_T3)
-            AssertNear(homeX, BossX())
+            local elapsed = 0
+            for _, entry in ipairs(Sszorak.POSITION_TIMELINE) do
+                AdvanceTimeline(elapsed, entry.time)
+                elapsed = entry.time
+                AssertNear(ExpectedX(entry.station, homeX), BossX())
+            end
 
-            Timer.Advance(Sszorak.ANIM_T1)
-            AssertNear(0, BossX())
+            local frozenX = BossX()
+            AdvanceTimeline(elapsed, elapsed + 600)
+            AssertNear(frozenX, BossX())
+            assert.is_true(frozenX > 0.5)
         end)
 
         it("keeps group Y offsets while sharing the animated X", function()
             Sszorak:StartMapAnimation()
-            Timer.Advance(Sszorak.ANIM_T1)
+            Timer.Advance(Sszorak.POSITION_TIMELINE[1].time)
             local a = Sszorak:GetGroupPosition("A")
             local b = Sszorak:GetGroupPosition("B")
             AssertNear(0, a.x)
@@ -466,25 +480,27 @@ describe("Sszorak", function()
 
         it("resets when started again, ignoring the previous timer", function()
             Sszorak:StartMapAnimation()
-            Timer.Advance(Sszorak.ANIM_T1)
+            Timer.Advance(Sszorak.POSITION_TIMELINE[1].time)
             AssertNear(0, BossX())
             Sszorak:StartMapAnimation()
             local homeX = BossX()
             assert.is_true(homeX > 0.5)
-            -- The old t2 from the first run would have moved to the far side; it must not.
-            Timer.Advance(Sszorak.ANIM_T2 - Sszorak.ANIM_T1)
+            -- The old second jump from the first run must not fire.
+            local firstJump = Sszorak.POSITION_TIMELINE[1].time
+            local secondJump = Sszorak.POSITION_TIMELINE[2].time
+            Timer.Advance(secondJump - firstJump)
             AssertNear(homeX, BossX())
-            Timer.Advance(Sszorak.ANIM_T1 - (Sszorak.ANIM_T2 - Sszorak.ANIM_T1))
+            Timer.Advance(firstJump - (secondJump - firstJump))
             AssertNear(0, BossX())
         end)
 
         it("stops and snaps home", function()
             Sszorak:StartMapAnimation()
-            Timer.Advance(Sszorak.ANIM_T2)
+            Timer.Advance(Sszorak.POSITION_TIMELINE[2].time)
             Sszorak:StopMapAnimation()
             assert.is_true(BossX() > 0.5)
             local x = BossX()
-            Timer.Advance(Sszorak.ANIM_T4)
+            Timer.Advance(Sszorak.POSITION_TIMELINE[#Sszorak.POSITION_TIMELINE].time)
             AssertNear(x, BossX())
         end)
 
@@ -492,13 +508,12 @@ describe("Sszorak", function()
             local Encounter = ns.Api.Encounter
             Sszorak:ListenForEncounter()
             Sszorak:StartMapAnimation()
-            Timer.Advance(Sszorak.ANIM_T1)
+            Timer.Advance(Sszorak.POSITION_TIMELINE[1].time)
             AssertNear(0, BossX())
 
             Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
             assert.is_true(BossX() > 0.5)
-            -- Pull timeline starts at -3, so t1 is three seconds later than a plain cycle.
-            Timer.Advance(Sszorak.ANIM_T1 - Sszorak.ANIM_ENCOUNTER_START_TIME - 0.001)
+            Timer.Advance(Sszorak.POSITION_TIMELINE[1].time - 0.001)
             assert.is_true(BossX() > 0.5)
             Timer.Advance(0.001)
             AssertNear(0, BossX())
@@ -506,209 +521,26 @@ describe("Sszorak", function()
             Encounter.FireEnd(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20, 1)
             assert.is_true(BossX() > 0.5)
             local x = BossX()
-            Timer.Advance(Sszorak.ANIM_T1 - Sszorak.ANIM_ENCOUNTER_START_TIME)
+            Timer.Advance(Sszorak.POSITION_TIMELINE[1].time)
             AssertNear(x, BossX())
         end)
 
-        it("applies the pull offset only to the first encounter cycle", function()
-            local Encounter = ns.Api.Encounter
-            Sszorak:ListenForEncounter()
-            Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
-
-            Timer.Advance(Sszorak.ANIM_T1 - Sszorak.ANIM_ENCOUNTER_START_TIME)
-            AssertNear(0, BossX())
-            Timer.Advance(Sszorak.ANIM_T4 - Sszorak.ANIM_T1)
-            assert.is_true(BossX() > 0.5)
-
-            -- Follow-up cycles start at 0, not -3.
-            Timer.Advance(Sszorak.ANIM_T1 - 0.001)
-            assert.is_true(BossX() > 0.5)
-            Timer.Advance(0.001)
-            AssertNear(0, BossX())
-        end)
-
         it("runs preview on a faster timeline", function()
+            local firstJump = Sszorak.POSITION_TIMELINE[1].time
             Sszorak:StartMapAnimation({ rate = Sszorak.ANIM_PREVIEW_RATE })
-            Timer.Advance(Sszorak.ANIM_T1 / Sszorak.ANIM_PREVIEW_RATE - 0.001)
+            Timer.Advance(firstJump / Sszorak.ANIM_PREVIEW_RATE - 0.001)
             assert.is_true(BossX() > 0.5)
             Timer.Advance(0.001)
             AssertNear(0, BossX())
         end)
     end)
 
-    describe("wind helper", function()
-        local Encounter
-        local Timer
-        local changes
-
-        local function EnterEncounter()
-            Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
-        end
-
-        local function LeaveEncounter()
-            Encounter.FireEnd(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20, 1)
-        end
-
-        before_each(function()
-            Encounter = ns.Api.Encounter
-            Timer = ns.Api.Timer
-            changes = 0
-            Sszorak.OnWindHelperChanged = function()
-                changes = changes + 1
-            end
-            Sszorak:ListenForEncounter()
-        end)
-
-        it("is on by default", function()
-            assert.is_true(Sszorak:IsWindHelperEnabled())
-        end)
-
-        it("is saved", function()
-            Sszorak:SetWindHelperEnabled(false)
-            assert.is_false(Sszorak:IsWindHelperEnabled())
-            assert.is_false(Sszorak.db.windHelperEnabled)
-            Sszorak:SetWindHelperEnabled(true)
-            assert.is_true(Sszorak:IsWindHelperEnabled())
-        end)
-
-        it("keeps a saved preference", function()
-            ns = Loader.Load()
-            local saved = ns.Database.Load({ modules = { Sszorak = { windHelperEnabled = false } } })
-            ns.Modules.Start(saved)
-            Sszorak = ns.Modules.Get("Sszorak")
-            assert.is_false(Sszorak:IsWindHelperEnabled())
-        end)
-
-        it("ignores clicks when the map isn't animating, the helper is off, or the map feature is off", function()
-            assert.is_false(Sszorak:IsWindHelperInteractive())
-            assert.is_false(Sszorak:ToggleWindVent(2))
-            assert.same({}, Sszorak:GetWindVents())
-            EnterEncounter()
-            Sszorak:SetWindHelperEnabled(false)
-            changes = 0
-            assert.is_false(Sszorak:IsWindHelperInteractive())
-            assert.is_false(Sszorak:ToggleWindVent(2))
-            assert.equals(0, changes)
-            assert.same({}, Sszorak:GetWindVents())
-            Sszorak:SetWindHelperEnabled(true)
-            Sszorak:SetMapEnabled(false)
-            assert.is_false(Sszorak:IsWindHelperInteractive())
-            assert.is_false(Sszorak:ToggleWindVent(2))
-        end)
-
-        it("selects and deselects wind vents during the encounter", function()
-            EnterEncounter()
-            changes = 0
-            assert.is_true(Sszorak:ToggleWindVent(2))
-            assert.is_true(Sszorak:IsWindVent(2))
-            assert.same({ 2 }, Sszorak:GetWindVents())
-            assert.equals(1, changes)
-            assert.is_true(Sszorak:ToggleWindVent(2))
-            assert.is_false(Sszorak:IsWindVent(2))
-            assert.same({}, Sszorak:GetWindVents())
-        end)
-
-        it("works during map preview outside the encounter", function()
-            Sszorak:StartMapAnimation({ rate = Sszorak.ANIM_PREVIEW_RATE })
-            assert.is_true(Sszorak:IsWindHelperInteractive())
-            assert.is_false(Sszorak:IsInEncounter())
-            assert.is_true(Sszorak:ToggleWindVent(2))
-            assert.is_true(Sszorak:ToggleWindVent(3))
-            assert.is_true(Sszorak:ToggleWindVent(4))
-            local plan = Sszorak:GetCystPlan()
-            assert.same({ 8, 7 }, plan.round1)
-            assert.same({ 6 }, plan.round2)
-            Sszorak:StopMapAnimation()
-            assert.is_false(Sszorak:IsWindHelperInteractive())
-            assert.same({}, Sszorak:GetWindVents())
-        end)
-
-        it("allows opposite edges to both be wind vents", function()
-            EnterEncounter()
-            assert.is_true(Sszorak:ToggleWindVent(2))
-            assert.is_true(Sszorak:ToggleWindVent(6))
-            assert.same({ 2, 6 }, Sszorak:GetWindVents())
-            assert.is_true(Sszorak:ToggleWindVent(3))
-            local plan = Sszorak:GetCystPlan()
-            -- Downwinds of 2, 6, 3 are 6, 2, 7; closest to entrance first.
-            assert.same({ 2, 7 }, plan.round1)
-            assert.same({ 6 }, plan.round2)
-        end)
-
-        it("stops at three vents", function()
-            EnterEncounter()
-            Sszorak:ToggleWindVent(2)
-            Sszorak:ToggleWindVent(3)
-            Sszorak:ToggleWindVent(4)
-            changes = 0
-            assert.is_false(Sszorak:ToggleWindVent(8))
-            assert.equals(0, changes)
-            assert.same({ 2, 3, 4 }, Sszorak:GetWindVents())
-        end)
-
-        it("rejects the entrance and exit", function()
-            EnterEncounter()
-            assert.is_false(pcall(Sszorak.ToggleWindVent, Sszorak, Sszorak.ENTRANCE_EDGE))
-            assert.is_false(pcall(Sszorak.ToggleWindVent, Sszorak, Sszorak.EXIT_EDGE))
-        end)
-
-        it("has no cyst plan until three vents are selected", function()
-            EnterEncounter()
-            assert.is_true(Sszorak:GetCystPlan() == nil)
-            Sszorak:ToggleWindVent(2)
-            Sszorak:ToggleWindVent(3)
-            assert.is_true(Sszorak:GetCystPlan() == nil)
-        end)
-
-        it("splits downwinds into round 1 closest to the entrance and round 2 remaining", function()
-            EnterEncounter()
-            Sszorak:ToggleWindVent(2)
-            Sszorak:ToggleWindVent(3)
-            Sszorak:ToggleWindVent(4)
-            local plan = Sszorak:GetCystPlan()
-            assert.same({ 8, 7 }, plan.round1)
-            assert.same({ 6 }, plan.round2)
-        end)
-
-        it("exposes both rounds as soon as the third vent is selected", function()
-            EnterEncounter()
-            Sszorak:ToggleWindVent(2)
-            Sszorak:ToggleWindVent(3)
-            Sszorak:ToggleWindVent(4)
-            local plan = Sszorak:GetCystPlan()
-            assert.equals(2, #plan.round1)
-            assert.equals(1, #plan.round2)
-            -- No need to wait for ANIM_T2; both rounds are ready immediately.
-            assert.is_true(Sszorak:GetBossPosition().x > 0.5)
-        end)
-
-        it("clears vents when a skill-rotation cycle ends", function()
-            EnterEncounter()
-            Sszorak:ToggleWindVent(2)
-            Sszorak:ToggleWindVent(3)
-            Sszorak:ToggleWindVent(4)
-            changes = 0
-            -- Pull timeline starts at -3, so the first t4 is three seconds later than a plain cycle.
-            Timer.Advance(Sszorak.ANIM_T4 - Sszorak.ANIM_ENCOUNTER_START_TIME)
-            assert.same({}, Sszorak:GetWindVents())
-            assert.is_true(Sszorak:GetCystPlan() == nil)
-            assert.equals(1, changes)
-        end)
-
-        it("clears vents when the encounter ends", function()
-            EnterEncounter()
-            Sszorak:ToggleWindVent(2)
-            LeaveEncounter()
-            assert.same({}, Sszorak:GetWindVents())
-        end)
-
-        it("clears vents when the helper is turned off", function()
-            EnterEncounter()
-            Sszorak:ToggleWindVent(2)
-            changes = 0
-            Sszorak:SetWindHelperEnabled(false)
-            assert.same({}, Sszorak:GetWindVents())
-            assert.equals(1, changes)
+    describe("opposite edges", function()
+        it("maps each edge to its opposite across the arena", function()
+            assert.equals(6, Sszorak:GetOppositeEdge(2))
+            assert.equals(2, Sszorak:GetOppositeEdge(6))
+            assert.equals(7, Sszorak:GetOppositeEdge(3))
+            assert.equals(8, Sszorak:GetOppositeEdge(4))
         end)
     end)
 

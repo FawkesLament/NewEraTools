@@ -1,7 +1,7 @@
 local _, ns = ...
 local L = ns.L
 local Assets = ns.Assets
-local FeatureSection = ns.FeatureSection
+local CollapsibleSection = ns.CollapsibleSection
 local Layout = ns.Layout
 local Widgets = ns.Widgets
 local Unit = ns.Api.Unit
@@ -11,47 +11,21 @@ local Fonts = Assets.Fonts
 local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 
--- Matches FeatureSection / Widgets disabled fade.
-local DISABLED_ALPHA = 0.4
-
 local RaidLottery = ns.Modules.Get("RaidLottery")
 
 local COLUMN_WIDTH = 120
 local GRID_ROW_HEIGHT = 20
 
 local ui
--- Session-only: the member list starts collapsed every time the panel opens.
-local expanded = false
 local Refresh
 
-local function UpdateDrawButton(eligibleCount)
+---Locks only the draw button when access/pool/sending blocks a draw; other controls stay usable.
+---@param eligibleCount integer
+local function SyncControls(eligibleCount)
+    ui.stepper:SetValue(RaidLottery:GetCount(), 1, RaidLottery:GetMaxCount(eligibleCount))
     local reason = not RaidLottery:IsSending() and RaidLottery:GetBlockedReason(eligibleCount)
     ui.drawButton:SetEnabled(not RaidLottery:IsSending() and not reason)
     ui.blockedReason:SetText(reason or "")
-end
-
----Dims and locks the whole feature when the player isn't a raid leader or assistant in a raid.
----Call after building/updating controls so newly created widgets are included.
----@param eligibleCount integer
-local function ApplyAccessInteractive(eligibleCount)
-    local accessBlocked = RaidLottery:GetAccessBlockedReason()
-    local canUse = not accessBlocked
-    ui.container:SetAlpha(canUse and 1 or DISABLED_ALPHA)
-    if canUse then
-        FeatureSection.SetSubtreeInteractive(ui.container, true)
-    end
-    -- After enabling the tree so stepper limits and the draw button keep their own disables.
-    ui.stepper:SetValue(RaidLottery:GetCount(), 1, RaidLottery:GetMaxCount(eligibleCount))
-    UpdateDrawButton(eligibleCount)
-    if not canUse then
-        FeatureSection.SetSubtreeInteractive(ui.container, false)
-        ui.blockedReason:SetText(accessBlocked)
-    end
-end
-
-local function SetExpanded(value)
-    expanded = value
-    Refresh()
 end
 
 local function CreateMemberCheckbox(index)
@@ -84,9 +58,9 @@ local function GetColumnCount()
     return math.max(math.floor(ui.grid:GetWidth() / COLUMN_WIDTH), 1)
 end
 
-local function LayoutGrid()
+local function LayoutExcludedContent()
     local gridHeight = 0
-    if expanded then
+    if ui.excludedSection:IsExpanded() then
         local columns = GetColumnCount()
         for index = 1, ui.memberCount do
             local box = ui.checkboxes[index]
@@ -96,12 +70,9 @@ local function LayoutGrid()
         ui.columns = columns
         gridHeight = Layout.GridHeight(ui.memberCount, columns, GRID_ROW_HEIGHT)
     end
-    ui.grid:SetShown(expanded)
-
-    ui.stack:SetEntryHeight(ui.grid, gridHeight)
-    local height = ui.stack:GetHeight()
-    ui.container:SetContentHeight(height)
-    return height
+    ui.excludedBody:SetEntryHeight(ui.grid, gridHeight)
+    ui.excludedSection:SetContentHeight(ui.excludedBody:GetHeight())
+    return ui.stack:GetHeight()
 end
 
 local function PopulateGrid(members)
@@ -128,27 +99,44 @@ local function PopulateGrid(members)
     ui.memberCount = #members
 end
 
+---Role-matched count and how many of those are excluded (so Matching − Excluded = Eligible).
+---@param members RaidMember[]
+---@return integer matchingCount
+---@return integer excludedMatchingCount
+local function CountMatching(members)
+    local matchingCount = 0
+    local excludedMatchingCount = 0
+    for _, member in ipairs(members) do
+        if RaidLottery:MatchesRole(member) then
+            matchingCount = matchingCount + 1
+            if RaidLottery:IsExcluded(member) then
+                excludedMatchingCount = excludedMatchingCount + 1
+            end
+        end
+    end
+    return matchingCount, excludedMatchingCount
+end
+
 function Refresh()
     local members = RaidLottery:GetMembers()
     local eligibleCount = #RaidLottery:GetEligible(members)
+    local matchingCount, excludedMatchingCount = CountMatching(members)
+    local excludedCount = RaidLottery:GetExcludedCount(members)
     RaidLottery:FitCount(eligibleCount)
 
     ui.roles:SetSelected(RaidLottery:GetRole())
-    ui.summary:SetFormattedText(L.RAID_LOTTERY_SUMMARY, eligibleCount, #members)
+    ui.summary:SetFormattedText(L.RAID_LOTTERY_SUMMARY, matchingCount, excludedMatchingCount, eligibleCount)
+    ui.excludedSection:SetBadge(excludedCount > 0 and tostring(excludedCount) or nil)
 
-    local excludedCount = RaidLottery:GetExcludedCount(members)
-    ui.expandButton:SetLabel(string.format(L.RAID_LOTTERY_EXCLUDED_HEADER, excludedCount))
-    ui.expandButton:SetExpanded(expanded)
-    ui.clearButton:SetShown(excludedCount > 0)
-
-    if expanded then
+    if ui.excludedSection:IsExpanded() then
         PopulateGrid(members)
     end
-    -- After PopulateGrid so newly created checkboxes are included in the disable pass.
-    ApplyAccessInteractive(eligibleCount)
-    return LayoutGrid()
+    SyncControls(eligibleCount)
+    ui.clearButton:SetEnabled(excludedCount > 0)
+    return LayoutExcludedContent()
 end
 
+---Row 1: role filter.
 local function BuildRoleRow(row)
     local items = {}
     for index, role in ipairs(RaidLottery.ROLES) do
@@ -158,54 +146,59 @@ local function BuildRoleRow(row)
         RaidLottery:SetRole(role)
         Refresh()
     end)
+    roles:SetPoint("LEFT", row, "LEFT")
     ui.roles = roles
-
-    local summary = Widgets.CreateLabel(row, Fonts.SMALL_MUTED)
-    ui.summary = summary
-
-    Layout.Row(row, { roles, summary }, Spacing.LARGE)
 end
 
----@return number  Width of the count controls, so the rows around them can line up with it.
+---Row 2: draw count stepper + matching / excluded / eligible summary.
 local function BuildCountRow(row)
-    local countLabel = Widgets.CreateLabel(row, Fonts.BODY, L.RAID_LOTTERY_COUNT_LABEL)
-    countLabel:SetPoint("LEFT", row, "LEFT")
+    local countCell, summaryCell = Layout.SplitRow(row, Spacing.MEDIUM)
 
-    local stepper = Widgets.CreateStepper(row, function(delta)
+    local countLabel = Widgets.CreateLabel(countCell, Fonts.BODY, L.RAID_LOTTERY_COUNT_LABEL)
+    local stepper = Widgets.CreateStepper(countCell, function(delta)
         RaidLottery:SetCount(RaidLottery:GetCount() + delta)
         Refresh()
     end)
     ui.stepper = stepper
+    Layout.Row(countCell, { countLabel, stepper }, Spacing.LARGE)
 
-    local width = math.max(ui.roles:GetWidth(), countLabel:GetStringWidth() + Spacing.LARGE + stepper:GetWidth())
-    stepper:SetPoint("RIGHT", row, "LEFT", width, 0)
-    return width
+    local summary = Widgets.CreateLabel(summaryCell, Fonts.SMALL_MUTED)
+    summary:SetJustifyH("LEFT")
+    summary:SetWordWrap(false)
+    summary:SetPoint("LEFT", summaryCell, "LEFT")
+    summary:SetPoint("RIGHT", summaryCell, "RIGHT")
+    ui.summary = summary
 end
 
-local function BuildExcludedRow(row)
-    local expandButton = Widgets.CreateExpandButton(row, function()
-        SetExpanded(not expanded)
-    end)
-    ui.expandButton = expandButton
+---Clear control + member grid inside the excluded collapsible.
+---@param content Frame
+local function BuildExcludedContent(content)
+    local body = Layout.Stack(content, { spacing = Spacing.SMALL })
+    ui.excludedBody = body
 
-    local clearButton = Widgets.CreateTextButton(row, L.RAID_LOTTERY_CLEAR_EXCLUDED, function()
+    local actions = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local clearButton = Widgets.CreateButton(actions, L.RAID_LOTTERY_CLEAR_EXCLUDED, function()
         RaidLottery:ClearExcluded()
         Refresh()
     end)
+    clearButton:SetPoint("LEFT", actions, "LEFT")
     ui.clearButton = clearButton
 
-    Layout.Row(row, { expandButton, clearButton }, Spacing.MEDIUM)
+    ui.grid = body:Add(CreateFrame("Frame", nil, content), 0)
+
+    local emptyRoster = Widgets.CreateLabel(ui.grid, Fonts.MUTED, L.RAID_LOTTERY_EMPTY_ROSTER)
+    emptyRoster:SetPoint("TOPLEFT", ui.grid, "TOPLEFT", 0, -Spacing.TINY)
+    ui.emptyRoster = emptyRoster
 end
 
-local function BuildDrawRow(row, width)
+local function BuildDrawRow(row)
     local drawButton = Widgets.CreateButton(row, L.RAID_LOTTERY_DRAW, function()
         RaidLottery:Draw()
         -- Exclusions are usually set once per draw, so the list folds away until it's needed again.
-        if expanded then
-            SetExpanded(false)
+        if ui.excludedSection:IsExpanded() then
+            ui.excludedSection:SetExpanded(false)
         end
     end, "primary")
-    drawButton:SetWidth(math.max(drawButton:GetWidth(), width))
     ui.drawButton = drawButton
 
     local blockedReason = Widgets.CreateLabel(row, Fonts.SMALL_MUTED)
@@ -222,33 +215,42 @@ local function Build(container)
     local stack = Layout.Stack(container, {
         paddingX = Spacing.SMALL,
         paddingY = Spacing.SMALL,
+        spacing = Spacing.SMALL,
     })
+    ui = { container = container, stack = stack, checkboxes = {}, memberCount = 0 }
+
     local roleRow = stack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local countRow = stack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local excludedRow = stack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local grid = stack:AddRow(0)
-    local drawRow = stack:AddRow(Sizes.CONTROL_ROW_HEIGHT, Spacing.SMALL)
-    ui = { container = container, stack = stack, grid = grid, checkboxes = {}, memberCount = 0 }
-
     BuildRoleRow(roleRow)
-    local controlsWidth = BuildCountRow(countRow)
-    BuildExcludedRow(excludedRow)
-    BuildDrawRow(drawRow, controlsWidth)
+    BuildCountRow(countRow)
 
-    local emptyRoster = Widgets.CreateLabel(grid, Fonts.MUTED, L.RAID_LOTTERY_EMPTY_ROSTER)
-    emptyRoster:SetPoint("TOPLEFT", grid, "TOPLEFT", 0, -Spacing.TINY)
-    ui.emptyRoster = emptyRoster
+    -- Session-only: the member list starts collapsed every time the panel opens.
+    ui.excludedSection = CollapsibleSection.Create(stack, {
+        title = L.RAID_LOTTERY_EXCLUDED_HEADER,
+        expanded = false,
+        onStackHeightChanged = function(height)
+            container:SetContentHeight(height)
+        end,
+        onExpandedChanged = function()
+            Refresh()
+        end,
+    })
+    BuildExcludedContent(ui.excludedSection.content)
+    ui.excludedSection:SetContentHeight(ui.excludedBody:GetHeight())
+
+    local drawRow = stack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    BuildDrawRow(drawRow)
 
     -- The panel's width is only known once it is shown, and may change later.
-    grid:SetScript("OnSizeChanged", function()
-        if expanded and GetColumnCount() ~= ui.columns then
-            LayoutGrid()
+    ui.grid:SetScript("OnSizeChanged", function()
+        if ui.excludedSection:IsExpanded() and GetColumnCount() ~= ui.columns then
+            LayoutExcludedContent()
         end
     end)
 
     container:HookScript("OnShow", Refresh)
     container:HookScript("OnHide", function()
-        expanded = false
+        ui.excludedSection:SetExpanded(false)
     end)
 
     return Refresh()
@@ -270,6 +272,6 @@ end
 
 function RaidLottery:OnSendingChanged()
     if ui and ui.container:IsVisible() then
-        ApplyAccessInteractive(#RaidLottery:GetEligible(RaidLottery:GetMembers()))
+        SyncControls(#RaidLottery:GetEligible(RaidLottery:GetMembers()))
     end
 end

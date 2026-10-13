@@ -1,0 +1,3 @@
+-- Public stub: jailbreak stays unregistered so the Assignment Mode toggle stays hidden.
+-- Private circle: replace this file with the real implementation (same path); it must call
+-- Sszorak.RegisterCalloutMode with id Sszorak.CALLOUT_MODE_JAILBREAK.

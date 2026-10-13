@@ -11,7 +11,7 @@ Main.lua          Entry point: loads saved variables and starts modules.
 core/             Pure Lua: namespace, utilities, locale table, database, module registry.
 api/              The only code that calls Blizzard game functions or listens to game events.
 locales/          Translations. zhCN.lua is the base locale and defines every key.
-ui/               Shared UI: assets and theme, widget helpers, layout, main panel, minimap button.
+ui/               Shared UI: assets and theme, widget helpers, layout, floating windows, layout editor, main panel, minimap button.
 modules/<group>/  One folder per sidebar group, named after its PanelGroups key (raid_leader/).
 modules/<group>/<name>/  One folder per feature: <Name>.lua (logic) and <Name>UI.lua (UI).
 modules/*.lua     The only files directly in modules/: content shared by features (PanelGroups.lua).
@@ -38,6 +38,15 @@ tests/            Unit tests run outside the game. WoW never loads them.
 3. Add strings to `locales/zhCN.lua` (and other locales).
 4. A new game API call goes into an `api/` function, gets a fake in `tests/helpers/fakes/`, and is listed in `.luacheckrc`. New `api/` files are added to `api/api.xml`.
 5. Add tests in `tests/modules/<group>/<snake_name>/<Name>_spec.lua`.
+
+## Adding a floating UI element
+
+Positioning is shared; appearance and visibility stay in the module.
+
+1. Prefer `ui/FloatingWindow.lua` for overlays, or a plain outer layout host when the real content is protected/secret-sensitive (e.g. AuraContainer). Use `MEDIUM` frame strata (not `DIALOG`/`HIGH`) so Blizzard menus stay on top; layout edit mode raises frames temporarily. Persist `{ point, relativePoint, x, y }` in the module's `defaults` and expose get/set helpers. Do not invent a second drag/save path.
+2. Register with `ns.LayoutEditor.Register` from the module UI (`OnEnable` / first frame create). Use a stable id `Feature:instance` (e.g. `AuraTracker:1`) so multiple instances can be added later. Set `global = true` for general-purpose UI (shown from the main panel's **Edit Layout**); set `global = false` for boss- or encounter-specific UI and offer a module-local **Edit Position** that calls `LayoutEditor.BeginLocal(id)`.
+3. Implement `onEditBegin` / `onEditEnd` to show a preview without requiring the feature's normal activation conditions, then restore normal show/hide and mouse behavior. A module may optionally run a lightweight preview animation while editing (start in `onEditBegin`, stop in `onEditEnd`); keep it local to the module. The editor only moves position; width, height, scale, and look stay on the module's own settings.
+4. Outside edit mode, floating chrome must not steal clicks for dragging. Keep intentional clicks (e.g. "enable combat logging") if the feature needs them. Never reanchor protected frames during combat; editing is out-of-combat only and exits automatically when combat starts.
 
 ## Code style
 

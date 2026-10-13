@@ -64,11 +64,15 @@ function Loader.ReadLuaFiles()
 end
 
 local function IsSkipped(path)
+    -- Pure data / helpers (no frames); logic modules may use them under test.
+    if path == "ui/Assets.lua" or path == "ui/Position.lua" or path == "ui/Color.lua" then
+        return false
+    end
     return path == "Main.lua" or path:find("^ui/") ~= nil or path:find("UI%.lua$") ~= nil
 end
 
 ---Loads the addon into a fresh namespace the way WoW does, replacing each api/ file with its fake
----from tests/helpers/fakes/ and skipping UI files and Main.lua.
+---from tests/helpers/fakes/ and skipping UI files and Main.lua (Assets.lua is still loaded).
 ---@return table ns
 function Loader.Load()
     local ns = {}

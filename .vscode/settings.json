@@ -27,7 +27,12 @@
         "RAID_CLASS_COLORS",
         "UISpecialFrames",
         "STANDARD_TEXT_FONT",
-        "ScrollUtil"
+        "ScrollUtil",
+        "ColorPickerFrame",
+        "LOCALIZED_CLASS_NAMES_MALE"
     ],
-    "stylua.targetReleaseVersion": "latest"
+    "stylua.targetReleaseVersion": "latest",
+    "Lua.diagnostics.disable": [
+        "assign-type-mismatch"
+    ]
 }

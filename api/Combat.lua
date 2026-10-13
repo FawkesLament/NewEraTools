@@ -9,6 +9,12 @@ function Combat.IsInCombat()
     return UnitAffectingCombat("player")
 end
 
+---Whether protected frame configuration is locked (combat lockdown).
+---@return boolean
+function Combat.IsLockedDown()
+    return InCombatLockdown() == true
+end
+
 ---Calls `callback` when the player enters combat.
 ---@param callback fun()
 function Combat.OnEnter(callback)

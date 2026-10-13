@@ -1,6 +1,8 @@
 local _, ns = ...
 local Combat = ns.Api.Combat
 local Timer = ns.Api.Timer
+local Util = ns.Util
+local Position = ns.Position
 
 -- Same range as the main panel and Sszorak map scale controls.
 local SCALE_MIN = 0.8
@@ -49,15 +51,6 @@ local combatStart = nil
 -- Duration of the most recent fight; shown after combat until the next pull.
 local lastElapsed = 0
 
----@param position CombatTimerPosition
-local function IsValidPosition(position)
-    return type(position) == "table"
-        and type(position.point) == "string"
-        and type(position.relativePoint) == "string"
-        and type(position.x) == "number"
-        and type(position.y) == "number"
-end
-
 local function NotifyCombatChanged()
     if CombatTimer.OnCombatChanged then
         CombatTimer:OnCombatChanged()
@@ -89,20 +82,15 @@ function CombatTimer:SetEnabled(enabled)
     end
 end
 
-local function ClampScale(scale)
-    local rounded = math.floor(scale / SCALE_STEP + 0.5) * SCALE_STEP
-    return math.min(math.max(rounded, SCALE_MIN), SCALE_MAX)
-end
-
 ---@return number
 function CombatTimer:GetScale()
-    return ClampScale(self.db.scale)
+    return Util.Snap(self.db.scale, SCALE_MIN, SCALE_MAX, SCALE_STEP)
 end
 
 ---@param scale number
 function CombatTimer:SetScale(scale)
     assert(type(scale) == "number", "Bad scale")
-    self.db.scale = ClampScale(scale)
+    self.db.scale = Util.Snap(scale, SCALE_MIN, SCALE_MAX, SCALE_STEP)
 end
 
 local function IsKnownFormat(format)
@@ -133,7 +121,7 @@ end
 
 ---@param position CombatTimerPosition
 function CombatTimer:SetPosition(position)
-    assert(IsValidPosition(position), "Bad window position")
+    assert(Position.IsValid(position), "Bad window position")
     local saved = self.db.position
     saved.point, saved.relativePoint = position.point, position.relativePoint
     saved.x, saved.y = position.x, position.y
@@ -191,6 +179,6 @@ function CombatTimer:ListenForCombat()
 end
 
 function CombatTimer:OnInit()
-    self.db.scale = ClampScale(self.db.scale)
+    self.db.scale = Util.Snap(self.db.scale, SCALE_MIN, SCALE_MAX, SCALE_STEP)
     self.db.format = self:GetFormat()
 end

@@ -1,7 +1,10 @@
 local _, ns = ...
 local L = ns.L
 local Assets = ns.Assets
+local Combat = ns.Api.Combat
 local Layout = ns.Layout
+local LayoutEditor = ns.LayoutEditor
+local Util = ns.Util
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
@@ -10,7 +13,7 @@ local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 
 local PANEL_WIDTH = 700
-local PANEL_HEIGHT = 440
+local PANEL_HEIGHT = 600
 local SIDEBAR_WIDTH = 160
 local SECTION_HEADER_HEIGHT = 28
 local SECTION_SPACING = 24
@@ -206,11 +209,6 @@ local function CreateDivider(parent)
     return divider
 end
 
-local function ClampScale(scale)
-    local rounded = math.floor(scale / SCALE_STEP + 0.5) * SCALE_STEP
-    return math.min(math.max(rounded, SCALE_MIN), SCALE_MAX)
-end
-
 -- Keeps the panel's center where it is on screen; anchor offsets are in the frame's own scale.
 local function ApplyScale(frame, scale)
     local oldScale = frame:GetScale()
@@ -237,6 +235,15 @@ local function CreateScaleControl(frame, header, closeButton)
     local label = Widgets.CreateLabel(header, Fonts.SMALL_MUTED, L.MAIN_PANEL_SCALE)
     label:SetPoint("RIGHT", slider, "LEFT", -Spacing.MEDIUM, 0)
 
+    local editLayout = Widgets.CreateButton(header, L.LAYOUT_EDIT, function()
+        if Combat.IsInCombat() or Combat.IsLockedDown() then
+            Util.Print(L.LAYOUT_EDIT_IN_COMBAT)
+            return
+        end
+        LayoutEditor.BeginGlobal()
+    end)
+    editLayout:SetPoint("RIGHT", label, "LEFT", -Spacing.MEDIUM, 0)
+
     local function ShowValue(scale)
         value:SetFormattedText(L.MAIN_PANEL_SCALE_PERCENT, math.floor(scale * 100 + 0.5))
     end
@@ -254,7 +261,7 @@ local function CreateScaleControl(frame, header, closeButton)
     slider:SetValue(MainPanel.db.scale)
     ShowValue(MainPanel.db.scale)
     slider:SetScript("OnValueChanged", function(_, rawValue)
-        local scale = ClampScale(rawValue)
+        local scale = Util.Snap(rawValue, SCALE_MIN, SCALE_MAX, SCALE_STEP)
         MainPanel.db.scale = scale
         ShowValue(scale)
         if not pressed then
@@ -316,7 +323,7 @@ end
 local function CreatePanel()
     local frame = Widgets.CreateSurface(UIParent, Colors.BG, Colors.BORDER, ns.ADDON_NAME .. "Panel")
     frame:SetSize(PANEL_WIDTH, PANEL_HEIGHT)
-    frame:SetScale(ClampScale(MainPanel.db.scale))
+    frame:SetScale(Util.Snap(MainPanel.db.scale, SCALE_MIN, SCALE_MAX, SCALE_STEP))
     frame:SetPoint("CENTER")
     frame:SetFrameStrata("DIALOG")
     frame:SetClampedToScreen(true)
@@ -394,6 +401,12 @@ function MainPanel:Toggle()
         panel = CreatePanel()
     end
     panel:SetShown(not panel:IsShown())
+end
+
+---Returns the settings panel frame once it has been created; nil before the first open.
+---@return Frame|nil
+function MainPanel:GetFrame()
+    return panel
 end
 
 function MainPanel:OnEnable()

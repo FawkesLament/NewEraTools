@@ -4,6 +4,7 @@ local Assets = ns.Assets
 local FeatureSection = ns.FeatureSection
 local FloatingWindow = ns.FloatingWindow
 local Layout = ns.Layout
+local LayoutEditor = ns.LayoutEditor
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
@@ -27,12 +28,17 @@ local WINDOW_BACKDROP = {
     insets = { left = 3, right = 3, top = 3, bottom = 3 },
 }
 
+local LAYOUT_ID = "CombatTimer:1"
+
 local window
 local timeLabel
 local statusLabel
+local layoutRegistered = false
+local layoutEditing = false
 local CreateTimerWindow
 local UpdateDisplay
 local UpdateWindow
+local RegisterLayoutElement
 
 local function EnsureWindow()
     window = window or CreateTimerWindow()
@@ -60,6 +66,9 @@ function UpdateDisplay()
 end
 
 function UpdateWindow()
+    if layoutEditing then
+        return
+    end
     if not CombatTimer:IsEnabled() then
         if window and window:IsShown() then
             window:Hide()
@@ -79,6 +88,8 @@ function CreateTimerWindow()
         name = ns.ADDON_NAME .. "CombatTimer",
         scale = CombatTimer:GetScale(),
         position = CombatTimer:GetPosition(),
+        -- Positioning is handled by LayoutEditor; the window must not steal clicks in combat.
+        draggable = false,
         dragEntireFrame = true,
         onPositionChanged = function(position)
             CombatTimer:SetPosition(position)
@@ -113,7 +124,41 @@ function CreateTimerWindow()
             UpdateDisplay()
         end
     end)
+    RegisterLayoutElement(frame)
     return frame
+end
+
+function RegisterLayoutElement(frame)
+    if layoutRegistered then
+        return
+    end
+    layoutRegistered = true
+    LayoutEditor.Register({
+        id = LAYOUT_ID,
+        label = L.COMBAT_TIMER_TITLE,
+        frame = frame,
+        global = true,
+        isEnabled = function()
+            return CombatTimer:IsEnabled()
+        end,
+        getPosition = function()
+            return CombatTimer:GetPosition()
+        end,
+        setPosition = function(position)
+            CombatTimer:SetPosition(position)
+        end,
+        onEditBegin = function()
+            layoutEditing = true
+            local win = EnsureWindow()
+            UpdateDisplay()
+            win:Show()
+            win:Raise()
+        end,
+        onEditEnd = function()
+            layoutEditing = false
+            UpdateWindow()
+        end,
+    })
 end
 
 ---Fills the feature body. Returns the content height.
@@ -181,7 +226,7 @@ local function Build(container)
         paddingY = Spacing.SMALL,
     })
 
-    local section = FeatureSection.Create(container, {
+    local section = FeatureSection.Create(stack, {
         title = L.COMBAT_TIMER_ENABLED,
         tooltip = L.COMBAT_TIMER_HINT,
         enabled = CombatTimer:IsEnabled(),
@@ -192,7 +237,6 @@ local function Build(container)
 
     section:SetContentHeight(BuildContent(section.content))
     section:RefreshContentInteractive()
-    stack:Add(section, section:GetHeight())
 
     return stack:GetHeight()
 end
@@ -200,10 +244,12 @@ end
 function CombatTimer:OnEnable()
     ns.MainPanel:RegisterSection({
         title = L.COMBAT_TIMER_TITLE,
-        group = ns.PanelGroups.COMBAT_MONITORING,
+        group = ns.PanelGroups.COMBAT,
         build = Build,
     })
     self:ListenForCombat()
+    -- Register with the layout editor even before the window is first shown.
+    EnsureWindow()
     UpdateWindow()
 end
 
