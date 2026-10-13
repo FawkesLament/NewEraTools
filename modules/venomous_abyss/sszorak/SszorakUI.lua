@@ -464,12 +464,14 @@ function UpdateRoleStatus()
 end
 
 ---Members' map clicks must not fire callout macros; commanders keep them bound.
+---Commander pull/test also arms one-shot highlight tracking on the floating map.
 function UpdateWindowMacroClicks()
     if SszorakMapUI.SetEdgeMacroClicksEnabled(Sszorak:IsRaidCommander()) then
         macroClicksDirty = false
     else
         macroClicksDirty = true
     end
+    SszorakMapUI.SetEdgeClickTrackingArmed(Sszorak:IsRaidCommander() and Sszorak:IsMapAnimating())
 end
 
 ---Fills the encounter-map feature body. Returns the content height.
@@ -724,8 +726,7 @@ function Sszorak:OnEnable()
     })
     self:ListenForBroadcasts()
     self:ListenForEncounter()
-    self:ListenForEncounterWarnings()
-    self:ListenForRaidLeaderMessages()
+    self:ListenForCalloutMode()
     self:ListenForMacroSync()
     -- Register with the layout editor (local-only) before the map is first shown.
     -- Secure marker buttons must be created out of combat; OnEnable runs before pulls.
@@ -762,8 +763,22 @@ end
 
 function Sszorak:OnPositionsChanged()
     SszorakMapUI.RefreshPositionMarkers()
+    -- Each return to the entrance-side home station clears fired-marker highlights for the next cycle.
+    if Sszorak:IsAtHomeStation() then
+        SszorakMapUI.ResetEdgeClickHighlights()
+    end
+end
+
+function Sszorak:OnMapAnimationStarted()
+    UpdateWindowMacroClicks()
+end
+
+function Sszorak:OnMapAnimationStopped()
+    SszorakMapUI.SetEdgeClickTrackingArmed(false)
 end
 
 function Sszorak:OnCalloutChanged()
     UpdateCalloutWindow()
+    local resolve = Sszorak:GetDisplayedCalloutResolve()
+    SszorakMapUI.SetPathArrow(resolve and resolve.targetEdge or nil)
 end

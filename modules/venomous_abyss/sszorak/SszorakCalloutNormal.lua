@@ -29,4 +29,10 @@ function Normal:GetEdgeMacroBody(edge, assignment)
     return "/raid {rt" .. raidTarget .. "}"
 end
 
+---Raid-leader capture + encounter-warning matching (shared with jailbreak).
+---@return fun()
+function Normal:Listen()
+    return Sszorak.SubscribeSharedCalloutListeners()
+end
+
 Sszorak.RegisterCalloutMode(Normal)

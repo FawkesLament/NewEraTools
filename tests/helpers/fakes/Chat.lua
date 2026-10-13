@@ -1,5 +1,26 @@
 return function()
-    local Chat = { sent = {}, raidLeaderCallbacks = {} }
+    local Chat = {
+        sent = {},
+        raidLeaderCallbacks = {},
+        raidWarningCallbacks = {},
+    }
+
+    local function AddCallback(list, callback)
+        table.insert(list, callback)
+        local removed = false
+        return function()
+            if removed then
+                return
+            end
+            removed = true
+            for index, candidate in ipairs(list) do
+                if candidate == callback then
+                    table.remove(list, index)
+                    return
+                end
+            end
+        end
+    end
 
     function Chat.Send(message, chatType)
         table.insert(Chat.sent, { message = message, chatType = chatType })
@@ -18,12 +39,24 @@ return function()
     end
 
     function Chat.OnRaidLeaderMessage(callback)
-        table.insert(Chat.raidLeaderCallbacks, callback)
+        return AddCallback(Chat.raidLeaderCallbacks, callback)
     end
 
     function Chat.FireRaidLeader(message, ...)
-        for _, callback in ipairs(Chat.raidLeaderCallbacks) do
-            callback(message, ...)
+        local list = Chat.raidLeaderCallbacks
+        for i = 1, #list do
+            list[i](message, ...)
+        end
+    end
+
+    function Chat.OnRaidWarningMessage(callback)
+        return AddCallback(Chat.raidWarningCallbacks, callback)
+    end
+
+    function Chat.FireRaidWarning(message, ...)
+        local list = Chat.raidWarningCallbacks
+        for i = 1, #list do
+            list[i](message, ...)
         end
     end
 

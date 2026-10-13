@@ -9,6 +9,7 @@
     <Script file="FloatingWindow.lua"/>
     <Script file="WarningWindow.lua"/>
     <Script file="CalloutMessage.lua"/>
+    <Script file="CollapsiblePanel.lua"/>
     <Script file="LayoutEditor.lua"/>
     <Script file="MainPanel.lua"/>
     <Script file="MinimapButton.lua"/>

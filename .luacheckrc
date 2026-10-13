@@ -62,6 +62,7 @@ local GAME_API = {
     "EditMacro",
     "GetFileIDFromPath",
     "GetMacroIndexByName",
+    "GetRaidTargetIndex",
     "SendChatMessage",
     "UnitAffectingCombat",
     "UnitClass",
