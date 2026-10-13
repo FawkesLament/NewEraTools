@@ -5,6 +5,7 @@ globals = { "NewEraToolsDB" }
 
 -- Frame and widget API: allowed in ui/ and modules/**/*UI.lua.
 local WIDGET_API = {
+    "ColorPickerFrame",
     "CreateFont",
     "CreateFrame",
     "GameTooltip",
@@ -18,11 +19,28 @@ local WIDGET_API = {
 
 -- Game state and actions: allowed only in api/.
 local GAME_API = {
+    "AuraContainerSortDirection",
+    "AuraContainerSortMethod",
+    "C_AddOns",
     "C_ChallengeMode",
     "C_ChatInfo",
     "C_ClassColor",
+    "C_EncounterTimeline",
     "C_InstanceEncounter",
+    "C_PetBattles",
+    "C_PlayerInfo",
+    "C_SpecializationInfo",
+    "C_Spell",
+    "C_StringUtil",
     "C_Timer",
+    "InCinematic",
+    "IsInCinematicScene",
+    "GetNumSpecializations",
+    "GetSpecialization",
+    "GetSpecializationInfo",
+    "GetSpecializationInfoByID",
+    "GetSpellInfo",
+    "LOCALIZED_CLASS_NAMES_MALE",
     "EJ_GetCurrentTier",
     "EJ_GetInstanceByIndex",
     "EJ_GetNumTiers",
@@ -34,11 +52,16 @@ local GAME_API = {
     "GetNumGroupMembers",
     "GetRaidRosterInfo",
     "GetTime",
+    "InCombatLockdown",
     "IsInRaid",
     "LE_PARTY_CATEGORY_HOME",
     "LE_PARTY_CATEGORY_INSTANCE",
     "LoggingCombat",
     "RAID_CLASS_COLORS",
+    "CreateMacro",
+    "EditMacro",
+    "GetFileIDFromPath",
+    "GetMacroIndexByName",
     "SendChatMessage",
     "UnitAffectingCombat",
     "UnitClass",
@@ -60,7 +83,8 @@ end
 
 files["api"] = { read_globals = Concat(GAME_API, WIDGET_API), globals = { "_G", "SlashCmdList" } }
 files["ui"] = { read_globals = WIDGET_API }
-files["modules/**/*UI.lua"] = { read_globals = WIDGET_API }
+files["modules/**/*UI.lua"] = { read_globals = Concat(WIDGET_API, { "LibStub" }) }
+files["modules/combat/aura_tracker/AuraTrackerMedia.lua"] = { read_globals = { "LibStub" } }
 files["tests"] = { std = "+busted" }
 files["tests/ui"] = { std = "+busted", globals = { "CreateFrame" } }
 files["tests/run.lua"] = { globals = { "assert", "describe", "it", "before_each", "after_each" } }

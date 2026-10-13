@@ -1,6 +1,7 @@
 local _, ns = ...
 local L = ns.L
 local Assets = ns.Assets
+local Combat = ns.Api.Combat
 local Layout = ns.Layout
 local Widgets = ns.Widgets
 
@@ -13,14 +14,12 @@ local Sszorak = ns.Modules.Get("Sszorak")
 local WALL_THICKNESS = 2
 local GATE_THICKNESS = 4
 local EDGE_MARKER_SIZE = 20
--- Clickable frame around each marker; larger than the icon so vents are easy to hit in combat.
+-- Clickable frame around each marker; larger than the icon so markers are easy to hit.
 local EDGE_MARKER_HIT_SIZE = 56
 -- Gap between a wall and the near side of its marker icon.
 local EDGE_MARKER_GAP = Spacing.MEDIUM
 -- How far the hit box reaches past the walls (icon center sits at GAP + SIZE/2 from the wall).
 local EDGE_MARKER_REACH = EDGE_MARKER_GAP + EDGE_MARKER_SIZE / 2 + EDGE_MARKER_HIT_SIZE / 2
--- Selected wind-vent markers grow so they stand out from the rest.
-local EDGE_MARKER_SELECTED_SIZE = 32
 
 local HALO_ALPHA = 0.3
 
@@ -53,7 +52,7 @@ local OTHER_GROUP_STYLE = { size = 8, color = Colors.TEXT_MUTED }
 ---@field size number  Distance between opposite edges of the octagon.
 ---@field showPositions boolean|nil  Draws the boss and group positions.
 ---@field onEdgeMarkerClick fun(button: Button, edge: integer)|nil  Makes the marker icons clickable.
----@field windHighlights boolean|nil  Selected wind-vent icons scale up on this canvas.
+---@field edgeMarkerMacroName fun(edge: integer): string|nil  When set, markers are SecureActionButtons that run that macro.
 ---@field followsRotation boolean|nil  Turns with the map rotation setting.
 
 ---@class ArenaCanvas: Frame
@@ -64,13 +63,14 @@ local OTHER_GROUP_STYLE = { size = 8, color = Colors.TEXT_MUTED }
 ---@field groupMarkers table<string, ArenaPositionMarker>|nil
 ---@field edgeIcons table<integer, Texture>
 ---@field edgeButtons table<integer, Button>
----@field windHighlights boolean
 
 ---@class ArenaRow
 ---@field row Frame
 ---@field canvas ArenaCanvas
 ---@field exitLabel FontString
 ---@field entranceLabel FontString
+---@field exitCell Frame  Hosts exitLabel; Layout.Row needs frames when the canvas is protected.
+---@field entranceCell Frame  Hosts entranceLabel.
 ---@field width number  Of the labels and octagon side by side.
 ---@field inset number  Gap from the row's left side to the first label.
 
@@ -217,14 +217,24 @@ local function RefreshPositionMarkers(canvas)
     PlaceAll(canvas)
 end
 
-local function CreateEdgeMarkerButton(canvas, edge, onClick)
-    local button = CreateFrame("Button", nil, canvas)
+---@param options ArenaCanvasOptions
+local function CreateEdgeMarkerButton(canvas, edge, options)
+    local macroName = options.edgeMarkerMacroName and options.edgeMarkerMacroName(edge)
+    local template = macroName and Assets.Templates.SECURE_ACTION_BUTTON or nil
+    local button = CreateFrame("Button", nil, canvas, template)
     button:SetSize(EDGE_MARKER_HIT_SIZE, EDGE_MARKER_HIT_SIZE)
-    button:RegisterForClicks("LeftButtonUp")
     Widgets.AddHoverHighlight(button)
-    button:SetScript("OnClick", function(self)
-        onClick(self, edge)
-    end)
+    if macroName then
+        -- Named macros stay in sync via EditMacro; the button only needs the stable name.
+        button:RegisterForClicks("AnyUp", "AnyDown")
+        button:SetAttribute("type", "macro")
+        button:SetAttribute("macro", macroName)
+    else
+        button:RegisterForClicks("LeftButtonUp")
+        button:SetScript("OnClick", function(self)
+            options.onEdgeMarkerClick(self, edge)
+        end)
+    end
     Widgets.AttachTooltip(button, "ANCHOR_TOP", function(tooltip)
         tooltip:SetText(MARKER_NAMES[Sszorak:GetEdgeMarker(edge)])
     end)
@@ -242,14 +252,12 @@ local function CreateEdgeMarkers(canvas, options)
     local distance = 1 + (EDGE_MARKER_GAP + EDGE_MARKER_SIZE / 2) / canvas.scale
     canvas.edgeIcons = {}
     canvas.edgeButtons = {}
-    canvas.windHighlights = options.windHighlights == true
-    local baseLevel = canvas:GetFrameLevel()
+    local clickable = options.onEdgeMarkerClick or options.edgeMarkerMacroName
     for _, edgeMarker in ipairs(Sszorak:GetEdgeMarkers()) do
         local region, icon
-        if options.onEdgeMarkerClick then
-            region, icon = CreateEdgeMarkerButton(canvas, edgeMarker.edge, options.onEdgeMarkerClick)
+        if clickable then
+            region, icon = CreateEdgeMarkerButton(canvas, edgeMarker.edge, options)
             canvas.edgeButtons[edgeMarker.edge] = region
-            region:SetFrameLevel(baseLevel + 1)
         else
             icon = canvas:CreateTexture(nil, "OVERLAY")
             icon:SetSize(EDGE_MARKER_SIZE, EDGE_MARKER_SIZE)
@@ -307,17 +315,33 @@ local function CreateGateLabel(parent, edge)
     return label
 end
 
+---Frame cell that sizes to the label so Layout.Row never anchors a protected canvas to a FontString.
+---@param parent Frame
+---@param edge integer
+---@return Frame cell
+---@return FontString label
+local function CreateGateCell(parent, edge)
+    local cell = CreateFrame("Frame", nil, parent)
+    local label = CreateGateLabel(cell, edge)
+    label:SetPoint("CENTER")
+    return cell, label
+end
+
 ---Lines up the gate labels on either side of the octagon, next to their edges: the exit is on the left
 ---unless the arena is rotated.
 ---@param arena ArenaRow
 function SszorakMapUI.LayoutArenaRow(arena)
-    local left, right = arena.exitLabel, arena.entranceLabel
+    local leftCell, rightCell = arena.exitCell, arena.entranceCell
+    local leftLabel, rightLabel = arena.exitLabel, arena.entranceLabel
     if arena.canvas.rotated then
-        left, right = right, left
+        leftCell, rightCell = rightCell, leftCell
+        leftLabel, rightLabel = rightLabel, leftLabel
     end
-    left:SetJustifyH("RIGHT")
-    right:SetJustifyH("LEFT")
-    Layout.Row(arena.row, { left, arena.canvas, right }, Spacing.MEDIUM, arena.inset)
+    leftLabel:SetJustifyH("RIGHT")
+    rightLabel:SetJustifyH("LEFT")
+    -- Cells are frames: SecureActionButton children make the canvas protected, and protected
+    -- frames cannot SetPoint to FontString/Texture regions.
+    Layout.Row(arena.row, { leftCell, arena.canvas, rightCell }, Spacing.MEDIUM, arena.inset)
 end
 
 ---Fills `row` with the octagon between its gate labels. Call LayoutArenaRow once `inset` is final.
@@ -325,18 +349,22 @@ end
 ---@param options ArenaCanvasOptions
 ---@return ArenaRow
 function SszorakMapUI.CreateArenaRow(row, options)
-    local exitLabel = CreateGateLabel(row, Sszorak.EXIT_EDGE)
-    local entranceLabel = CreateGateLabel(row, Sszorak.ENTRANCE_EDGE)
+    local exitCell, exitLabel = CreateGateCell(row, Sszorak.EXIT_EDGE)
+    local entranceCell, entranceLabel = CreateGateCell(row, Sszorak.ENTRANCE_EDGE)
     -- Equal label widths keep the octagon centered between them.
     local labelWidth = math.max(exitLabel:GetStringWidth(), entranceLabel:GetStringWidth())
     exitLabel:SetWidth(labelWidth)
     entranceLabel:SetWidth(labelWidth)
+    exitCell:SetSize(labelWidth, options.size)
+    entranceCell:SetSize(labelWidth, options.size)
 
     return {
         row = row,
         canvas = CreateArenaCanvas(row, options),
         exitLabel = exitLabel,
         entranceLabel = entranceLabel,
+        exitCell = exitCell,
+        entranceCell = entranceCell,
         width = options.size + 2 * (labelWidth + Spacing.MEDIUM),
         inset = 0,
     }
@@ -373,22 +401,26 @@ function SszorakMapUI.RefreshPositionMarkers()
     end
 end
 
-function SszorakMapUI.RefreshWindHighlights()
+---Binds or clears SecureActionButton macros on floating-map edge markers.
+---Editor markers (plain buttons) are left alone. Blocked during combat lockdown.
+---@param enabled boolean
+---@return boolean applied
+function SszorakMapUI.SetEdgeMacroClicksEnabled(enabled)
+    if Combat.IsLockedDown() then
+        return false
+    end
     for _, canvas in ipairs(canvases) do
-        if canvas.windHighlights then
-            local interactive = Sszorak:IsWindHelperInteractive()
-            local baseLevel = canvas:GetFrameLevel()
-            for edge, icon in pairs(canvas.edgeIcons) do
-                local selected = interactive and Sszorak:IsWindVent(edge)
-                icon:SetSize(selected and EDGE_MARKER_SELECTED_SIZE or EDGE_MARKER_SIZE,
-                    selected and EDGE_MARKER_SELECTED_SIZE or EDGE_MARKER_SIZE)
-                local button = canvas.edgeButtons[edge]
-                if button then
-                    -- Selected markers sit above neighbors so a second click unselects instead of
-                    -- hitting an overlapping unselected hit box (which no-ops at the 3-vent cap).
-                    button:SetFrameLevel(baseLevel + (selected and 3 or 1))
+        for edge, button in pairs(canvas.edgeButtons or {}) do
+            if button:IsProtected() then
+                if enabled then
+                    button:SetAttribute("type", "macro")
+                    button:SetAttribute("macro", Sszorak:GetEdgeMacroName(edge))
+                else
+                    button:SetAttribute("type", nil)
+                    button:SetAttribute("macro", nil)
                 end
             end
         end
     end
+    return true
 end

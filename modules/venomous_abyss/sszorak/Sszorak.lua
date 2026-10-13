@@ -24,34 +24,51 @@ local GROUP_OFFSET = 0.25
 local MAP_SCALE_MIN = 0.8
 local MAP_SCALE_MAX = 1.5
 local MAP_SCALE_STEP = 0.05
--- Seconds from each animation cycle start when the dots jump to the next horizontal station.
-local ANIM_T1 = 37
-local ANIM_T2 = 50
-local ANIM_T3 = 84
-local ANIM_T4 = 127
--- Encounter pull only: timeline clock starts here so the first cycle lines up with ENCOUNTER_START.
-local ANIM_ENCOUNTER_START_TIME = -3
--- Preview plays the same stations this many times faster than a real pull.
+-- Preview plays the same timeline this many times faster than a real pull.
 local ANIM_PREVIEW_RATE = 10
--- Horizontal stations in cycle order: home (entrance side), center, far (exit side), center again.
+-- Horizontal stations: home (entrance / left side), center, far (exit / right side).
 local STATION_HOME = 1
 local STATION_CENTER = 2
 local STATION_FAR = 3
-local STATION_CENTER_AGAIN = 4
 local STATION_X = {
     [STATION_HOME] = BOSS_X,
     [STATION_CENTER] = 0,
     [STATION_FAR] = -BOSS_X,
-    [STATION_CENTER_AGAIN] = 0,
 }
--- Absolute times in a cycle when the raid moves to stations 2, 3, 4, then back to 1.
-local STATION_MOVE_TIMES = { ANIM_T1, ANIM_T2, ANIM_T3, ANIM_T4 }
--- Gale winds hit 3 vents; the two DoT rounds place cysts on the opposite (downwind) vents.
-local WIND_VENT_COUNT = 3
-local CYST_ROUND1_COUNT = 2
--- Entrance edge midpoint in arena coordinates (apothem 1 on +x).
-local ENTRANCE_MID_X = 1
-local ENTRANCE_MID_Y = 0
+-- Elapsed encounter seconds when dots jump to each station (starts on home at 0; frozen after the last entry).
+local POSITION_TIMELINE = {
+    { time = 38.7, station = STATION_CENTER },
+    { time = 50, station = STATION_FAR },
+    { time = 75.3, station = STATION_CENTER },
+    { time = 130, station = STATION_HOME },
+    { time = 165.8, station = STATION_CENTER },
+    { time = 177, station = STATION_FAR },
+    { time = 212.8, station = STATION_CENTER },
+    { time = 257.1, station = STATION_HOME },
+    { time = 292.8, station = STATION_CENTER },
+    { time = 304.1, station = STATION_FAR },
+    { time = 339.8, station = STATION_CENTER },
+    { time = 384.1, station = STATION_HOME },
+}
+-- Edges that carry world markers (everything except entrance and exit).
+local MARKABLE_EDGES = { 2, 3, 4, 6, 7, 8 }
+-- Raid-target icon index for `/raid {rtN}` and the matching targeting-frame texture.
+local MARKER_RAID_TARGET = {
+    STAR = 1,
+    CIRCLE = 2,
+    DIAMOND = 3,
+    TRIANGLE = 4,
+    MOON = 5,
+    SQUARE = 6,
+    CROSS = 7,
+    SKULL = 8,
+}
+-- Callout mode ids; helpers register implementations against these.
+local CALLOUT_MODE_NORMAL = "normal"
+local CALLOUT_MODE_JAILBREAK = "jailbreak"
+-- Raid role: members watch callouts; commanders own the edge-click macros.
+local RAID_ROLE_MEMBER = "member"
+local RAID_ROLE_COMMANDER = "commander"
 
 ---@class ArenaPoint
 ---@field x number
@@ -84,15 +101,12 @@ local DEFAULT_EDGE_MARKERS = {
 }
 
 -- Mythic Sszorak, the fifth boss of The Venomous Abyss.
----@class SszorakCystPlan
----@field round1 integer[]  Downwind edges for the first DoT round (closest to the entrance).
----@field round2 integer[]  Downwind edges for the second DoT round (remaining).
-
 ---@class Sszorak: Module
 ---@field OnEdgeMarkersChanged fun(self: Sszorak)|nil  Defined by the UI file; called after the assignment changes.
 ---@field OnEncounterChanged fun(self: Sszorak)|nil  Defined by the UI file; called when this boss fight starts or ends.
 ---@field OnPositionsChanged fun(self: Sszorak)|nil  Defined by the UI file; called when the animated dots move.
----@field OnWindHelperChanged fun(self: Sszorak)|nil  Defined by the UI file; called when wind vents or the helper toggle change.
+---@field OnRaidLeaderMessagesChanged fun(self: Sszorak)|nil  Defined by the UI file; saved callouts were cleared or appended.
+---@field OnCalloutChanged fun(self: Sszorak)|nil  Defined by the UI file; on-screen callout text was shown or cleared.
 local Sszorak = ns.Modules.New("Sszorak", {
     defaults = {
         ---@type table<integer, WorldMarker>  Edge index to marker; the entrance and exit have none.
@@ -105,8 +119,12 @@ local Sszorak = ns.Modules.New("Sszorak", {
         mapScale = 1,
         ---@type MapPosition
         mapPosition = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 0 },
-        -- When true, the raid leader can pick wind vents on the encounter map for cyst shot-calls.
-        windHelperEnabled = true,
+        ---@type MapPosition  On-screen raid callout text.
+        calloutPosition = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 160 },
+        -- Shows RL markers as-is, or jailbreak decrypt/retarget (see CALLOUT_MODE_*).
+        calloutMode = CALLOUT_MODE_NORMAL,
+        -- Member: no macro writes. Commander: create/refresh edge-click macros.
+        raidRole = RAID_ROLE_MEMBER,
     },
 })
 
@@ -118,28 +136,64 @@ Sszorak.ENCOUNTER_ID = ENCOUNTER_ID
 Sszorak.MAP_SCALE_MIN = MAP_SCALE_MIN
 Sszorak.MAP_SCALE_MAX = MAP_SCALE_MAX
 Sszorak.MAP_SCALE_STEP = MAP_SCALE_STEP
-Sszorak.ANIM_T1 = ANIM_T1
-Sszorak.ANIM_T2 = ANIM_T2
-Sszorak.ANIM_T3 = ANIM_T3
-Sszorak.ANIM_T4 = ANIM_T4
-Sszorak.ANIM_ENCOUNTER_START_TIME = ANIM_ENCOUNTER_START_TIME
+Sszorak.POSITION_TIMELINE = POSITION_TIMELINE
 Sszorak.ANIM_PREVIEW_RATE = ANIM_PREVIEW_RATE
-Sszorak.WIND_VENT_COUNT = WIND_VENT_COUNT
+Sszorak.STATION_HOME = STATION_HOME
+Sszorak.STATION_CENTER = STATION_CENTER
+Sszorak.STATION_FAR = STATION_FAR
+Sszorak.MARKER_RAID_TARGET = MARKER_RAID_TARGET
+Sszorak.CALLOUT_MODE_NORMAL = CALLOUT_MODE_NORMAL
+Sszorak.CALLOUT_MODE_JAILBREAK = CALLOUT_MODE_JAILBREAK
+Sszorak.RAID_ROLE_MEMBER = RAID_ROLE_MEMBER
+Sszorak.RAID_ROLE_COMMANDER = RAID_ROLE_COMMANDER
 
--- Session-only: whether the player is currently in this boss fight. Not saved across reloads.
-local inEncounter = false
+-- Session-only: GetTime() when the current pull/test timeline started.
+local pullStartTime = nil
 -- Session-only map animation: which horizontal station the dots occupy, and a token to cancel timers.
 local positionStation = STATION_HOME
 local animToken = 0
 local animRate = 1
--- True while StartMapAnimation has not been stopped (encounter pull or preview).
-local mapAnimationActive = false
--- Session-only: edges the raid leader marked as active gale vents this cycle.
----@type table<integer, boolean>
-local windVents = {}
+---@type EncounterWhileIn|nil
+local fight = nil
+
+-- Filled by SszorakCallout.lua / SszorakMacros.lua after load (shell must not call methods those files define).
+local calloutHooks = {
+    beginCapture = function() end,
+    endCapture = function() end,
+    clearMessages = function() end,
+    onStationChanged = function(_from, _to) end,
+}
+local requestMacroSync = function() end
+
+---Called from SszorakCallout.lua once the callout engine is loaded.
+---@param hooks table
+function Sszorak.BindCalloutHooks(hooks)
+    calloutHooks.beginCapture = hooks.beginCapture
+    calloutHooks.endCapture = hooks.endCapture
+    calloutHooks.clearMessages = hooks.clearMessages
+    calloutHooks.onStationChanged = hooks.onStationChanged
+end
+
+---Called from SszorakMacros.lua once macro sync exists.
+---@param sync fun()
+function Sszorak.BindMacroSync(sync)
+    requestMacroSync = sync
+end
+
+---Asks the macros layer to rewrite edge macros (no-op until BindMacroSync runs).
+---Only commanders keep macros in sync with marker / callout-mode changes.
+function Sszorak.RequestMacroSync()
+    if Sszorak.db.raidRole ~= RAID_ROLE_COMMANDER then
+        return
+    end
+    requestMacroSync()
+end
 
 ---@type SszorakGroup[]
 Sszorak.GROUPS = { "A", "B" }
+
+---@type integer[]
+Sszorak.MARKABLE_EDGES = MARKABLE_EDGES
 
 ---Every marker the player can choose from, in the game's raid target order.
 ---@type WorldMarker[]
@@ -205,10 +259,23 @@ local function CopyAssignment(target, source)
     end
 end
 
+local function OppositeEdge(edge)
+    return (edge - 1 + ARENA_SIDES / 2) % ARENA_SIDES + 1
+end
+
+---The edge opposite `edge` across the arena center.
+---@param edge integer
+---@return integer
+function Sszorak:GetOppositeEdge(edge)
+    assert(IsMarkableEdge(edge), "Edge has no opposite marker edge: " .. tostring(edge))
+    return OppositeEdge(edge)
+end
+
 local function NotifyChanged()
     if Sszorak.OnEdgeMarkersChanged then
         Sszorak:OnEdgeMarkersChanged()
     end
+    Sszorak.RequestMacroSync()
 end
 
 -- "1:2=STAR,3=CIRCLE,..." with the format version first and edges in order.
@@ -345,144 +412,6 @@ function Sszorak:SetMapEnabled(enabled)
     self.db.mapEnabled = enabled == true
 end
 
----@return boolean  Whether the wind-vent helper is on.
-function Sszorak:IsWindHelperEnabled()
-    return self.db.windHelperEnabled == true
-end
-
----Whether the helper can accept vent clicks and show its status (encounter or map preview).
----Requires the parent encounter-map feature to be on.
----@return boolean
-function Sszorak:IsWindHelperInteractive()
-    return self:IsMapEnabled() and self:IsWindHelperEnabled() and mapAnimationActive
-end
-
-local function NotifyWindHelperChanged()
-    if Sszorak.OnWindHelperChanged then
-        Sszorak:OnWindHelperChanged()
-    end
-end
-
----Clears the selected wind vents for this cycle.
----@param silent boolean|nil  When true, skip the UI notify (used when the caller notifies next).
-function Sszorak:ClearWindVents(silent)
-    if not next(windVents) then
-        return
-    end
-    Util.Wipe(windVents)
-    if not silent then
-        NotifyWindHelperChanged()
-    end
-end
-
----@param enabled boolean
-function Sszorak:SetWindHelperEnabled(enabled)
-    enabled = enabled == true
-    if self.db.windHelperEnabled == enabled then
-        return
-    end
-    self.db.windHelperEnabled = enabled
-    if not enabled then
-        self:ClearWindVents(true)
-    end
-    NotifyWindHelperChanged()
-end
-
----The edge opposite `edge` across the arena center (same side index + half the polygon).
----@param edge integer
----@return integer
-local function OppositeEdge(edge)
-    return (edge - 1 + ARENA_SIDES / 2) % ARENA_SIDES + 1
-end
-
-local function CountWindVents()
-    local count = 0
-    for _ in pairs(windVents) do
-        count = count + 1
-    end
-    return count
-end
-
----Squared distance from an edge midpoint to the entrance midpoint; lower edge index breaks ties.
----@param edge integer
----@return number distanceSq
----@return integer edge
-local function EntranceSortKey(edge)
-    local vertices = Sszorak:GetArenaVertices()
-    local from, to = vertices[edge], vertices[edge % ARENA_SIDES + 1]
-    local mx, my = (from.x + to.x) / 2, (from.y + to.y) / 2
-    local dx, dy = mx - ENTRANCE_MID_X, my - ENTRANCE_MID_Y
-    return dx * dx + dy * dy, edge
-end
-
----@param edge integer
----@return boolean
-function Sszorak:IsWindVent(edge)
-    return windVents[edge] == true
-end
-
----Selected wind-vent edges in ascending edge order.
----@return integer[]
-function Sszorak:GetWindVents()
-    local edges = {}
-    for edge = 1, ARENA_SIDES do
-        if windVents[edge] then
-            table.insert(edges, edge)
-        end
-    end
-    return edges
-end
-
----Downwind cyst edges split into the two DoT rounds, or nil until all wind vents are picked.
----@return SszorakCystPlan|nil
-function Sszorak:GetCystPlan()
-    if CountWindVents() ~= WIND_VENT_COUNT then
-        return nil
-    end
-    local downwinds = {}
-    for edge in pairs(windVents) do
-        table.insert(downwinds, OppositeEdge(edge))
-    end
-    table.sort(downwinds, function(a, b)
-        local da, ea = EntranceSortKey(a)
-        local db, eb = EntranceSortKey(b)
-        if da ~= db then
-            return da < db
-        end
-        return ea < eb
-    end)
-    local round1 = {}
-    for index = 1, CYST_ROUND1_COUNT do
-        round1[index] = downwinds[index]
-    end
-    local round2 = {}
-    for index = CYST_ROUND1_COUNT + 1, #downwinds do
-        table.insert(round2, downwinds[index])
-    end
-    return { round1 = round1, round2 = round2 }
-end
-
----Toggles `edge` as an active gale vent. No-op when the helper isn't interactive or at the cap of 3.
----@param edge integer  Any markable edge.
----@return boolean  Whether the selection changed.
-function Sszorak:ToggleWindVent(edge)
-    if not self:IsWindHelperInteractive() then
-        return false
-    end
-    assert(IsMarkableEdge(edge), "Edge can't be a wind vent: " .. tostring(edge))
-    if windVents[edge] then
-        windVents[edge] = nil
-        NotifyWindHelperChanged()
-        return true
-    end
-    if CountWindVents() >= WIND_VENT_COUNT then
-        return false
-    end
-    windVents[edge] = true
-    NotifyWindHelperChanged()
-    return true
-end
-
 ---@return boolean  Whether the map window is turned 180 degrees.
 function Sszorak:IsMapRotated()
     return self.db.mapRotated == true
@@ -493,20 +422,15 @@ function Sszorak:SetMapRotated(rotated)
     self.db.mapRotated = rotated == true
 end
 
-local function ClampMapScale(scale)
-    local rounded = math.floor(scale / MAP_SCALE_STEP + 0.5) * MAP_SCALE_STEP
-    return math.min(math.max(rounded, MAP_SCALE_MIN), MAP_SCALE_MAX)
-end
-
 ---@return number
 function Sszorak:GetMapScale()
-    return ClampMapScale(self.db.mapScale)
+    return Util.Snap(self.db.mapScale, MAP_SCALE_MIN, MAP_SCALE_MAX, MAP_SCALE_STEP)
 end
 
 ---@param scale number
 function Sszorak:SetMapScale(scale)
     assert(type(scale) == "number", "Bad scale")
-    self.db.mapScale = ClampMapScale(scale)
+    self.db.mapScale = Util.Snap(scale, MAP_SCALE_MIN, MAP_SCALE_MAX, MAP_SCALE_STEP)
 end
 
 ---@return MapPosition
@@ -523,9 +447,53 @@ function Sszorak:SetMapPosition(position)
     saved.x, saved.y = position.x, position.y
 end
 
+---@return MapPosition
+function Sszorak:GetCalloutPosition()
+    return self.db.calloutPosition
+end
+
+---@param position MapPosition
+function Sszorak:SetCalloutPosition(position)
+    assert(type(position.point) == "string" and type(position.relativePoint) == "string", "Bad anchor points")
+    assert(type(position.x) == "number" and type(position.y) == "number", "Bad offsets")
+    local saved = self.db.calloutPosition
+    saved.point, saved.relativePoint = position.point, position.relativePoint
+    saved.x, saved.y = position.x, position.y
+end
+
+---@return string
+function Sszorak:GetRaidRole()
+    local role = self.db.raidRole
+    if role == RAID_ROLE_COMMANDER then
+        return RAID_ROLE_COMMANDER
+    end
+    return RAID_ROLE_MEMBER
+end
+
+---@return boolean
+function Sszorak:IsRaidCommander()
+    return self:GetRaidRole() == RAID_ROLE_COMMANDER
+end
+
+---Sets membership vs commander. Does not write macros; the UI creates them when becoming commander.
+---@param role string
+function Sszorak:SetRaidRole(role)
+    assert(role == RAID_ROLE_MEMBER or role == RAID_ROLE_COMMANDER, "Unknown raid role: " .. tostring(role))
+    self.db.raidRole = role
+end
+
 ---@return boolean
 function Sszorak:IsInEncounter()
-    return inEncounter
+    return fight ~= nil and fight:IsInside()
+end
+
+---Elapsed timeline seconds since the current pull/test started (scaled by animation rate).
+---@return number
+function Sszorak:GetTimelineElapsed()
+    if not pullStartTime then
+        return 0
+    end
+    return (Timer.GetTime() - pullStartTime) * animRate
 end
 
 local function NotifyPositionsChanged()
@@ -538,7 +506,12 @@ local function SetPositionStation(station)
     if positionStation == station then
         return
     end
+    local fromStation = positionStation
     positionStation = station
+    if station == STATION_HOME and fromStation ~= STATION_HOME then
+        calloutHooks.clearMessages()
+    end
+    calloutHooks.onStationChanged(fromStation, station)
     NotifyPositionsChanged()
 end
 
@@ -547,85 +520,71 @@ local function CurrentPositionX()
 end
 
 ---@class MapAnimationOptions
----@field startTime number|nil  Timeline clock at the beginning of the first cycle. Defaults to 0.
 ---@field rate number|nil  How fast timeline seconds elapse. Defaults to 1.
 
--- Schedules the four jumps of one cycle. `token` must still match `animToken` when each fires.
--- `cycleStartTime` is where the timeline clock begins for this cycle (0 after the first pull cycle).
-local function ScheduleAnimationCycle(token, cycleStartTime)
-    for index, at in ipairs(STATION_MOVE_TIMES) do
-        local delay = (at - cycleStartTime) / animRate
-        Timer.After(delay, function()
+-- Schedules every timeline jump. `token` must still match `animToken` when each fires.
+local function SchedulePositionTimeline(token)
+    for _, entry in ipairs(POSITION_TIMELINE) do
+        Timer.After(entry.time / animRate, function()
             if token ~= animToken then
                 return
             end
-            if index < #STATION_MOVE_TIMES then
-                SetPositionStation(index + 1)
-            else
-                -- t4: back home, then the same timeline runs again from zero (no pull offset).
-                -- Wind vents are per cycle; the next gale set is picked fresh.
-                Sszorak:ClearWindVents()
-                SetPositionStation(STATION_HOME)
-                ScheduleAnimationCycle(token, 0)
-            end
+            SetPositionStation(entry.station)
         end)
     end
 end
 
----Starts (or restarts) the looping map animation from the home positions.
+---Starts map test mode: fast timeline plus raid leader capture until `EndMapTest`.
+function Sszorak:StartMapTest()
+    calloutHooks.beginCapture()
+    self:StartMapAnimation({ rate = ANIM_PREVIEW_RATE })
+end
+
+---Ends map test mode and stops raid leader capture.
+function Sszorak:EndMapTest()
+    calloutHooks.endCapture()
+    self:StopMapAnimation()
+end
+
+---Starts (or restarts) the map animation from home and follows the fixed position timeline.
 ---@param options MapAnimationOptions|nil
 function Sszorak:StartMapAnimation(options)
     options = options or {}
     animToken = animToken + 1
     local token = animToken
     animRate = options.rate or 1
-    local startTime = options.startTime or 0
-    mapAnimationActive = true
-    -- A new pull or preview run starts a fresh vent cycle.
-    self:ClearWindVents(true)
+    pullStartTime = Timer.GetTime()
     positionStation = STATION_HOME
     NotifyPositionsChanged()
-    -- Preview and pull both open wind-helper interaction on the floating map.
-    NotifyWindHelperChanged()
-    ScheduleAnimationCycle(token, startTime)
+    SchedulePositionTimeline(token)
 end
 
 ---Stops the map animation and snaps the dots back home.
 function Sszorak:StopMapAnimation()
     animToken = animToken + 1
     animRate = 1
-    mapAnimationActive = false
-    self:ClearWindVents(true)
-    NotifyWindHelperChanged()
+    pullStartTime = nil
     SetPositionStation(STATION_HOME)
 end
 
-local function SetInEncounter(value)
-    if inEncounter == value then
-        return
-    end
-    inEncounter = value
-    if value then
-        -- Always restart from pull, even if preview was already animating.
-        Sszorak:StartMapAnimation({ startTime = ANIM_ENCOUNTER_START_TIME })
-    else
-        Sszorak:StopMapAnimation()
-    end
+local function NotifyEncounterChanged()
     if Sszorak.OnEncounterChanged then
         Sszorak:OnEncounterChanged()
     end
 end
 
 ---Starts watching for this boss fight. Called from OnEnable.
+---Map test mode (`StartMapTest`) is separate and does not use this scope.
 function Sszorak:ListenForEncounter()
-    Encounter.OnStart(function(encounterID)
-        if encounterID == ENCOUNTER_ID then
-            SetInEncounter(true)
-        end
-    end)
-    Encounter.OnEnd(function(encounterID)
-        if encounterID == ENCOUNTER_ID then
-            SetInEncounter(false)
+    fight = Encounter.WhileIn(ENCOUNTER_ID, function()
+        -- Always restart from pull, even if preview was already animating.
+        calloutHooks.beginCapture()
+        Sszorak:StartMapAnimation()
+        NotifyEncounterChanged()
+        return function()
+            Sszorak:StopMapAnimation()
+            calloutHooks.endCapture()
+            NotifyEncounterChanged()
         end
     end)
 end
@@ -680,5 +639,11 @@ function Sszorak:OnInit()
     if not IsValidAssignment(self.db.edgeMarkers) then
         CopyAssignment(self.db.edgeMarkers, DEFAULT_EDGE_MARKERS)
     end
-    self.db.mapScale = ClampMapScale(self.db.mapScale)
+    self.db.mapScale = Util.Snap(self.db.mapScale, MAP_SCALE_MIN, MAP_SCALE_MAX, MAP_SCALE_STEP)
+    if not Sszorak.IsCalloutModeAvailable(self.db.calloutMode) then
+        self.db.calloutMode = Sszorak.CALLOUT_MODE_NORMAL
+    end
+    if self.db.raidRole ~= RAID_ROLE_MEMBER and self.db.raidRole ~= RAID_ROLE_COMMANDER then
+        self.db.raidRole = RAID_ROLE_MEMBER
+    end
 end

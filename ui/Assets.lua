@@ -11,6 +11,9 @@ Assets.MINI_LOGO = MEDIA_PATH .. "icons\\mini_logo"
 Assets.Textures = {
     -- A plain white square; tinted with SetVertexColor or used as a backdrop for flat fills.
     WHITE = "Interface\\Buttons\\WHITE8x8",
+    -- Built-in status-bar fills (also listed in STATUS_BAR_TEXTURES for pickers).
+    STATUS_BAR = "Interface\\TargetingFrame\\UI-StatusBar",
+    RAID_BAR = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
     -- Mask texture that clips a texture to a circle.
     CIRCLE_MASK = "Interface\\CHARACTERFRAME\\TempPortraitAlphaMask",
     MINIMAP_HIGHLIGHT = "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight",
@@ -18,9 +21,24 @@ Assets.Textures = {
     MINIMAP_BORDER = "Interface\\Minimap\\MiniMap-TrackingBorder",
 }
 
+---@class StatusBarTextureDef
+---@field id string  Stable SavedVariables key; keep stable when renaming display labels.
+---@field path string
+
+---Built-in progress-bar fills. Append entries here to extend pickers; LSM statusbars are merged at runtime.
+Assets.STATUS_BAR_TEXTURES = {
+    { id = "flat", path = Assets.Textures.WHITE },
+    { id = "default", path = Assets.Textures.STATUS_BAR },
+    { id = "raid", path = Assets.Textures.RAID_BAR },
+}
+
+---SavedVariables default; matches the flat WHITE8x8 bar shipped with Aura Tracker.
+Assets.STATUS_BAR_TEXTURE_DEFAULT = "flat"
+
 Assets.Templates = {
     BACKDROP = "BackdropTemplate",
     SCROLL_BAR = "MinimalScrollBar",
+    SECURE_ACTION_BUTTON = "SecureActionButtonTemplate",
 }
 
 Assets.Glyphs = {
@@ -41,7 +59,7 @@ Assets.Colors = {
     BORDER = { r = 0.180, g = 0.196, b = 0.231, a = 1 },
     -- Softer edge for compact floating overlays.
     BORDER_SUBTLE = { r = 0.55, g = 0.58, b = 0.65, a = 0.55 },
-    -- Amber edge for warning overlays (e.g. combat log reminder).
+    -- Amber edge for warning overlays.
     BORDER_WARNING = { r = 0.90, g = 0.70, b = 0.25, a = 0.75 },
     HOVER = { r = 1, g = 1, b = 1, a = 0.06 },
     TEXT = { r = 0.902, g = 0.910, b = 0.922 },
@@ -54,11 +72,18 @@ Assets.Colors = {
     WARNING = { r = 0.945, g = 0.643, b = 0.267, a = 1 },
     ERROR = { r = 0.898, g = 0.282, b = 0.302 },
     DIVIDER = { r = 0.180, g = 0.196, b = 0.231, a = 1 },
+    -- Subtle outline / label for layout edit mode previews.
+    LAYOUT_EDIT_OUTLINE = { r = 0.310, g = 0.765, b = 0.710, a = 0.55 },
+    LAYOUT_EDIT_LABEL = { r = 0.310, g = 0.765, b = 0.710, a = 0.9 },
+    -- Full-screen veil behind editable elements (one static texture; no per-frame work).
+    LAYOUT_EDIT_DIMMER = { r = 0, g = 0, b = 0, a = 0.55 },
 }
 
 -- Shared game textures used by floating overlays.
 Assets.Icons = {
     WARNING = "Interface\\DialogFrame\\UI-Dialog-Icon-AlertNew",
+    -- Standard placeholder when a spell ID has no resolvable icon.
+    QUESTION_MARK = "Interface\\Icons\\INV_Misc_QuestionMark",
 }
 
 local FONT_PREFIX = ns.ADDON_NAME .. "Font"
@@ -73,12 +98,18 @@ Assets.Fonts = {
     EMPHASIS = FONT_PREFIX .. "Emphasis",
     -- Large outlined readout for floating overlays (e.g. timers).
     DISPLAY = FONT_PREFIX .. "Display",
+    -- Very large outlined callout text over the game world (e.g. Sszorak raid markers).
+    CALLOUT = FONT_PREFIX .. "Callout",
     MUTED = FONT_PREFIX .. "Muted",
     SMALL_MUTED = FONT_PREFIX .. "SmallMuted",
     -- One step below SMALL_MUTED; for quiet footnotes on overlays.
     TINY_MUTED = FONT_PREFIX .. "TinyMuted",
     ON_ACCENT = FONT_PREFIX .. "OnAccent",
+    -- Larger on-accent face for the layout-edit Done control.
+    LAYOUT_EDIT_DONE = FONT_PREFIX .. "LayoutEditDone",
     LINK = FONT_PREFIX .. "Link",
+    -- Same size as LINK; bright red for destructive text actions.
+    LINK_DANGER = FONT_PREFIX .. "LinkDanger",
     GLYPH = FONT_PREFIX .. "Glyph",
 }
 
@@ -90,11 +121,20 @@ Assets.FontStyles = {
     [Assets.Fonts.BODY] = { size = 12, color = Assets.Colors.TEXT },
     [Assets.Fonts.EMPHASIS] = { size = 14, color = Assets.Colors.TEXT, flags = "OUTLINE" },
     [Assets.Fonts.DISPLAY] = { size = 32, color = Assets.Colors.TEXT_GOLD, flags = "OUTLINE" },
+    -- Amber + thick outline, ARHei for CJK raid-warning style callouts.
+    [Assets.Fonts.CALLOUT] = {
+        path = "Fonts\\ARHei.ttf",
+        size = 56,
+        color = Assets.Colors.WARNING,
+        flags = "THICKOUTLINE",
+    },
     [Assets.Fonts.MUTED] = { size = 12, color = Assets.Colors.TEXT_MUTED },
     [Assets.Fonts.SMALL_MUTED] = { size = 11, color = Assets.Colors.TEXT_MUTED },
     [Assets.Fonts.TINY_MUTED] = { size = 10, color = Assets.Colors.TEXT_MUTED },
     [Assets.Fonts.ON_ACCENT] = { size = 12, color = Assets.Colors.TEXT_ON_ACCENT },
+    [Assets.Fonts.LAYOUT_EDIT_DONE] = { size = 16, color = Assets.Colors.TEXT_ON_ACCENT },
     [Assets.Fonts.LINK] = { size = 12, color = Assets.Colors.ACCENT },
+    [Assets.Fonts.LINK_DANGER] = { size = 12, color = Assets.Colors.ERROR },
     [Assets.Fonts.GLYPH] = { size = 18, color = Assets.Colors.TEXT_MUTED },
 }
 
@@ -126,6 +166,8 @@ Assets.Sizes = {
     -- Rows holding buttons or inputs: a control fills its own height, so the row adds the
     -- vertical room that text gets for free, keeping gaps around controls as open as around text.
     CONTROL_ROW_HEIGHT = 30,
+    -- Subsection title + bottom divider inside a feature body (e.g. Widgets.LayoutSectionHeader).
+    CONTENT_SECTION_HEADER = 22,
     INPUT_HEIGHT = 24,
     CHECKBOX = 12,
     -- Gap between the checkbox border and its checked fill.
@@ -133,13 +175,27 @@ Assets.Sizes = {
     ROLE_ICON = 14,
     BUTTON_MIN_WIDTH = 64,
     BUTTON_TEXT_PADDING = 20,
+    -- Prominent Done control while repositioning floating UI.
+    LAYOUT_EDIT_DONE_HEIGHT = 36,
+    LAYOUT_EDIT_DONE_MIN_WIDTH = 120,
+    LAYOUT_EDIT_DONE_TEXT_PADDING = 36,
     SEGMENT_TEXT_PADDING = 16,
     -- Fits two digits so the stepper doesn't shift as the value changes.
     STEPPER_VALUE_WIDTH = 28,
     EXPAND_ARROW = 10,
     EXPAND_ARROW_THICKNESS = 2,
+    -- Drawn caret on dropdown triggers (same line technique as EXPAND_ARROW).
+    DROPDOWN_CARET = 10,
+    DROPDOWN_CARET_THICKNESS = 2,
     INPUT_DIGIT_WIDTH = 8,
     INPUT_TEXT_PADDING = 16,
+    -- Square color swatch for ColorPickerFrame controls.
+    COLOR_SWATCH = 22,
+    DROPDOWN_MIN_WIDTH = 96,
+    -- Left text inset plus room for the caret on the right.
+    DROPDOWN_TEXT_PADDING = 28,
+    -- Visible rows before the popup scrolls on its own (keeps LSM lists usable).
+    DROPDOWN_MAX_VISIBLE = 8,
 }
 
 -- World markers share their icons with raid target icons.

@@ -96,7 +96,7 @@ local function FakeFontString(parent)
 end
 
 describe("FeatureSection", function()
-    local FeatureSection, heights, originalCreateFrame
+    local FeatureSection, Layout, originalCreateFrame
 
     before_each(function()
         originalCreateFrame = CreateFrame
@@ -130,6 +130,9 @@ describe("FeatureSection", function()
             function control:SetSelected(value)
                 self.selected = value
             end
+            function control:SetEnabled(enabled)
+                self.enabled = enabled == true
+            end
             control:SetSize(80, 24)
             return control
         end
@@ -137,38 +140,58 @@ describe("FeatureSection", function()
 
         assert(loadfile("ui/FeatureSection.lua"))(Loader.ADDON_NAME, ns)
         FeatureSection = ns.FeatureSection
-        heights = {}
+        Layout = ns.Layout
     end)
 
     after_each(function()
         CreateFrame = originalCreateFrame
     end)
 
+    ---@return FeatureSection, LayoutStack, Frame
     local function CreateSection(overrides)
+        local host = FakeFrame()
+        local stack = Layout.Stack(host)
         local options = {
             title = "Encounter Map",
             enabled = true,
-            onHeightChanged = function(height)
-                table.insert(heights, height)
-            end,
         }
         for key, value in pairs(overrides or {}) do
             options[key] = value
         end
-        return FeatureSection.Create(FakeFrame(), options)
+        return FeatureSection.Create(stack, options), stack, host
     end
 
     it("starts with only the header height until content is measured", function()
-        local section = CreateSection()
+        local section, stack = CreateSection()
         assert.equals(32, section:GetHeight())
-        assert.equals(0, #heights)
+        assert.equals(32, stack:GetHeight())
     end)
 
-    it("grows when content height is set and notifies the parent", function()
+    it("parents to stack.container and keeps that entry in sync", function()
+        local host = FakeFrame()
+        local stack = Layout.Stack(host)
+        local stackHeights = {}
+        local section = FeatureSection.Create(stack, {
+            title = "Encounter Map",
+            onStackHeightChanged = function(height)
+                table.insert(stackHeights, height)
+            end,
+        })
+
+        assert.is_true(section.parent == host)
+        assert.equals(32, stack:GetHeight())
+        assert.equals(32, stackHeights[#stackHeights])
+
+        section:SetContentHeight(100)
+        assert.equals(132, section:GetHeight())
+        assert.equals(132, stack:GetHeight())
+        assert.equals(132, stackHeights[#stackHeights])
+    end)
+
+    it("grows when content height is set", function()
         local section = CreateSection()
         section:SetContentHeight(100)
         assert.equals(132, section:GetHeight())
-        assert.equals(132, heights[#heights])
     end)
 
     it("dims and disables content when the feature is turned off", function()
@@ -202,5 +225,38 @@ describe("FeatureSection", function()
     it("accepts an optional title tooltip", function()
         local section = CreateSection({ tooltip = "Click the vents" })
         assert.equals(32, section:GetHeight())
+    end)
+
+    it("gates nested feature sections without overwriting their On/Off state", function()
+        local nestedChanges = {}
+        local parent = CreateSection()
+        local nestedStack = Layout.Stack(parent.content)
+        local nested = FeatureSection.Create(nestedStack, {
+            title = "Show Remaining Time",
+            enabled = false,
+            onEnabledChanged = function(enabled)
+                table.insert(nestedChanges, enabled)
+            end,
+        })
+        local nestedChild = FakeFrame(nested.content)
+        function nestedChild:SetEnabled(enabled)
+            self.enabled = enabled == true
+        end
+        nested:SetContentHeight(40)
+        parent:SetContentHeight(nestedStack:GetHeight())
+
+        parent:RefreshContentInteractive()
+        assert.is_false(nested:IsEnabled())
+        assert.equals(0, #nestedChanges)
+        assert.is_false(nestedChild.enabled)
+
+        nested:SetEnabled(true)
+        assert.same({ true }, nestedChanges)
+        assert.is_true(nestedChild.enabled)
+
+        parent:SetEnabled(false)
+        assert.is_true(nested:IsEnabled())
+        assert.same({ true }, nestedChanges)
+        assert.is_false(nestedChild.enabled)
     end)
 end)

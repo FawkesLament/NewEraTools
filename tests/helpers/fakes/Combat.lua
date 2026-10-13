@@ -9,6 +9,10 @@ return function()
         return Combat.inCombat
     end
 
+    function Combat.IsLockedDown()
+        return Combat.inCombat
+    end
+
     function Combat.OnEnter(callback)
         table.insert(Combat.enterCallbacks, callback)
     end

@@ -32,35 +32,44 @@ ns.FloatingWindow = FloatingWindow
 ---@field GetWindowPosition fun(self: FloatingWindow): FloatingWindowPosition
 ---@field SetWindowScale fun(self: FloatingWindow, scale: number)  Keeps the window's center on screen.
 ---@field SetDragEnabled fun(self: FloatingWindow, enabled: boolean)  Enables or disables dragging (and mouse capture).
+---@field SetClickEnabled fun(self: FloatingWindow, enabled: boolean)  Enables or disables the optional click handler.
 
----@param frame FloatingWindow
+FloatingWindow.IsValidPosition = ns.Position.IsValid
+
+---@param frame Frame
 ---@param position FloatingWindowPosition
-local function ApplyPosition(frame, position)
+function FloatingWindow.ApplyPosition(frame, position)
     frame:ClearAllPoints()
     frame:SetPoint(position.point, UIParent, position.relativePoint, position.x, position.y)
 end
 
----@param frame FloatingWindow
+---@param frame Frame
 ---@return FloatingWindowPosition
-local function ReadPosition(frame)
+function FloatingWindow.ReadPosition(frame)
     local point, _, relativePoint, x, y = frame:GetPoint()
-    return { point = point, relativePoint = relativePoint, x = x, y = y }
+    return {
+        point = point or "CENTER",
+        relativePoint = relativePoint or "CENTER",
+        x = x or 0,
+        y = y or 0,
+    }
 end
 
----Creates a translucent, draggable dialog-strata window matching the Sszorak encounter-map look.
+---Creates a translucent, draggable window matching the Sszorak encounter-map look.
+---Uses MEDIUM strata so Blizzard DIALOG/TOOLTIP menus stay above it.
 ---@param options FloatingWindowOptions|nil
 ---@return FloatingWindow
 function FloatingWindow.Create(options)
     options = options or {}
 
     local frame = Widgets.CreateSurface(UIParent, Colors.BG_TRANSLUCENT, Colors.BORDER, options.name) --[[@as FloatingWindow]]
-    frame:SetFrameStrata("DIALOG")
+    frame:SetFrameStrata("MEDIUM")
     frame:SetToplevel(true)
     frame:SetClampedToScreen(true)
     frame:SetMovable(true)
     frame:SetScale(options.scale or 1)
     if options.position then
-        ApplyPosition(frame, options.position)
+        FloatingWindow.ApplyPosition(frame, options.position)
     else
         frame:SetPoint("CENTER")
     end
@@ -69,6 +78,7 @@ function FloatingWindow.Create(options)
     local dragEntireFrame = options.dragEntireFrame == true
     local dragEnabled = options.draggable ~= false
     local wantsClick = options.onClick ~= nil
+    local clickEnabled = wantsClick
     -- Set in OnDragStart so OnMouseUp can ignore presses that became a drag.
     local didDrag = false
 
@@ -83,7 +93,7 @@ function FloatingWindow.Create(options)
     local function EndDrag()
         frame:StopMovingOrSizing()
         if options.onPositionChanged then
-            options.onPositionChanged(ReadPosition(frame))
+            options.onPositionChanged(FloatingWindow.ReadPosition(frame))
         end
     end
 
@@ -94,7 +104,7 @@ function FloatingWindow.Create(options)
     end
 
     local function OnMouseUp(_, button)
-        if button ~= "LeftButton" or didDrag then
+        if button ~= "LeftButton" or didDrag or not clickEnabled then
             didDrag = false
             return
         end
@@ -124,16 +134,18 @@ function FloatingWindow.Create(options)
         frame:SetScript("OnMouseUp", OnMouseUp)
     end
 
-    local function ApplyDragEnabled()
+    local function ApplyInteractionEnabled()
         -- Keep mouse capture when click handling is needed, even if dragging is off.
-        local mouseEnabled = dragEnabled or wantsClick
+        local mouseEnabled = dragEnabled or (wantsClick and clickEnabled)
         header:EnableMouse(mouseEnabled)
         if dragEntireFrame or wantsClick then
             frame:EnableMouse(mouseEnabled)
+        elseif not mouseEnabled then
+            frame:EnableMouse(false)
         end
     end
 
-    ApplyDragEnabled()
+    ApplyInteractionEnabled()
 
     if options.closable then
         local closeButton = Widgets.CreateCloseButton(header, function()
@@ -146,11 +158,11 @@ function FloatingWindow.Create(options)
     end
 
     function frame:SetWindowPosition(position)
-        ApplyPosition(self, position)
+        FloatingWindow.ApplyPosition(self, position)
     end
 
     function frame:GetWindowPosition()
-        return ReadPosition(self)
+        return FloatingWindow.ReadPosition(self)
     end
 
     -- Keeps the window's center where it is on screen; anchor offsets are in the frame's own scale.
@@ -165,14 +177,20 @@ function FloatingWindow.Create(options)
             self:ClearAllPoints()
             self:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x * oldScale / scale, y * oldScale / scale)
             if options.onPositionChanged then
-                options.onPositionChanged(ReadPosition(self))
+                options.onPositionChanged(FloatingWindow.ReadPosition(self))
             end
         end
     end
 
     function frame:SetDragEnabled(enabled)
         dragEnabled = enabled == true
-        ApplyDragEnabled()
+        ApplyInteractionEnabled()
+    end
+
+    ---Enables or disables the optional left-click handler without affecting drag.
+    function frame:SetClickEnabled(enabled)
+        clickEnabled = wantsClick and enabled == true
+        ApplyInteractionEnabled()
     end
 
     return frame

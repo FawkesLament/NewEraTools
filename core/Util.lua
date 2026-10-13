@@ -26,12 +26,37 @@ function Util.ApplyDefaults(target, defaults)
     end
 end
 
+---Returns a deep copy of `value`. Nested tables are independent; non-tables are returned as-is.
+---@param value any
+---@return any
+function Util.DeepCopy(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local copy = {}
+    for key, nested in pairs(value) do
+        copy[key] = Util.DeepCopy(nested)
+    end
+    return copy
+end
+
 ---@param value number
 ---@param min number
 ---@param max number
 ---@return number
 function Util.Clamp(value, min, max)
     return math.min(math.max(value, min), max)
+end
+
+---Rounds `value` to the nearest `step`, then clamps to `[min, max]`.
+---@param value number
+---@param min number
+---@param max number
+---@param step number
+---@return number
+function Util.Snap(value, min, max, step)
+    local rounded = math.floor(value / step + 0.5) * step
+    return math.min(math.max(rounded, min), max)
 end
 
 ---Removes every key from `t` in place.

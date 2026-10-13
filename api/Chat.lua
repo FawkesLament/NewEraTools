@@ -6,3 +6,15 @@ ns.Api.Chat = Chat
 ---Sends `message` to a chat channel. `target` is the player name for "WHISPER" or the channel number for "CHANNEL".
 ---@type fun(message: string, chatType: ChatType, languageID: number|nil, target: string|number|nil)
 Chat.Send = C_ChatInfo.SendChatMessage
+
+---Turns chat icon tags (`{rt1}`, `{star}`, …) into FontString texture escapes. Accepts secret values.
+---@type fun(input: string, noIconReplacement: boolean|nil, noGroupReplacement: boolean|nil): string
+Chat.ReplaceIconAndGroupExpressions = C_ChatInfo.ReplaceIconAndGroupExpressions
+
+---Calls `callback` with the raid leader message text (may be a secret value during encounters).
+---@param callback fun(message: string)
+function Chat.OnRaidLeaderMessage(callback)
+    ns.Api.GameEvents.Listen("CHAT_MSG_RAID_LEADER", function(message)
+        callback(message)
+    end)
+end
