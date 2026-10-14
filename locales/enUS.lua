@@ -44,7 +44,7 @@ L.RAID_LOTTERY_RESULT_HEADER_EXCLUDED = "This round's lucky winners (%s, %d excl
 L.RAID_LOTTERY_LEFT_RAID = "Left the raid; stopped announcing results."
 
 L.THE_LOST_EXPLORERS_TITLE = "The Lost Explorers (M3)"
-L.THE_LOST_EXPLORERS_FEED_FISH_ENABLED = "Fish Feeding Assistant"
+L.THE_LOST_EXPLORERS_FEED_FISH_ENABLED = "Feed Fish Assistant"
 L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT = "Go Feed Fish"
 L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT_ORDERED = "Go Feed Fish: %s"
 L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT_TITLE = "Feed Fish Callout"

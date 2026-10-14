@@ -8,7 +8,7 @@ A World of Warcraft (retail) toolbox addon.
 - **Auto combat log**: Automatically enables combat logging in current-expansion raids or mythic dungeons.
 - **Combat timer**: Floating timer for the current fight.
 - **Raid lottery**: Randomly picks raid members and announces them in raid chat.
-- **The Lost Explorers helper**: A reminder for fish-feeding.
+- **The Lost Explorers helper**: A reminder to feed fish.
 - **Sszorak helper**: Displays an arena map with markers and move timeline, and helps assign cysts to markers.
 
 ## Usage

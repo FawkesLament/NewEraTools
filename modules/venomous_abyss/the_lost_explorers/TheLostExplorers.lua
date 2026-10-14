@@ -32,7 +32,7 @@ local FEED_BOSSES = { BOSS_FIRST_MATE, BOSS_SCROLLAGE, BOSS_TRADER }
 ---@field OnCalloutChanged fun(self: TheLostExplorers)|nil  Defined by the UI file; callout shown or cleared.
 local TheLostExplorers = ns.Modules.New("TheLostExplorers", {
     defaults = {
-        -- When true, the fish-feeding assistant listens during this boss fight.
+        -- When true, the feed-fish assistant listens during this boss fight.
         enabled = false,
         ---@type TheLostExplorersPosition
         calloutPosition = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 160 },
@@ -157,7 +157,7 @@ local function NormalizeFeedOrder()
     ResolveThirdFeedOrderSlot()
 end
 
----@param feedIndex integer  1-based fish-feed interaction this pull (1st / 2nd / 3rd).
+---@param feedIndex integer  1-based feed-fish interaction this pull (1st / 2nd / 3rd).
 ---@return string
 local function ResolveCalloutText(feedIndex)
     if TheLostExplorers:HasCompleteFeedOrder() then
