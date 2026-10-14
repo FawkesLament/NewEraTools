@@ -261,8 +261,8 @@ describe("TheLostExplorers", function()
 
         it("keeps the default callout text when the feed order is incomplete", function()
             Module:SetFeedOrderSlot(1, Module.BOSS_FIRST_MATE)
-            Module:SetFeedOrderSlot(2, Module.BOSS_SCROLLAGE)
             assert.is_false(Module:HasCompleteFeedOrder())
+            assert.equals(nil, Module:GetFeedOrderSlot(3))
 
             StartFight()
             EncounterTimeline.FireEventAdded(MatchingTimelineEvent())
@@ -273,8 +273,8 @@ describe("TheLostExplorers", function()
         it("names the configured boss once the feed order is complete", function()
             Module:SetFeedOrderSlot(1, Module.BOSS_TRADER)
             Module:SetFeedOrderSlot(2, Module.BOSS_FIRST_MATE)
-            Module:SetFeedOrderSlot(3, Module.BOSS_SCROLLAGE)
             assert.is_true(Module:HasCompleteFeedOrder())
+            assert.equals(Module.BOSS_SCROLLAGE, Module:GetFeedOrderSlot(3))
 
             StartFight()
             local expected = {
@@ -299,10 +299,21 @@ describe("TheLostExplorers", function()
     end)
 
     describe("feed order", function()
+        it("resolves the third slot from the first two choices", function()
+            Module:SetFeedOrderSlot(1, Module.BOSS_FIRST_MATE)
+            Module:SetFeedOrderSlot(2, Module.BOSS_SCROLLAGE)
+            assert.equals(Module.BOSS_TRADER, Module:GetFeedOrderSlot(3))
+            assert.is_true(Module:HasCompleteFeedOrder())
+
+            Module:SetFeedOrderSlot(2, nil)
+            assert.equals(nil, Module:GetFeedOrderSlot(3))
+            assert.is_false(Module:HasCompleteFeedOrder())
+        end)
+
         it("clears later slots when an earlier slot changes", function()
             Module:SetFeedOrderSlot(1, Module.BOSS_FIRST_MATE)
             Module:SetFeedOrderSlot(2, Module.BOSS_SCROLLAGE)
-            Module:SetFeedOrderSlot(3, Module.BOSS_TRADER)
+            assert.equals(Module.BOSS_TRADER, Module:GetFeedOrderSlot(3))
             Module:SetFeedOrderSlot(1, Module.BOSS_TRADER)
 
             assert.equals(Module.BOSS_TRADER, Module:GetFeedOrderSlot(1))
@@ -315,12 +326,13 @@ describe("TheLostExplorers", function()
             Module:SetFeedOrderSlot(2, Module.BOSS_SCROLLAGE)
             assert.equals(nil, Module:GetFeedOrderSlot(1))
             assert.equals(nil, Module:GetFeedOrderSlot(2))
+            assert.equals(nil, Module:GetFeedOrderSlot(3))
         end)
 
         it("clears the sequence and restores the default callout text", function()
             Module:SetFeedOrderSlot(1, Module.BOSS_FIRST_MATE)
             Module:SetFeedOrderSlot(2, Module.BOSS_SCROLLAGE)
-            Module:SetFeedOrderSlot(3, Module.BOSS_TRADER)
+            assert.is_true(Module:HasCompleteFeedOrder())
             Module:ClearFeedOrder()
             assert.is_false(Module:HasCompleteFeedOrder())
 
@@ -333,7 +345,6 @@ describe("TheLostExplorers", function()
         it("persists the configured order on the module db", function()
             Module:SetFeedOrderSlot(1, Module.BOSS_SCROLLAGE)
             Module:SetFeedOrderSlot(2, Module.BOSS_TRADER)
-            Module:SetFeedOrderSlot(3, Module.BOSS_FIRST_MATE)
             assert.same({
                 Module.BOSS_SCROLLAGE,
                 Module.BOSS_TRADER,

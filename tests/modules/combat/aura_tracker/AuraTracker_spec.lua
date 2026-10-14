@@ -936,7 +936,7 @@ describe("AuraTracker database migration", function()
             },
         }
         local loaded = ns.Database.Load(saved)
-        assert.equals(5, loaded.schemaVersion)
+        assert.equals(6, loaded.schemaVersion)
         assert.is_nil(loaded.modules.BuffTracker)
         assert.equals(true, loaded.modules.AuraTracker.enabled)
         assert.equals(1, #loaded.modules.AuraTracker.trackers)
@@ -959,7 +959,7 @@ describe("AuraTracker database migration", function()
             },
         }
         local loaded = ns.Database.Load(saved)
-        assert.equals(5, loaded.schemaVersion)
+        assert.equals(6, loaded.schemaVersion)
         local tracker = loaded.modules.AuraTracker.trackers[1]
         assert.equals(1, tracker.id)
         assert.is_true(tracker.enabled)

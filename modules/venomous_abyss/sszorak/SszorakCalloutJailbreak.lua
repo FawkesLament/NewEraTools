@@ -7,4 +7,8 @@
 --     nil = nothing to show; non-nil must include hudMessage (do not return an empty table)
 --   GetEdgeMacroBody(edge, assignment) -> string  (encrypted /raid body)
 --   Listen() -> fun()  unsubscribe; must include Sszorak.SubscribeSharedCalloutListeners()
---     plus jailbreak-only Chat.OnRaidWarningMessage and RaidTarget.OnChanged.
+--     plus jailbreak-only Chat.OnRaidWarningMessage and RaidTarget.OnChanged
+--     (do not use Chat.OnRaidLeaderMessage — that path is normal-mode only)
+--   OnMatchedWarning(anchorIndex)  shared ENCOUNTER_WARNING filter matched; handle jailbreak-side
+-- Optional lifecycle (wired from encounter / map-test / home returns):
+--   BeginCapture / EndCapture / ClearMessages / OnStationChanged

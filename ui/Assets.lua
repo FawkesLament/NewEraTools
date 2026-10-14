@@ -50,6 +50,9 @@ Assets.Glyphs = {
     -- Panel title-bar collapse / expand (same ASCII glyphs as the steppers).
     COLLAPSE = "―",
     EXPAND = "＋",
+    -- Table header sort direction (AddonCheck results and similar).
+    SORT_ASC = "▲",
+    SORT_DESC = "▼",
 }
 
 Assets.Colors = {
@@ -90,6 +93,10 @@ Assets.Icons = {
     QUESTION_MARK = "Interface\\Icons\\INV_Misc_QuestionMark",
     -- Minimap player arrow (points up); rotate with SetRotation for path tips.
     PATH_ARROW = "Interface\\Minimap\\MinimapArrow",
+    -- Raid ready-check marks (AddonCheck status column).
+    READY_CHECK_READY = "Interface\\RaidFrame\\ReadyCheck-Ready",
+    READY_CHECK_NOT_READY = "Interface\\RaidFrame\\ReadyCheck-NotReady",
+    READY_CHECK_WAITING = "Interface\\RaidFrame\\ReadyCheck-Waiting",
 }
 
 local FONT_PREFIX = ns.ADDON_NAME .. "Font"

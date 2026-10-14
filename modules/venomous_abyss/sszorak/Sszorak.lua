@@ -1,15 +1,16 @@
 local _, ns = ...
 local L = ns.L
 local Util = ns.Util
-local AddonMessage = ns.Api.AddonMessage
 local Encounter = ns.Api.Encounter
 local Group = ns.Api.Group
 local Timer = ns.Api.Timer
+local MessageProtocol = ns.MessageProtocol
+local MessageProtocolComm = ns.Api.MessageProtocolComm
 local Timeline = ns.SszorakTimeline
 
--- Addon message prefixes are limited to 16 characters.
-local MESSAGE_PREFIX = "NewEraToolsSsz"
--- Bump when the message format changes, so older copies of the addon ignore messages they can't read.
+-- MessageProtocol topic for edge-marker sync (payload schema versioned separately below).
+local TOPIC_EDGE_MARKERS = "sszorak.edge_markers"
+-- Bump when the assignment payload format changes, so older copies ignore payloads they can't read.
 local MESSAGE_VERSION = "1"
 
 local ARENA_SIDES = 8
@@ -53,7 +54,12 @@ local MARKER_RAID_TARGET = {
 -- Callout mode ids; helpers register implementations against these.
 local CALLOUT_MODE_NORMAL = "normal"
 local CALLOUT_MODE_JAILBREAK = "jailbreak"
--- Raid role: members watch callouts; commanders own the edge-click macros.
+-- Arena side for AddonCheck snapshots (mapRotated false = left / group A, true = right / group B).
+local SIDE_LEFT = "left"
+local SIDE_RIGHT = "right"
+-- Stable AddonCheck provider id; version is owned by AddonCheck, not this snapshot.
+local ADDON_CHECK_MODULE_ID = "Sszorak"
+-- Raid role: raid leader is commander (macros / sync UI); everyone else is a member.
 local RAID_ROLE_MEMBER = "member"
 local RAID_ROLE_COMMANDER = "commander"
 
@@ -112,8 +118,6 @@ local Sszorak = ns.Modules.New("Sszorak", {
         calloutPosition = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 160 },
         -- Shows RL markers as-is, or jailbreak decrypt/retarget (see CALLOUT_MODE_*).
         calloutMode = CALLOUT_MODE_NORMAL,
-        -- Member: no macro writes. Commander: create/refresh edge-click macros.
-        raidRole = RAID_ROLE_MEMBER,
     },
 })
 
@@ -132,6 +136,9 @@ Sszorak.STATION_FAR = STATION_FAR
 Sszorak.MARKER_RAID_TARGET = MARKER_RAID_TARGET
 Sszorak.CALLOUT_MODE_NORMAL = CALLOUT_MODE_NORMAL
 Sszorak.CALLOUT_MODE_JAILBREAK = CALLOUT_MODE_JAILBREAK
+Sszorak.SIDE_LEFT = SIDE_LEFT
+Sszorak.SIDE_RIGHT = SIDE_RIGHT
+Sszorak.ADDON_CHECK_MODULE_ID = ADDON_CHECK_MODULE_ID
 Sszorak.RAID_ROLE_MEMBER = RAID_ROLE_MEMBER
 Sszorak.RAID_ROLE_COMMANDER = RAID_ROLE_COMMANDER
 Sszorak.PATH_ARROW_RADIUS = PATH_ARROW_RADIUS
@@ -178,9 +185,9 @@ function Sszorak.BindMacroSync(sync)
 end
 
 ---Asks the macros layer to rewrite edge macros (no-op until BindMacroSync runs).
----Only commanders keep macros in sync with marker / callout-mode changes.
+---Only the raid leader (commander) keeps macros in sync with marker / callout-mode changes.
 function Sszorak.RequestMacroSync()
-    if Sszorak.db.raidRole ~= RAID_ROLE_COMMANDER then
+    if not Sszorak:IsRaidCommander() then
         return
     end
     requestMacroSync()
@@ -302,21 +309,23 @@ local function DecodeAssignment(message)
 end
 
 -- The sender isn't checked: only leaders and assistants get the send button, which the raid trusts.
--- To test in game while in a raid (use "INSTANCE_CHAT" in instance groups); your own client
--- receives the message and adopts it if it differs from your current assignment:
--- /run C_ChatInfo.SendAddonMessage("NewEraToolsSsz", "1:2=SKULL,3=CROSS,4=DIAMOND,6=TRIANGLE,7=MOON,8=SQUARE", "RAID")
-local function OnAssignmentMessage(message, channel, sender)
-    if channel ~= Group.GetRaidChatType() then
+-- Wire: MessageProtocol topic sszorak.edge_markers, payload "1:2=SKULL,3=CROSS,...".
+---@param msg MessageProtocolMessage
+local function OnAssignmentMessage(msg)
+    if msg.type ~= MessageProtocol.TYPE_EVENT then
         return
     end
-    local assignment = DecodeAssignment(message)
+    if msg.channel ~= Group.GetRaidChatType() then
+        return
+    end
+    local assignment = DecodeAssignment(msg.payload)
     -- Senders receive their own messages too, and need no notice about an assignment they already have.
     if not assignment or IsSameAssignment(assignment, Sszorak.db.edgeMarkers) then
         return
     end
     CopyAssignment(Sszorak.db.edgeMarkers, assignment)
     NotifyChanged()
-    Util.Print(string.format(L.SSZORAK_MARKERS_RECEIVED, sender))
+    Util.Print(string.format(L.SSZORAK_MARKERS_RECEIVED, msg.sender))
 end
 
 ---Corners of the arena, a regular octagon with vertical edges on the left and right. Centered on the
@@ -479,10 +488,65 @@ function Sszorak:SetCalloutPosition(position)
     saved.x, saved.y = position.x, position.y
 end
 
+---@class SszorakAddonCheckConfig
+---@field enabled boolean  Feature On/Off (`mapEnabled`).
+---@field side "left"|"right"  From mapRotated: false → left, true → right.
+---@field mode string  CALLOUT_MODE_NORMAL or CALLOUT_MODE_JAILBREAK.
+
+---Live AddonCheck snapshot. Reads current settings; does not mutate them.
+---Invalid or unavailable values error so AddonCheck reports `provider_failed` instead of a fake default.
+---@return SszorakAddonCheckConfig
+function Sszorak:GetAddonCheckConfig()
+    local mapEnabled = self.db.mapEnabled
+    if type(mapEnabled) ~= "boolean" then
+        error("Sszorak AddonCheck: invalid mapEnabled")
+    end
+    local mapRotated = self.db.mapRotated
+    if type(mapRotated) ~= "boolean" then
+        error("Sszorak AddonCheck: invalid mapRotated")
+    end
+    local mode = self.db.calloutMode
+    if mode ~= CALLOUT_MODE_NORMAL and mode ~= CALLOUT_MODE_JAILBREAK then
+        error("Sszorak AddonCheck: invalid calloutMode")
+    end
+    if not Sszorak.IsCalloutModeAvailable(mode) then
+        error("Sszorak AddonCheck: unavailable calloutMode")
+    end
+    return {
+        enabled = mapEnabled,
+        side = mapRotated and SIDE_RIGHT or SIDE_LEFT,
+        mode = mode,
+    }
+end
+
+---AddonCheck panel validator: column keys to highlight, or nil when ok.
+---Flags disabled feature and marker-assignment mode that differs from the commander's snapshot.
+---@param config any  Peer's AddonCheck config.
+---@param localConfig any  Commander's snapshot from the check session.
+---@return string[]|nil
+function Sszorak.ValidateAddonCheckConfig(config, localConfig)
+    local flagged = {}
+    if type(config) ~= "table" or config.enabled ~= true then
+        flagged[#flagged + 1] = "enabled"
+    end
+    if type(config) == "table"
+        and type(localConfig) == "table"
+        and config.mode ~= nil
+        and localConfig.mode ~= nil
+        and config.mode ~= localConfig.mode
+    then
+        flagged[#flagged + 1] = "mode"
+    end
+    if #flagged == 0 then
+        return nil
+    end
+    return flagged
+end
+
+---Raid leader is commander (edge-click macros / sync UI); everyone else is a member.
 ---@return string
 function Sszorak:GetRaidRole()
-    local role = self.db.raidRole
-    if role == RAID_ROLE_COMMANDER then
+    if Group.IsPlayerRaidLeader() then
         return RAID_ROLE_COMMANDER
     end
     return RAID_ROLE_MEMBER
@@ -491,13 +555,6 @@ end
 ---@return boolean
 function Sszorak:IsRaidCommander()
     return self:GetRaidRole() == RAID_ROLE_COMMANDER
-end
-
----Sets membership vs commander. Does not write macros; the UI creates them when becoming commander.
----@param role string
-function Sszorak:SetRaidRole(role)
-    assert(role == RAID_ROLE_MEMBER or role == RAID_ROLE_COMMANDER, "Unknown raid role: " .. tostring(role))
-    self.db.raidRole = role
 end
 
 ---@return boolean
@@ -635,31 +692,33 @@ function Sszorak:ListenForEncounter()
     end)
 end
 
----@return string|nil  Why the player can't send the assignment to the raid right now, or nil if they can.
-function Sszorak:GetBroadcastBlockedReason()
-    if not Group.GetRaidChatType() then
-        return L.SSZORAK_BROADCAST_NOT_IN_RAID
-    end
-    if not Group.IsPlayerRaidLeaderOrAssistant() then
-        return L.SSZORAK_BROADCAST_NOT_LEADER
-    end
+---Whether the player can sync the marker assignment (raid leader / commander only).
+---@return boolean
+function Sszorak:CanBroadcastEdgeMarkers()
+    return self:IsRaidCommander() and Group.GetRaidChatType() ~= nil
 end
 
 ---Sends the player's marker assignment to everyone in the raid running this addon, who adopt it.
----Only works for the raid leader and assistants; receivers ignore anyone else.
+---Only the raid leader (commander) can send; no-ops silently otherwise.
 function Sszorak:BroadcastEdgeMarkers()
-    local reason = self:GetBroadcastBlockedReason()
-    if reason then
-        Util.Print(reason)
+    if not self:CanBroadcastEdgeMarkers() then
         return
     end
-    local sent = AddonMessage.Send(MESSAGE_PREFIX, EncodeAssignment(self.db.edgeMarkers), Group.GetRaidChatType())
-    Util.Print(sent and L.SSZORAK_BROADCAST_SENT or L.SSZORAK_BROADCAST_FAILED)
+    -- REALTIME uses NET_RT so marker sync is not starved by control-plane traffic.
+    local ok = MessageProtocolComm.Send(
+        MessageProtocol.TYPE_EVENT,
+        TOPIC_EDGE_MARKERS,
+        MessageProtocol.EVENT_CORRELATION_ID,
+        EncodeAssignment(self.db.edgeMarkers),
+        Group.GetRaidChatType(),
+        { trafficClass = MessageProtocolComm.TrafficClass.REALTIME }
+    )
+    Util.Print(ok and L.SSZORAK_BROADCAST_SENT or L.SSZORAK_BROADCAST_FAILED)
 end
 
----Starts adopting assignments that raid leaders and assistants send. Called from OnEnable.
+---Starts adopting assignments that other clients send. Called from OnEnable.
 function Sszorak:ListenForBroadcasts()
-    AddonMessage.Listen(MESSAGE_PREFIX, OnAssignmentMessage)
+    MessageProtocol.RegisterHandler(TOPIC_EDGE_MARKERS, OnAssignmentMessage)
 end
 
 ---@return ArenaPoint  In the same coordinates as GetArenaVertices.
@@ -689,7 +748,8 @@ function Sszorak:OnInit()
     if not Sszorak.IsCalloutModeAvailable(self.db.calloutMode) then
         self.db.calloutMode = Sszorak.CALLOUT_MODE_NORMAL
     end
-    if self.db.raidRole ~= RAID_ROLE_MEMBER and self.db.raidRole ~= RAID_ROLE_COMMANDER then
-        self.db.raidRole = RAID_ROLE_MEMBER
-    end
+    -- Raid members must answer config checks; register regardless of UI, role, or encounter.
+    ns.AddonCheck.Register(ADDON_CHECK_MODULE_ID, function()
+        return Sszorak:GetAddonCheckConfig()
+    end)
 end

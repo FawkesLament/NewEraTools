@@ -4,6 +4,7 @@ local Util = ns.Util
 local Assets = ns.Assets
 local Chat = ns.Api.Chat
 local Combat = ns.Api.Combat
+local AddonCheckPanel = ns.AddonCheckPanel
 local FeatureSection = ns.FeatureSection
 local FloatingWindow = ns.FloatingWindow
 local Layout = ns.Layout
@@ -45,11 +46,19 @@ local windowCloseButton
 local calloutWindow
 local picker
 local resetButton
-local broadcast
+local createMacrosRow
+local createMacrosButton
+local addonCheckButton
+local syncRow
 local mapSection
 local mapBody
-local roleRow
+local roleLabel
 local roleStatus
+---@type AddonCheckPanel|nil
+local addonCheckPanel
+local EnsureAddonCheckPanel
+local ShowAddonCheckPanel
+local HideAddonCheckPanel
 -- Session-only: temporary map outside the boss fight. Independent of the saved mapEnabled setting.
 local previewVisible = false
 local mapLayoutRegistered = false
@@ -62,11 +71,10 @@ local CreateArenaWindow
 local CreateCalloutWindow
 local UpdateWindow
 local UpdateResetButton
-local UpdateBroadcastButton
 local UpdateCalloutWindow
-local SyncRoleRowHeight
 local SetRoleStatus
 local UpdateRoleStatus
+local UpdateCommanderControls
 local UpdateWindowMacroClicks
 local RegisterMapLayoutElement
 local RegisterCalloutLayoutElement
@@ -408,39 +416,19 @@ function UpdateResetButton()
     resetButton:SetShown(Sszorak:IsMapEnabled() and not Sszorak:IsDefaultEdgeMarkers())
 end
 
-function UpdateBroadcastButton()
-    if not broadcast then
+---Shows or collapses a commander-only stack row and refreshes the section height.
+---@param row Frame|nil
+---@param shown boolean
+local function SetCommanderRowShown(row, shown)
+    if not row or not mapBody or not mapSection then
         return
     end
-    if not Sszorak:IsMapEnabled() then
-        broadcast.button:SetEnabled(false)
-        broadcast.button:SetAlpha(1)
-        broadcast.reason:SetText("")
-        return
-    end
-    local reason = Sszorak:GetBroadcastBlockedReason()
-    broadcast.button:SetEnabled(not reason)
-    broadcast.reason:SetText(reason or "")
-end
-
----Grows the role row so a wrapping status line next to the toggle is never clipped.
-function SyncRoleRowHeight()
-    if not roleRow or not mapBody or not mapSection or not roleStatus then
-        return
-    end
-    local height = Sizes.CONTROL_ROW_HEIGHT
-    local text = roleStatus:GetText()
-    if text and text ~= "" then
-        height = math.max(height, roleStatus:GetStringHeight())
-    end
-    if math.abs(roleRow:GetHeight() - height) < 0.5 then
-        return
-    end
-    mapBody:SetEntryHeight(roleRow, height)
+    mapBody:SetEntryHeight(row, shown and Sizes.CONTROL_ROW_HEIGHT or 0)
+    row:SetShown(shown)
     mapSection:SetContentHeight(mapBody:GetHeight())
 end
 
----Status text beside the role toggle: green when commander, red on create failure, empty for member.
+---Macro status beside the create button: green when macros exist, red on create failure, empty otherwise.
 ---@param message string|nil
 ---@param color table|nil  Assets color; defaults to ERROR when message is set.
 function SetRoleStatus(message, color)
@@ -451,15 +439,18 @@ function SetRoleStatus(message, color)
     if message and message ~= "" then
         roleStatus:SetTextColor(Widgets.UnpackColor(color or Colors.ERROR))
     end
-    SyncRoleRowHeight()
 end
 
----Restores the lasting status for the saved role (drops transient create errors).
+---Restores lasting macro status for the raid leader (drops transient create errors).
 function UpdateRoleStatus()
-    if Sszorak:IsRaidCommander() then
+    if not Sszorak:IsRaidCommander() then
+        SetRoleStatus(nil)
+        return
+    end
+    if Sszorak:HasAllEdgeMacros() then
         SetRoleStatus(L.SSZORAK_MACROS_READY, Colors.SUCCESS)
     else
-        SetRoleStatus(nil)
+        SetRoleStatus(L.SSZORAK_MACROS_NEEDED, Colors.WARNING)
     end
 end
 
@@ -474,6 +465,115 @@ function UpdateWindowMacroClicks()
     SszorakMapUI.SetEdgeClickTrackingArmed(Sszorak:IsRaidCommander() and Sszorak:IsMapAnimating())
 end
 
+---Wraps `text` in the accent color escape so it stands out inside a muted FontString.
+---@param text string
+---@return string
+local function AccentText(text)
+    local r, g, b = Widgets.UnpackColor(Colors.ACCENT)
+    return string.format(
+        "|cff%02x%02x%02x%s|r",
+        math.floor(r * 255 + 0.5),
+        math.floor(g * 255 + 0.5),
+        math.floor(b * 255 + 0.5),
+        text
+    )
+end
+
+local function SszorakAddonCheckColumns()
+    return {
+        {
+            key = "enabled",
+            title = L.SSZORAK_ADDONCHECK_COL_ENABLED,
+            format = function(value)
+                if value == true then
+                    return L.FEATURE_ON
+                end
+                if value == false then
+                    return L.FEATURE_OFF
+                end
+                return nil
+            end,
+        },
+        {
+            key = "side",
+            title = L.SSZORAK_ADDONCHECK_COL_SIDE,
+            format = function(value)
+                if value == Sszorak.SIDE_LEFT then
+                    return L.SSZORAK_GROUP_LEFT
+                end
+                if value == Sszorak.SIDE_RIGHT then
+                    return L.SSZORAK_GROUP_RIGHT
+                end
+                return nil
+            end,
+        },
+        {
+            key = "mode",
+            title = L.SSZORAK_CALLOUT_MODE,
+            format = function(value)
+                if value == Sszorak.CALLOUT_MODE_NORMAL then
+                    return L.SSZORAK_CALLOUT_MODE_NORMAL
+                end
+                if value == Sszorak.CALLOUT_MODE_JAILBREAK then
+                    return L.SSZORAK_CALLOUT_MODE_JAILBREAK
+                end
+                return nil
+            end,
+        },
+    }
+end
+
+function EnsureAddonCheckPanel()
+    if addonCheckPanel then
+        return addonCheckPanel
+    end
+    addonCheckPanel = AddonCheckPanel.Create({
+        moduleId = Sszorak.ADDON_CHECK_MODULE_ID,
+        name = "NewEraToolsSszorakAddonCheck",
+        title = L.ADDONCHECK_TITLE,
+        columns = SszorakAddonCheckColumns(),
+        validator = Sszorak.ValidateAddonCheckConfig,
+    })
+    return addonCheckPanel
+end
+
+function ShowAddonCheckPanel()
+    if not Sszorak:IsRaidCommander() then
+        return
+    end
+    EnsureAddonCheckPanel():Show()
+end
+
+function HideAddonCheckPanel()
+    if addonCheckPanel then
+        addonCheckPanel:Hide()
+    end
+end
+
+---Keeps role label, commander-only rows, and map macro clicks aligned with raid leadership.
+function UpdateCommanderControls()
+    local isCommander = Sszorak:IsRaidCommander()
+    if roleLabel then
+        local roleName = isCommander and L.SSZORAK_RAID_ROLE_COMMANDER or L.SSZORAK_RAID_ROLE_MEMBER
+        roleLabel:SetFormattedText(L.SSZORAK_RAID_ROLE_MODE, AccentText(roleName))
+    end
+    SetCommanderRowShown(createMacrosRow, isCommander)
+    SetCommanderRowShown(syncRow, isCommander)
+    if not isCommander then
+        HideAddonCheckPanel()
+    end
+    if createMacrosButton and Sszorak:IsMapEnabled() then
+        createMacrosButton:SetEnabled(isCommander)
+        createMacrosButton:SetAlpha(1)
+    end
+    if addonCheckButton and Sszorak:IsMapEnabled() then
+        addonCheckButton:SetEnabled(isCommander)
+        addonCheckButton:SetAlpha(1)
+    end
+    UpdateRoleStatus()
+    UpdateWindowMacroClicks()
+end
+
 ---Fills the encounter-map feature body. Returns the content height.
 ---@param content Frame
 ---@return number
@@ -481,64 +581,60 @@ local function BuildMapContent(content)
     local body = Layout.Stack(content, { spacing = Spacing.MEDIUM })
     mapBody = body
 
+    -- Mode sits just under the feature On/Off toggle, before section headers.
+    local roleRow = body:AddRow(HINT_ROW_HEIGHT)
+    roleLabel = Widgets.CreateLabel(roleRow, Fonts.SMALL_MUTED)
+    roleLabel:SetJustifyH("LEFT")
+    roleLabel:SetPoint("LEFT", roleRow, "LEFT")
+    -- FontStrings can't take mouse; a matching hit frame carries the tooltip.
+    local roleHit = CreateFrame("Frame", nil, roleRow)
+    roleHit:SetPoint("TOPLEFT", roleLabel, "TOPLEFT")
+    roleHit:SetPoint("BOTTOMRIGHT", roleLabel, "BOTTOMRIGHT")
+    roleHit:EnableMouse(true)
+    Widgets.AttachTooltip(roleHit, "ANCHOR_TOP", function(tooltip)
+        tooltip:SetText(L.SSZORAK_RAID_ROLE_MODE_TOOLTIP)
+    end)
+
     -- A. Basic Settings
     Widgets.LayoutSectionHeader(body:AddRow(Sizes.CONTENT_SECTION_HEADER), L.SSZORAK_SECTION_BASIC)
 
-    roleRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local roleLabel = Widgets.CreateLabel(roleRow, Fonts.BODY, L.SSZORAK_RAID_ROLE)
-    roleLabel:SetJustifyH("LEFT")
-    local roleControl
-    roleControl = Widgets.CreateSegmentedControl(roleRow, {
-        { value = Sszorak.RAID_ROLE_MEMBER, text = L.SSZORAK_RAID_ROLE_MEMBER },
-        { value = Sszorak.RAID_ROLE_COMMANDER, text = L.SSZORAK_RAID_ROLE_COMMANDER },
-    }, function(role)
-        if not Sszorak:IsMapEnabled() then
+    createMacrosRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local macrosCell, addonCheckCell = Layout.SplitRow(createMacrosRow, Spacing.MEDIUM)
+    createMacrosButton = Widgets.CreateButton(macrosCell, L.SSZORAK_CREATE_MACROS, function()
+        if not Sszorak:IsMapEnabled() or not Sszorak:IsRaidCommander() then
             return
         end
-        local previous = Sszorak:GetRaidRole()
-        if role == previous then
-            roleControl:SetSelected(previous)
-            return
-        end
-        -- Secure marker attributes and CreateMacro are locked in combat; block either direction.
         if Combat.IsInCombat() or Combat.IsLockedDown() then
-            roleControl:SetSelected(previous)
             SetRoleStatus(L.SSZORAK_RAID_ROLE_IN_COMBAT, Colors.ERROR)
             return
         end
-        if role == Sszorak.RAID_ROLE_MEMBER then
-            Sszorak:SetRaidRole(role)
-            roleControl:SetSelected(role)
-            SetRoleStatus(nil)
-            UpdateWindowMacroClicks()
-            return
-        end
-        -- Commander only after macros are written; keep the toggle on the previous role on failure.
         local ok, createReason = Sszorak:CreateEdgeMacros()
         if not ok then
-            roleControl:SetSelected(previous)
             SetRoleStatus(
                 createReason == "combat" and L.SSZORAK_RAID_ROLE_IN_COMBAT or L.SSZORAK_MACROS_FAILED,
                 Colors.ERROR
             )
             return
         end
-        Sszorak:SetRaidRole(role)
-        roleControl:SetSelected(role)
         SetRoleStatus(L.SSZORAK_MACROS_READY, Colors.SUCCESS)
         UpdateWindowMacroClicks()
-    end)
-    roleControl:SetSelected(Sszorak:GetRaidRole())
-    Layout.Row(roleRow, { roleLabel, roleControl }, Spacing.LARGE)
-    roleStatus = Widgets.CreateLabel(roleRow, Fonts.SMALL_MUTED)
+    end, "primary")
+    roleStatus = Widgets.CreateLabel(macrosCell, Fonts.SMALL_MUTED)
     roleStatus:SetJustifyH("LEFT")
-    roleStatus:SetJustifyV("MIDDLE")
-    roleStatus:SetWordWrap(true)
-    roleStatus:SetNonSpaceWrap(true)
-    roleStatus:SetPoint("LEFT", roleControl, "RIGHT", Spacing.MEDIUM, 0)
-    roleStatus:SetPoint("RIGHT", roleRow, "RIGHT")
-    roleRow:HookScript("OnSizeChanged", SyncRoleRowHeight)
-    UpdateRoleStatus()
+    createMacrosButton:SetPoint("LEFT", macrosCell, "LEFT")
+    roleStatus:SetPoint("LEFT", createMacrosButton, "RIGHT", Spacing.MEDIUM, 0)
+    roleStatus:SetPoint("RIGHT", macrosCell, "RIGHT")
+
+    addonCheckButton = Widgets.CreateButton(addonCheckCell, L.ADDONCHECK_BUTTON, function()
+        if not Sszorak:IsMapEnabled() or not Sszorak:IsRaidCommander() then
+            return
+        end
+        ShowAddonCheckPanel()
+    end, "primary")
+    Widgets.AttachTooltip(addonCheckButton, "ANCHOR_TOP", function(tooltip)
+        tooltip:SetText(L.ADDONCHECK_BUTTON_TOOLTIP)
+    end)
+    addonCheckButton:SetPoint("LEFT", addonCheckCell, "LEFT")
 
     local groupRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local groupLabel = Widgets.CreateLabel(groupRow, Fonts.BODY, L.SSZORAK_GROUP_LABEL)
@@ -619,18 +715,11 @@ local function BuildMapContent(content)
     hint:SetPoint("LEFT", hintRow, "LEFT")
     hint:SetPoint("RIGHT", hintRow, "RIGHT")
 
-    local syncRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    syncRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local syncButton = Widgets.CreateButton(syncRow, L.SSZORAK_BROADCAST, function()
         Sszorak:BroadcastEdgeMarkers()
     end, "primary")
     syncButton:SetPoint("RIGHT", syncRow, "RIGHT")
-    local reason = Widgets.CreateLabel(syncRow, Fonts.SMALL_MUTED)
-    reason:SetTextColor(Widgets.UnpackColor(Colors.ERROR))
-    reason:SetJustifyH("RIGHT")
-    reason:SetWordWrap(false)
-    reason:SetPoint("RIGHT", syncButton, "LEFT", -Spacing.MEDIUM, 0)
-    reason:SetPoint("LEFT", syncRow, "LEFT")
-    broadcast = { button = syncButton, reason = reason }
 
     -- C. UI Tools
     Widgets.LayoutSectionHeader(body:AddRow(Sizes.CONTENT_SECTION_HEADER, Spacing.LARGE), L.SSZORAK_SECTION_TOOLS)
@@ -698,8 +787,7 @@ local function Build(container)
                 HidePicker()
             end
             UpdateResetButton()
-            -- Re-apply raid sync status after the section enables every control in the body.
-            UpdateBroadcastButton()
+            UpdateCommanderControls()
             -- Enabling or disabling never opens or closes a preview; during a fight it shows or hides the map.
             UpdateWindow()
         end,
@@ -708,13 +796,14 @@ local function Build(container)
     mapSection:SetContentHeight(BuildMapContent(mapSection.content))
     -- Building the body created enabled controls; match them to the saved feature state.
     mapSection:RefreshContentInteractive()
-    UpdateBroadcastButton()
+    UpdateCommanderControls()
 
     container:HookScript("OnShow", function()
-        UpdateBroadcastButton()
-        UpdateRoleStatus()
+        UpdateCommanderControls()
     end)
-    container:HookScript("OnHide", HidePicker)
+    container:HookScript("OnHide", function()
+        HidePicker()
+    end)
     return stack:GetHeight()
 end
 
@@ -740,9 +829,7 @@ function Sszorak:OnEnable()
         end
     end)
     ns.Api.Group.OnChanged(function()
-        if broadcast then
-            UpdateBroadcastButton()
-        end
+        UpdateCommanderControls()
     end)
 end
 

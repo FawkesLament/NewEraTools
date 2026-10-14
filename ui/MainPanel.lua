@@ -41,6 +41,47 @@ ns.MainPanel = MainPanel
 local sectionDefs = {}
 local panel
 
+---@type fun(scale: number)[]
+local scaleListeners = {}
+
+---Snapped main-panel UI scale (same range as the header slider).
+---@return number
+function MainPanel.GetScale()
+    local scale = MainPanel.db and MainPanel.db.scale or 1
+    return Util.Snap(scale, SCALE_MIN, SCALE_MAX, SCALE_STEP)
+end
+
+---Subscribes to scale changes from the header slider. Returns an unsubscribe function.
+---@param callback fun(scale: number)
+---@return fun()
+function MainPanel.OnScaleChanged(callback)
+    assert(type(callback) == "function", "MainPanel.OnScaleChanged requires a callback")
+    table.insert(scaleListeners, callback)
+    local removed = false
+    return function()
+        if removed then
+            return
+        end
+        removed = true
+        for index, candidate in ipairs(scaleListeners) do
+            if candidate == callback then
+                table.remove(scaleListeners, index)
+                return
+            end
+        end
+    end
+end
+
+local function NotifyScaleChanged(scale)
+    local snapshot = {}
+    for i = 1, #scaleListeners do
+        snapshot[i] = scaleListeners[i]
+    end
+    for i = 1, #snapshot do
+        snapshot[i](scale)
+    end
+end
+
 local function CreateGroupHeader(sidebar, group)
     local header = CreateFrame("Frame", nil, sidebar)
 
@@ -213,15 +254,15 @@ end
 -- Keeps the panel's center where it is on screen; anchor offsets are in the frame's own scale.
 local function ApplyScale(frame, scale)
     local oldScale = frame:GetScale()
-    if math.abs(oldScale - scale) < 0.001 then
-        return
+    if math.abs(oldScale - scale) >= 0.001 then
+        local x, y = frame:GetCenter()
+        frame:SetScale(scale)
+        if x then
+            frame:ClearAllPoints()
+            frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x * oldScale / scale, y * oldScale / scale)
+        end
     end
-    local x, y = frame:GetCenter()
-    frame:SetScale(scale)
-    if x then
-        frame:ClearAllPoints()
-        frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x * oldScale / scale, y * oldScale / scale)
-    end
+    NotifyScaleChanged(scale)
 end
 
 ---Scale slider + label; parented to a chrome frame so the whole group can hide when collapsed.

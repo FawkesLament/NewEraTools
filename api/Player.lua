@@ -51,6 +51,22 @@ local function NormalizeSpecializationId(id)
     return specId
 end
 
+---Player "Name-Realm", suitable for comparing with addon-message senders.
+---@return string|nil
+function Player.GetFullName()
+    local name = UnitName("player")
+    if not name or name == "" then
+        return nil
+    end
+    return Unit.GetFullName(name)
+end
+
+---Player GUID when available; nil when the client has not resolved it.
+---@return string|nil
+function Player.GetGUID()
+    return Unit.GetGUID("player")
+end
+
 ---Player class file name, e.g. "DRUID".
 ---@return string|nil
 function Player.GetClassFile()

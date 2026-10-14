@@ -2,7 +2,9 @@ return function()
     local Group = {
         members = {},
         raidChatType = nil,
+        isRaidLeader = false,
         isLeaderOrAssistant = false,
+        raidLeaderFullName = nil,
         changeCallbacks = {},
     }
 
@@ -18,8 +20,16 @@ return function()
         return Group.raidChatType
     end
 
+    function Group.IsPlayerRaidLeader()
+        return Group.isRaidLeader
+    end
+
     function Group.IsPlayerRaidLeaderOrAssistant()
         return Group.isLeaderOrAssistant
+    end
+
+    function Group.GetRaidLeaderFullName()
+        return Group.raidLeaderFullName
     end
 
     function Group.OnChanged(callback)

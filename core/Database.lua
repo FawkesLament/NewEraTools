@@ -3,7 +3,7 @@ local _, ns = ...
 local Database = {}
 ns.Database = Database
 
-local SCHEMA_VERSION = 5
+local SCHEMA_VERSION = 6
 
 -- migrations[n] upgrades saved data from version n - 1 to version n, in place.
 local migrations = {
@@ -111,6 +111,17 @@ local migrations = {
         end
         combatLog.enableRaids = nil
         combatLog.enableMythicDungeons = nil
+    end,
+    -- Sszorak raid role is derived from raid leadership; drop the saved toggle.
+    [6] = function(saved)
+        local modules = saved.modules
+        if type(modules) ~= "table" then
+            return
+        end
+        local sszorak = modules.Sszorak
+        if type(sszorak) == "table" then
+            sszorak.raidRole = nil
+        end
     end,
 }
 

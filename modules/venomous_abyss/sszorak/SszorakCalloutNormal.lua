@@ -1,7 +1,45 @@
 local _, ns = ...
+local L = ns.L
 local Chat = ns.Api.Chat
+local Util = ns.Util
 
 local Sszorak = ns.Modules.Get("Sszorak")
+
+-- Raid leader callouts saved per home phase; text may be secret values and is stored opaque.
+local RAID_LEADER_MESSAGE_LIMIT = 3
+-- Anchors are processed in groups of this size; the index within the group selects a saved message.
+local WARNING_ANCHOR_GROUP_SIZE = 4
+
+Sszorak.RAID_LEADER_MESSAGE_LIMIT = RAID_LEADER_MESSAGE_LIMIT
+Sszorak.WARNING_ANCHOR_GROUP_SIZE = WARNING_ANCHOR_GROUP_SIZE
+
+-- Session-only: first raid leader messages since the last time dots returned home (opaque values).
+local raidLeaderMessages = {}
+-- Session-only: whether CHAT_MSG_RAID_LEADER is stored (boss fight or map test only).
+local raidLeaderCapture = false
+
+local function NotifyRaidLeaderMessagesChanged()
+    if Sszorak.OnRaidLeaderMessagesChanged then
+        Sszorak:OnRaidLeaderMessagesChanged()
+    end
+end
+
+local function ClearRaidLeaderMessages()
+    Sszorak.ClearDisplayedCallout()
+    if #raidLeaderMessages == 0 then
+        return
+    end
+    Util.Wipe(raidLeaderMessages)
+    NotifyRaidLeaderMessagesChanged()
+end
+
+local function TrySaveRaidLeaderMessage(message)
+    if not raidLeaderCapture or #raidLeaderMessages >= RAID_LEADER_MESSAGE_LIMIT then
+        return
+    end
+    table.insert(raidLeaderMessages, message)
+    NotifyRaidLeaderMessagesChanged()
+end
 
 ---Normal callout mode: show the raid-leader marker text as-is (icon tags expanded); opposite-edge macros.
 ---@type SszorakCalloutMode
@@ -29,10 +67,87 @@ function Normal:GetEdgeMacroBody(edge, assignment)
     return "/raid {rt" .. raidTarget .. "}"
 end
 
----Raid-leader capture + encounter-warning matching (shared with jailbreak).
+---@param anchorIndex integer
+function Normal:OnMatchedWarning(anchorIndex)
+    local messageIndex = ((anchorIndex - 1) % WARNING_ANCHOR_GROUP_SIZE) + 1
+    -- Last slot in each anchor group is always the exit drop (no raid-leader message).
+    if messageIndex == WARNING_ANCHOR_GROUP_SIZE then
+        Sszorak.ShowResolvedCallout({
+            hudMessage = L.SSZORAK_EXIT,
+            targetEdge = Sszorak.EXIT_EDGE,
+        }, Sszorak.CALLOUT_DURATION_ENCOUNTER, true)
+        return
+    end
+    local message = raidLeaderMessages[messageIndex]
+    if message == nil then
+        return
+    end
+    Sszorak.ShowResolvedCallout(self:Resolve(message, nil), Sszorak.CALLOUT_DURATION_ENCOUNTER, true)
+end
+
+function Normal:BeginCapture()
+    raidLeaderCapture = true
+    ClearRaidLeaderMessages()
+end
+
+function Normal:EndCapture()
+    if not raidLeaderCapture then
+        return
+    end
+    raidLeaderCapture = false
+    ClearRaidLeaderMessages()
+end
+
+function Normal:ClearMessages()
+    ClearRaidLeaderMessages()
+end
+
+---In map test only: show saved callouts at the same left→center / right→center moves warnings use in a real pull.
+---@param fromStation integer
+---@param toStation integer
+function Normal:OnStationChanged(fromStation, toStation)
+    if Sszorak:IsInEncounter() or not raidLeaderCapture or toStation ~= Sszorak.STATION_CENTER then
+        return
+    end
+    local messageIndex
+    if fromStation == Sszorak.STATION_HOME then
+        messageIndex = 1
+    elseif fromStation == Sszorak.STATION_FAR then
+        messageIndex = 3
+    else
+        return
+    end
+    local message = raidLeaderMessages[messageIndex]
+    if message == nil then
+        return
+    end
+    Sszorak.ShowResolvedCallout(self:Resolve(message, nil), Sszorak.CALLOUT_DURATION_TEST, true)
+end
+
+---Shared ENCOUNTER_WARNING matching plus raid-leader capture (jailbreak handles chat differently).
 ---@return fun()
 function Normal:Listen()
-    return Sszorak.SubscribeSharedCalloutListeners()
+    local stopWarning = Sszorak.SubscribeSharedCalloutListeners()
+    local stopRaidLeader = Chat.OnRaidLeaderMessage(TrySaveRaidLeaderMessage)
+    return function()
+        stopWarning()
+        stopRaidLeader()
+    end
+end
+
+---@return boolean  Whether raid leader messages are being captured.
+function Sszorak:IsCapturingRaidLeaderMessages()
+    return raidLeaderCapture
+end
+
+---The saved raid leader messages for this home phase (opaque; may be secret values).
+---@return table
+function Sszorak:GetRaidLeaderMessages()
+    return raidLeaderMessages
+end
+
+function Sszorak:ClearRaidLeaderMessages()
+    ClearRaidLeaderMessages()
 end
 
 Sszorak.RegisterCalloutMode(Normal)
