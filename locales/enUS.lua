@@ -103,6 +103,13 @@ L.SSZORAK_MACROS_NEEDED = "First use requires creating signal macros"
 L.SSZORAK_MACROS_FAILED = "Free enough general macro slots and try again."
 L.SSZORAK_ADDONCHECK_COL_ENABLED = "Enabled"
 L.SSZORAK_ADDONCHECK_COL_SIDE = "Side"
+-- Jailbreak HUD: side (vs player group) + depth (entrance→exit), joined with RELATIVE_POSITION.
+L.SSZORAK_SIDE_SAME = "same-side"
+L.SSZORAK_SIDE_OPPOSITE = "opposite"
+L.SSZORAK_DEPTH_NEAR = "near"
+L.SSZORAK_DEPTH_MID = "mid"
+L.SSZORAK_DEPTH_FAR = "far"
+L.SSZORAK_RELATIVE_POSITION = "%s %s"
 
 L.ADDONCHECK_BUTTON = "Addon Check"
 L.ADDONCHECK_BUTTON_TOOLTIP = "Check this module's settings across the raid"

@@ -27,6 +27,10 @@ local EDGE_MARKER_HIT_SIZE = 56
 local EDGE_MARKER_GAP = Spacing.MEDIUM
 -- How far the hit box reaches past the walls (icon center sits at GAP + SIZE/2 from the wall).
 local EDGE_MARKER_REACH = EDGE_MARKER_GAP + EDGE_MARKER_SIZE / 2 + EDGE_MARKER_HIT_SIZE / 2
+-- Gap between the icon rim and the near side of the click-order badge (outward along the edge).
+local EDGE_CLICK_ORDER_GAP = Spacing.TINY
+-- Circular badge diameter around the 1–3 click-order digit.
+local EDGE_CLICK_ORDER_BADGE_SIZE = 28
 
 local HALO_ALPHA = 0.3
 
@@ -82,6 +86,9 @@ local OTHER_GROUP_STYLE = { size = 8, color = Colors.TEXT_MUTED }
 ---@field line Line
 ---@field tip Texture
 
+---@class EdgeClickOrderBadge: Frame
+---@field label FontString
+
 ---@class ArenaCanvas: Frame
 ---@field scale number
 ---@field rotated boolean
@@ -91,6 +98,8 @@ local OTHER_GROUP_STYLE = { size = 8, color = Colors.TEXT_MUTED }
 ---@field pathMarkers table<integer, ArenaPathMarker>|nil
 ---@field edgeIcons table<integer, Texture>
 ---@field edgeButtons table<integer, Button>
+---@field edgeOutward table<integer, ArenaPoint>|nil  Unit outward normals for markable edges.
+---@field edgeClickOrders table<integer, EdgeClickOrderBadge>|nil  Click-order badges beside commander markers.
 ---@field edgeHighlighted table<integer, boolean>|nil
 
 -- Callout shows a path from "You" to this edge (nil = hidden).
@@ -373,7 +382,65 @@ local EDGE_MACRO_CLICK_WRAP = string.format(
     EDGE_CLICK_LOCK_COUNT
 )
 
-local function SetEdgeIconHighlighted(canvas, edge, highlighted)
+---Pixel offset from the icon center to the click-order badge center, outward along the edge normal.
+---@param canvas ArenaCanvas
+---@param edge integer
+---@return number x, number y
+local function EdgeClickOrderOffset(canvas, edge)
+    local outward = canvas.edgeOutward and canvas.edgeOutward[edge]
+    if not outward then
+        return 0, 0
+    end
+    local ux, uy = outward.x, outward.y
+    if canvas.rotated then
+        ux, uy = -ux, -uy
+    end
+    local iconSize = (canvas.edgeHighlighted and canvas.edgeHighlighted[edge]) and EDGE_MARKER_HIGHLIGHT_SIZE
+        or EDGE_MARKER_SIZE
+    local dist = iconSize / 2 + EDGE_CLICK_ORDER_GAP + EDGE_CLICK_ORDER_BADGE_SIZE / 2
+    return ux * dist, uy * dist
+end
+
+---@param canvas ArenaCanvas
+---@param edge integer
+local function PlaceEdgeClickOrder(canvas, edge)
+    local badge = canvas.edgeClickOrders and canvas.edgeClickOrders[edge]
+    local icon = canvas.edgeIcons[edge]
+    if not badge or not icon then
+        return
+    end
+    local ox, oy = EdgeClickOrderOffset(canvas, edge)
+    badge:ClearAllPoints()
+    badge:SetPoint("CENTER", icon, "CENTER", ox, oy)
+end
+
+---@param parent Frame
+---@return EdgeClickOrderBadge
+local function CreateEdgeClickOrderBadge(parent)
+    local badge = CreateFrame("Frame", nil, parent) --[[@as EdgeClickOrderBadge]]
+    badge:SetSize(EDGE_CLICK_ORDER_BADGE_SIZE, EDGE_CLICK_ORDER_BADGE_SIZE)
+    -- Must not steal clicks from the secure edge-macro button underneath.
+    badge:EnableMouse(false)
+    badge:Hide()
+    local fill = badge:CreateTexture(nil, "BACKGROUND")
+    fill:SetAllPoints()
+    fill:SetColorTexture(Widgets.UnpackColor(Colors.SURFACE_RAISED))
+    local mask = badge:CreateMaskTexture()
+    mask:SetAllPoints()
+    mask:SetTexture(Assets.Textures.CIRCLE_MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+    fill:AddMaskTexture(mask)
+    local label = Widgets.CreateLabel(badge, Fonts.OVERLAY_DIGIT)
+    label:SetJustifyH("CENTER")
+    label:SetPoint("CENTER")
+    badge.label = label
+    return badge
+end
+
+---@param canvas ArenaCanvas
+---@param edge integer
+---@param highlighted boolean
+---@param clickOrder integer|nil  1–3 when highlighting after a commander click; ignored when clearing.
+local function SetEdgeIconHighlighted(canvas, edge, highlighted, clickOrder)
     local icon = canvas.edgeIcons[edge]
     if not icon then
         return
@@ -384,6 +451,18 @@ local function SetEdgeIconHighlighted(canvas, edge, highlighted)
         highlighted and EDGE_MARKER_HIGHLIGHT_SIZE or EDGE_MARKER_SIZE,
         highlighted and EDGE_MARKER_HIGHLIGHT_SIZE or EDGE_MARKER_SIZE
     )
+    local badge = canvas.edgeClickOrders and canvas.edgeClickOrders[edge]
+    if not badge then
+        return
+    end
+    if highlighted and clickOrder then
+        badge.label:SetText(tostring(clickOrder))
+        PlaceEdgeClickOrder(canvas, edge)
+        badge:Show()
+    else
+        badge.label:SetText("")
+        badge:Hide()
+    end
 end
 
 ---@param options ArenaCanvasOptions
@@ -410,7 +489,9 @@ local function CreateEdgeMarkerButton(canvas, edge, options)
             if not clickState:GetAttribute("c" .. edge) then
                 return
             end
-            SetEdgeIconHighlighted(canvas, edge, true)
+            -- WrapScript already bumped usedCount; that value is this click's order (1–3).
+            local order = tonumber(clickState:GetAttribute("usedCount")) or 0
+            SetEdgeIconHighlighted(canvas, edge, true, order)
         end)
     else
         button:RegisterForClicks("LeftButtonUp")
@@ -425,7 +506,13 @@ local function CreateEdgeMarkerButton(canvas, edge, options)
     local icon = button:CreateTexture(nil, "ARTWORK")
     icon:SetSize(EDGE_MARKER_SIZE, EDGE_MARKER_SIZE)
     icon:SetPoint("CENTER")
-    return button, icon
+    ---@type EdgeClickOrderBadge|nil
+    local orderBadge
+    if macroName then
+        -- Circular digit badge sits beside the icon (outward); placement follows the edge markers.
+        orderBadge = CreateEdgeClickOrderBadge(button)
+    end
+    return button, icon, orderBadge
 end
 
 ---@param options ArenaCanvasOptions
@@ -435,23 +522,33 @@ local function CreateEdgeMarkers(canvas, options)
     local distance = 1 + (EDGE_MARKER_GAP + EDGE_MARKER_SIZE / 2) / canvas.scale
     canvas.edgeIcons = {}
     canvas.edgeButtons = {}
+    canvas.edgeOutward = {}
+    canvas.edgeClickOrders = {}
     local clickable = options.onEdgeMarkerClick or options.edgeMarkerMacroName
     for _, edgeMarker in ipairs(Sszorak:GetEdgeMarkers()) do
-        local region, icon
+        local region, icon, orderBadge
         if clickable then
-            region, icon = CreateEdgeMarkerButton(canvas, edgeMarker.edge, options)
+            region, icon, orderBadge = CreateEdgeMarkerButton(canvas, edgeMarker.edge, options)
             canvas.edgeButtons[edgeMarker.edge] = region
+            if orderBadge then
+                canvas.edgeClickOrders[edgeMarker.edge] = orderBadge
+            end
         else
             icon = canvas:CreateTexture(nil, "OVERLAY")
             icon:SetSize(EDGE_MARKER_SIZE, EDGE_MARKER_SIZE)
             region = icon
         end
+        -- Midpoint is the outward unit normal for the octagon of radius 1.
+        canvas.edgeOutward[edgeMarker.edge] = { x = edgeMarker.x, y = edgeMarker.y }
+        icon:SetTexture(Assets.WORLD_MARKER_ICONS[edgeMarker.marker])
+        canvas.edgeIcons[edgeMarker.edge] = icon
         local x, y = edgeMarker.x * distance, edgeMarker.y * distance
         AddPlacement(canvas, function()
             region:SetPoint("CENTER", canvas, "CENTER", ToCanvas(canvas, x, y))
+            if orderBadge then
+                PlaceEdgeClickOrder(canvas, edgeMarker.edge)
+            end
         end)
-        icon:SetTexture(Assets.WORLD_MARKER_ICONS[edgeMarker.marker])
-        canvas.edgeIcons[edgeMarker.edge] = icon
     end
 end
 

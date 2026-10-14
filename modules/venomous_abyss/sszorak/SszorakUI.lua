@@ -656,7 +656,6 @@ local function BuildMapContent(content)
     groupControl:SetSelected(Sszorak:IsMapRotated() and GROUP_RIGHT or GROUP_LEFT)
     Layout.Row(groupRow, { groupLabel, groupControl }, Spacing.LARGE)
 
-    -- Only when a private jailbreak implementation has registered; public stub leaves this hidden.
     if Sszorak.IsCalloutModeAvailable(Sszorak.CALLOUT_MODE_JAILBREAK) then
         local modeRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
         local modeLabel = Widgets.CreateLabel(modeRow, Fonts.BODY, L.SSZORAK_CALLOUT_MODE)

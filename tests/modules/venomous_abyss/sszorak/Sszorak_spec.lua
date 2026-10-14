@@ -520,8 +520,10 @@ describe("Sszorak", function()
 
         it("starts on the entrance side", function()
             assert.is_true(BossX() > 0.5)
-            AssertNear(BossX(), Sszorak:GetGroupPosition("A").x)
-            AssertNear(BossX(), Sszorak:GetGroupPosition("B").x)
+            local a = Sszorak:GetGroupPosition("A")
+            local b = Sszorak:GetGroupPosition("B")
+            AssertNear(a.x, b.x)
+            assert.is_true(a.x > 0 and a.x < BossX())
         end)
 
         it("follows the fixed position timeline and freezes on the last station", function()
@@ -703,12 +705,12 @@ describe("Sszorak", function()
             assert.is_true(boss.x > 0.5 and boss.x < 1)
         end)
 
-        it("puts group A directly below the boss and group B directly above", function()
+        it("puts group A below and B above, slightly closer to center than the boss", function()
             local boss = Sszorak:GetBossPosition()
             local a = Sszorak:GetGroupPosition("A")
             local b = Sszorak:GetGroupPosition("B")
-            AssertNear(boss.x, a.x)
-            AssertNear(boss.x, b.x)
+            AssertNear(a.x, b.x)
+            assert.is_true(a.x > 0 and a.x < boss.x)
             assert.is_true(a.y < boss.y and b.y > boss.y)
             AssertNear(boss.y - a.y, b.y - boss.y)
         end)
@@ -733,22 +735,6 @@ describe("Sszorak", function()
     end)
 
     describe("AddonCheck configuration provider", function()
-        local function RegisterTestJailbreak()
-            Sszorak.RegisterCalloutMode({
-                id = Sszorak.CALLOUT_MODE_JAILBREAK,
-                Resolve = function(_self, savedMessage, _context)
-                    return { hudMessage = savedMessage }
-                end,
-                GetEdgeMacroBody = function(_self, _edge, _assignment)
-                    return "/raid {rt1}"
-                end,
-                Listen = function()
-                    return Sszorak.SubscribeSharedCalloutListeners()
-                end,
-                OnMatchedWarning = function() end,
-            })
-        end
-
         ---Dev/test inspection path: AddonCheck.GetConfig(Sszorak.ADDON_CHECK_MODULE_ID).
         local function InspectConfig()
             return ns.AddonCheck.GetConfig(Sszorak.ADDON_CHECK_MODULE_ID)
@@ -768,7 +754,6 @@ describe("Sszorak", function()
         end)
 
         it("represents every valid side and mode combination", function()
-            RegisterTestJailbreak()
             local cases = {
                 { rotated = false, mode = Sszorak.CALLOUT_MODE_NORMAL, side = Sszorak.SIDE_LEFT },
                 { rotated = true, mode = Sszorak.CALLOUT_MODE_NORMAL, side = Sszorak.SIDE_RIGHT },
@@ -866,9 +851,17 @@ describe("Sszorak", function()
         end)
 
         it("fails safely when calloutMode is unavailable", function()
+            -- Simulate an unregistered mode id that still passes the known-mode string check.
+            local realAvailable = Sszorak.IsCalloutModeAvailable
+            Sszorak.IsCalloutModeAvailable = function(modeId)
+                if modeId == Sszorak.CALLOUT_MODE_JAILBREAK then
+                    return false
+                end
+                return realAvailable(modeId)
+            end
             Sszorak.db.calloutMode = Sszorak.CALLOUT_MODE_JAILBREAK
-            assert.is_false(Sszorak.IsCalloutModeAvailable(Sszorak.CALLOUT_MODE_JAILBREAK))
             local config, err = InspectConfig()
+            Sszorak.IsCalloutModeAvailable = realAvailable
             assert.equals(nil, config)
             assert.equals("provider_failed", err)
         end)

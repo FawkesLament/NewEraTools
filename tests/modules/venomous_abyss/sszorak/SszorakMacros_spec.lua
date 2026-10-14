@@ -30,6 +30,23 @@ describe("SszorakMacros", function()
         assert.equals("/raid {rt1}", Sszorak:GetEdgeMacroBody(6))
     end)
 
+    it("encodes the opposite edge's event pattern under jailbreak mode", function()
+        Sszorak:SetCalloutMode(Sszorak.CALLOUT_MODE_JAILBREAK)
+        -- Edge N's macro fires events that decode to the opposite edge.
+        assert.equals("/raid .", Sszorak:GetEdgeMacroBody(2)) -- → edge 6
+        assert.equals("/rw .", Sszorak:GetEdgeMacroBody(6)) -- → edge 2
+        assert.equals("/raid .\n/tm [@player] 1\n/tm [@player] 2", Sszorak:GetEdgeMacroBody(3)) -- → 7
+        assert.equals("/rw .\n/tm [@player] 1\n/tm [@player] 2", Sszorak:GetEdgeMacroBody(7)) -- → 3
+        assert.equals(
+            "/raid .\n/tm [@player] 1\n/tm [@player] 3\n/tm [@player] 2",
+            Sszorak:GetEdgeMacroBody(4)
+        ) -- → 8
+        assert.equals(
+            "/rw .\n/tm [@player] 1\n/tm [@player] 3\n/tm [@player] 2",
+            Sszorak:GetEdgeMacroBody(8)
+        ) -- → 4
+    end)
+
     it("uses the triggering edge's marker FileID as the macro icon", function()
         assert.equals(
             Macro.GetFileIDFromPath("Interface\\TargetingFrame\\UI-RaidTargetingIcon_1"),

@@ -41,20 +41,20 @@ local function TrySaveRaidLeaderMessage(message)
     NotifyRaidLeaderMessagesChanged()
 end
 
+---Expands raid-target icon tags in a saved raid-leader message for HUD display.
+---@param savedMessage any
+---@return SszorakCalloutResolve
+local function FormatRaidLeaderCallout(savedMessage)
+    return {
+        hudMessage = Chat.ReplaceIconAndGroupExpressions(savedMessage),
+    }
+end
+
 ---Normal callout mode: show the raid-leader marker text as-is (icon tags expanded); opposite-edge macros.
 ---@type SszorakCalloutMode
 local Normal = {
     id = Sszorak.CALLOUT_MODE_NORMAL,
 }
-
----@param savedMessage any
----@param _context table|nil
----@return SszorakCalloutResolve
-function Normal:Resolve(savedMessage, _context)
-    return {
-        hudMessage = Chat.ReplaceIconAndGroupExpressions(savedMessage),
-    }
-end
 
 ---@param edge integer
 ---@param assignment table<integer, WorldMarker>
@@ -68,21 +68,21 @@ function Normal:GetEdgeMacroBody(edge, assignment)
 end
 
 ---@param anchorIndex integer
+---@return SszorakCalloutResolve|nil
 function Normal:OnMatchedWarning(anchorIndex)
     local messageIndex = ((anchorIndex - 1) % WARNING_ANCHOR_GROUP_SIZE) + 1
     -- Last slot in each anchor group is always the exit drop (no raid-leader message).
     if messageIndex == WARNING_ANCHOR_GROUP_SIZE then
-        Sszorak.ShowResolvedCallout({
+        return {
             hudMessage = L.SSZORAK_EXIT,
             targetEdge = Sszorak.EXIT_EDGE,
-        }, Sszorak.CALLOUT_DURATION_ENCOUNTER, true)
-        return
+        }
     end
     local message = raidLeaderMessages[messageIndex]
     if message == nil then
-        return
+        return nil
     end
-    Sszorak.ShowResolvedCallout(self:Resolve(message, nil), Sszorak.CALLOUT_DURATION_ENCOUNTER, true)
+    return FormatRaidLeaderCallout(message)
 end
 
 function Normal:BeginCapture()
@@ -102,26 +102,9 @@ function Normal:ClearMessages()
     ClearRaidLeaderMessages()
 end
 
----In map test only: show saved callouts at the same left→center / right→center moves warnings use in a real pull.
----@param fromStation integer
----@param toStation integer
-function Normal:OnStationChanged(fromStation, toStation)
-    if Sszorak:IsInEncounter() or not raidLeaderCapture or toStation ~= Sszorak.STATION_CENTER then
-        return
-    end
-    local messageIndex
-    if fromStation == Sszorak.STATION_HOME then
-        messageIndex = 1
-    elseif fromStation == Sszorak.STATION_FAR then
-        messageIndex = 3
-    else
-        return
-    end
-    local message = raidLeaderMessages[messageIndex]
-    if message == nil then
-        return
-    end
-    Sszorak.ShowResolvedCallout(self:Resolve(message, nil), Sszorak.CALLOUT_DURATION_TEST, true)
+---@return boolean
+function Normal:IsCapturing()
+    return raidLeaderCapture
 end
 
 ---Shared ENCOUNTER_WARNING matching plus raid-leader capture (jailbreak handles chat differently).
