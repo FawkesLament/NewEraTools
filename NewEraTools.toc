@@ -2,7 +2,7 @@
 ## Title: NewEraTools
 ## Notes: A toolbox addon. Type /ne2s to open the menu.
 ## Author: R.D.
-## Version: 0.5.0
+## Version: 0.6.0
 ## IconTexture: Interface\AddOns\NewEraTools\media\icons\mini_logo
 ## OptionalDeps: LibSharedMedia-3.0
 ## SavedVariables: NewEraToolsDB
