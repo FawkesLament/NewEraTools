@@ -9,6 +9,7 @@ ns.Api.Group = Group
 ---@class RaidMember
 ---@field name string  As shown in the roster; no realm for same-realm players.
 ---@field fullName string  "Name-Realm"; stable across realms.
+---@field guid string|nil  Unit GUID when available; preferred local identity key.
 ---@field subgroup number
 ---@field classFile string|nil  e.g. "WARRIOR".
 ---@field role GroupRole
@@ -36,6 +37,7 @@ function Group.GetRaidMembers()
             table.insert(members, {
                 name = name,
                 fullName = Unit.GetFullName(name),
+                guid = Unit.GetGUID(unit),
                 subgroup = subgroup,
                 classFile = classFile,
                 role = UnitGroupRolesAssigned(unit),
@@ -64,6 +66,30 @@ function Group.GetRaidChatType()
         return "RAID"
     elseif category == LE_PARTY_CATEGORY_INSTANCE then
         return "INSTANCE_CHAT"
+    end
+end
+
+---@return boolean  Whether the player leads the current raid; false when not in a raid.
+function Group.IsPlayerRaidLeader()
+    local category = GetRaidCategory()
+    if not category then
+        return false
+    end
+    return UnitIsGroupLeader("player", category)
+end
+
+---Raid leader as "Name-Realm", or nil when not in a raid / leader cannot be resolved.
+---@return string|nil
+function Group.GetRaidLeaderFullName()
+    if not IsInRaid() then
+        return nil
+    end
+    for index = 1, GetNumGroupMembers() do
+        local name, rank = GetRaidRosterInfo(index)
+        -- GetRaidRosterInfo rank: 2 = leader, 1 = assistant, 0 = member.
+        if name and rank == 2 then
+            return Unit.GetFullName(name)
+        end
     end
 end
 

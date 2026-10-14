@@ -1,14 +1,9 @@
 local _, ns = ...
-local L = ns.L
-local Chat = ns.Api.Chat
 local Encounter = ns.Api.Encounter
 local Timer = ns.Api.Timer
-local Util = ns.Util
 
 local Sszorak = ns.Modules.Get("Sszorak")
 
--- Raid leader callouts saved per home phase; text may be secret values and is stored opaque.
-local RAID_LEADER_MESSAGE_LIMIT = 3
 -- How long a matched callout stays on screen (wall-clock), unless a later callout replaces it.
 local CALLOUT_DURATION_ENCOUNTER = 10
 local CALLOUT_DURATION_TEST = 10
@@ -17,17 +12,13 @@ local WARNING_SEVERITY = 2
 local WARNING_DURATION = 3.5
 local WARNING_DURATION_TOLERANCE = 0.1
 local WARNING_TIME_WINDOW = 1.2
--- Anchors are processed in groups of this size; the index within the group selects a saved message.
-local WARNING_ANCHOR_GROUP_SIZE = 4
 
-Sszorak.RAID_LEADER_MESSAGE_LIMIT = RAID_LEADER_MESSAGE_LIMIT
 Sszorak.CALLOUT_DURATION_ENCOUNTER = CALLOUT_DURATION_ENCOUNTER
 Sszorak.CALLOUT_DURATION_TEST = CALLOUT_DURATION_TEST
 Sszorak.WARNING_SEVERITY = WARNING_SEVERITY
 Sszorak.WARNING_DURATION = WARNING_DURATION
 Sszorak.WARNING_DURATION_TOLERANCE = WARNING_DURATION_TOLERANCE
 Sszorak.WARNING_TIME_WINDOW = WARNING_TIME_WINDOW
-Sszorak.WARNING_ANCHOR_GROUP_SIZE = WARNING_ANCHOR_GROUP_SIZE
 
 ---Outcome of resolving a saved raid-leader message (or a fixed callout like exit).
 ---A non-nil resolve always has `hudMessage`. Modes return `nil` when nothing should be shown
@@ -43,14 +34,15 @@ Sszorak.WARNING_ANCHOR_GROUP_SIZE = WARNING_ANCHOR_GROUP_SIZE
 ---@field Resolve fun(self: SszorakCalloutMode, savedMessage: any, context: table|nil): SszorakCalloutResolve|nil
 ---@field GetEdgeMacroBody fun(self: SszorakCalloutMode, edge: integer, assignment: table<integer, WorldMarker>): string
 ---@field Listen fun(self: SszorakCalloutMode): fun()  Subscribe mode listeners; returns unsubscribe.
+---@field OnMatchedWarning fun(self: SszorakCalloutMode, anchorIndex: integer)  Shared filter matched a warning.
+---@field BeginCapture fun(self: SszorakCalloutMode)|nil  Encounter / map-test started.
+---@field EndCapture fun(self: SszorakCalloutMode)|nil  Encounter / map-test ended.
+---@field ClearMessages fun(self: SszorakCalloutMode)|nil  Dots returned home mid-timeline.
+---@field OnStationChanged fun(self: SszorakCalloutMode, fromStation: integer, toStation: integer)|nil
 
 ---@type table<string, SszorakCalloutMode>
 local modes = {}
 
--- Session-only: first raid leader messages since the last time dots returned home (opaque values).
-local raidLeaderMessages = {}
--- Session-only: whether CHAT_MSG_RAID_LEADER is stored (boss fight or map test only).
-local raidLeaderCapture = false
 -- Session-only: opaque callout text currently shown on screen (nil when hidden).
 local displayedCallout = nil
 local calloutExpireTime = nil
@@ -70,6 +62,7 @@ function Sszorak.RegisterCalloutMode(mode)
     assert(type(mode.Resolve) == "function", "Callout mode requires Resolve")
     assert(type(mode.GetEdgeMacroBody) == "function", "Callout mode requires GetEdgeMacroBody")
     assert(type(mode.Listen) == "function", "Callout mode requires Listen")
+    assert(type(mode.OnMatchedWarning) == "function", "Callout mode requires OnMatchedWarning")
     modes[mode.id] = mode
 end
 
@@ -130,19 +123,14 @@ function Sszorak:ListenForCalloutMode()
     RestartCalloutModeListeners()
 end
 
-local function NotifyRaidLeaderMessagesChanged()
-    if Sszorak.OnRaidLeaderMessagesChanged then
-        Sszorak:OnRaidLeaderMessagesChanged()
-    end
-end
-
 local function NotifyCalloutChanged()
     if Sszorak.OnCalloutChanged then
         Sszorak:OnCalloutChanged()
     end
 end
 
-local function ClearDisplayedCallout()
+---Clears the on-screen callout (modes call this when capture ends or messages reset).
+function Sszorak.ClearDisplayedCallout()
     calloutToken = calloutToken + 1
     calloutExpireTime = nil
     displayedCalloutAppendTimer = false
@@ -159,7 +147,7 @@ end
 ---@param resolve SszorakCalloutResolve|nil
 ---@param duration number
 ---@param appendTimer boolean|nil
-local function ShowResolvedCallout(resolve, duration, appendTimer)
+function Sszorak.ShowResolvedCallout(resolve, duration, appendTimer)
     if resolve == nil then
         return
     end
@@ -181,23 +169,6 @@ local function ShowResolvedCallout(resolve, duration, appendTimer)
         displayedCalloutAppendTimer = false
         NotifyCalloutChanged()
     end)
-end
-
----@param savedMessage any
----@param duration number
----@param appendTimer boolean|nil
-local function ResolveAndShow(savedMessage, duration, appendTimer)
-    local resolve = Sszorak:GetActiveCalloutMode():Resolve(savedMessage, nil)
-    ShowResolvedCallout(resolve, duration, appendTimer)
-end
-
-local function ClearRaidLeaderMessages()
-    ClearDisplayedCallout()
-    if #raidLeaderMessages == 0 then
-        return
-    end
-    Util.Wipe(raidLeaderMessages)
-    NotifyRaidLeaderMessagesChanged()
 end
 
 ---Closest warning anchor within the time window, or nil.
@@ -232,89 +203,13 @@ local function OnEncounterWarning(warningInfo)
     if not anchorIndex then
         return
     end
-    local messageIndex = ((anchorIndex - 1) % WARNING_ANCHOR_GROUP_SIZE) + 1
-    -- Last slot in each anchor group is always the exit drop (no raid-leader message).
-    if messageIndex == WARNING_ANCHOR_GROUP_SIZE then
-        ShowResolvedCallout({
-            hudMessage = L.SSZORAK_EXIT,
-            targetEdge = Sszorak.EXIT_EDGE,
-        }, CALLOUT_DURATION_ENCOUNTER, true)
-        return
-    end
-    local message = raidLeaderMessages[messageIndex]
-    if message == nil then
-        return
-    end
-    ResolveAndShow(message, CALLOUT_DURATION_ENCOUNTER, true)
+    Sszorak:GetActiveCalloutMode():OnMatchedWarning(anchorIndex)
 end
 
-local function TrySaveRaidLeaderMessage(message)
-    if not raidLeaderCapture or #raidLeaderMessages >= RAID_LEADER_MESSAGE_LIMIT then
-        return
-    end
-    table.insert(raidLeaderMessages, message)
-    NotifyRaidLeaderMessagesChanged()
-end
-
----Shared by every callout mode: raid-leader capture + encounter-warning matching. Returns unsubscribe.
+---Shared by every callout mode: ENCOUNTER_WARNING filter + anchor match, then mode:OnMatchedWarning.
 ---@return fun()
 function Sszorak.SubscribeSharedCalloutListeners()
-    local stopWarning = Encounter.OnWarning(OnEncounterWarning)
-    local stopRaidLeader = Chat.OnRaidLeaderMessage(TrySaveRaidLeaderMessage)
-    return function()
-        stopWarning()
-        stopRaidLeader()
-    end
-end
-
-function Sszorak:BeginRaidLeaderCapture()
-    raidLeaderCapture = true
-    ClearRaidLeaderMessages()
-end
-
-function Sszorak:EndRaidLeaderCapture()
-    if not raidLeaderCapture then
-        return
-    end
-    raidLeaderCapture = false
-    ClearRaidLeaderMessages()
-end
-
----In map test only: show saved callouts at the same left→center / right→center moves warnings use in a real pull.
----@param fromStation integer
----@param toStation integer
-function Sszorak:OnStationChangedForCallout(fromStation, toStation)
-    if Sszorak:IsInEncounter() or not raidLeaderCapture or toStation ~= Sszorak.STATION_CENTER then
-        return
-    end
-    local messageIndex
-    if fromStation == Sszorak.STATION_HOME then
-        messageIndex = 1
-    elseif fromStation == Sszorak.STATION_FAR then
-        messageIndex = 3
-    else
-        return
-    end
-    local message = raidLeaderMessages[messageIndex]
-    if message == nil then
-        return
-    end
-    ResolveAndShow(message, CALLOUT_DURATION_TEST, true)
-end
-
-function Sszorak:ClearRaidLeaderMessages()
-    ClearRaidLeaderMessages()
-end
-
----@return boolean  Whether raid leader messages are being captured.
-function Sszorak:IsCapturingRaidLeaderMessages()
-    return raidLeaderCapture
-end
-
----The saved raid leader messages for this home phase (opaque; may be secret values).
----@return table
-function Sszorak:GetRaidLeaderMessages()
-    return raidLeaderMessages
+    return Encounter.OnWarning(OnEncounterWarning)
 end
 
 ---The on-screen callout text (opaque; may be secret), or nil when nothing is shown.
@@ -344,17 +239,25 @@ function Sszorak:GetCalloutAppendTimer()
     return displayedCalloutAppendTimer
 end
 
+local function CallActiveMode(methodName, ...)
+    local mode = Sszorak:GetActiveCalloutMode()
+    local method = mode[methodName]
+    if method then
+        method(mode, ...)
+    end
+end
+
 Sszorak.BindCalloutHooks({
     beginCapture = function()
-        Sszorak:BeginRaidLeaderCapture()
+        CallActiveMode("BeginCapture")
     end,
     endCapture = function()
-        Sszorak:EndRaidLeaderCapture()
+        CallActiveMode("EndCapture")
     end,
     clearMessages = function()
-        ClearRaidLeaderMessages()
+        CallActiveMode("ClearMessages")
     end,
     onStationChanged = function(fromStation, toStation)
-        Sszorak:OnStationChangedForCallout(fromStation, toStation)
+        CallActiveMode("OnStationChanged", fromStation, toStation)
     end,
 })

@@ -71,6 +71,12 @@ local function IsSkipped(path)
     return path == "Main.lua" or path:find("^ui/") ~= nil or path:find("UI%.lua$") ~= nil
 end
 
+-- Orchestration api files that only call other ns.Api.* helpers: load the real source so
+-- protocol/transport behavior is tested against fakes for AddonMessage, Group, Player, etc.
+local REAL_API_FILES = {
+    MessageProtocolComm = true,
+}
+
 ---Loads the addon into a fresh namespace the way WoW does, replacing each api/ file with its fake
 ---from tests/helpers/fakes/ and skipping UI files and Main.lua (Assets.lua is still loaded).
 ---@return table ns
@@ -78,7 +84,9 @@ function Loader.Load()
     local ns = {}
     for _, path in ipairs(Loader.ReadLuaFiles()) do
         local apiName = path:match("^api/(.+)%.lua$")
-        if apiName then
+        if apiName and REAL_API_FILES[apiName] then
+            assert(loadfile(path))(Loader.ADDON_NAME, ns)
+        elseif apiName then
             ns.Api[apiName] = dofile(FAKES_PATH .. apiName .. ".lua")()
         elseif not IsSkipped(path) then
             assert(loadfile(path))(Loader.ADDON_NAME, ns)

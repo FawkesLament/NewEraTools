@@ -18,4 +18,5 @@
     <Script file="RaidTarget.lua"/>
     <Script file="Macro.lua"/>
     <Script file="AddonMessage.lua"/>
+    <Script file="MessageProtocolComm.lua"/>
 </Ui>

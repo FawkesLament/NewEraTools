@@ -238,7 +238,7 @@ describe("CombatLog", function()
                 },
             }
             local loaded = ns.Database.Load(saved)
-            assert.equals(5, loaded.schemaVersion)
+            assert.equals(6, loaded.schemaVersion)
             assert.is_nil(loaded.modules.CombatLogReminder)
             local combatLog = loaded.modules.CombatLog
             assert.is_true(combatLog.enabled)
@@ -263,7 +263,7 @@ describe("CombatLog", function()
                 },
             }
             local loaded = ns.Database.Load(saved)
-            assert.equals(5, loaded.schemaVersion)
+            assert.equals(6, loaded.schemaVersion)
             local combatLog = loaded.modules.CombatLog
             assert.equals("RAIDS", combatLog.locations)
             assert.is_nil(combatLog.enableRaids)

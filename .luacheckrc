@@ -68,8 +68,10 @@ local GAME_API = {
     "UnitClass",
     "UnitClassBase",
     "UnitGroupRolesAssigned",
+    "UnitGUID",
     "UnitIsGroupAssistant",
     "UnitIsGroupLeader",
+    "UnitName",
 }
 
 local function Concat(...)

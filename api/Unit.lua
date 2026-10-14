@@ -18,6 +18,20 @@ function Unit.GetFullName(name)
     return name .. "-" .. (GetNormalizedRealmName() or "")
 end
 
+---Unit GUID when the client knows it (e.g. "Player-…"); nil when unavailable.
+---@param unit string  A unit token, e.g. "player" or "raid3".
+---@return string|nil
+function Unit.GetGUID(unit)
+    if type(unit) ~= "string" or unit == "" then
+        return nil
+    end
+    local guid = UnitGUID(unit)
+    if type(guid) ~= "string" or guid == "" then
+        return nil
+    end
+    return guid
+end
+
 ---@param unit string  A unit token, e.g. "raid3".
 ---@return string|nil  Class file name, e.g. "WARRIOR".
 function Unit.GetClassFile(unit)

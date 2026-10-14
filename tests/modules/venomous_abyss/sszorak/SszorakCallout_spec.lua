@@ -22,6 +22,7 @@ describe("SszorakCallout", function()
                 Listen = function()
                     return Sszorak.SubscribeSharedCalloutListeners()
                 end,
+                OnMatchedWarning = function() end,
             })
         end
 
@@ -72,7 +73,7 @@ describe("SszorakCallout", function()
             assert.equals(Sszorak.CALLOUT_MODE_NORMAL, Sszorak:GetCalloutMode())
         end)
 
-        it("requires Listen on registered modes", function()
+        it("requires Listen and OnMatchedWarning on registered modes", function()
             assert.is_false(pcall(Sszorak.RegisterCalloutMode, {
                 id = "broken",
                 Resolve = function()
@@ -80,6 +81,18 @@ describe("SszorakCallout", function()
                 end,
                 GetEdgeMacroBody = function()
                     return "/raid {rt1}"
+                end,
+            }))
+            assert.is_false(pcall(Sszorak.RegisterCalloutMode, {
+                id = "broken",
+                Resolve = function()
+                    return { hudMessage = "x" }
+                end,
+                GetEdgeMacroBody = function()
+                    return "/raid {rt1}"
+                end,
+                Listen = function()
+                    return function() end
                 end,
             }))
         end)
@@ -332,10 +345,12 @@ describe("SszorakCallout", function()
                 Listen = function()
                     return Sszorak.SubscribeSharedCalloutListeners()
                 end,
+                OnMatchedWarning = function(self)
+                    Sszorak.ShowResolvedCallout(self:Resolve("{rt1}", nil), Sszorak.CALLOUT_DURATION_ENCOUNTER, true)
+                end,
             })
             Sszorak:SetCalloutMode(Sszorak.CALLOUT_MODE_JAILBREAK)
             Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
-            Chat.FireRaidLeader("{rt1}")
             Timer.Advance(Sszorak.ACTIVE_SCHEDULE.warningAnchors[1])
             Encounter.FireWarning({
                 severity = Sszorak.WARNING_SEVERITY,

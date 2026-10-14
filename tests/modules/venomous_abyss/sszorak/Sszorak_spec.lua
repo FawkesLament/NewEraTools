@@ -237,19 +237,24 @@ describe("Sszorak", function()
     end)
 
     describe("broadcasting", function()
-        local Group, AddonMessage, printed
+        local Group, AddonMessage, MessageProtocol, MessageProtocolComm, printed
 
         local LEADER = "Leader-TestRealm"
+        local TOPIC = "sszorak.edge_markers"
 
         before_each(function()
             Group = ns.Api.Group
             AddonMessage = ns.Api.AddonMessage
+            MessageProtocol = ns.MessageProtocol
+            MessageProtocolComm = ns.Api.MessageProtocolComm
             printed = {}
             ns.Util.Print = function(message)
                 table.insert(printed, message)
             end
             Group.raidChatType = "RAID"
+            Group.isRaidLeader = true
             Group.isLeaderOrAssistant = true
+            MessageProtocolComm.Enable()
             Sszorak:ListenForBroadcasts()
         end)
 
@@ -269,26 +274,40 @@ describe("Sszorak", function()
             return prefix, message
         end
 
-        it("sends the assignment to the raid", function()
+        local function DeliverPayload(payload, channel, sender)
+            local wire = assert(MessageProtocol.Encode(MessageProtocol.TYPE_EVENT, TOPIC, "-", payload))
+            AddonMessage.Deliver(MessageProtocolComm.PREFIX.REALTIME, wire, channel, sender)
+        end
+
+        it("sends the assignment on the REALTIME prefix", function()
             Group.raidChatType = "INSTANCE_CHAT"
             Sszorak:BroadcastEdgeMarkers()
             assert.equals(1, #AddonMessage.sent)
+            assert.equals(MessageProtocolComm.PREFIX.REALTIME, AddonMessage.sent[1].prefix)
             assert.equals("INSTANCE_CHAT", AddonMessage.sent[1].chatType)
+            local decoded = assert(MessageProtocol.Decode(AddonMessage.sent[1].message))
+            assert.equals(MessageProtocol.TYPE_EVENT, decoded.type)
+            assert.equals(TOPIC, decoded.topic)
+            assert.equals("-", decoded.correlationId)
+            assert.is_true(decoded.payload:find("^1:") ~= nil)
             assert.equals(ns.L.SSZORAK_BROADCAST_SENT, printed[1])
         end)
 
         it("is blocked outside a raid", function()
             Group.raidChatType = nil
-            assert.equals(ns.L.SSZORAK_BROADCAST_NOT_IN_RAID, Sszorak:GetBroadcastBlockedReason())
+            assert.is_false(Sszorak:CanBroadcastEdgeMarkers())
             Sszorak:BroadcastEdgeMarkers()
             assert.equals(0, #AddonMessage.sent)
+            assert.equals(0, #printed)
         end)
 
-        it("is blocked for players who aren't leader or assistant", function()
+        it("is blocked when the player is not the raid leader", function()
+            Group.isRaidLeader = false
             Group.isLeaderOrAssistant = false
-            assert.equals(ns.L.SSZORAK_BROADCAST_NOT_LEADER, Sszorak:GetBroadcastBlockedReason())
+            assert.is_false(Sszorak:CanBroadcastEdgeMarkers())
             Sszorak:BroadcastEdgeMarkers()
             assert.equals(0, #AddonMessage.sent)
+            assert.equals(0, #printed)
         end)
 
         it("says so when the game refuses the message", function()
@@ -318,19 +337,42 @@ describe("Sszorak", function()
         end)
 
         it("ignores messages from outside the current raid's channel", function()
-            local prefix, message = CaptureCustomBroadcast()
-            AddonMessage.Deliver(prefix, message, "PARTY", LEADER)
+            local _, message = CaptureCustomBroadcast()
+            local payload = assert(MessageProtocol.Decode(message)).payload
+            DeliverPayload(payload, "PARTY", LEADER)
             Group.raidChatType = nil
-            AddonMessage.Deliver(prefix, message, "RAID", LEADER)
+            DeliverPayload(payload, "RAID", LEADER)
             assert.is_true(Sszorak:IsDefaultEdgeMarkers())
         end)
 
-        it("ignores other format versions and invalid assignments", function()
-            local prefix, message = CaptureCustomBroadcast()
-            AddonMessage.Deliver(prefix, (message:gsub("^%d+:", "99:")), "RAID", LEADER)
-            AddonMessage.Deliver(prefix, "1:2=STAR,3=STAR", "RAID", LEADER)
-            AddonMessage.Deliver(prefix, "garbage", "RAID", LEADER)
+        it("ignores other payload format versions and invalid assignments", function()
+            local _, message = CaptureCustomBroadcast()
+            local payload = assert(MessageProtocol.Decode(message)).payload
+            DeliverPayload((payload:gsub("^%d+:", "99:")), "RAID", LEADER)
+            DeliverPayload("1:2=STAR,3=STAR", "RAID", LEADER)
+            DeliverPayload("garbage", "RAID", LEADER)
             assert.is_true(Sszorak:IsDefaultEdgeMarkers())
+        end)
+    end)
+
+    describe("raid role", function()
+        it("is member unless the player is the raid leader", function()
+            local Group = ns.Api.Group
+            assert.equals(Sszorak.RAID_ROLE_MEMBER, Sszorak:GetRaidRole())
+            assert.is_false(Sszorak:IsRaidCommander())
+            Group.isRaidLeader = true
+            assert.equals(Sszorak.RAID_ROLE_COMMANDER, Sszorak:GetRaidRole())
+            assert.is_true(Sszorak:IsRaidCommander())
+        end)
+
+        it("drops a saved raidRole toggle on migration", function()
+            ns = Loader.Load()
+            local saved = ns.Database.Load({
+                schemaVersion = 5,
+                modules = { Sszorak = { raidRole = "commander" } },
+            })
+            assert.equals(nil, saved.modules.Sszorak.raidRole)
+            assert.equals(6, saved.schemaVersion)
         end)
     end)
 
@@ -687,6 +729,148 @@ describe("Sszorak", function()
             assert.equals("A", Sszorak:GetPlayerGroup())
             Sszorak:SetMapRotated(true)
             assert.equals("B", Sszorak:GetPlayerGroup())
+        end)
+    end)
+
+    describe("AddonCheck configuration provider", function()
+        local function RegisterTestJailbreak()
+            Sszorak.RegisterCalloutMode({
+                id = Sszorak.CALLOUT_MODE_JAILBREAK,
+                Resolve = function(_self, savedMessage, _context)
+                    return { hudMessage = savedMessage }
+                end,
+                GetEdgeMacroBody = function(_self, _edge, _assignment)
+                    return "/raid {rt1}"
+                end,
+                Listen = function()
+                    return Sszorak.SubscribeSharedCalloutListeners()
+                end,
+                OnMatchedWarning = function() end,
+            })
+        end
+
+        ---Dev/test inspection path: AddonCheck.GetConfig(Sszorak.ADDON_CHECK_MODULE_ID).
+        local function InspectConfig()
+            return ns.AddonCheck.GetConfig(Sszorak.ADDON_CHECK_MODULE_ID)
+        end
+
+        it("registers on module init without opening the settings UI", function()
+            assert.is_true(ns.AddonCheck.IsRegistered(Sszorak.ADDON_CHECK_MODULE_ID))
+            assert.equals("Sszorak", Sszorak.ADDON_CHECK_MODULE_ID)
+        end)
+
+        it("returns default enabled, left side, and normal mode", function()
+            assert.same({
+                enabled = true,
+                side = Sszorak.SIDE_LEFT,
+                mode = Sszorak.CALLOUT_MODE_NORMAL,
+            }, InspectConfig())
+        end)
+
+        it("represents every valid side and mode combination", function()
+            RegisterTestJailbreak()
+            local cases = {
+                { rotated = false, mode = Sszorak.CALLOUT_MODE_NORMAL, side = Sszorak.SIDE_LEFT },
+                { rotated = true, mode = Sszorak.CALLOUT_MODE_NORMAL, side = Sszorak.SIDE_RIGHT },
+                { rotated = false, mode = Sszorak.CALLOUT_MODE_JAILBREAK, side = Sszorak.SIDE_LEFT },
+                { rotated = true, mode = Sszorak.CALLOUT_MODE_JAILBREAK, side = Sszorak.SIDE_RIGHT },
+            }
+            for _, case in ipairs(cases) do
+                Sszorak:SetMapRotated(case.rotated)
+                Sszorak:SetCalloutMode(case.mode)
+                assert.same({
+                    enabled = true,
+                    side = case.side,
+                    mode = case.mode,
+                }, InspectConfig())
+            end
+        end)
+
+        it("reflects enablement and side changes on the next GetConfig call", function()
+            assert.equals(true, InspectConfig().enabled)
+            assert.equals(Sszorak.SIDE_LEFT, InspectConfig().side)
+            Sszorak:SetMapEnabled(false)
+            assert.equals(false, InspectConfig().enabled)
+            Sszorak:SetMapEnabled(true)
+            assert.equals(true, InspectConfig().enabled)
+            Sszorak:SetMapRotated(true)
+            assert.equals(Sszorak.SIDE_RIGHT, InspectConfig().side)
+            Sszorak:SetMapRotated(false)
+            assert.equals(Sszorak.SIDE_LEFT, InspectConfig().side)
+        end)
+
+        it("does not mutate saved configuration when inspected", function()
+            Sszorak:SetMapRotated(true)
+            local beforeEnabled = Sszorak.db.mapEnabled
+            local beforeRotated = Sszorak.db.mapRotated
+            local beforeMode = Sszorak.db.calloutMode
+            local snapshot = InspectConfig()
+            snapshot.enabled = false
+            snapshot.side = "mutated"
+            snapshot.mode = "mutated"
+            assert.equals(beforeEnabled, Sszorak.db.mapEnabled)
+            assert.equals(beforeRotated, Sszorak.db.mapRotated)
+            assert.equals(beforeMode, Sszorak.db.calloutMode)
+            assert.equals(true, InspectConfig().enabled)
+            assert.equals(Sszorak.SIDE_RIGHT, InspectConfig().side)
+            assert.equals(Sszorak.CALLOUT_MODE_NORMAL, InspectConfig().mode)
+        end)
+
+        it("fails safely on invalid mapEnabled", function()
+            Sszorak.db.mapEnabled = "yes"
+            local config, err = InspectConfig()
+            assert.equals(nil, config)
+            assert.equals("provider_failed", err)
+        end)
+
+        it("validates enabled and mode against the commander snapshot", function()
+            local localConfig = {
+                enabled = true,
+                side = Sszorak.SIDE_LEFT,
+                mode = Sszorak.CALLOUT_MODE_NORMAL,
+            }
+            assert.is_nil(Sszorak.ValidateAddonCheckConfig({
+                enabled = true,
+                side = Sszorak.SIDE_RIGHT,
+                mode = Sszorak.CALLOUT_MODE_NORMAL,
+            }, localConfig))
+            assert.same({ "enabled" }, Sszorak.ValidateAddonCheckConfig({
+                enabled = false,
+                side = Sszorak.SIDE_LEFT,
+                mode = Sszorak.CALLOUT_MODE_NORMAL,
+            }, localConfig))
+            assert.same({ "mode" }, Sszorak.ValidateAddonCheckConfig({
+                enabled = true,
+                side = Sszorak.SIDE_LEFT,
+                mode = Sszorak.CALLOUT_MODE_JAILBREAK,
+            }, localConfig))
+            assert.same({ "enabled", "mode" }, Sszorak.ValidateAddonCheckConfig({
+                enabled = false,
+                side = Sszorak.SIDE_LEFT,
+                mode = Sszorak.CALLOUT_MODE_JAILBREAK,
+            }, localConfig))
+        end)
+
+        it("fails safely on invalid mapRotated", function()
+            Sszorak.db.mapRotated = "yes"
+            local config, err = InspectConfig()
+            assert.equals(nil, config)
+            assert.equals("provider_failed", err)
+        end)
+
+        it("fails safely on invalid calloutMode", function()
+            Sszorak.db.calloutMode = "banana"
+            local config, err = InspectConfig()
+            assert.equals(nil, config)
+            assert.equals("provider_failed", err)
+        end)
+
+        it("fails safely when calloutMode is unavailable", function()
+            Sszorak.db.calloutMode = Sszorak.CALLOUT_MODE_JAILBREAK
+            assert.is_false(Sszorak.IsCalloutModeAvailable(Sszorak.CALLOUT_MODE_JAILBREAK))
+            local config, err = InspectConfig()
+            assert.equals(nil, config)
+            assert.equals("provider_failed", err)
         end)
     end)
 end)

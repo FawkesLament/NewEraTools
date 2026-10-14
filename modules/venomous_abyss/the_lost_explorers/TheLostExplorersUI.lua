@@ -101,7 +101,9 @@ local function BeginEditPosition()
     LayoutEditor.BeginLocal(LAYOUT_ID_CALLOUT)
 end
 
----Boss choices for one slot, excluding bosses already picked in earlier slots.
+local FEED_ORDER_CHOICE_SLOTS = TheLostExplorers.FEED_ORDER_SIZE - 1
+
+---Boss choices for one editable slot, excluding bosses already picked in earlier slots.
 ---@param slot integer
 ---@return DropdownItem[]
 local function BuildFeedOrderItems(slot)
@@ -126,6 +128,15 @@ local function BuildFeedOrderItems(slot)
     return items
 end
 
+---@return string
+local function FeedOrderResolvedText()
+    local bossId = TheLostExplorers:GetFeedOrderSlot(TheLostExplorers.FEED_ORDER_SIZE)
+    if bossId then
+        return TheLostExplorers:GetFeedBossLabel(bossId)
+    end
+    return L.THE_LOST_EXPLORERS_FEED_ORDER_UNSPECIFIED
+end
+
 ---@param content Frame
 ---@return number
 local function BuildContent(content)
@@ -138,20 +149,30 @@ local function BuildContent(content)
 
     ---@type Dropdown[]
     local orderDropdowns = {}
+    ---@type FontString|nil
+    local resolvedLabel
 
-    local function RefreshFeedOrderDropdowns()
-        for slot = 1, TheLostExplorers.FEED_ORDER_SIZE do
+    local function RefreshFeedOrderControls()
+        for slot = 1, FEED_ORDER_CHOICE_SLOTS do
             local dropdown = orderDropdowns[slot]
             dropdown:SetItems(BuildFeedOrderItems(slot))
             dropdown:SetSelected(TheLostExplorers:GetFeedOrderSlot(slot) or FEED_ORDER_NONE)
             -- Re-apply so later slots stay locked when FeatureSection re-enables the tree.
             dropdown:SetEnabled(TheLostExplorers:IsEnabled())
         end
+        if resolvedLabel then
+            resolvedLabel:SetText(FeedOrderResolvedText())
+            -- Keep the same footprint as the editable dropdowns in this row.
+            local reference = orderDropdowns[1]
+            if reference then
+                resolvedLabel:SetWidth(reference:GetWidth())
+            end
+        end
     end
 
     local resetOrder = Widgets.CreateTextButton(orderHeader, L.THE_LOST_EXPLORERS_FEED_ORDER_RESET, function()
         TheLostExplorers:ClearFeedOrder()
-        RefreshFeedOrderDropdowns()
+        RefreshFeedOrderControls()
     end)
     resetOrder:SetPoint("RIGHT", orderHeader, "RIGHT")
 
@@ -167,22 +188,30 @@ local function BuildContent(content)
         slotLabel:SetJustifyH("LEFT")
         orderWidgets[#orderWidgets + 1] = slotLabel
 
-        local dropdown
-        dropdown = Widgets.CreateDropdown(orderRow, BuildFeedOrderItems(slot), function(value)
-            TheLostExplorers:SetFeedOrderSlot(slot, value)
-            RefreshFeedOrderDropdowns()
-        end)
-        dropdown:SetJustifyH("CENTER")
-        local rawSetEnabled = dropdown.SetEnabled
-        ---Later slots stay locked until every earlier slot has a boss.
-        function dropdown:SetEnabled(enabled)
-            local unlocked = slot == 1 or TheLostExplorers:GetFeedOrderSlot(slot - 1) ~= nil
-            rawSetEnabled(self, enabled == true and unlocked)
+        if slot <= FEED_ORDER_CHOICE_SLOTS then
+            local dropdown
+            dropdown = Widgets.CreateDropdown(orderRow, BuildFeedOrderItems(slot), function(value)
+                TheLostExplorers:SetFeedOrderSlot(slot, value)
+                RefreshFeedOrderControls()
+            end)
+            dropdown:SetJustifyH("CENTER")
+            local rawSetEnabled = dropdown.SetEnabled
+            ---Later slots stay locked until every earlier slot has a boss.
+            function dropdown:SetEnabled(enabled)
+                local unlocked = slot == 1 or TheLostExplorers:GetFeedOrderSlot(slot - 1) ~= nil
+                rawSetEnabled(self, enabled == true and unlocked)
+            end
+            dropdown:SetSelected(TheLostExplorers:GetFeedOrderSlot(slot) or FEED_ORDER_NONE)
+            dropdown:SetEnabled(TheLostExplorers:IsEnabled())
+            orderDropdowns[slot] = dropdown
+            orderWidgets[#orderWidgets + 1] = dropdown
+        else
+            -- Slot 3 is derived from the first two choices; show as plain text.
+            resolvedLabel = Widgets.CreateLabel(orderRow, Fonts.BODY, FeedOrderResolvedText())
+            resolvedLabel:SetJustifyH("CENTER")
+            resolvedLabel:SetWidth(orderDropdowns[1]:GetWidth())
+            orderWidgets[#orderWidgets + 1] = resolvedLabel
         end
-        dropdown:SetSelected(TheLostExplorers:GetFeedOrderSlot(slot) or FEED_ORDER_NONE)
-        dropdown:SetEnabled(TheLostExplorers:IsEnabled())
-        orderDropdowns[slot] = dropdown
-        orderWidgets[#orderWidgets + 1] = dropdown
     end
     Layout.Row(orderRow, orderWidgets, Spacing.SMALL)
 

@@ -9,7 +9,7 @@ local MACRO_NAME_PREFIX = "NewEraToolsSsz"
 
 -- True when a marker change couldn't rewrite macros because of combat lockdown.
 local macrosDirty = false
--- True when switching to commander couldn't create macros because of combat lockdown.
+-- True when creating callout macros was blocked by combat lockdown.
 local macrosNeedCreate = false
 
 local function RaidTargetIconPath(raidTarget)

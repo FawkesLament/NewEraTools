@@ -36,7 +36,8 @@ local TheLostExplorers = ns.Modules.New("TheLostExplorers", {
         enabled = false,
         ---@type TheLostExplorersPosition
         calloutPosition = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 160 },
-        -- Optional 1..3 boss ids; custom callout text applies only when all three slots are set.
+        -- Optional boss ids for slots 1–2; slot 3 is derived when both are set.
+        -- Custom callout text applies only when the order is complete.
         ---@type string[]
         feedOrder = {},
     },
@@ -113,7 +114,26 @@ local function FeedBossLabel(bossId)
     return L.THE_LOST_EXPLORERS_BOSS_TRADER
 end
 
+---Fills slot 3 with the unused boss when slots 1 and 2 are set; clears it otherwise.
+local function ResolveThirdFeedOrderSlot()
+    local order = TheLostExplorers.db.feedOrder
+    local first = order[1]
+    local second = order[2]
+    if not IsKnownFeedBoss(first) or not IsKnownFeedBoss(second) or first == second then
+        order[3] = nil
+        return
+    end
+    for _, bossId in ipairs(FEED_BOSSES) do
+        if bossId ~= first and bossId ~= second then
+            order[3] = bossId
+            return
+        end
+    end
+    order[3] = nil
+end
+
 ---Normalizes `feedOrder` to at most three known, unique boss ids (no gaps until the first unset).
+---Slot 3 is derived from slots 1 and 2 when both are set.
 local function NormalizeFeedOrder()
     local saved = TheLostExplorers.db.feedOrder
     if type(saved) ~= "table" then
@@ -122,7 +142,8 @@ local function NormalizeFeedOrder()
     end
     local seen = {}
     local normalized = {}
-    for index = 1, FEED_ORDER_SIZE do
+    -- Only user-chosen slots (1–2) are read from saved data; slot 3 is resolved below.
+    for index = 1, FEED_ORDER_SIZE - 1 do
         local bossId = saved[index]
         if not IsKnownFeedBoss(bossId) or seen[bossId] then
             break
@@ -133,6 +154,7 @@ local function NormalizeFeedOrder()
     for index = 1, FEED_ORDER_SIZE do
         saved[index] = normalized[index]
     end
+    ResolveThirdFeedOrderSlot()
 end
 
 ---@param feedIndex integer  1-based fish-feed interaction this pull (1st / 2nd / 3rd).
@@ -317,12 +339,13 @@ function TheLostExplorers:GetFeedOrderSlot(slot)
     return self.db.feedOrder[slot]
 end
 
----Sets one slot; clears every later slot. Pass nil/false to clear this slot and the rest.
+---Sets slot 1 or 2; clears every later user slot. Pass nil/false to clear this slot and the rest.
+---Slot 3 is always derived from slots 1 and 2 (remaining boss, or unset).
 ---Earlier slots must already be filled before a boss can be assigned here.
----@param slot integer  1..FEED_ORDER_SIZE
+---@param slot integer  1..FEED_ORDER_SIZE-1
 ---@param bossId string|nil|false
 function TheLostExplorers:SetFeedOrderSlot(slot, bossId)
-    assert(slot >= 1 and slot <= FEED_ORDER_SIZE, "Bad feed order slot")
+    assert(slot >= 1 and slot <= FEED_ORDER_SIZE - 1, "Bad feed order slot")
     NormalizeFeedOrder()
     if bossId == false or bossId == nil or bossId == "" then
         bossId = nil
@@ -342,6 +365,7 @@ function TheLostExplorers:SetFeedOrderSlot(slot, bossId)
     for later = slot + 1, FEED_ORDER_SIZE do
         self.db.feedOrder[later] = nil
     end
+    ResolveThirdFeedOrderSlot()
 end
 
 function TheLostExplorers:ClearFeedOrder()

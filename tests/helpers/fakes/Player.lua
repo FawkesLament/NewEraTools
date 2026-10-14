@@ -1,5 +1,7 @@
 return function()
     local Player = {
+        fullName = "Player-TestRealm",
+        guid = "Player-1-00000001",
         classFile = "DRUID",
         specializationId = 105,
         role = "HEALER",
@@ -22,6 +24,14 @@ return function()
     }
 
     local ROLE_ORDER = { TANK = 1, HEALER = 2, DAMAGER = 3 }
+
+    function Player.GetFullName()
+        return Player.fullName
+    end
+
+    function Player.GetGUID()
+        return Player.guid
+    end
 
     function Player.GetClassFile()
         return Player.classFile

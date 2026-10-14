@@ -7,6 +7,8 @@
     <Script file="FeatureSection.lua"/>
     <Script file="CollapsibleSection.lua"/>
     <Script file="FloatingWindow.lua"/>
+    <Script file="AddonCheckPanelModel.lua"/>
+    <Script file="AddonCheckPanel.lua"/>
     <Script file="WarningWindow.lua"/>
     <Script file="CalloutMessage.lua"/>
     <Script file="CollapsiblePanel.lua"/>
