@@ -20,8 +20,8 @@ Sszorak.WARNING_DURATION = WARNING_DURATION
 Sszorak.WARNING_DURATION_TOLERANCE = WARNING_DURATION_TOLERANCE
 Sszorak.WARNING_TIME_WINDOW = WARNING_TIME_WINDOW
 
----Outcome of resolving a saved raid-leader message (or a fixed callout like exit).
----A non-nil resolve always has `hudMessage`. Modes return `nil` when nothing should be shown
+---Payload passed to ShowResolvedCallout for HUD text and optional map path.
+---A non-nil value always has `hudMessage`. Pass `nil` when nothing should be shown
 ---(e.g. jailbreak has not identified a marker yet) — an empty table is not used for that.
 ---`hudMessage` is not always derivable from `targetEdge` (normal keeps RL text; exit uses locale).
 ---`targetEdge` is the map path tip (`nil` = no arrow); the marker on that edge is from the assignment.
@@ -31,14 +31,13 @@ Sszorak.WARNING_TIME_WINDOW = WARNING_TIME_WINDOW
 
 ---@class SszorakCalloutMode
 ---@field id string
----@field Resolve fun(self: SszorakCalloutMode, savedMessage: any, context: table|nil): SszorakCalloutResolve|nil
 ---@field GetEdgeMacroBody fun(self: SszorakCalloutMode, edge: integer, assignment: table<integer, WorldMarker>): string
 ---@field Listen fun(self: SszorakCalloutMode): fun()  Subscribe mode listeners; returns unsubscribe.
----@field OnMatchedWarning fun(self: SszorakCalloutMode, anchorIndex: integer)  Shared filter matched a warning.
+---@field OnMatchedWarning fun(self: SszorakCalloutMode, anchorIndex: integer): SszorakCalloutResolve|nil  Shared filter matched a warning.
 ---@field BeginCapture fun(self: SszorakCalloutMode)|nil  Encounter / map-test started.
 ---@field EndCapture fun(self: SszorakCalloutMode)|nil  Encounter / map-test ended.
 ---@field ClearMessages fun(self: SszorakCalloutMode)|nil  Dots returned home mid-timeline.
----@field OnStationChanged fun(self: SszorakCalloutMode, fromStation: integer, toStation: integer)|nil
+---@field IsCapturing fun(self: SszorakCalloutMode): boolean|nil  Map-test / encounter capture active.
 
 ---@type table<string, SszorakCalloutMode>
 local modes = {}
@@ -59,7 +58,6 @@ local stopCalloutModeListeners = nil
 ---@param mode SszorakCalloutMode
 function Sszorak.RegisterCalloutMode(mode)
     assert(type(mode) == "table" and type(mode.id) == "string", "Bad callout mode")
-    assert(type(mode.Resolve) == "function", "Callout mode requires Resolve")
     assert(type(mode.GetEdgeMacroBody) == "function", "Callout mode requires GetEdgeMacroBody")
     assert(type(mode.Listen) == "function", "Callout mode requires Listen")
     assert(type(mode.OnMatchedWarning) == "function", "Callout mode requires OnMatchedWarning")
@@ -143,7 +141,7 @@ function Sszorak.ClearDisplayedCallout()
 end
 
 ---Shows a resolved callout until `duration` elapses or the callout is cleared.
----No-ops when `resolve` is nil (mode: nothing to show). Non-nil resolves require `hudMessage`.
+---No-ops when `resolve` is nil (nothing to show). Non-nil resolves require `hudMessage`.
 ---@param resolve SszorakCalloutResolve|nil
 ---@param duration number
 ---@param appendTimer boolean|nil
@@ -203,10 +201,11 @@ local function OnEncounterWarning(warningInfo)
     if not anchorIndex then
         return
     end
-    Sszorak:GetActiveCalloutMode():OnMatchedWarning(anchorIndex)
+    local resolve = Sszorak:GetActiveCalloutMode():OnMatchedWarning(anchorIndex)
+    Sszorak.ShowResolvedCallout(resolve, CALLOUT_DURATION_ENCOUNTER, true)
 end
 
----Shared by every callout mode: ENCOUNTER_WARNING filter + anchor match, then mode:OnMatchedWarning.
+---Shared by every callout mode: ENCOUNTER_WARNING filter + anchor match, then show the mode's resolve.
 ---@return fun()
 function Sszorak.SubscribeSharedCalloutListeners()
     return Encounter.OnWarning(OnEncounterWarning)
@@ -247,6 +246,26 @@ local function CallActiveMode(methodName, ...)
     end
 end
 
+---Map test only: left→center / right→center preview the same slots warnings use (anchors 1 and 3).
+---@param fromStation integer
+---@param toStation integer
+local function OnStationChangedForMapTest(fromStation, toStation)
+    local mode = Sszorak:GetActiveCalloutMode()
+    local capturing = mode.IsCapturing and mode:IsCapturing()
+    if Sszorak:IsInEncounter() or not capturing or toStation ~= Sszorak.STATION_CENTER then
+        return
+    end
+    local anchorIndex
+    if fromStation == Sszorak.STATION_HOME then
+        anchorIndex = 1
+    elseif fromStation == Sszorak.STATION_FAR then
+        anchorIndex = 3
+    else
+        return
+    end
+    Sszorak.ShowResolvedCallout(mode:OnMatchedWarning(anchorIndex), CALLOUT_DURATION_TEST, true)
+end
+
 Sszorak.BindCalloutHooks({
     beginCapture = function()
         CallActiveMode("BeginCapture")
@@ -257,7 +276,5 @@ Sszorak.BindCalloutHooks({
     clearMessages = function()
         CallActiveMode("ClearMessages")
     end,
-    onStationChanged = function(fromStation, toStation)
-        CallActiveMode("OnStationChanged", fromStation, toStation)
-    end,
+    onStationChanged = OnStationChangedForMapTest,
 })

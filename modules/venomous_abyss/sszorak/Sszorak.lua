@@ -22,6 +22,8 @@ local ENCOUNTER_ID = 3420
 local BOSS_X = 0.7
 -- How far each group stands above or below the boss.
 local GROUP_OFFSET = 0.25
+-- At entrance/exit stations, groups sit this much closer to center on X than the boss (boss unchanged).
+local GROUP_EDGE_INSET = 0.1
 -- Path tip sits on each edge's outward bisector at this fraction of the apothem (1).
 local PATH_ARROW_RADIUS = 4 / 5
 -- Same range as the main panel scale control.
@@ -618,6 +620,18 @@ local function CurrentPositionX()
     return STATION_X[positionStation]
 end
 
+---Group X: same station as the boss, but nudged toward center on entrance/exit sides.
+local function CurrentGroupPositionX()
+    local x = CurrentPositionX()
+    if x > 0 then
+        return x - GROUP_EDGE_INSET
+    end
+    if x < 0 then
+        return x + GROUP_EDGE_INSET
+    end
+    return 0
+end
+
 ---@class MapAnimationOptions
 ---@field rate number|nil  How fast timeline seconds elapse. Defaults to 1.
 
@@ -730,7 +744,7 @@ end
 ---@return ArenaPoint  In the same coordinates as GetArenaVertices.
 function Sszorak:GetGroupPosition(group)
     local direction = assert(GROUP_DIRECTIONS[group], "Unknown group: " .. tostring(group))
-    return { x = CurrentPositionX(), y = direction * GROUP_OFFSET }
+    return { x = CurrentGroupPositionX(), y = direction * GROUP_OFFSET }
 end
 
 ---@return SszorakGroup

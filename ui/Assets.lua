@@ -124,9 +124,11 @@ Assets.Fonts = {
     -- Same size as LINK; bright red for destructive text actions.
     LINK_DANGER = FONT_PREFIX .. "LinkDanger",
     GLYPH = FONT_PREFIX .. "Glyph",
+    -- Outlined Friz digits for map/marker overlays (Latin digits only; not for CJK text).
+    OVERLAY_DIGIT = FONT_PREFIX .. "OverlayDigit",
 }
 
--- Sizes only: the face is always the game's locale font, since Latin-only faces lack CJK glyphs.
+-- Default face is the game's locale font (CJK-safe). Styles may set `path` for a fixed face.
 Assets.FontStyles = {
     [Assets.Fonts.TITLE] = { size = 14, color = Assets.Colors.TEXT },
     [Assets.Fonts.HEADER] = { size = 13, color = Assets.Colors.TEXT_MUTED },
@@ -149,6 +151,12 @@ Assets.FontStyles = {
     [Assets.Fonts.LINK] = { size = 12, color = Assets.Colors.ACCENT },
     [Assets.Fonts.LINK_DANGER] = { size = 12, color = Assets.Colors.ERROR },
     [Assets.Fonts.GLYPH] = { size = 18, color = Assets.Colors.TEXT_MUTED },
+    [Assets.Fonts.OVERLAY_DIGIT] = {
+        path = "Fonts\\FRIZQT__.TTF",
+        size = 22,
+        color = Assets.Colors.TEXT_GOLD,
+        flags = "OUTLINE",
+    },
 }
 
 Assets.Spacing = {
