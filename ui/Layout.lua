@@ -56,6 +56,38 @@ function Layout.Stack(container, options)
     return stack
 end
 
+---Runs `Relayout` immediately, or waits until the matching `EndUpdate`.
+---@param stack LayoutStack
+local function FinishUpdate(stack)
+    if (stack.updates or 0) == 0 then
+        Relayout(stack)
+    end
+end
+
+---Groups several inserts, removals, and height changes into one relayout.
+function Stack:BeginUpdate()
+    self.updates = (self.updates or 0) + 1
+end
+
+---Applies the deferred relayout. Extra calls with no matching `BeginUpdate` are ignored.
+function Stack:EndUpdate()
+    local updates = self.updates or 0
+    if updates <= 0 then
+        return
+    end
+    self.updates = updates - 1
+    if self.updates == 0 then
+        Relayout(self)
+    end
+end
+
+---Drops every entry and leaves the frames shown. Callers hide frames they do not add back,
+---so a frame can move into another stack during the same update.
+function Stack:Clear()
+    self.entries = {}
+    FinishUpdate(self)
+end
+
 ---Inserts `frame` as entry number `index`, moving that entry and the ones below it down.
 ---@generic T: Frame
 ---@param index integer  1-based; `#entries + 1` appends.
@@ -69,7 +101,8 @@ function Stack:Insert(index, frame, height, spacingBefore)
         height = height,
         spacingBefore = spacingBefore or self.spacing,
     })
-    Relayout(self)
+    frame:Show()
+    FinishUpdate(self)
     return frame
 end
 
@@ -96,7 +129,7 @@ end
 ---@param height number
 function Stack:SetEntryHeight(frame, height)
     FindEntry(self, frame).height = height
-    Relayout(self)
+    FinishUpdate(self)
 end
 
 ---@param frame Frame

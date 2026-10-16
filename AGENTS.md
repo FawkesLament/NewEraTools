@@ -12,9 +12,9 @@ core/             Basic utilities and pure logic: namespace, util, locale table,
 api/              The only code that calls Blizzard game functions or listens to game events.
 locales/          Translations. zhCN.lua is the base locale and defines every key.
 services/         Shared non-UI services used by modules (and optionally ui/), e.g. AddonCheck.
-ui/               Shared UI: assets and theme, widget helpers, layout, floating windows, layout editor, main panel, minimap button.
+ui/               Shared, module-independent UI: assets, widgets, layout, floating windows, layout editor, main panel.
 modules/<group>/  One folder per sidebar group, named after its PanelGroups key (raid_leader/).
-modules/<group>/<name>/  One folder per feature: <Name>.lua (logic) and <Name>UI.lua (UI).
+modules/<group>/<name>/  One folder per feature: <Name>.lua (logic). UI is <Name>UI.lua, or a local ui/ folder for a larger feature.
 modules/*.lua     The only files directly in modules/: content shared by features (PanelGroups.lua).
 media/            Textures.
 tests/            Unit tests run outside the game. WoW never loads them.
@@ -22,11 +22,11 @@ tests/            Unit tests run outside the game. WoW never loads them.
 
 ## Architecture
 
-1. Layers load in this order: `core` → `api` → `locales` → `services` → `ui` → `modules` → `Main.lua`. A file may use only layers loaded before it. `services` may use `core`/`api`/`locales` but never `ui` or `modules`. `ui` may use `services` (and earlier layers) but never `modules`. Every folder with Lua files or sub-folders has a manifest named after the folder (`raid_leader/raid_leader.xml`) using `<Script file="..."/>` for its files and `<Include file="..."/>` for sub-folders; paths are relative to the manifest. The exception is feature folders: they have no manifest, and their group's manifest lists their files directly (`<Script file="raid_lottery\RaidLottery.lua"/>`). Manifests only list files; UI is built in Lua, not XML.
+1. Layers load in this order: `core` → `api` → `locales` → `services` → `ui` → `modules` → `Main.lua`. A file may use only layers loaded before it. `services` may use `core`/`api`/`locales` but never `ui` or `modules`. `ui` may use `services` (and earlier layers) but never `modules`. Every folder with Lua files or sub-folders has a manifest named after the folder (`raid_leader/raid_leader.xml`) using `<Script file="..."/>` for its files and `<Include file="..."/>` for sub-folders; paths are relative to the manifest. The exception is feature folders, including a local `ui/` inside them: they have no manifest, and their group's manifest lists their files directly (`<Script file="raid_lottery\RaidLottery.lua"/>`). Manifests only list files; UI is built in Lua, not XML.
 2. Only `api/` touches game state: Blizzard functions, constants and events. It returns plain tables and offers callbacks (e.g. `Group.OnChanged`) instead of raw events. API version differences are handled inside `api/`, once, at load time. Keep wrappers thin: if a game function's signature already fits, assign it directly (`Timer.After = C_Timer.After`), and don't allocate tables per call in anything that may run often.
-3. Frame and widget calls (`CreateFrame`, `GameTooltip`, ...) are allowed only in `ui/` and `*UI.lua` files. Template, texture, atlas and font names, plus shared spacing, sizes and colors, live in `ui/Assets.lua`. Place widgets with `ui/Layout.lua` (stacks, rows, grids) instead of fixed offsets from the container's top, and let buttons size to their text.
-4. Logic files (`core/`, `services/`, module `<Name>.lua`, shared files in `modules/`) use only plain Lua and `ns` (no frames). `services/` holds cross-feature non-UI behavior that may call `api/`; keep `core/` limited to basics and pure helpers.
-5. Every feature is a module: `ns.Modules.New(name, { defaults = ... })`. `self.db` holds its saved settings. `OnInit` runs for all modules, then `OnEnable` for all modules. Feature modules never reference each other; they may use UI services such as `ns.MainPanel`, shared services such as `ns.AddonCheck`, and shared content such as `ns.PanelGroups`. Shared content in `modules/` is data, not a module, and is loaded by `modules/modules.xml` before any feature. `ui/` stays generic: it never names a feature or a group.
+3. Direct frame and widget calls (`CreateFrame`, `GameTooltip`, ...) belong only in a `ui/` directory (shared or inside a feature) or in a `*UI.lua` file. Other files may build UI only through those components. Template, texture, atlas and font names, plus shared spacing, sizes and colors, live in `ui/Assets.lua`. Place widgets with `ui/Layout.lua` (stacks, rows, grids) instead of fixed offsets from the container's top, and let buttons size to their text.
+4. Logic files (`core/`, `services/`, module `<Name>.lua`, shared files in `modules/`) use only plain Lua and `ns`. They do not call `CreateFrame`; they may ask a UI component to build frames, and they stay independent of a concrete UI. `services/` holds cross-feature non-UI behavior that may call `api/`; keep `core/` limited to basics and pure helpers.
+5. Every feature is a module: `ns.Modules.New(name, { defaults = ... })`. `self.db` holds its saved settings. `OnInit` runs for all modules, then `OnEnable` for all modules. Feature modules never reference each other; they may use UI services such as `ns.MainPanel`, shared services such as `ns.AddonCheck`, and shared content such as `ns.PanelGroups`. Shared content in `modules/` is data, not a module, and is loaded by `modules/modules.xml` before any feature. Feature UI may use shared `ui/` and its own module's public interface. Shared `ui/` never names a feature or a group. Extract a shared component only when the abstraction is genuinely reusable.
 6. Loading a file only defines things. Frames, events and slash commands are set up in `OnEnable`.
 7. All shared state lives in the `ns` table. Globals are limited to `NewEraToolsDB`, slash commands and named frames, all prefixed `NewEraTools`.
 8. No user-visible string literals in code: use `L.KEY`, defined in `locales/zhCN.lua`.
@@ -34,8 +34,8 @@ tests/            Unit tests run outside the game. WoW never loads them.
 
 ## Adding a feature
 
-1. Logic in `modules/<group>/<snake_name>/<Name>.lua`, where `<group>` is the lowercased `ns.PanelGroups` key of the feature's sidebar group; UI in `<Name>UI.lua`, which calls `ns.MainPanel:RegisterSection` from `OnEnable` with that `group`. A new group goes into `modules/PanelGroups.lua` with a unique `order`, gets a `modules/<group>/<group>.xml` manifest, and is included from `modules/modules.xml`.
-2. List both files in `modules/<group>/<group>.xml` as `<snake_name>\<Name>.lua`, logic first.
+1. Logic in `modules/<group>/<snake_name>/<Name>.lua`, where `<group>` is the lowercased `ns.PanelGroups` key of the feature's sidebar group. UI goes in `<Name>UI.lua`, or in that feature's `ui/` folder when one file is not enough, and calls `ns.MainPanel:RegisterSection` from `OnEnable` with that `group`. A new group goes into `modules/PanelGroups.lua` with a unique `order`, gets a `modules/<group>/<group>.xml` manifest, and is included from `modules/modules.xml`.
+2. List the logic file, then its UI files, in `modules/<group>/<group>.xml` (`<snake_name>\<Name>.lua`, then `<Name>UI.lua` or `<snake_name>\ui\...`).
 3. Add strings to `locales/zhCN.lua` (and other locales).
 4. A new game API call goes into an `api/` function, gets a fake in `tests/helpers/fakes/`, and is listed in `.luacheckrc`. New `api/` files are added to `api/api.xml`.
 5. Add tests in `tests/modules/<group>/<snake_name>/<Name>_spec.lua`.

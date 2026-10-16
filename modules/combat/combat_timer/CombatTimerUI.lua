@@ -1,7 +1,6 @@
 local _, ns = ...
 local L = ns.L
 local Assets = ns.Assets
-local FeatureSection = ns.FeatureSection
 local FloatingWindow = ns.FloatingWindow
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
@@ -147,6 +146,9 @@ function RegisterLayoutElement(frame)
         setPosition = function(position)
             CombatTimer:SetPosition(position)
         end,
+        getDefaultPosition = function()
+            return { point = "CENTER", relativePoint = "CENTER", x = 0, y = 120 }
+        end,
         onEditBegin = function()
             layoutEditing = true
             local win = EnsureWindow()
@@ -165,7 +167,10 @@ end
 ---@param content Frame
 ---@return number
 local function BuildContent(content)
-    local body = Layout.Stack(content)
+    local body = Layout.Stack(content, {
+        paddingX = Spacing.SMALL,
+        paddingY = Spacing.SMALL,
+    })
 
     local controlsRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local formatCell, scaleCell = Layout.SplitRow(controlsRow, Spacing.MEDIUM)
@@ -189,31 +194,26 @@ local function BuildContent(content)
 
     local scaleLabel = Widgets.CreateLabel(scaleCell, Fonts.BODY, L.COMBAT_TIMER_SCALE)
     scaleLabel:SetJustifyH("LEFT")
-    local scaleValue = Widgets.CreateLabel(scaleCell, Fonts.SMALL_MUTED)
-    scaleValue:SetWidth(Sizes.SLIDER_VALUE_WIDTH)
-    scaleValue:SetJustifyH("RIGHT")
-    local scaleSlider =
-        Widgets.CreateSlider(scaleCell, CombatTimer.SCALE_MIN, CombatTimer.SCALE_MAX, CombatTimer.SCALE_STEP)
+    local scaleSlider = Widgets.CreateSlider(
+        scaleCell,
+        CombatTimer.SCALE_MIN,
+        CombatTimer.SCALE_MAX,
+        CombatTimer.SCALE_STEP,
+        { percentage = true }
+    )
     Widgets.AttachTooltip(scaleSlider, "ANCHOR_BOTTOM", function(tooltip)
         tooltip:SetText(L.COMBAT_TIMER_SCALE_TOOLTIP)
     end)
-    local function ShowScaleValue(scale)
-        scaleValue:SetFormattedText(L.MAIN_PANEL_SCALE_PERCENT, math.floor(scale * 100 + 0.5))
-    end
     scaleSlider:SetValue(CombatTimer:GetScale())
-    ShowScaleValue(CombatTimer:GetScale())
     scaleSlider:SetScript("OnValueChanged", function(_, rawValue)
         if not CombatTimer:IsEnabled() then
             return
         end
         CombatTimer:SetScale(rawValue)
-        local scale = CombatTimer:GetScale()
-        ShowScaleValue(scale)
-        ApplyWindowScale(scale)
+        ApplyWindowScale(CombatTimer:GetScale())
     end)
     Layout.Row(scaleCell, { scaleLabel }, 0)
     scaleSlider:SetPoint("LEFT", scaleLabel, "RIGHT", Spacing.LARGE, 0)
-    scaleValue:SetPoint("LEFT", scaleSlider, "RIGHT", Spacing.MEDIUM, 0)
 
     return body:GetHeight()
 end
@@ -221,30 +221,20 @@ end
 ---@param container Frame
 ---@return number
 local function Build(container)
-    local stack = Layout.Stack(container, {
-        paddingX = Spacing.SMALL,
-        paddingY = Spacing.SMALL,
-    })
-
-    local section = FeatureSection.Create(stack, {
-        title = L.COMBAT_TIMER_ENABLED,
-        tooltip = L.COMBAT_TIMER_HINT,
-        enabled = CombatTimer:IsEnabled(),
-        onEnabledChanged = function(enabled)
-            CombatTimer:SetEnabled(enabled)
-        end,
-    })
-
-    section:SetContentHeight(BuildContent(section.content))
-    section:RefreshContentInteractive()
-
-    return stack:GetHeight()
+    local height = BuildContent(container)
+    container:RefreshContentInteractive()
+    return height
 end
 
 function CombatTimer:OnEnable()
     ns.MainPanel:RegisterSection({
         title = L.COMBAT_TIMER_TITLE,
         group = ns.PanelGroups.COMBAT,
+        tooltip = L.COMBAT_TIMER_HINT,
+        enabled = CombatTimer:IsEnabled(),
+        onEnabledChanged = function(enabled)
+            CombatTimer:SetEnabled(enabled)
+        end,
         build = Build,
     })
     self:ListenForCombat()

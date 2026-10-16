@@ -1,5 +1,7 @@
 local _, ns = ...
 local Assets = ns.Assets
+local L = ns.L
+local Util = ns.Util
 
 local Colors = Assets.Colors
 local Fonts = Assets.Fonts
@@ -187,14 +189,17 @@ end
 ---@class SegmentedControlItem
 ---@field value any
 ---@field text string
+---@field disabled boolean|nil  When true, the segment is visible but cannot be selected.
 
 ---@class SegmentedControl: Frame
 ---@field SetSelected fun(self: SegmentedControl, value: any)  Highlights the segment holding `value`.
 ---@field SetItems fun(self: SegmentedControl, items: SegmentedControlItem[])  Updates labels/values; same count as create.
 ---@field SetEnabled fun(self: SegmentedControl, enabled: boolean)  Enables or disables every segment button.
+---@field SetSegmentEnabled fun(self: SegmentedControl, value: any, enabled: boolean)  Locks one segment by its value.
 
 ---Creates a row of joined, equally wide buttons of which one is selected at a time.
 ---Clicking a segment calls `onSelect`; the caller then calls SetSelected to show the new choice.
+---A segment with `disabled` stays greyed out when the control is enabled, and ignores clicks.
 ---@param parent Frame
 ---@param items SegmentedControlItem[]
 ---@param onSelect fun(value: any)
@@ -203,6 +208,7 @@ function Widgets.CreateSegmentedControl(parent, items, onSelect)
     local control = CreateFrame("Frame", nil, parent) --[[@as SegmentedControl]]
     local segments = {}
     local selectedValue
+    local controlEnabled = true
     local baseLevel = control:GetFrameLevel() + 1
 
     local function Relayout()
@@ -229,15 +235,36 @@ function Widgets.CreateSegmentedControl(parent, items, onSelect)
         end
     end
 
+    ---FeatureSection re-enables descendants. The wrapper keeps a locked segment disabled.
+    ---@param segment Button
+    local function ApplySegmentState(segment)
+        segment:SetEnabled(controlEnabled)
+        if not controlEnabled then
+            -- Parent FeatureSections already dim inactive content; don't stack another fade.
+            segment:SetAlpha(1)
+        end
+    end
+
     for _, item in ipairs(items) do
         -- Declare before CreateFlatButton so the click closure captures the local, not a global
         -- (Lua 5.1: a local is not in scope on the RHS of its own declaration).
         local segment
         segment = CreateFlatButton(control, "secondary", function()
+            if segment.segmentEnabled == false then
+                return
+            end
             onSelect(segment.value)
         end)
         segment:SetText(item.text)
         segment.value = item.value
+        segment.segmentEnabled = item.disabled ~= true
+        local rawSetEnabled = segment.SetEnabled
+        function segment:SetEnabled(enabled)
+            rawSetEnabled(self, enabled == true and self.segmentEnabled ~= false)
+        end
+        if item.disabled then
+            segment:SetEnabled(true)
+        end
         segments[#segments + 1] = segment
     end
     Relayout()
@@ -255,17 +282,30 @@ function Widgets.CreateSegmentedControl(parent, items, onSelect)
             local segment = segments[index]
             segment.value = item.value
             segment:SetText(item.text)
+            segment.segmentEnabled = item.disabled ~= true
+            ApplySegmentState(segment)
         end
         Relayout()
         ApplySelection()
     end
 
-    function control:SetEnabled(enabled)
-        enabled = enabled == true
+    ---Locks or unlocks the segment whose value is `value`. Unknown values are ignored.
+    ---@param value any
+    ---@param enabled boolean
+    function control:SetSegmentEnabled(value, enabled)
         for _, segment in ipairs(segments) do
-            segment:SetEnabled(enabled)
-            -- Keep opaque; parent FeatureSections already dim when inactive.
-            segment:SetAlpha(1)
+            if segment.value == value then
+                segment.segmentEnabled = enabled == true
+                ApplySegmentState(segment)
+                return
+            end
+        end
+    end
+
+    function control:SetEnabled(enabled)
+        controlEnabled = enabled == true
+        for _, segment in ipairs(segments) do
+            ApplySegmentState(segment)
         end
     end
     return control
@@ -282,6 +322,9 @@ end
 ---@field SetJustifyH fun(self: Dropdown, justifyH: string)  Horizontal alignment of the selected-value label.
 ---@field SetEnabled fun(self: Dropdown, enabled: boolean)
 ---@field IsEnabled fun(self: Dropdown): boolean
+
+-- Above MainPanel (DIALOG) and layout-edit chrome (FULLSCREEN_DIALOG) so popups are never covered.
+local DROPDOWN_MENU_STRATA = "TOOLTIP"
 
 ---Creates a compact dropdown: a trigger button and a popup list of choices.
 ---Selecting an item calls `onSelect`; the caller then calls SetSelected to show the new choice.
@@ -320,6 +363,19 @@ function Widgets.CreateDropdown(parent, items, onSelect)
         end
     end
 
+    ---Keeps the popup above the settings panel and any later sibling sections.
+    local function RaiseMenu()
+        if catcher then
+            catcher:SetFrameStrata(DROPDOWN_MENU_STRATA)
+            catcher:Raise()
+        end
+        if menu then
+            menu:SetFrameStrata(DROPDOWN_MENU_STRATA)
+            -- Raise after the catcher so the list stays clickable above the outside-click shield.
+            menu:Raise()
+        end
+    end
+
     local function ApplyItems(nextItems)
         currentItems = nextItems
         for key in pairs(textByValue) do
@@ -350,7 +406,7 @@ function Widgets.CreateDropdown(parent, items, onSelect)
         -- Full-screen catcher closes the menu on an outside click without eating other input while hidden.
         if not catcher then
             catcher = CreateFrame("Button", nil, UIParent)
-            catcher:SetFrameStrata("FULLSCREEN_DIALOG")
+            catcher:SetFrameStrata(DROPDOWN_MENU_STRATA)
             catcher:SetAllPoints()
             catcher:EnableMouse(true)
             -- Swallow wheel so the open menu cannot scroll the panel underneath.
@@ -369,7 +425,7 @@ function Widgets.CreateDropdown(parent, items, onSelect)
 
         -- Height only: width is locked to the trigger via TOPLEFT+TOPRIGHT in ToggleMenu.
         menu = Widgets.CreateSurface(UIParent, Colors.SURFACE_RAISED, Colors.BORDER)
-        menu:SetFrameStrata("FULLSCREEN_DIALOG")
+        menu:SetFrameStrata(DROPDOWN_MENU_STRATA)
         menu:SetFrameLevel(catcher:GetFrameLevel() + 1)
         menu:SetHeight(viewHeight + 2 * Sizes.BORDER)
         menu:EnableMouse(true)
@@ -449,6 +505,7 @@ function Widgets.CreateDropdown(parent, items, onSelect)
         menu:SetPoint("TOPRIGHT", dropdown, "BOTTOMRIGHT", 0, -Spacing.TINY)
         catcher:Show()
         menu:Show()
+        RaiseMenu()
     end
 
     local trigger = CreateFlatButton(dropdown, "secondary", ToggleMenu)
@@ -527,41 +584,124 @@ function Widgets.CreateDropdown(parent, items, onSelect)
     return dropdown
 end
 
----@class Stepper: Frame
----@field SetValue fun(self: Stepper, value: integer, min: integer, max: integer)  Shows `value`; the
----buttons are disabled at the limits.
+---@class NumberStepper: Frame
+---@field SetValue fun(self: NumberStepper, value: number)  Shows the clamped value; a button is disabled at its limit.
+---@field SetIncreaseLimit fun(self: NumberStepper, limit: number)  Disables + below `max` without clamping the value.
+---@field SetEnabled fun(self: NumberStepper, enabled: boolean)
+---@field IsEnabled fun(self: NumberStepper): boolean
 
----Creates a compact "[-] value [+]" control. The buttons call `onStep` with -1 or 1; the caller
----then calls SetValue with the new value.
+---[-] number box [+] for an integer range. Buttons step by `step`; typed values clamp on commit.
 ---@param parent Frame
----@param onStep fun(delta: integer)
----@return Stepper
-function Widgets.CreateStepper(parent, onStep)
-    local stepper = CreateFrame("Frame", nil, parent) --[[@as Stepper]]
-    stepper:SetSize(2 * Sizes.CONTROL_HEIGHT + Sizes.STEPPER_VALUE_WIDTH, Sizes.CONTROL_HEIGHT)
+---@param minValue number
+---@param maxValue number
+---@param step number
+---@param onValueChanged fun(value: number)  After a button or a committed edit changes the value.
+---@return NumberStepper
+function Widgets.CreateNumberStepper(parent, minValue, maxValue, step, onValueChanged)
+    local stepper = CreateFrame("Frame", nil, parent) --[[@as NumberStepper]]
+    local maxAbs = math.max(math.abs(minValue), math.abs(maxValue))
+    local maxDigits = maxAbs < 1 and 1 or (math.floor(math.log10(maxAbs)) + 1)
+    local box = Widgets.CreateNumberBox(stepper, maxDigits, { signed = minValue < 0 })
+    local current = Util.Snap(minValue, minValue, maxValue, step)
+    local enabled = true
+    -- Optional cap tighter than `maxValue`. The value may sit above it (for example a saved draw
+    -- count while the eligible pool is still loading); only the + button stops there.
+    local increaseLimit = maxValue
 
-    local function CreateStepButton(glyph, delta, point)
-        local button = CreateFlatButton(stepper, "secondary", function()
-            onStep(delta)
-        end)
-        button:SetText(glyph)
-        button:SetSize(Sizes.CONTROL_HEIGHT, Sizes.CONTROL_HEIGHT)
-        button:SetPoint(point)
-        return button
+    local function Format(value)
+        return tostring(math.floor(value + 0.5))
     end
-    local decrease = CreateStepButton(Assets.Glyphs.DECREASE, -1, "LEFT")
-    local increase = CreateStepButton(Assets.Glyphs.INCREASE, 1, "RIGHT")
 
-    local label = Widgets.CreateLabel(stepper, Fonts.BODY)
-    label:SetPoint("LEFT", decrease, "RIGHT")
-    label:SetPoint("RIGHT", increase, "LEFT")
-    label:SetJustifyH("CENTER")
+    local decrease = CreateFlatButton(stepper, "secondary", function()
+        stepper:Commit(current - step)
+    end)
+    decrease:SetText(Assets.Glyphs.DECREASE)
+    decrease:SetNormalFontObject(Fonts.STEPPER)
+    decrease:SetDisabledFontObject(Fonts.STEPPER)
+    decrease:SetSize(Sizes.INPUT_HEIGHT, Sizes.INPUT_HEIGHT)
+    decrease:SetPoint("LEFT")
 
-    function stepper:SetValue(value, min, max)
-        label:SetText(tostring(value))
-        decrease:SetEnabled(value > min)
-        increase:SetEnabled(value < max)
+    local increase = CreateFlatButton(stepper, "secondary", function()
+        stepper:Commit(current + step)
+    end)
+    increase:SetText(Assets.Glyphs.INCREASE)
+    increase:SetNormalFontObject(Fonts.STEPPER)
+    increase:SetDisabledFontObject(Fonts.STEPPER)
+    increase:SetSize(Sizes.INPUT_HEIGHT, Sizes.INPUT_HEIGHT)
+
+    box:SetPoint("LEFT", decrease, "RIGHT", Spacing.TINY, 0)
+    increase:SetPoint("LEFT", box, "RIGHT", Spacing.TINY, 0)
+    stepper:SetSize(Sizes.INPUT_HEIGHT * 2 + box:GetWidth() + Spacing.TINY * 2, Sizes.INPUT_HEIGHT)
+
+    -- FeatureSection re-enables every child; keep a button disabled when the value is at its limit.
+    local rawDecreaseSetEnabled = decrease.SetEnabled
+    function decrease:SetEnabled(value)
+        rawDecreaseSetEnabled(self, value == true and enabled and current > minValue)
     end
+    local rawIncreaseSetEnabled = increase.SetEnabled
+    function increase:SetEnabled(value)
+        rawIncreaseSetEnabled(self, value == true and enabled and current < maxValue and current < increaseLimit)
+    end
+    local rawBoxSetEnabled = box.SetEnabled
+    function box:SetEnabled(value)
+        rawBoxSetEnabled(self, value == true and enabled)
+    end
+
+    local function Show(value)
+        current = Util.Snap(value, minValue, maxValue, step)
+        box:SetText(Format(current))
+        decrease:SetEnabled(true)
+        increase:SetEnabled(true)
+    end
+
+    ---@param value number
+    function stepper:Commit(value)
+        local nextValue = Util.Snap(value, minValue, maxValue, step)
+        local changed = nextValue ~= current
+        Show(nextValue)
+        if changed then
+            onValueChanged(current)
+        end
+    end
+
+    function stepper:SetValue(value)
+        Show(value)
+    end
+
+    function stepper:SetIncreaseLimit(limit)
+        increaseLimit = limit
+        increase:SetEnabled(true)
+    end
+
+    function stepper:SetEnabled(value)
+        enabled = value == true
+        box:SetEnabled(true)
+        decrease:SetEnabled(true)
+        increase:SetEnabled(true)
+    end
+
+    function stepper:IsEnabled()
+        return enabled
+    end
+
+    box:HookScript("OnEnterPressed", function(self)
+        local parsed = tonumber(self:GetText())
+        if parsed == nil then
+            Show(current)
+            return
+        end
+        stepper:Commit(parsed)
+    end)
+    box:HookScript("OnEditFocusLost", function(self)
+        local parsed = tonumber(self:GetText())
+        if parsed == nil then
+            Show(current)
+            return
+        end
+        stepper:Commit(parsed)
+    end)
+
+    Show(current)
     return stepper
 end
 
@@ -684,21 +824,49 @@ function Widgets.CreateCheckbox(parent)
     return box
 end
 
----Creates a flat horizontal slider. The mouse wheel moves it by one step.
----@param parent Frame
----@param minValue number
----@param maxValue number
----@param step number
----@return Slider
+---@class CreateSliderOptions
+---@field allowMouseWheel boolean|nil  When true, the mouse wheel steps the value. Defaults to false.
+---@field allowTypedValue boolean|nil  When true, shows an editable number box. Defaults to true.
+---@field percentage boolean|nil  When true, the box shows `value * 100` with a "%" suffix. Defaults to false.
+
+---@class SliderControl: Slider
+---@field valueBox EditBox|nil  Present when typed values are enabled; anchored to the right of the slider by default.
+---@field valueSuffix FontString|nil  "%" label when `percentage` is true.
+
+---Digits needed to show the larger of `|a|` and `|b|` as integers.
+---@param a number
+---@param b number
+---@return integer
+local function MaxIntegerDigits(a, b)
+    local maxAbs = math.max(math.abs(a), math.abs(b))
+    if maxAbs < 1 then
+        return 1
+    end
+    return math.floor(math.log10(maxAbs)) + 1
+end
+
 ---Creates a horizontal slider. Drag the thumb to change the value.
+---By default a number box to the right accepts typed values and clamps them to `[minValue, maxValue]`.
 ---@param parent Frame
 ---@param minValue number
 ---@param maxValue number
 ---@param step number
----@param allowMouseWheel boolean|nil  When true, the mouse wheel steps the value. Defaults to false.
----@return Slider
-function Widgets.CreateSlider(parent, minValue, maxValue, step, allowMouseWheel)
-    local slider = CreateFrame("Slider", nil, parent)
+---@param allowMouseWheelOrOptions boolean|CreateSliderOptions|nil  Legacy: `true` enables mouse wheel. Or an options table.
+---@return SliderControl
+function Widgets.CreateSlider(parent, minValue, maxValue, step, allowMouseWheelOrOptions)
+    ---@type CreateSliderOptions
+    local options
+    if type(allowMouseWheelOrOptions) == "table" then
+        options = allowMouseWheelOrOptions
+    else
+        options = { allowMouseWheel = allowMouseWheelOrOptions == true }
+    end
+    local allowMouseWheel = options.allowMouseWheel == true
+    local allowTypedValue = options.allowTypedValue ~= false
+    local percentage = options.percentage == true
+    local displayScale = percentage and 100 or 1
+
+    local slider = CreateFrame("Slider", nil, parent) --[[@as SliderControl]]
     slider:SetOrientation("HORIZONTAL")
     slider:SetSize(Sizes.SLIDER_WIDTH, Sizes.SLIDER_HEIGHT)
     slider:SetMinMaxValues(minValue, maxValue)
@@ -731,6 +899,87 @@ function Widgets.CreateSlider(parent, minValue, maxValue, step, allowMouseWheel)
             self:SetValue(self:GetValue() + delta * step)
         end)
     end
+
+    if allowTypedValue then
+        local displayStep = step * displayScale
+        local integerDisplay = math.abs(displayStep - math.floor(displayStep + 0.5)) < 1e-9
+        local maxDigits = MaxIntegerDigits(minValue * displayScale, maxValue * displayScale)
+        if not integerDisplay then
+            -- Room for a decimal point and one step digit (e.g. "1.05").
+            maxDigits = maxDigits + 2
+        end
+        local valueBox = Widgets.CreateNumberBox(parent, maxDigits, {
+            signed = minValue * displayScale < 0,
+            decimal = not integerDisplay,
+        })
+        valueBox:SetPoint("LEFT", slider, "RIGHT", Spacing.MEDIUM, 0)
+        slider.valueBox = valueBox
+        if percentage then
+            local suffix = Widgets.CreateLabel(parent, Fonts.SMALL_MUTED, L.PERCENT_SUFFIX)
+            suffix:SetPoint("LEFT", valueBox, "RIGHT", Spacing.TINY, 0)
+            slider.valueSuffix = suffix
+        end
+
+        local suppressBoxSync = false
+        ---@type fun(self: Slider, value: number)|nil
+        local userOnValueChanged
+
+        local function FormatDisplay(value)
+            local display = value * displayScale
+            if integerDisplay then
+                return tostring(math.floor(display + 0.5))
+            end
+            return string.format("%g", display)
+        end
+
+        local function SyncValueBox()
+            if suppressBoxSync or valueBox:HasFocus() then
+                return
+            end
+            suppressBoxSync = true
+            valueBox:SetText(FormatDisplay(slider:GetValue()))
+            suppressBoxSync = false
+        end
+
+        local function CommitValueBox()
+            if suppressBoxSync then
+                return
+            end
+            local parsed = tonumber(valueBox:GetText())
+            if parsed == nil then
+                SyncValueBox()
+                return
+            end
+            local nextValue = Util.Snap(parsed / displayScale, minValue, maxValue, step)
+            if math.abs(nextValue - slider:GetValue()) > 1e-9 then
+                slider:SetValue(nextValue)
+            end
+            suppressBoxSync = true
+            valueBox:SetText(FormatDisplay(slider:GetValue()))
+            suppressBoxSync = false
+        end
+
+        -- Callers use SetScript("OnValueChanged"), which replaces HookScript handlers, so keep
+        -- sync on our own handler and forward the caller's script from a SetScript wrapper.
+        local rawSetScript = slider.SetScript
+        rawSetScript(slider, "OnValueChanged", function(self, value)
+            SyncValueBox()
+            if userOnValueChanged then
+                userOnValueChanged(self, value)
+            end
+        end)
+        function slider:SetScript(scriptType, handler)
+            if scriptType == "OnValueChanged" then
+                userOnValueChanged = handler
+                return
+            end
+            return rawSetScript(self, scriptType, handler)
+        end
+
+        valueBox:HookScript("OnEnterPressed", CommitValueBox)
+        valueBox:HookScript("OnEditFocusLost", CommitValueBox)
+    end
+
     -- FeatureSection (and callers) use SetEnabled; Slider only has Enable/Disable natively.
     function slider:SetEnabled(enabled)
         if enabled then
@@ -741,6 +990,9 @@ function Widgets.CreateSlider(parent, minValue, maxValue, step, allowMouseWheel)
         else
             self:Disable()
             self:EnableMouseWheel(false)
+        end
+        if self.valueBox then
+            self.valueBox:SetEnabled(enabled)
         end
     end
     return slider
@@ -812,21 +1064,34 @@ function Widgets.CreateColorSwatch(parent, color, onColorChanged)
     return swatch
 end
 
----Creates a centered, digits-only input box sized to fit `maxDigits`. Enter clears focus.
+---Creates a centered numeric input box sized to fit `maxDigits`. Enter clears focus.
 ---The border turns to the accent color while focused; add focus handlers with HookScript to keep that.
 ---@param parent Frame
 ---@param maxDigits integer
+---@param options { signed: boolean|nil, decimal: boolean|nil }|nil
+---  `signed` allows a leading minus; `decimal` allows one `.`. Callers validate on commit.
 ---@return EditBox
-function Widgets.CreateNumberBox(parent, maxDigits)
+function Widgets.CreateNumberBox(parent, maxDigits, options)
+    options = options or {}
+    local signed = options.signed == true
+    local decimal = options.decimal == true
     Widgets.EnsureFonts()
     local box = CreateFrame("EditBox", nil, parent, Assets.Templates.BACKDROP)
     Widgets.ApplyBackdrop(box, Colors.SURFACE, Colors.BORDER)
     box:SetFontObject(Fonts.BODY)
-    local width = maxDigits * Sizes.INPUT_DIGIT_WIDTH + Sizes.INPUT_TEXT_PADDING
+    local letterCount = maxDigits
+    if signed then
+        letterCount = letterCount + 1
+    end
+    if decimal then
+        letterCount = letterCount + 1
+    end
+    local width = letterCount * Sizes.INPUT_DIGIT_WIDTH + Sizes.INPUT_TEXT_PADDING
     box:SetSize(width, Sizes.INPUT_HEIGHT)
     box:SetAutoFocus(false)
-    box:SetNumeric(true)
-    box:SetMaxLetters(maxDigits)
+    -- SetNumeric only allows 0-9; signed/decimal need a free-form box with commit-time parsing.
+    box:SetNumeric(not signed and not decimal)
+    box:SetMaxLetters(letterCount)
     box:SetJustifyH("CENTER")
     box:SetScript("OnEnterPressed", box.ClearFocus)
     box:SetScript("OnEscapePressed", box.ClearFocus)

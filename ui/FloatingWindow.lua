@@ -17,6 +17,7 @@ ns.FloatingWindow = FloatingWindow
 ---@class FloatingWindowOptions
 ---@field name string|nil  Global frame name; must start with the addon name.
 ---@field scale number|nil  Initial scale. Defaults to 1.
+---@field fill table|nil  Backdrop fill color from Assets.Colors. Defaults to BG_TRANSLUCENT.
 ---@field position FloatingWindowPosition|nil  Initial anchor on the screen.
 ---@field onPositionChanged fun(position: FloatingWindowPosition)|nil  After the player finishes dragging.
 ---@field onClick fun()|nil  Left-click when the press was not a drag.
@@ -55,6 +56,118 @@ function FloatingWindow.ReadPosition(frame)
     }
 end
 
+---Converts the frame's current visual center into a CENTER/CENTER UIParent offset and re-anchors it.
+---StartMoving leaves arbitrary anchors (e.g. TOPLEFT); this keeps drag and numeric edits in one space.
+---@param frame Frame
+---@return FloatingWindowPosition
+function FloatingWindow.NormalizePosition(frame)
+    local cx, cy = frame:GetCenter()
+    if not cx or not cy then
+        local position = FloatingWindow.ReadPosition(frame)
+        FloatingWindow.ApplyPosition(frame, {
+            point = "CENTER",
+            relativePoint = "CENTER",
+            x = position.x,
+            y = position.y,
+        })
+        return {
+            point = "CENTER",
+            relativePoint = "CENTER",
+            x = position.x,
+            y = position.y,
+        }
+    end
+
+    local frameScale = frame:GetEffectiveScale()
+    local parentScale = UIParent:GetEffectiveScale()
+    if not frameScale or frameScale == 0 then
+        frameScale = 1
+    end
+    if not parentScale or parentScale == 0 then
+        parentScale = 1
+    end
+    local toFrame = parentScale / frameScale
+
+    local pcx, pcy = UIParent:GetCenter()
+    if not pcx or not pcy then
+        pcx = (UIParent:GetLeft() or 0) + UIParent:GetWidth() / 2
+        pcy = (UIParent:GetBottom() or 0) + UIParent:GetHeight() / 2
+    end
+    pcx = pcx * toFrame
+    pcy = pcy * toFrame
+
+    local position = {
+        point = "CENTER",
+        relativePoint = "CENTER",
+        x = cx - pcx,
+        y = cy - pcy,
+    }
+    FloatingWindow.ApplyPosition(frame, position)
+    return position
+end
+
+---Applies a CENTER/CENTER position, then shifts x/y so every edge stays on screen.
+---`preferredPosition.x`/`y` are CENTER/CENTER offsets. Engine clamp stays off during SetPoint so
+---anchors are not rewritten; drag already keeps frames on-screen via SetClampedToScreen.
+---@param frame Frame
+---@param preferredPosition FloatingWindowPosition|nil  Nil normalizes the frame's current visual center.
+---@return FloatingWindowPosition
+function FloatingWindow.ClampToScreen(frame, preferredPosition)
+    local position = preferredPosition
+            and {
+                point = "CENTER",
+                relativePoint = "CENTER",
+                x = preferredPosition.x or 0,
+                y = preferredPosition.y or 0,
+            }
+        or FloatingWindow.NormalizePosition(frame)
+
+    frame:SetClampedToScreen(false)
+    FloatingWindow.ApplyPosition(frame, position)
+
+    local left, bottom = frame:GetLeft(), frame:GetBottom()
+    local width, height = frame:GetWidth(), frame:GetHeight()
+    if not left or not bottom or not width or not height or width <= 0 or height <= 0 then
+        frame:SetClampedToScreen(true)
+        return position
+    end
+
+    local frameScale = frame:GetEffectiveScale()
+    local parentScale = UIParent:GetEffectiveScale()
+    if not frameScale or frameScale == 0 or not parentScale or parentScale == 0 then
+        frame:SetClampedToScreen(true)
+        return position
+    end
+    local toFrame = parentScale / frameScale
+    local parentLeft = (UIParent:GetLeft() or 0) * toFrame
+    local parentBottom = (UIParent:GetBottom() or 0) * toFrame
+    local parentRight = parentLeft + UIParent:GetWidth() * toFrame
+    local parentTop = parentBottom + UIParent:GetHeight() * toFrame
+    local right = left + width
+    local top = bottom + height
+
+    local dx, dy = 0, 0
+    if left < parentLeft then
+        dx = parentLeft - left
+    elseif right > parentRight then
+        dx = parentRight - right
+    end
+    if bottom < parentBottom then
+        dy = parentBottom - bottom
+    elseif top > parentTop then
+        dy = parentTop - top
+    end
+
+    if dx ~= 0 or dy ~= 0 then
+        position.x = position.x + dx
+        position.y = position.y + dy
+        FloatingWindow.ApplyPosition(frame, position)
+    end
+
+    frame:SetClampedToScreen(true)
+    return position
+end
+
 ---Creates a translucent, draggable window matching the Sszorak encounter-map look.
 ---Uses MEDIUM strata so Blizzard DIALOG/TOOLTIP menus stay above it.
 ---@param options FloatingWindowOptions|nil
@@ -62,7 +175,12 @@ end
 function FloatingWindow.Create(options)
     options = options or {}
 
-    local frame = Widgets.CreateSurface(UIParent, Colors.BG_TRANSLUCENT, Colors.BORDER, options.name) --[[@as FloatingWindow]]
+    local frame = Widgets.CreateSurface(
+        UIParent,
+        options.fill or Colors.BG_TRANSLUCENT,
+        Colors.BORDER,
+        options.name
+    ) --[[@as FloatingWindow]]
     frame:SetFrameStrata("MEDIUM")
     frame:SetToplevel(true)
     frame:SetClampedToScreen(true)
@@ -92,8 +210,10 @@ function FloatingWindow.Create(options)
 
     local function EndDrag()
         frame:StopMovingOrSizing()
+        -- StartMoving rewrites anchors; normalize so saved x/y stay CENTER/CENTER offsets.
+        local position = FloatingWindow.NormalizePosition(frame)
         if options.onPositionChanged then
-            options.onPositionChanged(FloatingWindow.ReadPosition(frame))
+            options.onPositionChanged(position)
         end
     end
 

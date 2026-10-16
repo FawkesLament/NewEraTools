@@ -1,12 +1,14 @@
 local Loader = require("helpers.loader")
 
 describe("AuraTracker", function()
-    local ns, AuraTracker
+    local ns, AuraTracker, Activation, Schema
 
     before_each(function()
         ns = Loader.Load()
         ns.Modules.Start(ns.Database.Load(nil))
         AuraTracker = ns.Modules.Get("AuraTracker")
+        Activation = ns.AuraTrackerActivation
+        Schema = ns.AuraTrackerSchema
     end)
 
     it("is registered with module-level settings and no trackers", function()
@@ -69,18 +71,29 @@ describe("AuraTracker", function()
                 reverseFill = true,
                 vertical = true,
                 showBorder = true,
-                showTime = true,
-                trackingMode = AuraTracker.TRACKING_MODE_STACKS,
+                progressMode = Schema.PROGRESS_MODE_STACKS,
                 maxStacks = 5,
                 fillColor = { r = 1, g = 0, b = 0 },
                 backgroundColor = { r = 0, g = 0, b = 1 },
                 lineColor = { r = 0, g = 1, b = 0 },
                 backgroundOpacity = 0.5,
                 lineThickness = 3,
-                timeFontSize = 16,
-                timePosition = "top",
+                textDisplays = {
+                    duration = {
+                        enabled = true,
+                        fontSize = 16,
+                        offsetX = -40,
+                        offsetY = 8,
+                    },
+                    stacks = {
+                        enabled = true,
+                        fontSize = 18,
+                        offsetX = 40,
+                        offsetY = -8,
+                    },
+                },
             })
-            AuraTracker:SetActivationScope(source, AuraTracker.SCOPE_ROLE, "HEALER")
+            AuraTracker:SetActivationScope(source, Activation.ROLE, "HEALER")
             AuraTracker:SetPosition(source, {
                 point = "TOPLEFT",
                 relativePoint = "TOPLEFT",
@@ -112,15 +125,20 @@ describe("AuraTracker", function()
             assert.is_true(AuraTracker:GetReverseFill(duplicate))
             assert.is_true(AuraTracker:GetVertical(duplicate))
             assert.is_true(AuraTracker:GetShowBorder(duplicate))
-            assert.is_true(AuraTracker:GetShowTime(duplicate))
-            assert.equals(AuraTracker.TRACKING_MODE_STACKS, AuraTracker:GetTrackingMode(duplicate))
+            assert.is_true(AuraTracker:IsTextDisplayEnabled(duplicate, Schema.TEXT_DURATION))
+            assert.is_true(AuraTracker:IsTextDisplayEnabled(duplicate, Schema.TEXT_STACKS))
+            assert.equals(Schema.PROGRESS_MODE_STACKS, AuraTracker:GetProgressMode(duplicate))
             assert.equals(5, AuraTracker:GetMaxStacks(duplicate))
             assert.equals(0.5, AuraTracker:GetBackgroundOpacity(duplicate))
             assert.equals(3, AuraTracker:GetLineThickness(duplicate))
-            assert.equals(16, AuraTracker:GetTimeFontSize(duplicate))
-            assert.equals("top", AuraTracker:GetTimePosition(duplicate))
+            assert.equals(16, AuraTracker:GetTextDisplayFontSize(duplicate, Schema.TEXT_DURATION))
+            assert.equals(18, AuraTracker:GetTextDisplayFontSize(duplicate, Schema.TEXT_STACKS))
+            assert.equals(-40, AuraTracker:GetTextDisplayOffsetX(duplicate, Schema.TEXT_DURATION))
+            assert.equals(8, AuraTracker:GetTextDisplayOffsetY(duplicate, Schema.TEXT_DURATION))
+            assert.equals(40, AuraTracker:GetTextDisplayOffsetX(duplicate, Schema.TEXT_STACKS))
+            assert.equals(-8, AuraTracker:GetTextDisplayOffsetY(duplicate, Schema.TEXT_STACKS))
             local scope, target = AuraTracker:GetActivationScope(duplicate)
-            assert.equals(AuraTracker.SCOPE_ROLE, scope)
+            assert.equals(Activation.ROLE, scope)
             assert.equals("HEALER", target)
             local position = AuraTracker:GetPosition(duplicate)
             assert.equals("TOPLEFT", position.point)
@@ -312,7 +330,7 @@ describe("AuraTracker", function()
             local id = AuraTracker:AddTracker()
             AuraTracker:SetEnabled(true)
             AuraTracker:SetSpellId(id, 774)
-            AuraTracker:SetActivationScope(id, AuraTracker.SCOPE_ROLE, "HEALER")
+            AuraTracker:SetActivationScope(id, Activation.ROLE, "HEALER")
             assert.is_true(AuraTracker:ShouldTrack(id))
 
             Activity.SetStateForTests({ skyriding = true, inPetBattle = true })
@@ -321,7 +339,7 @@ describe("AuraTracker", function()
             assert.is_true(AuraTracker:IsEnabled())
             assert.is_true(AuraTracker:IsTrackerEnabled(id))
             local scope, target = AuraTracker:GetActivationScope(id)
-            assert.equals(AuraTracker.SCOPE_ROLE, scope)
+            assert.equals(Activation.ROLE, scope)
             assert.equals("HEALER", target)
         end)
 
@@ -355,40 +373,54 @@ describe("AuraTracker", function()
             Player = ns.Api.Player
         end)
 
+        it("returns the first enabled tracker whose activation matches the current player", function()
+            local otherSpec = AuraTracker:AddTracker()
+            AuraTracker:SetActivationScope(otherSpec, Activation.SPECIALIZATION, 102)
+            local disabled = AuraTracker:AddTracker()
+            AuraTracker:SetTrackerEnabled(disabled, false)
+            local match = AuraTracker:AddTracker()
+            local later = AuraTracker:AddTracker()
+            assert.equals(match, AuraTracker:GetFirstTrackerEnabledForCurrentPlayer())
+
+            AuraTracker:SetTrackerEnabled(match, false)
+            AuraTracker:SetTrackerEnabled(later, false)
+            assert.is_nil(AuraTracker:GetFirstTrackerEnabledForCurrentPlayer())
+        end)
+
         it("defaults new trackers to the current specialization ID", function()
             local id = AuraTracker:AddTracker()
             local scope, target = AuraTracker:GetActivationScope(id)
-            assert.equals(AuraTracker.SCOPE_SPECIALIZATION, scope)
+            assert.equals(Activation.SPECIALIZATION, scope)
             assert.equals(105, target)
         end)
 
         it("AppliesToPlayer matches always, specialization, class, and role", function()
             local context = { classFile = "DRUID", specializationId = 105, role = "HEALER" }
-            assert.is_true(AuraTracker.AppliesToPlayer({
-                activationScope = AuraTracker.SCOPE_ALWAYS,
+            assert.is_true(Activation.AppliesToPlayer({
+                activationScope = Activation.ALWAYS,
             }, context))
-            assert.is_true(AuraTracker.AppliesToPlayer({
-                activationScope = AuraTracker.SCOPE_SPECIALIZATION,
+            assert.is_true(Activation.AppliesToPlayer({
+                activationScope = Activation.SPECIALIZATION,
                 activationTarget = 105,
             }, context))
-            assert.is_false(AuraTracker.AppliesToPlayer({
-                activationScope = AuraTracker.SCOPE_SPECIALIZATION,
+            assert.is_false(Activation.AppliesToPlayer({
+                activationScope = Activation.SPECIALIZATION,
                 activationTarget = 102,
             }, context))
-            assert.is_true(AuraTracker.AppliesToPlayer({
-                activationScope = AuraTracker.SCOPE_CLASS,
+            assert.is_true(Activation.AppliesToPlayer({
+                activationScope = Activation.CLASS,
                 activationTarget = "DRUID",
             }, context))
-            assert.is_false(AuraTracker.AppliesToPlayer({
-                activationScope = AuraTracker.SCOPE_CLASS,
+            assert.is_false(Activation.AppliesToPlayer({
+                activationScope = Activation.CLASS,
                 activationTarget = "MAGE",
             }, context))
-            assert.is_true(AuraTracker.AppliesToPlayer({
-                activationScope = AuraTracker.SCOPE_ROLE,
+            assert.is_true(Activation.AppliesToPlayer({
+                activationScope = Activation.ROLE,
                 activationTarget = "HEALER",
             }, context))
-            assert.is_false(AuraTracker.AppliesToPlayer({
-                activationScope = AuraTracker.SCOPE_ROLE,
+            assert.is_false(Activation.AppliesToPlayer({
+                activationScope = Activation.ROLE,
                 activationTarget = "TANK",
             }, context))
         end)
@@ -397,17 +429,17 @@ describe("AuraTracker", function()
             local id = AuraTracker:AddTracker()
             AuraTracker:SetEnabled(true)
             AuraTracker:SetSpellId(id, 774)
-            AuraTracker:SetActivationScope(id, AuraTracker.SCOPE_SPECIALIZATION, 102)
+            AuraTracker:SetActivationScope(id, Activation.SPECIALIZATION, 102)
             assert.is_false(AuraTracker:ShouldTrack(id))
             assert.same({ id }, AuraTracker:GetTrackerIds())
             local scope, target = AuraTracker:GetActivationScope(id)
-            assert.equals(AuraTracker.SCOPE_SPECIALIZATION, scope)
+            assert.equals(Activation.SPECIALIZATION, scope)
             assert.equals(102, target)
         end)
 
         it("does not rewrite saved scopes when the specialization changes", function()
             local id = AuraTracker:AddTracker()
-            AuraTracker:SetActivationScope(id, AuraTracker.SCOPE_SPECIALIZATION, 105)
+            AuraTracker:SetActivationScope(id, Activation.SPECIALIZATION, 105)
             AuraTracker:SetEnabled(true)
             AuraTracker:SetSpellId(id, 774)
 
@@ -425,7 +457,7 @@ describe("AuraTracker", function()
             Player.FireChanged()
 
             local scope, target = AuraTracker:GetActivationScope(id)
-            assert.equals(AuraTracker.SCOPE_SPECIALIZATION, scope)
+            assert.equals(Activation.SPECIALIZATION, scope)
             assert.equals(105, target)
             assert.is_false(AuraTracker:ShouldTrack(id))
             assert.equals(1, notifications)
@@ -437,7 +469,7 @@ describe("AuraTracker", function()
             local id = AuraTracker:AddTracker()
             AuraTracker:SetEnabled(true)
             AuraTracker:SetSpellId(id, 774)
-            AuraTracker:SetActivationScope(id, AuraTracker.SCOPE_SPECIALIZATION, 64)
+            AuraTracker:SetActivationScope(id, Activation.SPECIALIZATION, 64)
 
             Player.SetContextForTests({
                 specializationId = nil,
@@ -468,7 +500,7 @@ describe("AuraTracker", function()
             local id = AuraTracker:AddTracker()
             AuraTracker:SetEnabled(true)
             AuraTracker:SetSpellId(id, 774)
-            AuraTracker:SetActivationScope(id, AuraTracker.SCOPE_SPECIALIZATION, 102)
+            AuraTracker:SetActivationScope(id, Activation.SPECIALIZATION, 102)
 
             Player.SetContextForTests({ specializationId = 102, role = "DAMAGER" })
             assert.is_true(AuraTracker:ShouldTrack(id))
@@ -481,7 +513,7 @@ describe("AuraTracker", function()
             local id = AuraTracker:AddTracker()
             AuraTracker:SetEnabled(true)
             AuraTracker:SetSpellId(id, 774)
-            AuraTracker:SetActivationScope(id, AuraTracker.SCOPE_CLASS, "DRUID")
+            AuraTracker:SetActivationScope(id, Activation.CLASS, "DRUID")
             assert.is_true(AuraTracker:ShouldTrack(id))
 
             Player.SetContextForTests({
@@ -502,7 +534,7 @@ describe("AuraTracker", function()
             local id = AuraTracker:AddTracker()
             AuraTracker:SetEnabled(true)
             AuraTracker:SetSpellId(id, 774)
-            AuraTracker:SetActivationScope(id, AuraTracker.SCOPE_ROLE, "HEALER")
+            AuraTracker:SetActivationScope(id, Activation.ROLE, "HEALER")
             assert.is_true(AuraTracker:ShouldTrack(id))
 
             Player.SetContextForTests({ specializationId = 104, role = "TANK" })
@@ -516,7 +548,7 @@ describe("AuraTracker", function()
             local id = AuraTracker:AddTracker()
             AuraTracker:SetEnabled(true)
             AuraTracker:SetSpellId(id, 774)
-            AuraTracker:SetActivationScope(id, AuraTracker.SCOPE_ALWAYS, nil)
+            AuraTracker:SetActivationScope(id, Activation.ALWAYS, nil)
             assert.is_true(AuraTracker:ShouldTrack(id))
 
             Player.SetContextForTests({
@@ -525,7 +557,7 @@ describe("AuraTracker", function()
                 role = "DAMAGER",
             })
             assert.is_true(AuraTracker:ShouldTrack(id))
-            assert.equals(AuraTracker.SCOPE_ALWAYS, AuraTracker:GetActivationScope(id))
+            assert.equals(Activation.ALWAYS, AuraTracker:GetActivationScope(id))
             assert.is_nil(select(2, AuraTracker:GetActivationScope(id)))
         end)
 
@@ -536,11 +568,11 @@ describe("AuraTracker", function()
                 calls = calls + 1
             end
             assert.is_false(pcall(AuraTracker.SetActivationScope, AuraTracker, id, "nope", nil))
-            assert.is_false(pcall(AuraTracker.SetActivationScope, AuraTracker, id, AuraTracker.SCOPE_SPECIALIZATION, 0))
-            assert.is_false(pcall(AuraTracker.SetActivationScope, AuraTracker, id, AuraTracker.SCOPE_ROLE, "NONE"))
-            AuraTracker:SetActivationScope(id, AuraTracker.SCOPE_SPECIALIZATION, 105)
+            assert.is_false(pcall(AuraTracker.SetActivationScope, AuraTracker, id, Activation.SPECIALIZATION, 0))
+            assert.is_false(pcall(AuraTracker.SetActivationScope, AuraTracker, id, Activation.ROLE, "NONE"))
+            AuraTracker:SetActivationScope(id, Activation.SPECIALIZATION, 105)
             assert.equals(0, calls)
-            AuraTracker:SetActivationScope(id, AuraTracker.SCOPE_CLASS, "DRUID")
+            AuraTracker:SetActivationScope(id, Activation.CLASS, "DRUID")
             assert.equals(1, calls)
         end)
 
@@ -555,13 +587,13 @@ describe("AuraTracker", function()
         it("formats activation scope labels for the list UI", function()
             local id = AuraTracker:AddTracker()
             assert.equals("Restoration", AuraTracker:GetActivationScopeLabel(id))
-            AuraTracker:SetActivationScope(id, AuraTracker.SCOPE_ALWAYS, nil)
+            AuraTracker:SetActivationScope(id, Activation.ALWAYS, nil)
             assert.equals(ns.L.AURA_TRACKER_SCOPE_ALWAYS, AuraTracker:GetActivationScopeLabel(id))
-            AuraTracker:SetActivationScope(id, AuraTracker.SCOPE_CLASS, "MAGE")
+            AuraTracker:SetActivationScope(id, Activation.CLASS, "MAGE")
             assert.equals("Mage", AuraTracker:GetActivationScopeLabel(id))
-            AuraTracker:SetActivationScope(id, AuraTracker.SCOPE_ROLE, "HEALER")
+            AuraTracker:SetActivationScope(id, Activation.ROLE, "HEALER")
             assert.equals(ns.L.AURA_TRACKER_ROLE_HEALER, AuraTracker:GetActivationScopeLabel(id))
-            AuraTracker:SetActivationScope(id, AuraTracker.SCOPE_SPECIALIZATION, 64)
+            AuraTracker:SetActivationScope(id, Activation.SPECIALIZATION, 64)
             assert.equals("Frost", AuraTracker:GetActivationScopeLabel(id))
         end)
     end)
@@ -573,12 +605,282 @@ describe("AuraTracker", function()
             assert.is_nil(filters.includeSpellIDs[1])
         end)
 
+        it("allows spell filtering for player buffs and for harmful auras on non-assistable units", function()
+            local Aura = ns.Api.Aura
+            assert.is_true(Aura.CanApplyIncludeSpellFilter(Aura.UNIT_PLAYER, Aura.FILTER_HELPFUL))
+            assert.is_false(Aura.CanApplyIncludeSpellFilter(Aura.UNIT_PLAYER, Aura.FILTER_HARMFUL))
+            assert.is_false(Aura.CanApplyIncludeSpellFilter(Aura.UNIT_TARGET, Aura.FILTER_HELPFUL))
+            assert.is_false(Aura.CanApplyIncludeSpellFilter(Aura.UNIT_FOCUS, Aura.FILTER_HELPFUL))
+            assert.is_false(Aura.CanApplyIncludeSpellFilter(Aura.UNIT_TARGET, Aura.FILTER_HARMFUL))
+
+            ns.Api.Unit.SetForTests("target", {
+                exists = true,
+                guid = "Creature-1",
+                canAssist = false,
+            })
+            assert.is_true(Aura.CanApplyIncludeSpellFilter(Aura.UNIT_TARGET, Aura.FILTER_HARMFUL))
+
+            ns.Api.Unit.SetForTests("focus", {
+                exists = true,
+                guid = "Creature-2",
+                canAssist = false,
+            })
+            assert.is_true(Aura.CanApplyIncludeSpellFilter(Aura.UNIT_FOCUS, Aura.FILTER_HARMFUL))
+        end)
+
+        it("denies method access on a slot button while aura secrecy blocks tainted code", function()
+            local Aura = ns.Api.Aura
+            local open = {
+                CanBeAccessedInContext = function()
+                    return true
+                end,
+            }
+            local denied = {
+                CanBeAccessedInContext = function()
+                    return false
+                end,
+            }
+            local throwing = {
+                CanBeAccessedInContext = function()
+                    error("forbidden")
+                end,
+            }
+            local forbidden = {
+                IsForbidden = function()
+                    return true
+                end,
+            }
+            assert.is_true(Aura.CanAccessObject(open))
+            assert.is_false(Aura.CanAccessObject(denied))
+            assert.is_false(Aura.CanAccessObject(throwing))
+            assert.is_false(Aura.CanAccessObject(forbidden))
+            assert.is_true(Aura.CanAccessObject({}))
+            assert.is_false(Aura.CanAccessObject(nil))
+
+            local sentinel = {}
+            local previousIsSecret = issecretvalue
+            issecretvalue = function(value)
+                return value == sentinel
+            end
+            local secretResult = {
+                CanBeAccessedInContext = function()
+                    return sentinel
+                end,
+            }
+            assert.is_false(Aura.CanAccessObject(secretResult))
+            issecretvalue = previousIsSecret
+
+            local previousSecrets = C_Secrets
+            C_Secrets = {
+                ShouldAurasBeSecret = function()
+                    return true
+                end,
+            }
+            assert.is_false(Aura.CanAccessObject({}))
+            C_Secrets = previousSecrets
+        end)
+
+        it("refuses the spell filter for a missing, friendly, or secret-reaction unit", function()
+            local Aura = ns.Api.Aura
+            local Unit = ns.Api.Unit
+            Unit.SetForTests("target", { exists = false, canAssist = false })
+            assert.is_false(Aura.CanApplyIncludeSpellFilter(Aura.UNIT_TARGET, Aura.FILTER_HARMFUL))
+
+            Unit.SetForTests("target", {
+                exists = true,
+                guid = "Player-2",
+                canAssist = true,
+            })
+            assert.is_false(Aura.CanApplyIncludeSpellFilter(Aura.UNIT_TARGET, Aura.FILTER_HARMFUL))
+
+            Unit.SetForTests("focus", { exists = true, guid = "Creature-3" })
+            assert.is_nil(Unit.CanPlayerAssist("focus"))
+            assert.is_false(Aura.CanApplyIncludeSpellFilter(Aura.UNIT_FOCUS, Aura.FILTER_HARMFUL))
+        end)
     end)
 
-    describe("tracking mode", function()
+    describe("aura source", function()
+        local function Enable(id)
+            AuraTracker:SetEnabled(true)
+            AuraTracker:SetSpellId(id, 980)
+            AuraTracker:SetActivationScope(id, Activation.ALWAYS, nil)
+        end
+
+        it("defaults each bar to a player buff and stores unit and aura type independently", function()
+            local id = AuraTracker:AddTracker()
+            assert.equals(Schema.UNIT_PLAYER, AuraTracker:GetUnit(id))
+            assert.equals(Schema.AURA_HELPFUL, AuraTracker:GetAuraType(id))
+            assert.is_true(AuraTracker:IsSourceSupported(id))
+
+            AuraTracker:SetUnit(id, Schema.UNIT_TARGET)
+            assert.equals(Schema.AURA_HELPFUL, AuraTracker:GetAuraType(id))
+            assert.is_false(AuraTracker:IsSourceSupported(id))
+
+            AuraTracker:SetAuraType(id, Schema.AURA_HARMFUL)
+            assert.is_true(AuraTracker:IsSourceSupported(id))
+            AuraTracker:SetUnit(id, Schema.UNIT_FOCUS)
+            assert.equals(Schema.UNIT_FOCUS, AuraTracker:GetUnit(id))
+            assert.equals(Schema.AURA_HARMFUL, AuraTracker:GetAuraType(id))
+        end)
+
+        it("rejects unknown units and aura types", function()
+            local id = AuraTracker:AddTracker()
+            assert.is_false(pcall(AuraTracker.SetUnit, AuraTracker, id, "party1"))
+            assert.is_false(pcall(AuraTracker.SetAuraType, AuraTracker, id, "MAGIC"))
+            assert.equals(Schema.UNIT_PLAYER, AuraTracker:GetUnit(id))
+            assert.equals(Schema.AURA_HELPFUL, AuraTracker:GetAuraType(id))
+        end)
+
+        it("normalizes an unsupported saved pair back to the supported tokens", function()
+            local id = AuraTracker:AddTracker()
+            for _, tracker in ipairs(AuraTracker.db.trackers) do
+                if tracker.id == id then
+                    tracker.unit = "raid1"
+                    tracker.auraType = "MAGIC"
+                end
+            end
+            AuraTracker:OnInit()
+            assert.equals(Schema.UNIT_PLAYER, AuraTracker:GetUnit(id))
+            assert.equals(Schema.AURA_HELPFUL, AuraTracker:GetAuraType(id))
+        end)
+
+        it("shows a player buff, and a target or focus debuff only while that unit cannot be assisted", function()
+            local playerBar = AuraTracker:AddTracker()
+            local targetBar = AuraTracker:AddTracker()
+            local focusBar = AuraTracker:AddTracker()
+            Enable(playerBar)
+            Enable(targetBar)
+            Enable(focusBar)
+            AuraTracker:SetUnit(targetBar, Schema.UNIT_TARGET)
+            AuraTracker:SetAuraType(targetBar, Schema.AURA_HARMFUL)
+            AuraTracker:SetUnit(focusBar, Schema.UNIT_FOCUS)
+            AuraTracker:SetAuraType(focusBar, Schema.AURA_HARMFUL)
+
+            assert.is_true(AuraTracker:CanDisplayAura(playerBar))
+            assert.is_false(AuraTracker:CanDisplayAura(targetBar))
+            assert.is_nil(AuraTracker:GetDisplayedUnitGUID(targetBar))
+
+            ns.Api.Unit.SetForTests("target", {
+                exists = true,
+                guid = "Creature-A",
+                canAssist = false,
+            })
+            assert.is_true(AuraTracker:CanDisplayAura(targetBar))
+            assert.equals("Creature-A", AuraTracker:GetDisplayedUnitGUID(targetBar))
+
+            ns.Api.Unit.SetForTests("target", {
+                exists = true,
+                guid = "Player-friend",
+                canAssist = true,
+            })
+            assert.is_true(AuraTracker:ShouldTrack(targetBar))
+            assert.is_false(AuraTracker:CanDisplayAura(targetBar))
+            assert.is_nil(AuraTracker:GetDisplayedUnitGUID(targetBar))
+
+            ns.Api.Unit.SetForTests("target", { exists = false })
+            assert.is_false(AuraTracker:CanDisplayAura(targetBar))
+
+            ns.Api.Unit.SetForTests("focus", {
+                exists = true,
+                guid = "Creature-B",
+                canAssist = false,
+            })
+            assert.is_true(AuraTracker:CanDisplayAura(focusBar))
+            assert.equals("Creature-B", AuraTracker:GetDisplayedUnitGUID(focusBar))
+
+            ns.Api.Unit.SetForTests("focus", {
+                exists = true,
+                guid = "Creature-C",
+                canAssist = false,
+            })
+            assert.equals("Creature-C", AuraTracker:GetDisplayedUnitGUID(focusBar))
+            assert.equals("Player-1-00000001", AuraTracker:GetDisplayedUnitGUID(playerBar))
+        end)
+
+        it("does not display an unsupported pair or a secret assist result", function()
+            local id = AuraTracker:AddTracker()
+            Enable(id)
+            AuraTracker:SetUnit(id, Schema.UNIT_TARGET)
+            assert.is_false(AuraTracker:ShouldTrack(id))
+            assert.is_false(AuraTracker:CanDisplayAura(id))
+
+            AuraTracker:SetAuraType(id, Schema.AURA_HARMFUL)
+            ns.Api.Unit.SetForTests("target", { exists = true, guid = "Creature-secret" })
+            assert.is_true(AuraTracker:ShouldTrack(id))
+            assert.is_false(AuraTracker:CanDisplayAura(id))
+        end)
+
+        it("refreshes bars when target or focus changes, and ignores those events for player buffs", function()
+            local playerBar = AuraTracker:AddTracker()
+            local targetBar = AuraTracker:AddTracker()
+            Enable(playerBar)
+            Enable(targetBar)
+            local settings = 0
+            local refreshes = 0
+            function AuraTracker:OnTrackerChanged()
+                settings = settings + 1
+            end
+            function AuraTracker:OnTrackingRefresh()
+                refreshes = refreshes + 1
+            end
+
+            AuraTracker:ListenForUnitContext()
+            ns.Api.GameEvents.Fire("PLAYER_TARGET_CHANGED")
+            ns.Api.GameEvents.Fire("UNIT_FACTION", "target")
+            assert.equals(0, refreshes)
+            assert.equals(0, settings)
+
+            AuraTracker:SetUnit(targetBar, Schema.UNIT_TARGET)
+            AuraTracker:SetAuraType(targetBar, Schema.AURA_HARMFUL)
+            settings = 0
+            refreshes = 0
+            ns.Api.GameEvents.Fire("PLAYER_TARGET_CHANGED")
+            ns.Api.GameEvents.Fire("PLAYER_FOCUS_CHANGED")
+            ns.Api.GameEvents.Fire("UNIT_FLAGS", "focus")
+            ns.Api.GameEvents.Fire("UNIT_FACTION", "party1")
+            -- Same-frame events share one bar refresh and do not rebuild settings.
+            assert.equals(1, refreshes)
+            assert.equals(0, settings)
+            -- Target info can be stale in the event frame; one coalesced pass runs next frame.
+            ns.Api.Timer.RunPending()
+            assert.equals(2, refreshes)
+            assert.equals(0, settings)
+        end)
+
+        it("stores a target debuff in one change so the bar never sees an unsupported pair", function()
+            local id = AuraTracker:AddTracker()
+            local steps = {}
+            function AuraTracker:OnTrackerChanged()
+                steps[#steps + 1] = {
+                    AuraTracker:GetUnit(id),
+                    AuraTracker:GetAuraType(id),
+                    AuraTracker:IsSourceSupported(id),
+                }
+            end
+            AuraTracker:SetSource(id, Schema.UNIT_TARGET, Schema.AURA_HARMFUL)
+            AuraTracker:SetSource(id, Schema.UNIT_TARGET, Schema.AURA_HARMFUL)
+            assert.same({ { Schema.UNIT_TARGET, Schema.AURA_HARMFUL, true } }, steps)
+            assert.is_false(pcall(AuraTracker.SetSource, AuraTracker, id, "party1", Schema.AURA_HARMFUL))
+            assert.equals(Schema.UNIT_TARGET, AuraTracker:GetUnit(id))
+        end)
+
+        it("copies unit and aura type through UpdateTracker", function()
+            local id = AuraTracker:AddTracker()
+            AuraTracker:UpdateTracker(id, {
+                unit = Schema.UNIT_FOCUS,
+                auraType = Schema.AURA_HARMFUL,
+                spellId = 172,
+            })
+            assert.equals(Schema.UNIT_FOCUS, AuraTracker:GetUnit(id))
+            assert.equals(Schema.AURA_HARMFUL, AuraTracker:GetAuraType(id))
+            assert.equals(172, AuraTracker:GetSpellId(id))
+        end)
+    end)
+
+    describe("progress mode", function()
         it("defaults to duration with max stacks 10", function()
             local id = AuraTracker:AddTracker()
-            assert.equals(AuraTracker.TRACKING_MODE_DURATION, AuraTracker:GetTrackingMode(id))
+            assert.equals(Schema.PROGRESS_MODE_DURATION, AuraTracker:GetProgressMode(id))
             assert.is_false(AuraTracker:IsStacksMode(id))
             assert.equals(10, AuraTracker:GetMaxStacks(id))
         end)
@@ -586,11 +888,11 @@ describe("AuraTracker", function()
         it("stores mode and max stacks independently per tracker", function()
             local a = AuraTracker:AddTracker()
             local b = AuraTracker:AddTracker()
-            AuraTracker:SetTrackingMode(a, AuraTracker.TRACKING_MODE_STACKS)
+            AuraTracker:SetProgressMode(a, Schema.PROGRESS_MODE_STACKS)
             AuraTracker:SetMaxStacks(a, 20)
             AuraTracker:SetMaxStacks(b, 5)
-            assert.equals(AuraTracker.TRACKING_MODE_STACKS, AuraTracker:GetTrackingMode(a))
-            assert.equals(AuraTracker.TRACKING_MODE_DURATION, AuraTracker:GetTrackingMode(b))
+            assert.equals(Schema.PROGRESS_MODE_STACKS, AuraTracker:GetProgressMode(a))
+            assert.equals(Schema.PROGRESS_MODE_DURATION, AuraTracker:GetProgressMode(b))
             assert.equals(20, AuraTracker:GetMaxStacks(a))
             assert.equals(5, AuraTracker:GetMaxStacks(b))
         end)
@@ -606,8 +908,8 @@ describe("AuraTracker", function()
             function AuraTracker:OnTrackerChanged()
                 trackerCalls = trackerCalls + 1
             end
-            AuraTracker:SetTrackingMode(id, AuraTracker.TRACKING_MODE_STACKS)
-            AuraTracker:SetTrackingMode(id, AuraTracker.TRACKING_MODE_STACKS)
+            AuraTracker:SetProgressMode(id, Schema.PROGRESS_MODE_STACKS)
+            AuraTracker:SetProgressMode(id, Schema.PROGRESS_MODE_STACKS)
             AuraTracker:SetMaxStacks(id, 15)
             AuraTracker:SetMaxStacks(id, 15)
             assert.equals(2, appearanceCalls)
@@ -616,12 +918,39 @@ describe("AuraTracker", function()
 
         it("rejects unknown modes and clamps max stacks", function()
             local id = AuraTracker:AddTracker()
-            assert.is_false(pcall(AuraTracker.SetTrackingMode, AuraTracker, id, "cooldown"))
-            assert.equals(AuraTracker.TRACKING_MODE_DURATION, AuraTracker:GetTrackingMode(id))
+            assert.is_false(pcall(AuraTracker.SetProgressMode, AuraTracker, id, "cooldown"))
+            assert.equals(Schema.PROGRESS_MODE_DURATION, AuraTracker:GetProgressMode(id))
             AuraTracker:SetMaxStacks(id, 0)
-            assert.equals(AuraTracker.MAX_STACKS_MIN, AuraTracker:GetMaxStacks(id))
+            assert.equals(Schema.MAX_STACKS_MIN, AuraTracker:GetMaxStacks(id))
             AuraTracker:SetMaxStacks(id, 5000)
-            assert.equals(AuraTracker.MAX_STACKS_MAX, AuraTracker:GetMaxStacks(id))
+            assert.equals(Schema.MAX_STACKS_MAX, AuraTracker:GetMaxStacks(id))
+        end)
+
+        it("keeps text displays independent of each other and of progress mode", function()
+            local id = AuraTracker:AddTracker()
+            assert.is_true(AuraTracker:IsTextDisplayEnabled(id, Schema.TEXT_DURATION))
+            assert.is_false(AuraTracker:IsTextDisplayEnabled(id, Schema.TEXT_STACKS))
+            AuraTracker:SetProgressMode(id, Schema.PROGRESS_MODE_STACKS)
+            AuraTracker:SetTextDisplayEnabled(id, Schema.TEXT_DURATION, true)
+            AuraTracker:SetTextDisplayEnabled(id, Schema.TEXT_STACKS, true)
+            AuraTracker:SetTextDisplayFontSize(id, Schema.TEXT_DURATION, 14)
+            AuraTracker:SetTextDisplayFontSize(id, Schema.TEXT_STACKS, 20)
+            AuraTracker:SetTextDisplayOffsetX(id, Schema.TEXT_DURATION, 12)
+            AuraTracker:SetTextDisplayOffsetY(id, Schema.TEXT_STACKS, -24)
+            assert.equals(Schema.PROGRESS_MODE_STACKS, AuraTracker:GetProgressMode(id))
+            assert.is_true(AuraTracker:IsTextDisplayEnabled(id, Schema.TEXT_DURATION))
+            assert.is_true(AuraTracker:IsTextDisplayEnabled(id, Schema.TEXT_STACKS))
+            assert.equals(14, AuraTracker:GetTextDisplayFontSize(id, Schema.TEXT_DURATION))
+            assert.equals(20, AuraTracker:GetTextDisplayFontSize(id, Schema.TEXT_STACKS))
+            assert.equals(12, AuraTracker:GetTextDisplayOffsetX(id, Schema.TEXT_DURATION))
+            assert.equals(0, AuraTracker:GetTextDisplayOffsetY(id, Schema.TEXT_DURATION))
+            assert.equals(0, AuraTracker:GetTextDisplayOffsetX(id, Schema.TEXT_STACKS))
+            assert.equals(-24, AuraTracker:GetTextDisplayOffsetY(id, Schema.TEXT_STACKS))
+            AuraTracker:SetTextDisplayEnabled(id, Schema.TEXT_DURATION, false)
+            assert.is_false(AuraTracker:IsTextDisplayEnabled(id, Schema.TEXT_DURATION))
+            assert.is_true(AuraTracker:IsTextDisplayEnabled(id, Schema.TEXT_STACKS))
+            assert.equals(20, AuraTracker:GetTextDisplayFontSize(id, Schema.TEXT_STACKS))
+            assert.equals(Schema.PROGRESS_MODE_STACKS, AuraTracker:GetProgressMode(id))
         end)
 
         it("builds application bar options with maxApplications", function()
@@ -629,14 +958,25 @@ describe("AuraTracker", function()
             assert.equals(12, options.maxApplications)
         end)
 
-        it("UpdateTracker applies tracking mode settings", function()
+        it("UpdateTracker applies progress mode and text display settings", function()
             local id = AuraTracker:AddTracker()
             AuraTracker:UpdateTracker(id, {
-                trackingMode = AuraTracker.TRACKING_MODE_STACKS,
+                progressMode = Schema.PROGRESS_MODE_STACKS,
                 maxStacks = 8,
+                textDisplays = {
+                    stacks = {
+                        enabled = true,
+                        offsetX = 15,
+                        offsetY = -6,
+                    },
+                },
             })
             assert.is_true(AuraTracker:IsStacksMode(id))
             assert.equals(8, AuraTracker:GetMaxStacks(id))
+            assert.is_true(AuraTracker:IsTextDisplayEnabled(id, Schema.TEXT_STACKS))
+            assert.equals(15, AuraTracker:GetTextDisplayOffsetX(id, Schema.TEXT_STACKS))
+            assert.equals(-6, AuraTracker:GetTextDisplayOffsetY(id, Schema.TEXT_STACKS))
+            assert.equals(0, AuraTracker:GetTextDisplayOffsetX(id, Schema.TEXT_DURATION))
         end)
     end)
 
@@ -705,12 +1045,16 @@ describe("AuraTracker", function()
             assert.is_false(AuraTracker:GetShowBorder(id))
             assert.is_true(AuraTracker:GetShowStackDividers(id))
             assert.equals(1, AuraTracker:GetLineThickness(id))
-            assert.is_true(AuraTracker:GetShowTime(id))
-            assert.equals(AuraTracker.TRACKING_MODE_DURATION, AuraTracker:GetTrackingMode(id))
+            assert.is_true(AuraTracker:IsTextDisplayEnabled(id, Schema.TEXT_DURATION))
+            assert.is_false(AuraTracker:IsTextDisplayEnabled(id, Schema.TEXT_STACKS))
+            assert.equals(Schema.PROGRESS_MODE_DURATION, AuraTracker:GetProgressMode(id))
             assert.equals(10, AuraTracker:GetMaxStacks(id))
-            assert.equals("default", AuraTracker:GetTimeFont(id))
-            assert.equals(12, AuraTracker:GetTimeFontSize(id))
-            assert.equals("right", AuraTracker:GetTimePosition(id))
+            assert.equals("default", AuraTracker:GetTextDisplayFont(id, Schema.TEXT_DURATION))
+            assert.equals(12, AuraTracker:GetTextDisplayFontSize(id, Schema.TEXT_DURATION))
+            assert.equals(0, AuraTracker:GetTextDisplayOffsetX(id, Schema.TEXT_DURATION))
+            assert.equals(0, AuraTracker:GetTextDisplayOffsetY(id, Schema.TEXT_DURATION))
+            assert.equals(0, AuraTracker:GetTextDisplayOffsetX(id, Schema.TEXT_STACKS))
+            assert.equals(0, AuraTracker:GetTextDisplayOffsetY(id, Schema.TEXT_STACKS))
             assert.equals("flat", AuraTracker:GetTexture(id))
             assert.equals(ns.Assets.Textures.WHITE, AuraTracker:GetTexturePath(id))
             local fill = AuraTracker:GetFillColor(id)
@@ -746,11 +1090,11 @@ describe("AuraTracker", function()
             AuraTracker:SetLineColor(id, { r = 1, g = 1, b = 1 })
             AuraTracker:SetLineThickness(id, 3)
             AuraTracker:SetShowStackDividers(id, false)
-            AuraTracker:SetShowTime(id, false)
-            AuraTracker:SetTimeFontSize(id, 16)
-            -- SetVertical above remaps the default "right" position to "top".
-            AuraTracker:SetTimePosition(id, "bottom")
-            assert.equals(15, appearanceCalls)
+            AuraTracker:SetTextDisplayEnabled(id, Schema.TEXT_DURATION, false)
+            AuraTracker:SetTextDisplayEnabled(id, Schema.TEXT_STACKS, true)
+            AuraTracker:SetTextDisplayFontSize(id, Schema.TEXT_DURATION, 16)
+            AuraTracker:SetTextDisplayOffsetX(id, Schema.TEXT_STACKS, 30)
+            assert.equals(16, appearanceCalls)
             assert.equals(0, trackerCalls)
             assert.equals(240, AuraTracker:GetWidth(id))
             assert.equals(24, AuraTracker:GetHeight(id))
@@ -762,9 +1106,11 @@ describe("AuraTracker", function()
             assert.equals(1, AuraTracker:GetLineColor(id).r)
             assert.equals(3, AuraTracker:GetLineThickness(id))
             assert.is_false(AuraTracker:GetShowStackDividers(id))
-            assert.is_false(AuraTracker:GetShowTime(id))
-            assert.equals(16, AuraTracker:GetTimeFontSize(id))
-            assert.equals("bottom", AuraTracker:GetTimePosition(id))
+            assert.is_false(AuraTracker:IsTextDisplayEnabled(id, Schema.TEXT_DURATION))
+            assert.is_true(AuraTracker:IsTextDisplayEnabled(id, Schema.TEXT_STACKS))
+            assert.equals(16, AuraTracker:GetTextDisplayFontSize(id, Schema.TEXT_DURATION))
+            assert.equals(30, AuraTracker:GetTextDisplayOffsetX(id, Schema.TEXT_STACKS))
+            assert.equals(0, AuraTracker:GetTextDisplayOffsetX(id, Schema.TEXT_DURATION))
         end)
 
         it("keeps line style and stack-divider settings independent per tracker", function()
@@ -784,32 +1130,42 @@ describe("AuraTracker", function()
         it("clamps line thickness", function()
             local id = AuraTracker:AddTracker()
             AuraTracker:SetLineThickness(id, 0)
-            assert.equals(AuraTracker.LINE_THICKNESS_MIN, AuraTracker:GetLineThickness(id))
+            assert.equals(Schema.LINE_THICKNESS_MIN, AuraTracker:GetLineThickness(id))
             AuraTracker:SetLineThickness(id, 99)
-            assert.equals(AuraTracker.LINE_THICKNESS_MAX, AuraTracker:GetLineThickness(id))
+            assert.equals(Schema.LINE_THICKNESS_MAX, AuraTracker:GetLineThickness(id))
         end)
 
         it("clamps size, opacity, and font size", function()
             local id = AuraTracker:AddTracker()
             AuraTracker:SetWidth(id, 1)
-            assert.equals(AuraTracker.WIDTH_MIN, AuraTracker:GetWidth(id))
+            assert.equals(Schema.WIDTH_MIN, AuraTracker:GetWidth(id))
             AuraTracker:SetHeight(id, 999)
-            assert.equals(AuraTracker.HEIGHT_MAX, AuraTracker:GetHeight(id))
+            assert.equals(Schema.HEIGHT_MAX, AuraTracker:GetHeight(id))
             AuraTracker:SetBackgroundOpacity(id, 2)
             assert.equals(1, AuraTracker:GetBackgroundOpacity(id))
-            AuraTracker:SetTimeFontSize(id, 1)
-            assert.equals(AuraTracker.FONT_SIZE_MIN, AuraTracker:GetTimeFontSize(id))
+            AuraTracker:SetTextDisplayFontSize(id, Schema.TEXT_DURATION, 1)
+            assert.equals(Schema.FONT_SIZE_MIN, AuraTracker:GetTextDisplayFontSize(id, Schema.TEXT_DURATION))
         end)
 
-        it("remaps time position when switching between horizontal and vertical", function()
+        it("keeps text offsets when orientation, fill direction, or progress mode change", function()
             local id = AuraTracker:AddTracker()
-            AuraTracker:SetTimePosition(id, "left")
-            assert.equals("left", AuraTracker:GetTimePosition(id))
+            AuraTracker:SetTextDisplayOffsetX(id, Schema.TEXT_DURATION, -20)
+            AuraTracker:SetTextDisplayOffsetY(id, Schema.TEXT_STACKS, 12)
             AuraTracker:SetVertical(id, true)
-            assert.equals("bottom", AuraTracker:GetTimePosition(id))
-            AuraTracker:SetTimePosition(id, "top")
-            AuraTracker:SetVertical(id, false)
-            assert.equals("right", AuraTracker:GetTimePosition(id))
+            AuraTracker:SetReverseFill(id, true)
+            AuraTracker:SetProgressMode(id, Schema.PROGRESS_MODE_STACKS)
+            assert.equals(-20, AuraTracker:GetTextDisplayOffsetX(id, Schema.TEXT_DURATION))
+            assert.equals(0, AuraTracker:GetTextDisplayOffsetY(id, Schema.TEXT_DURATION))
+            assert.equals(0, AuraTracker:GetTextDisplayOffsetX(id, Schema.TEXT_STACKS))
+            assert.equals(12, AuraTracker:GetTextDisplayOffsetY(id, Schema.TEXT_STACKS))
+        end)
+
+        it("clamps text offsets", function()
+            local id = AuraTracker:AddTracker()
+            AuraTracker:SetTextDisplayOffsetX(id, Schema.TEXT_DURATION, -999)
+            AuraTracker:SetTextDisplayOffsetY(id, Schema.TEXT_STACKS, 999)
+            assert.equals(Schema.TEXT_OFFSET_MIN, AuraTracker:GetTextDisplayOffsetX(id, Schema.TEXT_DURATION))
+            assert.equals(Schema.TEXT_OFFSET_MAX, AuraTracker:GetTextDisplayOffsetY(id, Schema.TEXT_STACKS))
         end)
 
         it("does not notify when appearance is unchanged", function()
@@ -836,7 +1192,7 @@ describe("AuraTracker", function()
         end)
 
         it("lists only built-in textures when LibSharedMedia is absent", function()
-            local ids = AuraTracker:ListTextureIds()
+            local ids = ns.AuraTrackerMedia.ListTextureIds()
             assert.same({ "flat", "default", "raid" }, ids)
         end)
     end)
@@ -904,7 +1260,7 @@ describe("AuraTracker", function()
         end)
 
         it("skips LSM entries that duplicate built-in ids or paths", function()
-            local ids = AuraTracker:ListTextureIds()
+            local ids = ns.AuraTrackerMedia.ListTextureIds()
             assert.same({ "flat", "default", "raid", "Smooth" }, ids)
         end)
 
@@ -967,5 +1323,87 @@ describe("AuraTracker database migration", function()
         assert.equals(240, tracker.width)
         assert.equals(-80, tracker.position.y)
         assert.is_true(loaded.modules.AuraTracker.enabled)
+    end)
+end)
+
+describe("AuraTracker deferred appearance", function()
+    local ns, AuraTracker
+
+    before_each(function()
+        ns = Loader.Load()
+        ns.Modules.Start(ns.Database.Load(nil))
+        AuraTracker = ns.Modules.Get("AuraTracker")
+    end)
+
+    it("reports only the saved fields that differ from the last painted look", function()
+        local id = AuraTracker:AddTracker()
+        local painted = AuraTracker:CaptureDeferredAppearance(id)
+        assert.same({}, AuraTracker.DiffDeferredAppearance(painted, AuraTracker:CaptureDeferredAppearance(id)))
+
+        AuraTracker:SetWidth(id, 240)
+        AuraTracker:SetFillColor(id, { r = 1, g = 0, b = 0 })
+        AuraTracker:SetProgressMode(id, ns.AuraTrackerSchema.PROGRESS_MODE_STACKS)
+        AuraTracker:SetTextDisplayEnabled(id, ns.AuraTrackerSchema.TEXT_STACKS, true)
+        AuraTracker:SetSpellId(id, 774)
+        local pending = AuraTracker.DiffDeferredAppearance(painted, AuraTracker:CaptureDeferredAppearance(id))
+        assert.is_true(pending.width)
+        assert.is_true(pending.fillColor)
+        assert.is_true(pending.progressMode)
+        assert.is_true(pending["text.stacks.enabled"])
+        assert.is_nil(pending.spellId)
+        assert.is_nil(pending.height)
+
+        AuraTracker:SetWidth(id, painted.width)
+        pending = AuraTracker.DiffDeferredAppearance(painted, AuraTracker:CaptureDeferredAppearance(id))
+        assert.is_nil(pending.width)
+        assert.is_true(pending.fillColor)
+    end)
+end)
+
+describe("AuraTracker profile report", function()
+    local ns, profile
+
+    before_each(function()
+        ns = Loader.Load()
+        profile = ns.AuraTrackerProfile
+    end)
+
+    it("returns the empty message before any samples", function()
+        assert.is_false(profile.IsRecording())
+        assert.equals(ns.L.AURA_TRACKER_PROFILE_EMPTY, profile.Report())
+    end)
+
+    it("ignores samples until recording starts", function()
+        profile.Inc("event.PLAYER_TARGET_CHANGED")
+        profile.Stop("bar.display", profile.Start())
+        assert.equals(ns.L.AURA_TRACKER_PROFILE_EMPTY, profile.Report())
+        profile.Record()
+        profile.Inc("bar.display")
+        assert.is_true(profile.Report():find("bar.display", 1, true) ~= nil)
+    end)
+
+    it("reports the latest mark without treating it as a duration", function()
+        profile.Record()
+        profile.Mark("ui.scrollDeltaPx", -36)
+        profile.Mark("ui.scrollDeltaPx", -12)
+        local text = profile.Report()
+        assert.is_true(text:find("ui.scrollDeltaPx", 1, true) ~= nil)
+        assert.is_true(text:find("-12", 1, true) ~= nil)
+        assert.is_nil(text:find("-36", 1, true))
+        profile.Reset()
+        assert.equals(ns.L.AURA_TRACKER_PROFILE_EMPTY, profile.Report())
+    end)
+
+    it("lists each counter once, sorted", function()
+        profile.Record()
+        profile.Inc("event.PLAYER_TARGET_CHANGED")
+        profile.Inc("event.PLAYER_TARGET_CHANGED")
+        profile.Stop("bar.display", profile.Start())
+        local text = profile.Report()
+        local displayAt = text:find("bar.display", 1, true)
+        local eventAt = text:find("event.PLAYER_TARGET_CHANGED", 1, true)
+        assert.is_true(displayAt ~= nil and eventAt ~= nil and displayAt < eventAt)
+        local _, displayCount = text:gsub("bar%.display", "")
+        assert.equals(1, displayCount)
     end)
 end)

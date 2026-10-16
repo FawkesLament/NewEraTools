@@ -19,14 +19,68 @@ function Unit.GetFullName(name)
 end
 
 ---Unit GUID when the client knows it (e.g. "Player-…"); nil when unavailable.
+---Whether `unit` currently exists. Secret results fail closed.
+---@param unit string
+---@return boolean
+function Unit.Exists(unit)
+    if type(unit) ~= "string" or unit == "" then
+        return false
+    end
+    if issecret and issecret(unit) then
+        return false
+    end
+    local exists = UnitExists(unit)
+    if issecret and issecret(exists) then
+        return false
+    end
+    return exists == true or exists == 1
+end
+
+---Plain boolean from UnitCanAssist. Nil when the call failed or the value is secret.
+---@param ok boolean
+---@param canAssist any
+---@return boolean|nil
+local function ReadCanAssist(ok, canAssist)
+    if not ok or (issecret and issecret(canAssist)) then
+        return nil
+    end
+    if canAssist == true or canAssist == 1 then
+        return true
+    end
+    if canAssist == false or canAssist == 0 then
+        return false
+    end
+    return nil
+end
+
+---Whether the player can assist `unit`, ignoring temporary immune and uninteractable flags.
+---Matches AuraContainer's includeSpellIDs reaction test. Nil when the unit is missing or the
+---result is secret — callers must treat nil as "not safe to filter".
+---@param unit string
+---@return boolean|nil
+function Unit.CanPlayerAssist(unit)
+    if not Unit.Exists(unit) then
+        return nil
+    end
+    -- true, true: still assistable while immune or uninteractable (vehicle, CC, teleport).
+    -- That form can come back secret while the two-argument call is a plain boolean; a secret
+    -- result must not hide a hostile target that the plain call can still classify.
+    local parsed = ReadCanAssist(pcall(UnitCanAssist, "player", unit, true, true))
+    if parsed ~= nil then
+        return parsed
+    end
+    return ReadCanAssist(pcall(UnitCanAssist, "player", unit))
+end
+
 ---@param unit string  A unit token, e.g. "player" or "raid3".
 ---@return string|nil
 function Unit.GetGUID(unit)
-    if type(unit) ~= "string" or unit == "" then
+    if type(unit) ~= "string" or unit == "" or (issecret and issecret(unit)) then
         return nil
     end
     local guid = UnitGUID(unit)
-    if type(guid) ~= "string" or guid == "" then
+    -- A secret GUID cannot be compared. Callers rescan the token instead of throwing.
+    if type(guid) ~= "string" or guid == "" or (issecret and issecret(guid)) then
         return nil
     end
     return guid

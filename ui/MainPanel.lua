@@ -3,6 +3,7 @@ local L = ns.L
 local Assets = ns.Assets
 local Combat = ns.Api.Combat
 local CollapsiblePanel = ns.CollapsiblePanel
+local FeatureSection = ns.FeatureSection
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
 local Util = ns.Util
@@ -16,8 +17,10 @@ local Spacing = Assets.Spacing
 local PANEL_WIDTH = 700
 local PANEL_HEIGHT = 600
 local SIDEBAR_WIDTH = 160
-local SECTION_HEADER_HEIGHT = 28
-local SECTION_SPACING = 24
+-- Title/toggle band, plus gap above the divider so the line sits clearly below the title.
+local PAGE_HEADER_HEIGHT = Sizes.CONTROL_ROW_HEIGHT + Spacing.LARGE
+-- Matches FeatureSection's disabled content fade.
+local PAGE_DISABLED_ALPHA = 0.4
 local SCALE_MIN = 0.7
 local SCALE_MAX = 1.5
 local SCALE_STEP = 0.05
@@ -27,13 +30,19 @@ local SCALE_STEP = 0.05
 ---@field title string
 
 ---@class PanelSectionDef
----@field title string  Shown in the sidebar and as the section header.
+---@field title string  Shown in the sidebar. Also used as the page header unless `headerTitle` is set.
+---@field headerTitle string|nil  Page header title when it should name the sub-feature instead of `title`.
 ---@field group PanelGroup  The sidebar lists the section under this group's title.
 ---@field build fun(container: Frame): number|nil  Fills the container and returns its content height.
+---@field enabled boolean|nil  Initial On/Off when `onEnabledChanged` is set. Defaults to true.
+---@field onEnabledChanged fun(enabled: boolean)|nil  When set, the page header shows an On/Off toggle and gates the body.
+---@field tooltip string|nil  Shown when hovering the page title.
 
 local MainPanel = ns.Modules.New("MainPanel", {
     defaults = {
         scale = 1,
+        ---@type FloatingWindowPosition
+        layoutInspectorPosition = { point = "CENTER", relativePoint = "CENTER", x = 260, y = 40 },
     },
 })
 ns.MainPanel = MainPanel
@@ -132,69 +141,130 @@ end
 
 local function CreateSection(frame, def)
     local section = CreateFrame("Frame", nil, frame.content)
+    section:SetPoint("TOPLEFT")
+    section:SetPoint("TOPRIGHT")
+    section:Hide()
 
-    local header = Widgets.CreateLabel(section, Fonts.HEADER, def.title)
-    header:SetPoint("TOPLEFT", 0, -Spacing.SMALL)
+    local header = CreateFrame("Frame", nil, section)
+    header:SetPoint("TOPLEFT")
+    header:SetPoint("TOPRIGHT")
+    header:SetHeight(PAGE_HEADER_HEIGHT)
 
-    local dividerTop = -(SECTION_HEADER_HEIGHT - Spacing.TINY)
-    local divider = section:CreateTexture(nil, "ARTWORK")
+    -- Keep title and toggle in the top control band; Spacing.LARGE below is the gap to the line.
+    local titleBandCenterY = -Sizes.CONTROL_ROW_HEIGHT / 2
+
+    local title = Widgets.CreateLabel(header, Fonts.HEADER, def.headerTitle or def.title)
+    title:SetJustifyH("LEFT")
+    title:SetPoint("LEFT", header, "TOPLEFT", 0, titleBandCenterY)
+    title:SetWordWrap(false)
+
+    if def.tooltip then
+        -- FontStrings can't take mouse; a matching hit frame carries the tooltip.
+        local hit = CreateFrame("Frame", nil, header)
+        hit:SetPoint("TOPLEFT", title, "TOPLEFT")
+        hit:SetPoint("BOTTOMRIGHT", title, "BOTTOMRIGHT")
+        hit:EnableMouse(true)
+        Widgets.AttachTooltip(hit, "ANCHOR_TOP", function(tooltip)
+            tooltip:SetText(def.tooltip)
+        end)
+    end
+
+    local divider = header:CreateTexture(nil, "ARTWORK")
     divider:SetHeight(1)
-    divider:SetPoint("TOPLEFT", 0, dividerTop)
-    divider:SetPoint("TOPRIGHT", 0, dividerTop)
+    divider:SetPoint("BOTTOMLEFT")
+    divider:SetPoint("BOTTOMRIGHT")
     divider:SetColorTexture(Widgets.UnpackColor(Colors.DIVIDER))
 
     local body = CreateFrame("Frame", nil, section)
-    body:SetPoint("TOPLEFT", 0, -SECTION_HEADER_HEIGHT)
-    body:SetPoint("TOPRIGHT", 0, -SECTION_HEADER_HEIGHT)
+    body:SetPoint("TOPLEFT", header, "BOTTOMLEFT")
+    body:SetPoint("TOPRIGHT", header, "BOTTOMRIGHT")
     body:SetHeight(1)
     section.body = body
+    section.bodyHeight = 0
+    section.headerHeight = PAGE_HEADER_HEIGHT
+
+    if def.onEnabledChanged then
+        local enabled = def.enabled ~= false
+
+        local function ApplyContentInteractive()
+            body:SetAlpha(enabled and 1 or PAGE_DISABLED_ALPHA)
+            FeatureSection.SetSubtreeInteractive(body, enabled)
+        end
+
+        -- Declare before CreateSegmentedControl so the click closure captures the local
+        -- (Lua 5.1: a local is not in scope on the RHS of its own declaration).
+        local toggle
+        toggle = Widgets.CreateSegmentedControl(header, {
+            { value = true, text = L.FEATURE_ON },
+            { value = false, text = L.FEATURE_OFF },
+        }, function(value)
+            value = value == true
+            if enabled == value then
+                ApplyContentInteractive()
+                return
+            end
+            enabled = value
+            toggle:SetSelected(enabled)
+            ApplyContentInteractive()
+            def.onEnabledChanged(enabled)
+        end)
+        toggle:SetPoint("RIGHT", header, "TOPRIGHT", 0, titleBandCenterY)
+        toggle:SetSelected(enabled)
+
+        function body:RefreshContentInteractive()
+            ApplyContentInteractive()
+        end
+
+        ApplyContentInteractive()
+    end
 
     return section
 end
 
-local function UpdateSelection(frame)
-    local scroll = frame.scrollFrame:GetVerticalScroll()
-    local active
-
-    -- A clicked section near the bottom may not reach the top of the view, so honor
-    -- the click until the user scrolls away from where it left the view.
-    if frame.clickedSection and math.abs(scroll - frame.clickedScroll) < 1 then
-        active = frame.clickedSection
-    else
-        frame.clickedSection = nil
-        for _, section in ipairs(frame.sections) do
-            if frame.sectionStack:GetOffset(section) <= scroll + 1 then
-                active = section
-            end
-        end
-    end
-
+local function UpdateNavSelection(frame)
     for _, section in ipairs(frame.sections) do
-        SetNavSelected(section.navButton, section == active)
+        SetNavSelected(section.navButton, section == frame.activeSection)
     end
 end
 
-local function ScrollToSection(frame, section)
-    local scrollFrame = frame.scrollFrame
-    local offset = frame.sectionStack:GetOffset(section)
-    scrollFrame:SetVerticalScroll(math.min(offset, scrollFrame:GetVerticalScrollRange()))
-    frame.clickedSection = section
-    frame.clickedScroll = scrollFrame:GetVerticalScroll()
-    UpdateSelection(frame)
-end
-
-local function OnSectionsResized(frame)
-    frame.content:SetHeight(math.max(frame.sectionStack:GetHeight(), 1))
-    UpdateSelection(frame)
+local function SyncActivePageHeight(frame)
+    local section = frame.activeSection
+    local height = 1
+    if section then
+        height = math.max(section.headerHeight + section.bodyHeight, 1)
+    end
+    frame.content:SetHeight(height)
 end
 
 local function SetSectionBodyHeight(frame, section, height)
+    section.bodyHeight = math.max(height, 0)
     section.body:SetHeight(math.max(height, 1))
-    frame.sectionStack:SetEntryHeight(section, SECTION_HEADER_HEIGHT + height)
-    OnSectionsResized(frame)
+    section:SetHeight(math.max(section.headerHeight + section.bodyHeight, 1))
+    if section == frame.activeSection then
+        SyncActivePageHeight(frame)
+    end
 end
 
--- Both stacks are ordered by group, so a new entry goes after everything in its own and earlier groups.
+---Shows one feature page and hides the others. Resets scroll so each page starts at the top.
+local function SelectSection(frame, section)
+    if frame.activeSection == section then
+        UpdateNavSelection(frame)
+        return
+    end
+
+    if frame.activeSection then
+        frame.activeSection:Hide()
+    end
+    frame.activeSection = section
+    if section then
+        section:Show()
+        frame.scrollFrame:SetVerticalScroll(0)
+    end
+    SyncActivePageHeight(frame)
+    UpdateNavSelection(frame)
+end
+
+-- The nav stack is ordered by group, so a new entry goes after everything in its own and earlier groups.
 local function CountEntriesThrough(frame, group)
     local headers, sections = 0, 0
     for other in pairs(frame.groupHeaders) do
@@ -222,16 +292,15 @@ local function AddSection(frame, def)
     local headers, sections = CountEntriesThrough(frame, group)
     local section = CreateSection(frame, def)
     section.group = group
-    frame.sectionStack:Insert(sections + 1, section, SECTION_HEADER_HEIGHT)
     table.insert(frame.sections, sections + 1, section)
 
     local navButton = CreateNavButton(frame.sidebar, def)
     section.navButton = frame.navStack:Insert(headers + sections + 1, navButton, Sizes.NAV_ROW_HEIGHT)
     navButton:SetScript("OnClick", function()
-        ScrollToSection(frame, section)
+        SelectSection(frame, section)
     end)
 
-    -- The section is already in the stack, so `build` may call SetContentHeight right away.
+    -- The page exists before `build`, so it may call SetContentHeight right away.
     local body = section.body
     function body:SetContentHeight(height)
         SetSectionBodyHeight(frame, section, height)
@@ -240,8 +309,13 @@ local function AddSection(frame, def)
     local height = def.build and def.build(body)
     if type(height) == "number" then
         SetSectionBodyHeight(frame, section, height)
+    end
+
+    -- Keep the topmost sidebar entry selected when sections register out of group order.
+    if not frame.activeSection or frame.sections[1] == section then
+        SelectSection(frame, section)
     else
-        OnSectionsResized(frame)
+        UpdateNavSelection(frame)
     end
 end
 
@@ -266,20 +340,24 @@ local function ApplyScale(frame, scale)
 end
 
 ---Scale slider + label; parented to a chrome frame so the whole group can hide when collapsed.
+---Typed entry is off: rescaling moves the control under the cursor, so a textbox is a poor fit.
 local function CreateScaleControl(frame, chrome, anchorRight)
     local value = Widgets.CreateLabel(chrome, Fonts.SMALL_MUTED)
     value:SetWidth(Sizes.SLIDER_VALUE_WIDTH)
     value:SetJustifyH("RIGHT")
     value:SetPoint("RIGHT", anchorRight, "LEFT", -Spacing.MEDIUM, 0)
 
-    local slider = Widgets.CreateSlider(chrome, SCALE_MIN, SCALE_MAX, SCALE_STEP, true)
+    local slider = Widgets.CreateSlider(chrome, SCALE_MIN, SCALE_MAX, SCALE_STEP, {
+        allowMouseWheel = true,
+        allowTypedValue = false,
+    })
     slider:SetPoint("RIGHT", value, "LEFT", -Spacing.MEDIUM, 0)
 
     local label = Widgets.CreateLabel(chrome, Fonts.SMALL_MUTED, L.MAIN_PANEL_SCALE)
     label:SetPoint("RIGHT", slider, "LEFT", -Spacing.MEDIUM, 0)
 
     local function ShowValue(scale)
-        value:SetFormattedText(L.MAIN_PANEL_SCALE_PERCENT, math.floor(scale * 100 + 0.5))
+        value:SetText(string.format("%d%s", math.floor(scale * 100 + 0.5), L.PERCENT_SUFFIX))
     end
 
     -- Rescaling moves the slider under the cursor, so a drag only applies the scale on release.
@@ -418,13 +496,9 @@ local function CreatePanel()
     frame.navStack = Layout.Stack(sidebar, { paddingY = Spacing.MEDIUM })
     frame.scrollFrame = scrollFrame
     frame.content = content
-    frame.sectionStack = Layout.Stack(content, { spacing = SECTION_SPACING })
 
     scrollFrame:HookScript("OnSizeChanged", function(self, width)
         content:SetWidth(width)
-    end)
-    scrollFrame:HookScript("OnVerticalScroll", function()
-        UpdateSelection(frame)
     end)
 
     frame.collapse = CollapsiblePanel.Attach({
@@ -442,6 +516,7 @@ local function CreatePanel()
 
     frame.sections = {}
     frame.groupHeaders = {}
+    frame.activeSection = nil
 
     -- Lets the Escape key close the panel.
     table.insert(UISpecialFrames, frame:GetName())
@@ -453,8 +528,10 @@ local function CreatePanel()
     return frame
 end
 
----Adds a section to the panel. The container passed to `def.build` also has
+---Adds a feature settings page to the panel. The container passed to `def.build` also has
 ---`container:SetContentHeight(height)` for when its content height changes later.
+---When `onEnabledChanged` is set, the page header shows an On/Off toggle and the container also has
+---`container:RefreshContentInteractive()` to re-apply enable/disable after rebuilding controls.
 ---@param def PanelSectionDef
 function MainPanel:RegisterSection(def)
     assert(type(def) == "table" and type(def.title) == "string", "RegisterSection requires a title")
@@ -483,7 +560,7 @@ function MainPanel:GetFrame()
 end
 
 function MainPanel:OnEnable()
-    ns.Api.Slash.Register("NEWERATOOLS", { "/netools", "/ne2s" }, function()
+    ns.Api.Slash.Register("NEWERATOOLS", { "/netools", "/nets" }, function()
         self:Toggle()
     end)
 end

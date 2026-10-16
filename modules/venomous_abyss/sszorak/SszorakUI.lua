@@ -5,7 +5,6 @@ local Assets = ns.Assets
 local Chat = ns.Api.Chat
 local Combat = ns.Api.Combat
 local AddonCheckPanel = ns.AddonCheckPanel
-local FeatureSection = ns.FeatureSection
 local FloatingWindow = ns.FloatingWindow
 local Layout = ns.Layout
 local CalloutMessage = ns.CalloutMessage
@@ -272,6 +271,9 @@ function RegisterMapLayoutElement(frame)
         setPosition = function(position)
             Sszorak:SetMapPosition(position)
         end,
+        getDefaultPosition = function()
+            return { point = "CENTER", relativePoint = "CENTER", x = 0, y = 0 }
+        end,
         onEditBegin = function()
             BeginLayoutEdit()
             local win = window or CreateArenaWindow()
@@ -305,6 +307,9 @@ function RegisterCalloutLayoutElement(frame)
         end,
         setPosition = function(position)
             Sszorak:SetCalloutPosition(position)
+        end,
+        getDefaultPosition = function()
+            return { point = "CENTER", relativePoint = "CENTER", x = 0, y = 160 }
         end,
         onEditBegin = function()
             BeginLayoutEdit()
@@ -427,6 +432,7 @@ local function SetCommanderRowShown(row, shown)
     row:SetShown(shown)
     mapSection:SetContentHeight(mapBody:GetHeight())
 end
+
 
 ---Macro status beside the create button: green when macros exist, red on create failure, empty otherwise.
 ---@param message string|nil
@@ -578,10 +584,14 @@ end
 ---@param content Frame
 ---@return number
 local function BuildMapContent(content)
-    local body = Layout.Stack(content, { spacing = Spacing.MEDIUM })
+    local body = Layout.Stack(content, {
+        paddingX = Spacing.SMALL,
+        paddingY = Spacing.SMALL,
+        spacing = Spacing.MEDIUM,
+    })
     mapBody = body
 
-    -- Mode sits just under the feature On/Off toggle, before section headers.
+    -- Mode sits just under the page On/Off toggle, before section headers.
     local roleRow = body:AddRow(HINT_ROW_HEIGHT)
     roleLabel = Widgets.CreateLabel(roleRow, Fonts.SMALL_MUTED)
     roleLabel:SetJustifyH("LEFT")
@@ -732,31 +742,26 @@ local function BuildMapContent(content)
     local scaleRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local scaleLabel = Widgets.CreateLabel(scaleRow, Fonts.BODY, L.SSZORAK_MAP_SCALE)
     scaleLabel:SetJustifyH("LEFT")
-    local scaleValue = Widgets.CreateLabel(scaleRow, Fonts.SMALL_MUTED)
-    scaleValue:SetWidth(Sizes.SLIDER_VALUE_WIDTH)
-    scaleValue:SetJustifyH("RIGHT")
-    local scaleSlider =
-        Widgets.CreateSlider(scaleRow, Sszorak.MAP_SCALE_MIN, Sszorak.MAP_SCALE_MAX, Sszorak.MAP_SCALE_STEP)
+    local scaleSlider = Widgets.CreateSlider(
+        scaleRow,
+        Sszorak.MAP_SCALE_MIN,
+        Sszorak.MAP_SCALE_MAX,
+        Sszorak.MAP_SCALE_STEP,
+        { percentage = true }
+    )
     Widgets.AttachTooltip(scaleSlider, "ANCHOR_BOTTOM", function(tooltip)
         tooltip:SetText(L.SSZORAK_MAP_SCALE_TOOLTIP)
     end)
-    local function ShowScaleValue(scale)
-        scaleValue:SetFormattedText(L.MAIN_PANEL_SCALE_PERCENT, math.floor(scale * 100 + 0.5))
-    end
     scaleSlider:SetValue(Sszorak:GetMapScale())
-    ShowScaleValue(Sszorak:GetMapScale())
     scaleSlider:SetScript("OnValueChanged", function(_, rawValue)
         if not Sszorak:IsMapEnabled() then
             return
         end
         Sszorak:SetMapScale(rawValue)
-        local scale = Sszorak:GetMapScale()
-        ShowScaleValue(scale)
-        ApplyWindowScale(scale)
+        ApplyWindowScale(Sszorak:GetMapScale())
     end)
     Layout.Row(scaleRow, { scaleLabel }, 0)
     scaleSlider:SetPoint("LEFT", scaleLabel, "RIGHT", Spacing.LARGE, 0)
-    scaleValue:SetPoint("LEFT", scaleSlider, "RIGHT", Spacing.MEDIUM, 0)
 
     local toolsRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local preview = Widgets.CreateButton(toolsRow, L.SSZORAK_START_TEST, StartPreview)
@@ -769,17 +774,28 @@ end
 ---@param container Frame
 ---@return number
 local function Build(container)
-    local stack = Layout.Stack(container, {
-        paddingX = Spacing.SMALL,
-        paddingY = Spacing.SMALL,
-    })
+    mapSection = container
+    local height = BuildMapContent(container)
+    container:SetContentHeight(height)
+    -- Building the body created enabled controls; match them to the saved feature state.
+    container:RefreshContentInteractive()
+    UpdateCommanderControls()
 
-    mapSection = FeatureSection.Create(stack, {
-        title = L.SSZORAK_MAP_ENABLED,
+    container:HookScript("OnShow", function()
+        UpdateCommanderControls()
+    end)
+    container:HookScript("OnHide", function()
+        HidePicker()
+    end)
+    return height
+end
+
+function Sszorak:OnEnable()
+    ns.MainPanel:RegisterSection({
+        title = L.SSZORAK_TITLE,
+        headerTitle = L.SSZORAK_DROP_BALL,
+        group = ns.PanelGroups.VENOMOUS_ABYSS,
         enabled = Sszorak:IsMapEnabled(),
-        onStackHeightChanged = function(height)
-            container:SetContentHeight(height)
-        end,
         onEnabledChanged = function(enabled)
             Sszorak:SetMapEnabled(enabled)
             if not enabled then
@@ -790,26 +806,6 @@ local function Build(container)
             -- Enabling or disabling never opens or closes a preview; during a fight it shows or hides the map.
             UpdateWindow()
         end,
-    })
-
-    mapSection:SetContentHeight(BuildMapContent(mapSection.content))
-    -- Building the body created enabled controls; match them to the saved feature state.
-    mapSection:RefreshContentInteractive()
-    UpdateCommanderControls()
-
-    container:HookScript("OnShow", function()
-        UpdateCommanderControls()
-    end)
-    container:HookScript("OnHide", function()
-        HidePicker()
-    end)
-    return stack:GetHeight()
-end
-
-function Sszorak:OnEnable()
-    ns.MainPanel:RegisterSection({
-        title = L.SSZORAK_TITLE,
-        group = ns.PanelGroups.VENOMOUS_ABYSS,
         build = Build,
     })
     self:ListenForBroadcasts()

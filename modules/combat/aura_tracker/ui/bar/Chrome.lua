@@ -3,9 +3,9 @@ local Assets = ns.Assets
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
-local Spacing = Assets.Spacing
 
 local AuraTracker = ns.Modules.Get("AuraTracker")
+local Schema = ns.AuraTrackerSchema
 
 local TIME_OUTLINE = "OUTLINE"
 
@@ -33,50 +33,31 @@ function Chrome.BarSize(trackerId)
     return width, height
 end
 
----@param trackerId integer
----@return string
-local function TimeFontPath(trackerId)
-    return AuraTracker:GetTimeFontPath(trackerId) or STANDARD_TEXT_FONT
-end
-
----Anchors a duration FontString from the saved time position.
----@param trackerId integer
+---Anchors a value FontString at the bar center plus pixel offsets.
+---No width clamp, so the string may extend past the bar.
 ---@param fontString FontString
-local function ApplyTimeTextLayout(trackerId, fontString)
-    local inset = Spacing.SMALL
-    local position = AuraTracker:GetTimePosition(trackerId)
+---@param offsetX number
+---@param offsetY number
+function Chrome.ApplyTextOffsetLayout(fontString, offsetX, offsetY)
     fontString:ClearAllPoints()
     fontString:SetJustifyH("CENTER")
     fontString:SetJustifyV("MIDDLE")
-    if position == "left" then
-        fontString:SetPoint("LEFT", inset, 0)
-        fontString:SetJustifyH("LEFT")
-    elseif position == "right" then
-        fontString:SetPoint("RIGHT", -inset, 0)
-        fontString:SetJustifyH("RIGHT")
-    elseif position == "top" then
-        fontString:SetPoint("TOP", 0, -inset)
-        fontString:SetJustifyV("TOP")
-    elseif position == "bottom" then
-        fontString:SetPoint("BOTTOM", 0, inset)
-        fontString:SetJustifyV("BOTTOM")
-    else
-        fontString:SetPoint("CENTER", 0, 0)
-    end
+    fontString:SetPoint("CENTER", offsetX, offsetY)
 end
 
+---Font + independent offset for one text kind. Style before AuraButton binding.
 ---@param trackerId integer
+---@param kind string
 ---@param fontString FontString
-local function ApplyTimeTextFont(trackerId, fontString)
-    fontString:SetFont(TimeFontPath(trackerId), AuraTracker:GetTimeFontSize(trackerId), TIME_OUTLINE)
+function Chrome.ApplyTextDisplayAppearance(trackerId, kind, fontString)
+    local fontPath = AuraTracker:GetTextDisplayFontPath(trackerId, kind) or STANDARD_TEXT_FONT
+    fontString:SetFont(fontPath, AuraTracker:GetTextDisplayFontSize(trackerId, kind), TIME_OUTLINE)
     fontString:SetTextColor(Widgets.UnpackColor(Colors.TEXT))
-end
-
----@param trackerId integer
----@param fontString FontString
-function Chrome.ApplyTimeTextAppearance(trackerId, fontString)
-    ApplyTimeTextFont(trackerId, fontString)
-    ApplyTimeTextLayout(trackerId, fontString)
+    Chrome.ApplyTextOffsetLayout(
+        fontString,
+        AuraTracker:GetTextDisplayOffsetX(trackerId, kind),
+        AuraTracker:GetTextDisplayOffsetY(trackerId, kind)
+    )
 end
 
 ---Ensures a host above the fill for fixed stack-boundary separators.
@@ -153,8 +134,9 @@ end
 ---@param bar StatusBar
 ---@param background Texture
 ---@param border Frame
----@param timeText FontString|nil  When set (preview), show/hide directly; live binds via ApplyValueText.
-function Chrome.ApplyBarChrome(trackerId, bar, background, border, timeText)
+---@param durationText FontString|nil  Preview duration; live binds via ApplyValueText.
+---@param stacksText FontString|nil  Preview stacks; live binds via ApplyValueText.
+function Chrome.ApplyBarChrome(trackerId, bar, background, border, durationText, stacksText)
     local fill = AuraTracker:GetFillColor(trackerId)
     local vertical = AuraTracker:GetVertical(trackerId)
     -- Texture first, then color, so tint applies to whatever fill is selected.
@@ -185,12 +167,20 @@ function Chrome.ApplyBarChrome(trackerId, bar, background, border, timeText)
         border:Hide()
     end
 
-    if timeText then
-        Chrome.ApplyTimeTextAppearance(trackerId, timeText)
-        if AuraTracker:GetShowTime(trackerId) then
-            timeText:Show()
+    if durationText then
+        Chrome.ApplyTextDisplayAppearance(trackerId, Schema.TEXT_DURATION, durationText)
+        if AuraTracker:IsTextDisplayEnabled(trackerId, Schema.TEXT_DURATION) then
+            durationText:Show()
         else
-            timeText:Hide()
+            durationText:Hide()
+        end
+    end
+    if stacksText then
+        Chrome.ApplyTextDisplayAppearance(trackerId, Schema.TEXT_STACKS, stacksText)
+        if AuraTracker:IsTextDisplayEnabled(trackerId, Schema.TEXT_STACKS) then
+            stacksText:Show()
+        else
+            stacksText:Hide()
         end
     end
 end

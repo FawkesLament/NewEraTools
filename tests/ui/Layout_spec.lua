@@ -16,6 +16,14 @@ local function FakeFrame()
         self.height = height
     end
 
+    function frame:Show()
+        self.shown = true
+    end
+
+    function frame:Hide()
+        self.shown = false
+    end
+
     return frame
 end
 
@@ -77,6 +85,28 @@ describe("Layout", function()
             local stack = Layout.Stack(FakeFrame())
             local row = stack:AddRow(0)
             assert.equals(1, row.height)
+            assert.equals(0, stack:GetHeight())
+        end)
+
+        it("applies one relayout for a batched edit", function()
+            local stack = Layout.Stack(FakeFrame(), { spacing = 10 })
+            local first = FakeFrame()
+            local second = FakeFrame()
+            stack:BeginUpdate()
+            stack:Add(first, 20)
+            stack:Add(second, 20)
+            assert.equals(0, stack:GetHeight())
+            stack:EndUpdate()
+            assert.equals(0, stack:GetOffset(first))
+            assert.equals(30, stack:GetOffset(second))
+            assert.equals(50, stack:GetHeight())
+            assert.is_true(first.shown)
+
+            stack:BeginUpdate()
+            stack:Clear()
+            assert.equals(50, stack:GetHeight())
+            assert.is_true(first.shown)
+            stack:EndUpdate()
             assert.equals(0, stack:GetHeight())
         end)
 
