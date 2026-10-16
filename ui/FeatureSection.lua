@@ -23,6 +23,7 @@ ns.FeatureSection = FeatureSection
 
 ---@class FeatureSection: Frame
 ---@field content Frame  Parent for feature-specific widgets; dimmed and non-interactive when disabled.
+---@field titleLabel FontString  Header title; callers may anchor a marker beside it.
 ---@field isFeatureSection boolean
 ---@field SetEnabled fun(self: FeatureSection, enabled: boolean)
 ---@field IsEnabled fun(self: FeatureSection): boolean
@@ -115,6 +116,7 @@ function FeatureSection.Create(stack, options)
     local title = Widgets.CreateLabel(header, Fonts.BODY, options.title)
     title:SetJustifyH("LEFT")
     title:SetPoint("LEFT", header, "LEFT")
+    section.titleLabel = title
     if options.tooltip then
         -- FontStrings can't take mouse; a matching hit frame carries the tooltip.
         local hit = CreateFrame("Frame", nil, header)

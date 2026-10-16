@@ -31,6 +31,7 @@ local GAME_API = {
     "C_PlayerInfo",
     "C_SpecializationInfo",
     "C_Spell",
+    "C_Secrets",
     "C_StringUtil",
     "C_Timer",
     "InCinematic",
@@ -65,13 +66,18 @@ local GAME_API = {
     "GetRaidTargetIndex",
     "SendChatMessage",
     "UnitAffectingCombat",
+    "UnitCanAssist",
     "UnitClass",
     "UnitClassBase",
+    "UnitExists",
     "UnitGroupRolesAssigned",
     "UnitGUID",
     "UnitIsGroupAssistant",
     "UnitIsGroupLeader",
     "UnitName",
+    "issecret",
+    "issecretvalue",
+    "issecure",
 }
 
 local function Concat(...)
@@ -87,7 +93,9 @@ end
 files["api"] = { read_globals = Concat(GAME_API, WIDGET_API), globals = { "_G", "SlashCmdList" } }
 files["ui"] = { read_globals = WIDGET_API }
 files["modules/**/*UI.lua"] = { read_globals = Concat(WIDGET_API, { "LibStub" }) }
-files["modules/combat/aura_tracker/AuraTrackerMedia.lua"] = { read_globals = { "LibStub" } }
+files["modules/**/ui/**/*.lua"] = { read_globals = Concat(WIDGET_API, { "LibStub" }) }
+files["modules/combat/aura_tracker/Media.lua"] = { read_globals = { "LibStub" } }
+files["modules/combat/aura_tracker/Profile.lua"] = { read_globals = { "debugprofilestop" } }
 files["tests"] = { std = "+busted" }
 files["tests/ui"] = { std = "+busted", globals = { "CreateFrame" } }
 files["tests/run.lua"] = { globals = { "assert", "describe", "it", "before_each", "after_each" } }

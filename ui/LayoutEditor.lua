@@ -4,6 +4,7 @@ local Util = ns.Util
 local Assets = ns.Assets
 local Combat = ns.Api.Combat
 local FloatingWindow = ns.FloatingWindow
+local LayoutCoordinateInspector = ns.LayoutCoordinateInspector
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
@@ -24,6 +25,7 @@ ns.LayoutEditor = LayoutEditor
 ---@field isEnabled fun(): boolean  Feature toggle; disabled elements are skipped.
 ---@field getPosition fun(): LayoutPosition
 ---@field setPosition fun(position: LayoutPosition)
+---@field getDefaultPosition fun(): LayoutPosition  Factory default anchor; used by Reset Position.
 ---@field onEditBegin fun()  Show a preview and prepare for dragging.
 ---@field onEditEnd fun()  Restore normal visibility and mouse behavior.
 
@@ -40,6 +42,8 @@ local refreshing = false
 local overlays = {}
 ---@type table<string, string>
 local savedStrata = {}
+---@type string|nil
+local selectedId = nil
 local dimmer = nil
 local doneBar = nil
 local combatListening = false
@@ -101,6 +105,7 @@ function LayoutEditor.Register(def)
     assert(type(def.isEnabled) == "function", "Layout element isEnabled required")
     assert(type(def.getPosition) == "function", "Layout element getPosition required")
     assert(type(def.setPosition) == "function", "Layout element setPosition required")
+    assert(type(def.getDefaultPosition) == "function", "Layout element getDefaultPosition required")
     assert(type(def.onEditBegin) == "function", "Layout element onEditBegin required")
     assert(type(def.onEditEnd) == "function", "Layout element onEditEnd required")
     registry[def.id] = def
@@ -111,6 +116,47 @@ function LayoutEditor.Unregister(id)
     registry[id] = nil
 end
 
+---@param overlay Frame
+local function ApplyOverlayBorder(overlay)
+    local selected = overlay.elementId ~= nil and overlay.elementId == selectedId
+    local color = selected and Colors.LAYOUT_EDIT_OUTLINE_SELECTED or Colors.LAYOUT_EDIT_OUTLINE
+    local edgeSize = selected and Sizes.LAYOUT_EDIT_OUTLINE_EDGE_SELECTED or Sizes.LAYOUT_EDIT_OUTLINE_EDGE
+    overlay:SetBackdrop({
+        edgeFile = Assets.Textures.WHITE,
+        edgeSize = edgeSize,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 },
+    })
+    overlay:SetBackdropColor(0, 0, 0, 0)
+    overlay:SetBackdropBorderColor(Widgets.UnpackColor(color))
+end
+
+local function ClearSelection()
+    local previousId = selectedId
+    selectedId = nil
+    if previousId and overlays[previousId] then
+        ApplyOverlayBorder(overlays[previousId])
+    end
+    LayoutCoordinateInspector.Hide()
+end
+
+---Clears the selected element and hides the coordinate inspector without leaving edit mode.
+function LayoutEditor.Deselect()
+    ClearSelection()
+end
+
+---@param def LayoutElementDef
+local function SelectElement(def)
+    local previousId = selectedId
+    selectedId = def.id
+    if previousId and previousId ~= selectedId and overlays[previousId] then
+        ApplyOverlayBorder(overlays[previousId])
+    end
+    if overlays[def.id] then
+        ApplyOverlayBorder(overlays[def.id])
+    end
+    LayoutCoordinateInspector.Show(def)
+end
+
 local function DestroyOverlay(id)
     local overlay = overlays[id]
     if not overlay then
@@ -118,6 +164,9 @@ local function DestroyOverlay(id)
     end
     overlay:SetScript("OnDragStart", nil)
     overlay:SetScript("OnDragStop", nil)
+    overlay:SetScript("OnMouseUp", nil)
+    overlay:SetScript("OnEnter", nil)
+    overlay:SetScript("OnLeave", nil)
     overlay:Hide()
     overlay:SetParent(nil)
     overlays[id] = nil
@@ -203,14 +252,9 @@ local function EnsureOverlay(def)
     overlay:SetFrameStrata(EDIT_STRATA)
     overlay:SetFrameLevel(def.frame:GetFrameLevel() + 50)
     overlay:EnableMouse(true)
-    overlay:RegisterForDrag("LeftButton")
-    overlay:SetBackdrop({
-        edgeFile = Assets.Textures.WHITE,
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 },
-    })
-    overlay:SetBackdropColor(0, 0, 0, 0)
-    overlay:SetBackdropBorderColor(Widgets.UnpackColor(Colors.LAYOUT_EDIT_OUTLINE))
+    overlay:RegisterForDrag("RightButton")
+    overlay.elementId = def.id
+    ApplyOverlayBorder(overlay)
 
     local label = Widgets.CreateLabel(overlay, Fonts.SMALL_MUTED, def.label)
     label:SetPoint("BOTTOMLEFT", overlay, "TOPLEFT", 0, Spacing.TINY)
@@ -232,10 +276,32 @@ local function EnsureOverlay(def)
             LayoutEditor.End()
             return
         end
-        local position = LayoutEditor.ReadPosition(def.frame)
+        -- StartMoving leaves arbitrary anchors; normalize so inspector X/Y share CENTER/CENTER space.
+        local position = FloatingWindow.NormalizePosition(def.frame)
         def.setPosition(position)
-        -- Re-apply as a clean UIParent anchor; StartMoving can leave mixed relative anchors.
-        LayoutEditor.ApplyPosition(def.frame, def.getPosition())
+        if selectedId == def.id then
+            LayoutCoordinateInspector.RefreshCoordinates()
+        end
+    end)
+    overlay:SetScript("OnMouseUp", function(_, button)
+        if button ~= "LeftButton" then
+            return
+        end
+        if Combat.IsLockedDown() then
+            LayoutEditor.End()
+            return
+        end
+        SelectElement(def)
+    end)
+    -- Below the widget so it does not cover the name label above the outline.
+    Widgets.AttachTooltip(overlay, "ANCHOR_BOTTOM", function(tooltip)
+        tooltip:AddLine(L.LAYOUT_EDIT_TOOLTIP_LEFT)
+        tooltip:AddLine(L.LAYOUT_EDIT_TOOLTIP_RIGHT)
+        -- First AddLine uses the header font; match body size without changing face/color.
+        local line1 = _G[tooltip:GetName() .. "TextLeft1"]
+        if line1 then
+            line1:SetFontObject(GameTooltipText)
+        end
     end)
 
     overlays[def.id] = overlay
@@ -264,6 +330,7 @@ local function AttachElement(def)
     overlay:SetParent(def.frame)
     overlay:SetAllPoints(def.frame)
     ApplyLabelScale(overlay, def.frame)
+    ApplyOverlayBorder(overlay)
     overlay:Show()
 end
 
@@ -271,6 +338,9 @@ end
 local function DetachElement(def)
     if def.frame.StopMovingOrSizing then
         def.frame:StopMovingOrSizing()
+    end
+    if selectedId == def.id then
+        ClearSelection()
     end
     DestroyOverlay(def.id)
     local strata = savedStrata[def.id]
@@ -288,6 +358,7 @@ local function RaiseEditChrome()
     for _, def in ipairs(activeElements) do
         def.frame:Raise()
     end
+    LayoutCoordinateInspector.Raise()
     if doneBar and doneBar:IsShown() then
         doneBar:Raise()
     end
@@ -409,6 +480,7 @@ function LayoutEditor.Refresh()
     if #desired == 0 then
         sessionGlobal = false
         activeElements = nil
+        ClearSelection()
         RestoreMainPanel()
         if dimmer then
             dimmer:Hide()
@@ -432,6 +504,7 @@ function LayoutEditor.End()
     local elements = activeElements
     activeElements = nil
     sessionGlobal = false
+    ClearSelection()
 
     for _, def in ipairs(elements) do
         if def.frame.StopMovingOrSizing then

@@ -33,6 +33,14 @@ local function FakeFrame(parent)
         self.height = height
     end
 
+    function frame:Show()
+        self.shown = true
+    end
+
+    function frame:Hide()
+        self.shown = false
+    end
+
     function frame:SetSize(width, height)
         self.width = width
         self.height = height

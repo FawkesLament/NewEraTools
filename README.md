@@ -13,7 +13,7 @@ A World of Warcraft (retail) toolbox addon.
 
 ## Usage
 
-Type `/ne2s` or click the minimap button to open the panel.
+Type `/nets` or click the minimap button to open the panel.
 
 ## Development
 

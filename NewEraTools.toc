@@ -1,6 +1,6 @@
 ## Interface: 120100
 ## Title: NewEraTools
-## Notes: A toolbox addon. Type /ne2s to open the menu.
+## Notes: A toolbox addon. Type /nets to open the menu.
 ## Author: R.D.
 ## Version: 0.6.0
 ## IconTexture: Interface\AddOns\NewEraTools\media\icons\mini_logo

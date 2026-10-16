@@ -22,7 +22,9 @@ local Refresh
 ---Locks only the draw button when access/pool/sending blocks a draw; other controls stay usable.
 ---@param eligibleCount integer
 local function SyncControls(eligibleCount)
-    ui.stepper:SetValue(RaidLottery:GetCount(), 1, RaidLottery:GetMaxCount(eligibleCount))
+    ui.stepper:SetValue(RaidLottery:GetCount())
+    -- + stops at the eligible pool. The stored count can still sit above that while the roster loads.
+    ui.stepper:SetIncreaseLimit(RaidLottery:GetMaxCount(eligibleCount))
     local reason = not RaidLottery:IsSending() and RaidLottery:GetBlockedReason(eligibleCount)
     ui.drawButton:SetEnabled(not RaidLottery:IsSending() and not reason)
     ui.blockedReason:SetText(reason or "")
@@ -155,8 +157,9 @@ local function BuildCountRow(row)
     local countCell, summaryCell = Layout.SplitRow(row, Spacing.MEDIUM)
 
     local countLabel = Widgets.CreateLabel(countCell, Fonts.BODY, L.RAID_LOTTERY_COUNT_LABEL)
-    local stepper = Widgets.CreateStepper(countCell, function(delta)
-        RaidLottery:SetCount(RaidLottery:GetCount() + delta)
+    -- A large pool makes GetMaxCount return the module maximum, which sizes the box.
+    local stepper = Widgets.CreateNumberStepper(countCell, 1, RaidLottery:GetMaxCount(1000), 1, function(value)
+        RaidLottery:SetCount(value)
         Refresh()
     end)
     ui.stepper = stepper

@@ -44,8 +44,8 @@ Assets.Templates = {
 
 Assets.Glyphs = {
     CLOSE = "×",
-    -- ASCII, since not every locale font has the Unicode minus sign.
-    DECREASE = "-",
+    -- Em dash, so the stepper's minus reads at the same weight as +.
+    DECREASE = "–",
     INCREASE = "+",
     -- Panel title-bar collapse / expand (same ASCII glyphs as the steppers).
     COLLAPSE = "―",
@@ -81,6 +81,7 @@ Assets.Colors = {
     DIVIDER = { r = 0.180, g = 0.196, b = 0.231, a = 1 },
     -- Subtle outline / label for layout edit mode previews.
     LAYOUT_EDIT_OUTLINE = { r = 0.310, g = 0.765, b = 0.710, a = 0.55 },
+    LAYOUT_EDIT_OUTLINE_SELECTED = { r = 0.310, g = 0.765, b = 0.710, a = 1 },
     LAYOUT_EDIT_LABEL = { r = 0.310, g = 0.765, b = 0.710, a = 0.9 },
     -- Full-screen veil behind editable elements (one static texture; no per-frame work).
     LAYOUT_EDIT_DIMMER = { r = 0, g = 0, b = 0, a = 0.55 },
@@ -93,6 +94,8 @@ Assets.Icons = {
     QUESTION_MARK = "Interface\\Icons\\INV_Misc_QuestionMark",
     -- Minimap player arrow (points up); rotate with SetRotation for path tips.
     PATH_ARROW = "Interface\\Minimap\\MinimapArrow",
+    -- Neutral clock (auction-house atlas). Not a warning mark.
+    CLOCK = "auctionhouse-icon-clock",
     -- Raid ready-check marks (AddonCheck status column).
     READY_CHECK_READY = "Interface\\RaidFrame\\ReadyCheck-Ready",
     READY_CHECK_NOT_READY = "Interface\\RaidFrame\\ReadyCheck-NotReady",
@@ -124,6 +127,8 @@ Assets.Fonts = {
     -- Same size as LINK; bright red for destructive text actions.
     LINK_DANGER = FONT_PREFIX .. "LinkDanger",
     GLYPH = FONT_PREFIX .. "Glyph",
+    -- Larger +/- on stepper buttons; body text stays at 12.
+    STEPPER = FONT_PREFIX .. "Stepper",
     -- Outlined Friz digits for map/marker overlays (Latin digits only; not for CJK text).
     OVERLAY_DIGIT = FONT_PREFIX .. "OverlayDigit",
 }
@@ -151,6 +156,7 @@ Assets.FontStyles = {
     [Assets.Fonts.LINK] = { size = 12, color = Assets.Colors.ACCENT },
     [Assets.Fonts.LINK_DANGER] = { size = 12, color = Assets.Colors.ERROR },
     [Assets.Fonts.GLYPH] = { size = 18, color = Assets.Colors.TEXT_MUTED },
+    [Assets.Fonts.STEPPER] = { size = 18, color = Assets.Colors.TEXT },
     [Assets.Fonts.OVERLAY_DIGIT] = {
         path = "Fonts\\FRIZQT__.TTF",
         size = 22,
@@ -181,7 +187,7 @@ Assets.Sizes = {
     SLIDER_TRACK = 2,
     SLIDER_THUMB_WIDTH = 8,
     SLIDER_THUMB_HEIGHT = 14,
-    -- Fits the widest value label ("150%") so the slider doesn't shift as the text changes.
+    -- Fits the widest scale readout ("150%") so the header slider doesn't shift as it changes.
     SLIDER_VALUE_WIDTH = 36,
     NAV_ROW_HEIGHT = 28,
     NAV_GROUP_HEIGHT = 24,
@@ -204,9 +210,12 @@ Assets.Sizes = {
     LAYOUT_EDIT_DONE_HEIGHT = 36,
     LAYOUT_EDIT_DONE_MIN_WIDTH = 120,
     LAYOUT_EDIT_DONE_TEXT_PADDING = 36,
+    -- Compact coordinate inspector while repositioning floating UI.
+    LAYOUT_INSPECTOR_WIDTH = 260,
+    LAYOUT_INSPECTOR_OFFSET_DIGITS = 5,
+    LAYOUT_EDIT_OUTLINE_EDGE = 1,
+    LAYOUT_EDIT_OUTLINE_EDGE_SELECTED = 2,
     SEGMENT_TEXT_PADDING = 16,
-    -- Fits two digits so the stepper doesn't shift as the value changes.
-    STEPPER_VALUE_WIDTH = 28,
     EXPAND_ARROW = 10,
     EXPAND_ARROW_THICKNESS = 2,
     -- Drawn caret on dropdown triggers (same line technique as EXPAND_ARROW).

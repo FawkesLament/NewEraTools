@@ -24,7 +24,7 @@ local AddEntry
 local function ReadManifest(path, entries)
     local source = Fs.ReadFile(path):gsub("<!%-%-.-%-%->", "")
     local directory = DirectoryOf(path)
-    for tag, file in source:gmatch("<(%a+)%s+file%s*=%s*\"([^\"]+)\"") do
+    for tag, file in source:gmatch('<(%a+)%s+file%s*=%s*"([^"]+)"') do
         if tag == "Script" or tag == "Include" then
             AddEntry(directory .. Normalize(file), path, entries)
         end
@@ -68,12 +68,14 @@ local function IsSkipped(path)
     if path == "ui/Assets.lua" or path == "ui/Position.lua" or path == "ui/Color.lua" then
         return false
     end
-    return path == "Main.lua" or path:find("^ui/") ~= nil or path:find("UI%.lua$") ~= nil
+    -- Top-level ui/, feature-local ui/ directories, and legacy *UI.lua names.
+    return path == "Main.lua" or path:find("^ui/") ~= nil or path:find("/ui/") ~= nil or path:find("UI%.lua$") ~= nil
 end
 
 -- Orchestration api files that only call other ns.Api.* helpers: load the real source so
 -- protocol/transport behavior is tested against fakes for AddonMessage, Group, Player, etc.
 local REAL_API_FILES = {
+    Aura = true,
     MessageProtocolComm = true,
 }
 

@@ -1,7 +1,6 @@
 local _, ns = ...
 local L = ns.L
 local Assets = ns.Assets
-local FeatureSection = ns.FeatureSection
 local Layout = ns.Layout
 local Widgets = ns.Widgets
 
@@ -15,7 +14,11 @@ local CombatLog = ns.Modules.Get("CombatLog")
 ---@param content Frame
 ---@return number
 local function BuildContent(content)
-    local body = Layout.Stack(content, { spacing = Spacing.SMALL })
+    local body = Layout.Stack(content, {
+        paddingX = Spacing.SMALL,
+        paddingY = Spacing.SMALL,
+        spacing = Spacing.SMALL,
+    })
 
     local locationsRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
 
@@ -51,30 +54,21 @@ end
 ---@param container Frame
 ---@return number
 local function Build(container)
-    local stack = Layout.Stack(container, {
-        paddingX = Spacing.SMALL,
-        paddingY = Spacing.SMALL,
-    })
-
-    local section = FeatureSection.Create(stack, {
-        title = L.COMBAT_LOG_ENABLED,
-        tooltip = L.COMBAT_LOG_HINT,
-        enabled = CombatLog:IsEnabled(),
-        onEnabledChanged = function(enabled)
-            CombatLog:SetEnabled(enabled)
-        end,
-    })
-
-    section:SetContentHeight(BuildContent(section.content))
-    section:RefreshContentInteractive()
-
-    return stack:GetHeight()
+    local height = BuildContent(container)
+    container:RefreshContentInteractive()
+    return height
 end
 
 function CombatLog:OnEnable()
     ns.MainPanel:RegisterSection({
         title = L.COMBAT_LOG_TITLE,
+        headerTitle = L.COMBAT_LOG_FEATURE,
         group = ns.PanelGroups.COMBAT,
+        tooltip = L.COMBAT_LOG_HINT,
+        enabled = CombatLog:IsEnabled(),
+        onEnabledChanged = function(enabled)
+            CombatLog:SetEnabled(enabled)
+        end,
         build = Build,
     })
     self:StartMonitoring()

@@ -3,7 +3,6 @@ local L = ns.L
 local Assets = ns.Assets
 local CalloutMessage = ns.CalloutMessage
 local Combat = ns.Api.Combat
-local FeatureSection = ns.FeatureSection
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
 local Util = ns.Util
@@ -76,6 +75,9 @@ function RegisterCalloutLayoutElement(frame)
         setPosition = function(position)
             TheLostExplorers:SetCalloutPosition(position)
         end,
+        getDefaultPosition = function()
+            return { point = "CENTER", relativePoint = "CENTER", x = 0, y = 160 }
+        end,
         onEditBegin = function()
             layoutEditing = true
             local win = calloutWindow or CreateCalloutWindow()
@@ -140,7 +142,11 @@ end
 ---@param content Frame
 ---@return number
 local function BuildContent(content)
-    local body = Layout.Stack(content, { spacing = Spacing.SMALL })
+    local body = Layout.Stack(content, {
+        paddingX = Spacing.SMALL,
+        paddingY = Spacing.SMALL,
+        spacing = Spacing.SMALL,
+    })
 
     local orderHeader = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local orderLabel = Widgets.CreateLabel(orderHeader, Fonts.BODY, L.THE_LOST_EXPLORERS_FEED_ORDER)
@@ -157,7 +163,7 @@ local function BuildContent(content)
             local dropdown = orderDropdowns[slot]
             dropdown:SetItems(BuildFeedOrderItems(slot))
             dropdown:SetSelected(TheLostExplorers:GetFeedOrderSlot(slot) or FEED_ORDER_NONE)
-            -- Re-apply so later slots stay locked when FeatureSection re-enables the tree.
+            -- Re-apply so later slots stay locked when the page re-enables the tree.
             dropdown:SetEnabled(TheLostExplorers:IsEnabled())
         end
         if resolvedLabel then
@@ -225,29 +231,20 @@ end
 ---@param container Frame
 ---@return number
 local function Build(container)
-    local stack = Layout.Stack(container, {
-        paddingX = Spacing.SMALL,
-        paddingY = Spacing.SMALL,
-    })
-
-    local section = FeatureSection.Create(stack, {
-        title = L.THE_LOST_EXPLORERS_FEED_FISH_ENABLED,
-        enabled = TheLostExplorers:IsEnabled(),
-        onEnabledChanged = function(enabled)
-            TheLostExplorers:SetEnabled(enabled)
-        end,
-    })
-
-    section:SetContentHeight(BuildContent(section.content))
-    section:RefreshContentInteractive()
-
-    return stack:GetHeight()
+    local height = BuildContent(container)
+    container:RefreshContentInteractive()
+    return height
 end
 
 function TheLostExplorers:OnEnable()
     ns.MainPanel:RegisterSection({
         title = L.THE_LOST_EXPLORERS_TITLE,
+        headerTitle = L.THE_LOST_EXPLORERS_FEED_FISH,
         group = ns.PanelGroups.VENOMOUS_ABYSS,
+        enabled = TheLostExplorers:IsEnabled(),
+        onEnabledChanged = function(enabled)
+            TheLostExplorers:SetEnabled(enabled)
+        end,
         build = Build,
     })
     self:ListenForFeedFish()

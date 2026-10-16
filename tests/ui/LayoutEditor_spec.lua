@@ -105,7 +105,9 @@ local function FakeFrame(parent)
         self.mouseEnabled = enabled == true
     end
 
-    function frame:RegisterForDrag() end
+    function frame:RegisterForDrag(button)
+        self.dragButton = button
+    end
 
     function frame:SetScript(name, handler)
         self.scripts[name] = handler
@@ -115,7 +117,9 @@ local function FakeFrame(parent)
 
     function frame:SetBackdropColor() end
 
-    function frame:SetBackdropBorderColor() end
+    function frame:SetBackdropBorderColor(r, g, b, a)
+        self.borderColor = { r = r, g = g, b = b, a = a }
+    end
 
     function frame:Show()
         self.shown = true
@@ -139,9 +143,15 @@ local function FakeFrame(parent)
         self.moving = false
     end
 
-    function frame:SetText() end
+    function frame:SetText(text)
+        self.text = text
+    end
 
     function frame:GetTextWidth()
+        return 40
+    end
+
+    function frame:GetStringWidth()
         return 40
     end
 
@@ -169,6 +179,34 @@ local function FakeFrame(parent)
         return scale
     end
 
+    function frame:GetLeft()
+        return self.left
+    end
+
+    function frame:GetBottom()
+        return self.bottom
+    end
+
+    function frame:GetCenter()
+        if self.centerX and self.centerY then
+            return self.centerX, self.centerY
+        end
+        if self.left and self.bottom then
+            return self.left + (self.width or 0) / 2, self.bottom + (self.height or 0) / 2
+        end
+        local p = self.points[1]
+        if not p then
+            return nil
+        end
+        -- Enough for CENTER/CENTER UIParent anchors in these specs.
+        if p.point == "CENTER" and p.relativePoint == "CENTER" and p.relativeTo then
+            local parentWidth = p.relativeTo.width or 0
+            local parentHeight = p.relativeTo.height or 0
+            return parentWidth / 2 + p.x, parentHeight / 2 + p.y
+        end
+        return p.x, p.y
+    end
+
     if parent and parent.children then
         table.insert(parent.children, frame)
     end
@@ -180,6 +218,7 @@ describe("LayoutEditor", function()
     local LayoutEditor
     local MainPanel
     local Combat
+    local Inspector
     local printed
     local originalCreateFrame
     local UIParent
@@ -188,6 +227,13 @@ describe("LayoutEditor", function()
         printed = {}
         originalCreateFrame = CreateFrame
         UIParent = FakeFrame()
+        UIParent.width = 1000
+        UIParent.height = 800
+        UIParent.left = 0
+        UIParent.bottom = 0
+        function UIParent:GetCenter()
+            return self.width / 2, self.height / 2
+        end
         _G.UIParent = UIParent
 
         CreateFrame = function(_, name, parent)
@@ -216,14 +262,43 @@ describe("LayoutEditor", function()
             end,
         }
 
+        Inspector = {
+            shown = false,
+            selected = nil,
+            refreshCount = 0,
+            hideCount = 0,
+        }
+        function Inspector.Show(def)
+            Inspector.shown = true
+            Inspector.selected = def
+        end
+        function Inspector.Hide()
+            Inspector.shown = false
+            Inspector.selected = nil
+            Inspector.hideCount = Inspector.hideCount + 1
+        end
+        function Inspector.IsShown()
+            return Inspector.shown
+        end
+        function Inspector.GetSelectedId()
+            return Inspector.selected and Inspector.selected.id or nil
+        end
+        function Inspector.RefreshCoordinates()
+            Inspector.refreshCount = Inspector.refreshCount + 1
+        end
+        function Inspector.Raise() end
+
         local ns = {
             ADDON_NAME = Loader.ADDON_NAME,
             Api = { Combat = Combat },
             MainPanel = MainPanel,
+            LayoutCoordinateInspector = Inspector,
             L = {
                 LAYOUT_EDIT_DONE = "Done",
                 LAYOUT_EDIT_IN_COMBAT = "in combat",
                 LAYOUT_EDIT_NONE = "none",
+                LAYOUT_EDIT_TOOLTIP_LEFT = "left",
+                LAYOUT_EDIT_TOOLTIP_RIGHT = "right",
             },
             Util = {
                 Print = function(message)
@@ -235,11 +310,12 @@ describe("LayoutEditor", function()
                     BG = { r = 0, g = 0, b = 0, a = 1 },
                     ACCENT = { r = 0, g = 1, b = 0, a = 1 },
                     LAYOUT_EDIT_OUTLINE = { r = 0, g = 1, b = 0, a = 0.5 },
+                    LAYOUT_EDIT_OUTLINE_SELECTED = { r = 0, g = 1, b = 0, a = 1 },
                     LAYOUT_EDIT_LABEL = { r = 0, g = 1, b = 0, a = 1 },
                     LAYOUT_EDIT_DIMMER = { r = 0, g = 0, b = 0, a = 0.55 },
                 },
                 Fonts = { SMALL_MUTED = "Font", LAYOUT_EDIT_DONE = "LayoutEditDone" },
-                Spacing = { TINY = 2, LARGE = 12, XLARGE = 16, MEDIUM = 8 },
+                Spacing = { TINY = 2, SMALL = 4, LARGE = 12, XLARGE = 16, MEDIUM = 8 },
                 Sizes = {
                     CONTROL_HEIGHT = 22,
                     BUTTON_TEXT_PADDING = 20,
@@ -248,6 +324,8 @@ describe("LayoutEditor", function()
                     LAYOUT_EDIT_DONE_HEIGHT = 36,
                     LAYOUT_EDIT_DONE_MIN_WIDTH = 120,
                     LAYOUT_EDIT_DONE_TEXT_PADDING = 36,
+                    LAYOUT_EDIT_OUTLINE_EDGE = 1,
+                    LAYOUT_EDIT_OUTLINE_EDGE_SELECTED = 2,
                 },
                 Textures = { WHITE = "white" },
                 Templates = { BACKDROP = "BackdropTemplate" },
@@ -291,6 +369,11 @@ describe("LayoutEditor", function()
             CreateSurface = function(parent)
                 return FakeFrame(parent)
             end,
+            AttachTooltip = function(frame, _, populate)
+                frame.tooltipPopulate = populate
+                frame:SetScript("OnEnter", function() end)
+                frame:SetScript("OnLeave", function() end)
+            end,
         }
 
         assert(loadfile("ui/Position.lua"))(Loader.ADDON_NAME, ns)
@@ -325,6 +408,9 @@ describe("LayoutEditor", function()
                 position.relativePoint = next.relativePoint
                 position.x = next.x
                 position.y = next.y
+            end,
+            getDefaultPosition = function()
+                return { point = "CENTER", relativePoint = "CENTER", x = 0, y = 0 }
             end,
             onEditBegin = function()
                 calls.begin = calls.begin + 1
@@ -440,22 +526,67 @@ describe("LayoutEditor", function()
         assert.equals(1, calls.ending)
     end)
 
-    it("persists position after a drag stop", function()
-        local frame, position = RegisterElement("CombatTimer:1")
+    it("registers right-button drag on edit overlays", function()
+        local frame = RegisterElement("CombatTimer:1")
         assert.is_true(LayoutEditor.BeginGlobal())
+        local overlay = frame.children[#frame.children]
+        assert.equals("RightButton", overlay.dragButton)
+        LayoutEditor.End()
+    end)
+
+    it("persists a CENTER/CENTER position after a right-drag stop", function()
+        local frame, position = RegisterElement("CombatTimer:1")
+        frame.width = 100
+        frame.height = 40
+        assert.is_true(LayoutEditor.BeginGlobal())
+        -- StartMoving typically leaves a non-center anchor; drag-stop must normalize.
         frame.points[1] = {
             point = "TOPLEFT",
             relativeTo = UIParent,
             relativePoint = "BOTTOMLEFT",
-            x = 12,
-            y = 34,
+            x = 450,
+            y = 420,
         }
+        frame.centerX = 500
+        frame.centerY = 400
         -- Overlay is the last child created on the element frame during BeginSession.
         local overlay = frame.children[#frame.children]
         overlay.scripts.OnDragStop()
-        assert.equals("TOPLEFT", position.point)
-        assert.equals(12, position.x)
-        assert.equals(34, position.y)
+        assert.equals("CENTER", position.point)
+        assert.equals("CENTER", position.relativePoint)
+        assert.equals(0, position.x)
+        assert.equals(0, position.y)
+        LayoutEditor.End()
+    end)
+
+    it("opens the coordinate inspector on left-click and clears it when editing ends", function()
+        local frame = RegisterElement("CombatTimer:1")
+        assert.is_true(LayoutEditor.BeginGlobal())
+        local overlay = frame.children[#frame.children]
+        overlay.scripts.OnMouseUp(overlay, "LeftButton")
+        assert.is_true(Inspector.shown)
+        assert.equals("CombatTimer:1", Inspector.selected.id)
+        local hideBefore = Inspector.hideCount
+        LayoutEditor.End()
+        assert.is_false(Inspector.shown)
+        assert.is_true(Inspector.hideCount > hideBefore)
+    end)
+
+    it("refreshes inspector coordinates after dragging the selected element", function()
+        local frame = RegisterElement("CombatTimer:1")
+        assert.is_true(LayoutEditor.BeginGlobal())
+        local overlay = frame.children[#frame.children]
+        overlay.scripts.OnMouseUp(overlay, "LeftButton")
+        local before = Inspector.refreshCount
+        frame.points[1] = {
+            point = "CENTER",
+            relativeTo = UIParent,
+            relativePoint = "CENTER",
+            x = 5,
+            y = 6,
+        }
+        overlay.scripts.OnDragStop()
+        assert.equals(before + 1, Inspector.refreshCount)
         LayoutEditor.End()
     end)
 
@@ -500,6 +631,9 @@ describe("LayoutEditor", function()
                 return position
             end,
             setPosition = function() end,
+            getDefaultPosition = function()
+                return { point = "CENTER", relativePoint = "CENTER", x = 0, y = 0 }
+            end,
             onEditBegin = function() end,
             onEditEnd = function() end,
         })
