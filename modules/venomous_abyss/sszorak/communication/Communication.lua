@@ -26,20 +26,18 @@ Sszorak.WARNING_DURATION_TOLERANCE = WARNING_DURATION_TOLERANCE
 Sszorak.WARNING_TIME_WINDOW = WARNING_TIME_WINDOW
 Sszorak.WARNING_ANCHOR_GROUP_SIZE = WARNING_ANCHOR_GROUP_SIZE
 
----Payload passed to ShowResolvedCallout for HUD text and optional map path.
----A non-nil value always has `hudMessage`. Pass `nil` when nothing should be shown
----(e.g. jailbreak has not identified a marker yet) — an empty table is not used for that.
----`hudMessage` is not always derivable from `targetEdge` (normal keeps RL text; exit uses locale).
----`targetEdge` is the map path tip (`nil` = no arrow); the marker on that edge is from the assignment.
----@class SszorakCalloutResolve
----@field hudMessage any  Opaque / formatted text for SetFormattedText; required.
----@field targetEdge integer|nil  Arena edge for the path overlay (e.g. exit or jailbreak destination).
+---Map edge to highlight and the HUD text to show. Nil means show nothing; an empty table is not used for that.
+---A mode may omit `hudMessage` when `targetEdge` is set. The host then builds the warning for that edge.
+---A returned `hudMessage` is kept, including when `targetEdge` is also set.
+---@class CystGuidance
+---@field targetEdge? number  Arena edge. Nil means no map path.
+---@field hudMessage? any  Opaque / formatted text. Nil with a `targetEdge` asks the host to fill it in.
 
 ---@class SszorakCalloutMode
 ---@field id string
 ---@field GetEdgeMacroBody fun(self: SszorakCalloutMode, edge: integer, assignment: table<integer, WorldMarker>): string
 ---@field Listen fun(self: SszorakCalloutMode): fun()  Subscribe mode listeners; returns unsubscribe.
----@field OnViscousCystWarning fun(self: SszorakCalloutMode, anchorIndex: integer): SszorakCalloutResolve|nil
+---@field OnViscousCystWarning fun(self: SszorakCalloutMode, anchorIndex: integer): CystGuidance|nil
 ---@field BeginCapture fun(self: SszorakCalloutMode)|nil  Encounter / map-test started.
 ---@field EndCapture fun(self: SszorakCalloutMode)|nil  Encounter / map-test ended.
 ---@field ClearMessages fun(self: SszorakCalloutMode)|nil  Dots returned home mid-timeline.
@@ -54,7 +52,7 @@ local calloutExpireTime = nil
 local displayedCalloutAppendTimer = false
 local calloutToken = 0
 -- Session-only: last resolve payload (for map overlays); cleared with the HUD callout.
----@type SszorakCalloutResolve|nil
+---@type CystGuidance|nil
 local displayedResolve = nil
 -- True after OnEnable has asked the active mode to listen (mode switches rebind while true).
 local calloutModeListening = false
@@ -282,14 +280,14 @@ end
 
 ---Shows a resolved callout until `duration` elapses or the callout is cleared.
 ---No-ops when `resolve` is nil (nothing to show). Non-nil resolves require `hudMessage`.
----@param resolve SszorakCalloutResolve|nil
+---@param resolve CystGuidance|nil
 ---@param duration number
 ---@param appendTimer boolean|nil
 function Sszorak.ShowResolvedCallout(resolve, duration, appendTimer)
     if resolve == nil then
         return
     end
-    local message = assert(resolve.hudMessage, "SszorakCalloutResolve requires hudMessage")
+    local message = assert(resolve.hudMessage, "CystGuidance requires hudMessage")
     calloutToken = calloutToken + 1
     local token = calloutToken
     displayedResolve = resolve
@@ -307,6 +305,96 @@ function Sszorak.ShowResolvedCallout(resolve, duration, appendTimer)
         displayedCalloutAppendTimer = false
         NotifyCalloutChanged()
     end)
+end
+
+local SIDE_TEXT = {
+    same = L.SSZORAK_SIDE_SAME,
+    opposite = L.SSZORAK_SIDE_OPPOSITE,
+}
+
+local DEPTH_TEXT = {
+    near = L.SSZORAK_DEPTH_NEAR,
+    mid = L.SSZORAK_DEPTH_MID,
+    far = L.SSZORAK_DEPTH_FAR,
+}
+
+---Same-side or opposite-side phrase for `edge`, flipped when the player is on the exit side of the room.
+---@param edge integer
+---@param fromEntranceSide boolean
+---@return string|nil
+local function RelativePosition(edge, fromEntranceSide)
+    local absoluteDepth = Sszorak:GetEdgeEntranceDepth(edge)
+    local edgeGroup = Sszorak:GetEdgeGroup(edge)
+    if not absoluteDepth or not edgeGroup then
+        return nil
+    end
+    local depth = absoluteDepth
+    if absoluteDepth ~= "mid" and not fromEntranceSide then
+        depth = absoluteDepth == "near" and "far" or "near"
+    end
+    local sideText = edgeGroup == Sszorak:GetPlayerGroup() and SIDE_TEXT.same or SIDE_TEXT.opposite
+    local depthText = DEPTH_TEXT[depth]
+    if not sideText or not depthText then
+        return nil
+    end
+    return string.format(L.SSZORAK_RELATIVE_POSITION, sideText, depthText)
+end
+
+---GUI warning for `edge`: the exit phrase, or that edge's raid-target icon plus its position relative to the player.
+---`fromEntranceSide` is ignored for the exit. Other edges return nil when they have no marker.
+---@param edge integer
+---@param fromEntranceSide boolean?
+---@return string?
+local function HudMessageForEdge(edge, fromEntranceSide)
+    if type(edge) ~= "number" then
+        return nil
+    end
+    if edge == Sszorak.EXIT_EDGE then
+        return L.SSZORAK_EXIT
+    end
+    local marker = Sszorak:GetEdgeMarker(edge)
+    local raidTarget = marker and Sszorak.MARKER_RAID_TARGET[marker]
+    if not raidTarget then
+        return nil
+    end
+    local relative = RelativePosition(edge, fromEntranceSide == true)
+    if not relative then
+        return nil
+    end
+    return Chat.ReplaceIconAndGroupExpressions("{rt" .. raidTarget .. "}") .. " " .. relative
+end
+
+---Slots 1 and 2 of each warning group are the entrance side. Slot 3, and the exit slot, are the exit side.
+---@param anchorIndex integer
+---@return boolean
+local function EntranceSideAnchor(anchorIndex)
+    local slot = ((anchorIndex - 1) % WARNING_ANCHOR_GROUP_SIZE) + 1
+    return slot <= 2
+end
+
+---Fills `hudMessage` when a mode returns only `targetEdge`. A provided `hudMessage` is kept with its edge.
+---Returns nil when the host cannot build a message, including an edge with no marker.
+---@param guidance CystGuidance|nil
+---@param anchorIndex integer
+---@return CystGuidance|nil
+local function BackfillGuidance(guidance, anchorIndex)
+    if type(guidance) ~= "table" then
+        return nil
+    end
+    if guidance.hudMessage ~= nil then
+        return guidance
+    end
+    if type(guidance.targetEdge) ~= "number" then
+        return nil
+    end
+    local hudMessage = HudMessageForEdge(guidance.targetEdge, EntranceSideAnchor(anchorIndex))
+    if hudMessage == nil then
+        return nil
+    end
+    return {
+        hudMessage = hudMessage,
+        targetEdge = guidance.targetEdge,
+    }
 end
 
 ---Closest warning anchor within the time window, or nil.
@@ -341,8 +429,8 @@ local function OnEncounterWarning(warningInfo)
     if not anchorIndex then
         return
     end
-    local resolve = Sszorak:GetActiveCalloutMode():OnViscousCystWarning(anchorIndex)
-    Sszorak.ShowResolvedCallout(resolve, CALLOUT_DURATION_ENCOUNTER, true)
+    local backfilled = BackfillGuidance(Sszorak:GetActiveCalloutMode():OnViscousCystWarning(anchorIndex), anchorIndex)
+    Sszorak.ShowResolvedCallout(backfilled, CALLOUT_DURATION_ENCOUNTER, true)
 end
 
 ---Shared by every callout mode: ENCOUNTER_WARNING filter + anchor match, then show the mode's resolve.
@@ -358,7 +446,7 @@ function Sszorak:GetDisplayedCallout()
 end
 
 ---Last resolve payload (for map overlays), or nil when nothing is shown.
----@return SszorakCalloutResolve|nil
+---@return CystGuidance|nil
 function Sszorak:GetDisplayedCalloutResolve()
     return displayedResolve
 end
@@ -395,7 +483,7 @@ end
 
 ---Resolve saved for `anchorIndex` (1–4) at the last matching move to center, or nil.
 ---@param anchorIndex integer
----@return SszorakCalloutResolve|nil
+---@return CystGuidance|nil
 function Sszorak:GetSavedEdgeResolve(anchorIndex)
     return savedEdgeResolves[anchorIndex]
 end
@@ -425,7 +513,7 @@ function Sszorak:ClearCalloutMessages()
 end
 
 ---HUD text for chat. Icon tags are expanded; a missing resolve becomes the empty placeholder.
----@param resolve SszorakCalloutResolve|nil
+---@param resolve CystGuidance|nil
 ---@return string
 local function DecodedHudText(resolve)
     local text = resolve and resolve.hudMessage
@@ -467,11 +555,13 @@ function Sszorak:NotifyCalloutStationChanged(fromStation, toStation)
     if not capturing then
         return
     end
-    local first = mode:OnViscousCystWarning(firstIndex)
-    local second = mode:OnViscousCystWarning(secondIndex)
+    local first = BackfillGuidance(mode:OnViscousCystWarning(firstIndex), firstIndex)
+    local second = BackfillGuidance(mode:OnViscousCystWarning(secondIndex), secondIndex)
     savedEdgeResolves[firstIndex] = first
     savedEdgeResolves[secondIndex] = second
-    Util.Print(string.format(L.SSZORAK_HUD_PAIR, firstIndex, DecodedHudText(first), secondIndex, DecodedHudText(second)))
+    Util.Print(
+        string.format(L.SSZORAK_HUD_PAIR, firstIndex, DecodedHudText(first), secondIndex, DecodedHudText(second))
+    )
     if not Sszorak:IsInEncounter() then
         Sszorak.ShowResolvedCallout(first, CALLOUT_DURATION_TEST, true)
     end

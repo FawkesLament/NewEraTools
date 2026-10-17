@@ -41,7 +41,7 @@ end
 
 ---Expands raid-target icon tags in a saved raid-leader message for HUD display.
 ---@param savedMessage any
----@return SszorakCalloutResolve
+---@return CystGuidance
 local function FormatRaidLeaderCallout(savedMessage)
     return {
         hudMessage = Chat.ReplaceIconAndGroupExpressions(savedMessage),
@@ -66,7 +66,7 @@ function Normal:GetEdgeMacroBody(edge, assignment)
 end
 
 ---@param anchorIndex integer
----@return SszorakCalloutResolve|nil
+---@return CystGuidance|nil
 function Normal:OnViscousCystWarning(anchorIndex)
     local messageIndex = ((anchorIndex - 1) % WARNING_ANCHOR_GROUP_SIZE) + 1
     -- Last slot in each anchor group is always the exit drop (no raid-leader message).
