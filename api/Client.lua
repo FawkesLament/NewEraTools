@@ -7,6 +7,12 @@ ns.Api.Client = Client
 ---@type fun(): string
 Client.GetLocale = GetLocale
 
+---This addon's `## Version` from the TOC.
+---@return string|nil
+function Client.GetAddonVersion()
+    return C_AddOns.GetAddOnMetadata(addonName, "Version")
+end
+
 ---Calls `callback` once this addon's files and saved variables have loaded.
 ---@param callback fun()
 function Client.OnAddonLoaded(callback)

@@ -7,11 +7,10 @@ local Sszorak = ns.Modules.Get("Sszorak")
 
 -- Raid leader callouts saved per home phase; text may be secret values and is stored opaque.
 local RAID_LEADER_MESSAGE_LIMIT = 3
--- Anchors are processed in groups of this size; the index within the group selects a saved message.
-local WARNING_ANCHOR_GROUP_SIZE = 4
+-- Index within each warning-anchor group selects a saved message. Owned by Communication.lua.
+local WARNING_ANCHOR_GROUP_SIZE = Sszorak.WARNING_ANCHOR_GROUP_SIZE
 
 Sszorak.RAID_LEADER_MESSAGE_LIMIT = RAID_LEADER_MESSAGE_LIMIT
-Sszorak.WARNING_ANCHOR_GROUP_SIZE = WARNING_ANCHOR_GROUP_SIZE
 
 -- Session-only: first raid leader messages since the last time dots returned home (opaque values).
 local raidLeaderMessages = {}

@@ -2,15 +2,11 @@ local _, ns = ...
 local L = ns.L
 local Util = ns.Util
 local Assets = ns.Assets
-local Chat = ns.Api.Chat
 local Combat = ns.Api.Combat
 local AddonCheckPanel = ns.AddonCheckPanel
-local FloatingWindow = ns.FloatingWindow
 local Layout = ns.Layout
-local CalloutMessage = ns.CalloutMessage
 local LayoutEditor = ns.LayoutEditor
 local Widgets = ns.Widgets
-local SszorakMapUI = ns.SszorakMapUI
 
 local Colors = Assets.Colors
 local Fonts = Assets.Fonts
@@ -18,12 +14,11 @@ local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 
 local Sszorak = ns.Modules.Get("Sszorak")
+local Map = ns.SszorakMap
+local Window = ns.SszorakWindow
+local Callout = ns.SszorakCalloutUI
 
-local LAYOUT_ID_MAP = "Sszorak:map"
-local LAYOUT_ID_CALLOUT = "Sszorak:callout"
-
--- Distance between opposite edges of the drawn octagon, in the map window and in the panel's editor.
-local ARENA_SIZE = 220
+-- Distance between opposite edges of the octagon in the panel's marker editor.
 local EDITOR_ARENA_SIZE = 160
 
 local PICKER_COLUMNS = 5
@@ -33,16 +28,9 @@ local PICKER_CELL_STEP = PICKER_CELL_SIZE + Spacing.TINY
 -- Markers on other walls stay clickable (picking one swaps), but recede so the free ones stand out.
 local PICKER_IN_USE_ALPHA = 0.45
 local HINT_ROW_HEIGHT = 16
--- Large enough for the callout font plus a short raid-marker message.
-local CALLOUT_WIDTH = 420
-local CALLOUT_HEIGHT = 72
 
-local MARKER_NAMES = SszorakMapUI.MARKER_NAMES
+local MARKER_NAMES = Map.MARKER_NAMES
 
-local window
-local windowArena
-local windowCloseButton
-local calloutWindow
 local picker
 local resetButton
 local createMacrosRow
@@ -55,44 +43,10 @@ local roleLabel
 local roleStatus
 ---@type AddonCheckPanel|nil
 local addonCheckPanel
-local EnsureAddonCheckPanel
-local ShowAddonCheckPanel
-local HideAddonCheckPanel
--- Session-only: temporary map outside the boss fight. Independent of the saved mapEnabled setting.
-local previewVisible = false
-local mapLayoutRegistered = false
-local calloutLayoutRegistered = false
--- Counts concurrent layout-edit attachments (map + callout share Edit Position).
-local layoutEditCount = 0
--- True when role-driven macro click binding couldn't apply during combat lockdown.
-local macroClicksDirty = false
-local CreateArenaWindow
-local CreateCalloutWindow
-local UpdateWindow
-local UpdateResetButton
-local UpdateCalloutWindow
-local SetRoleStatus
-local UpdateRoleStatus
-local UpdateCommanderControls
-local UpdateWindowMacroClicks
-local RegisterMapLayoutElement
-local RegisterCalloutLayoutElement
 
-local function IsLayoutEditing()
-    return layoutEditCount > 0
-end
-
-local function BeginLayoutEdit()
-    layoutEditCount = layoutEditCount + 1
-end
-
-local function EndLayoutEdit()
-    layoutEditCount = math.max(0, layoutEditCount - 1)
-    if layoutEditCount == 0 then
-        UpdateWindow()
-        UpdateCalloutWindow()
-    end
-end
+-- The default map has the entrance on the right; rotating 180° is the right-side view.
+local GROUP_LEFT = "LEFT"
+local GROUP_RIGHT = "RIGHT"
 
 local function HidePicker()
     if picker then
@@ -180,241 +134,7 @@ local function ShowPicker(anchor, edge)
     picker:Show()
 end
 
-local function ApplyWindowScale(scale)
-    if window then
-        window:SetWindowScale(scale)
-    end
-end
-
-local function IsWindowWanted()
-    if Sszorak:IsInEncounter() then
-        return Sszorak:IsMapEnabled()
-    end
-    return previewVisible
-end
-
-function UpdateWindow()
-    if IsLayoutEditing() then
-        return
-    end
-    local wanted = IsWindowWanted()
-    if not wanted and not window then
-        return
-    end
-    window = window or CreateArenaWindow()
-    if windowCloseButton then
-        -- Encounter mode keeps the map up for the whole fight; only preview can be dismissed.
-        windowCloseButton:SetShown(not Sszorak:IsInEncounter())
-    end
-    if wanted then
-        if not window:IsShown() then
-            window:Show()
-        end
-        window:Raise()
-    elseif window:IsShown() then
-        window:Hide()
-    end
-end
-
-local function SetPreviewVisible(visible)
-    -- Preview is only meaningful outside the fight; encounter visibility uses mapEnabled alone.
-    if Sszorak:IsInEncounter() then
-        return
-    end
-    visible = visible == true
-    if previewVisible == visible then
-        return
-    end
-    previewVisible = visible
-    if visible then
-        Sszorak:StartMapTest()
-    else
-        Sszorak:EndMapTest()
-    end
-    UpdateWindow()
-end
-
----Opens the floating map test. Closing is via the window's X; never toggles to "End Test".
-local function StartPreview()
-    if Sszorak:IsInEncounter() then
-        return
-    end
-    if previewVisible then
-        -- Already open: raise the existing window instead of starting a second test.
-        UpdateWindow()
-        return
-    end
-    SetPreviewVisible(true)
-end
-
-local function WindowEdgeMacroName(edge)
-    return Sszorak:GetEdgeMacroName(edge)
-end
-
-function RegisterMapLayoutElement(frame)
-    if mapLayoutRegistered then
-        return
-    end
-    mapLayoutRegistered = true
-    LayoutEditor.Register({
-        id = LAYOUT_ID_MAP,
-        label = L.SSZORAK_TITLE,
-        frame = frame,
-        -- Boss-specific: excluded from the global layout editor.
-        global = false,
-        isEnabled = function()
-            return Sszorak:IsMapEnabled()
-        end,
-        getPosition = function()
-            return Sszorak:GetMapPosition()
-        end,
-        setPosition = function(position)
-            Sszorak:SetMapPosition(position)
-        end,
-        getDefaultPosition = function()
-            return { point = "CENTER", relativePoint = "CENTER", x = 0, y = 0 }
-        end,
-        onEditBegin = function()
-            BeginLayoutEdit()
-            local win = window or CreateArenaWindow()
-            if windowCloseButton then
-                windowCloseButton:Hide()
-            end
-            win:Show()
-            win:Raise()
-        end,
-        onEditEnd = function()
-            EndLayoutEdit()
-        end,
-    })
-end
-
-function RegisterCalloutLayoutElement(frame)
-    if calloutLayoutRegistered then
-        return
-    end
-    calloutLayoutRegistered = true
-    LayoutEditor.Register({
-        id = LAYOUT_ID_CALLOUT,
-        label = L.SSZORAK_CALLOUT_TITLE,
-        frame = frame,
-        global = false,
-        isEnabled = function()
-            return Sszorak:IsMapEnabled()
-        end,
-        getPosition = function()
-            return Sszorak:GetCalloutPosition()
-        end,
-        setPosition = function(position)
-            Sszorak:SetCalloutPosition(position)
-        end,
-        getDefaultPosition = function()
-            return { point = "CENTER", relativePoint = "CENTER", x = 0, y = 160 }
-        end,
-        onEditBegin = function()
-            BeginLayoutEdit()
-            local win = calloutWindow or CreateCalloutWindow()
-            win:ShowPreview(
-                Chat.ReplaceIconAndGroupExpressions(L.SSZORAK_CALLOUT_PREVIEW),
-                Sszorak.CALLOUT_DURATION_ENCOUNTER,
-                true
-            )
-        end,
-        onEditEnd = function()
-            EndLayoutEdit()
-        end,
-    })
-end
-
-function CreateArenaWindow()
-    -- Header overlays the empty space above the octagon so the drag strip and close button fit there.
-    local frame = FloatingWindow.Create({
-        scale = Sszorak:GetMapScale(),
-        position = Sszorak:GetMapPosition(),
-        -- Positioning uses LayoutEditor (module-local Edit Position); markers run callout macros.
-        draggable = false,
-        onPositionChanged = function(position)
-            Sszorak:SetMapPosition(position)
-        end,
-        closable = true,
-        onClose = function()
-            SetPreviewVisible(false)
-        end,
-    })
-    windowCloseButton = frame.closeButton
-
-    local stack = Layout.Stack(frame, {
-        paddingX = Spacing.LARGE,
-        paddingY = Spacing.MEDIUM,
-    })
-    local body = stack:AddRow(SszorakMapUI.GetArenaRowHeight(ARENA_SIZE))
-
-    local arena = SszorakMapUI.CreateArenaRow(body, {
-        size = ARENA_SIZE,
-        showPositions = true,
-        followsRotation = true,
-        edgeMarkerMacroName = WindowEdgeMacroName,
-    })
-    SszorakMapUI.LayoutArenaRow(arena)
-    windowArena = arena
-    UpdateWindowMacroClicks()
-
-    frame:SetSize(arena.width + 2 * Spacing.LARGE, stack:GetHeight())
-    RegisterMapLayoutElement(frame)
-    return frame
-end
-
-function CreateCalloutWindow()
-    -- Plain host: text only (no backdrop). LayoutEditor moves this frame in Edit Position.
-    local frame = CalloutMessage.Create({
-        name = ns.ADDON_NAME .. "SszorakCallout",
-        width = CALLOUT_WIDTH,
-        height = CALLOUT_HEIGHT,
-        wrap = L.SSZORAK_CALLOUT_WRAP,
-    })
-    LayoutEditor.ApplyPosition(frame, Sszorak:GetCalloutPosition())
-    RegisterCalloutLayoutElement(frame)
-    return frame
-end
-
-function UpdateCalloutWindow()
-    if IsLayoutEditing() then
-        return
-    end
-    calloutWindow = calloutWindow or CreateCalloutWindow()
-    local text = Sszorak:GetDisplayedCallout()
-    if text == nil then
-        calloutWindow:Clear()
-        return
-    end
-    local remaining = Sszorak:GetCalloutRemainingSeconds()
-    if remaining == nil then
-        calloutWindow:Clear()
-        return
-    end
-    -- Remaining seconds come from callout logic so edits mid-callout do not reset the countdown.
-    calloutWindow:SetMessage(text, remaining, Sszorak:GetCalloutAppendTimer())
-end
-
-local function BeginEditPosition()
-    if Combat.IsInCombat() or Combat.IsLockedDown() then
-        Util.Print(L.LAYOUT_EDIT_IN_COMBAT)
-        return
-    end
-    if not Sszorak:IsMapEnabled() then
-        Util.Print(L.LAYOUT_EDIT_NONE)
-        return
-    end
-    window = window or CreateArenaWindow()
-    calloutWindow = calloutWindow or CreateCalloutWindow()
-    LayoutEditor.BeginLocal({ LAYOUT_ID_MAP, LAYOUT_ID_CALLOUT })
-end
-
--- The default map has the entrance on the right; rotating 180° is the right-side view.
-local GROUP_LEFT = "LEFT"
-local GROUP_RIGHT = "RIGHT"
-
-function UpdateResetButton()
+local function UpdateResetButton()
     if not resetButton then
         return
     end
@@ -433,11 +153,10 @@ local function SetCommanderRowShown(row, shown)
     mapSection:SetContentHeight(mapBody:GetHeight())
 end
 
-
 ---Macro status beside the create button: green when macros exist, red on create failure, empty otherwise.
 ---@param message string|nil
 ---@param color table|nil  Assets color; defaults to ERROR when message is set.
-function SetRoleStatus(message, color)
+local function SetRoleStatus(message, color)
     if not roleStatus then
         return
     end
@@ -445,30 +164,6 @@ function SetRoleStatus(message, color)
     if message and message ~= "" then
         roleStatus:SetTextColor(Widgets.UnpackColor(color or Colors.ERROR))
     end
-end
-
----Restores lasting macro status for the raid leader (drops transient create errors).
-function UpdateRoleStatus()
-    if not Sszorak:IsRaidCommander() then
-        SetRoleStatus(nil)
-        return
-    end
-    if Sszorak:HasAllEdgeMacros() then
-        SetRoleStatus(L.SSZORAK_MACROS_READY, Colors.SUCCESS)
-    else
-        SetRoleStatus(L.SSZORAK_MACROS_NEEDED, Colors.WARNING)
-    end
-end
-
----Members' map clicks must not fire callout macros; commanders keep them bound.
----Commander pull/test also arms one-shot highlight tracking on the floating map.
-function UpdateWindowMacroClicks()
-    if SszorakMapUI.SetEdgeMacroClicksEnabled(Sszorak:IsRaidCommander()) then
-        macroClicksDirty = false
-    else
-        macroClicksDirty = true
-    end
-    SszorakMapUI.SetEdgeClickTrackingArmed(Sszorak:IsRaidCommander() and Sszorak:IsMapAnimating())
 end
 
 ---Wraps `text` in the accent color escape so it stands out inside a muted FontString.
@@ -483,6 +178,49 @@ local function AccentText(text)
         math.floor(b * 255 + 0.5),
         text
     )
+end
+
+local function HideAddonCheckPanel()
+    if addonCheckPanel then
+        addonCheckPanel:Hide()
+    end
+end
+
+---Restores lasting macro status for the raid leader (drops transient create errors).
+local function UpdateRoleStatus()
+    if not Sszorak:IsRaidCommander() then
+        SetRoleStatus(nil)
+        return
+    end
+    if Sszorak:HasAllEdgeMacros() then
+        SetRoleStatus(L.SSZORAK_MACROS_READY, Colors.SUCCESS)
+    else
+        SetRoleStatus(L.SSZORAK_MACROS_NEEDED, Colors.WARNING)
+    end
+end
+
+---Keeps role label, commander-only rows, and map macro clicks aligned with raid leadership.
+local function UpdateCommanderControls()
+    local isCommander = Sszorak:IsRaidCommander()
+    if roleLabel then
+        local roleName = isCommander and L.SSZORAK_RAID_ROLE_COMMANDER or L.SSZORAK_RAID_ROLE_MEMBER
+        roleLabel:SetFormattedText(L.SSZORAK_RAID_ROLE_MODE, AccentText(roleName))
+    end
+    SetCommanderRowShown(createMacrosRow, isCommander)
+    SetCommanderRowShown(syncRow, isCommander)
+    if not isCommander then
+        HideAddonCheckPanel()
+    end
+    if createMacrosButton and Sszorak:IsMapEnabled() then
+        createMacrosButton:SetEnabled(isCommander)
+        createMacrosButton:SetAlpha(1)
+    end
+    if addonCheckButton and Sszorak:IsMapEnabled() then
+        addonCheckButton:SetEnabled(isCommander)
+        addonCheckButton:SetAlpha(1)
+    end
+    UpdateRoleStatus()
+    Window.UpdateMacroClicks()
 end
 
 local function SszorakAddonCheckColumns()
@@ -529,7 +267,7 @@ local function SszorakAddonCheckColumns()
     }
 end
 
-function EnsureAddonCheckPanel()
+local function EnsureAddonCheckPanel()
     if addonCheckPanel then
         return addonCheckPanel
     end
@@ -543,41 +281,25 @@ function EnsureAddonCheckPanel()
     return addonCheckPanel
 end
 
-function ShowAddonCheckPanel()
+local function ShowAddonCheckPanel()
     if not Sszorak:IsRaidCommander() then
         return
     end
     EnsureAddonCheckPanel():Show()
 end
 
-function HideAddonCheckPanel()
-    if addonCheckPanel then
-        addonCheckPanel:Hide()
+local function BeginEditPosition()
+    if Combat.IsInCombat() or Combat.IsLockedDown() then
+        Util.Print(L.LAYOUT_EDIT_IN_COMBAT)
+        return
     end
-end
-
----Keeps role label, commander-only rows, and map macro clicks aligned with raid leadership.
-function UpdateCommanderControls()
-    local isCommander = Sszorak:IsRaidCommander()
-    if roleLabel then
-        local roleName = isCommander and L.SSZORAK_RAID_ROLE_COMMANDER or L.SSZORAK_RAID_ROLE_MEMBER
-        roleLabel:SetFormattedText(L.SSZORAK_RAID_ROLE_MODE, AccentText(roleName))
+    if not Sszorak:IsMapEnabled() then
+        Util.Print(L.LAYOUT_EDIT_NONE)
+        return
     end
-    SetCommanderRowShown(createMacrosRow, isCommander)
-    SetCommanderRowShown(syncRow, isCommander)
-    if not isCommander then
-        HideAddonCheckPanel()
-    end
-    if createMacrosButton and Sszorak:IsMapEnabled() then
-        createMacrosButton:SetEnabled(isCommander)
-        createMacrosButton:SetAlpha(1)
-    end
-    if addonCheckButton and Sszorak:IsMapEnabled() then
-        addonCheckButton:SetEnabled(isCommander)
-        addonCheckButton:SetAlpha(1)
-    end
-    UpdateRoleStatus()
-    UpdateWindowMacroClicks()
+    Window.Ensure()
+    Callout.Ensure()
+    LayoutEditor.BeginLocal({ Window.LAYOUT_ID, Callout.LAYOUT_ID })
 end
 
 ---Fills the encounter-map feature body. Returns the content height.
@@ -627,7 +349,7 @@ local function BuildMapContent(content)
             return
         end
         SetRoleStatus(L.SSZORAK_MACROS_READY, Colors.SUCCESS)
-        UpdateWindowMacroClicks()
+        Window.UpdateMacroClicks()
     end, "primary")
     roleStatus = Widgets.CreateLabel(macrosCell, Fonts.SMALL_MUTED)
     roleStatus:SetJustifyH("LEFT")
@@ -647,10 +369,11 @@ local function BuildMapContent(content)
     addonCheckButton:SetPoint("LEFT", addonCheckCell, "LEFT")
 
     local groupRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local groupLabel = Widgets.CreateLabel(groupRow, Fonts.BODY, L.SSZORAK_GROUP_LABEL)
+    local groupCell, modeCell = Layout.SplitRow(groupRow, Spacing.MEDIUM)
+    local groupLabel = Widgets.CreateLabel(groupCell, Fonts.BODY, L.SSZORAK_GROUP_LABEL)
     groupLabel:SetJustifyH("LEFT")
     local groupControl
-    groupControl = Widgets.CreateSegmentedControl(groupRow, {
+    groupControl = Widgets.CreateSegmentedControl(groupCell, {
         { value = GROUP_LEFT, text = L.SSZORAK_GROUP_LEFT },
         { value = GROUP_RIGHT, text = L.SSZORAK_GROUP_RIGHT },
     }, function(group)
@@ -659,19 +382,17 @@ local function BuildMapContent(content)
         end
         Sszorak:SetMapRotated(group == GROUP_RIGHT)
         groupControl:SetSelected(group)
-        if windowArena then
-            SszorakMapUI.ApplyRotation(windowArena)
-        end
+        Window.ApplyRotation()
     end)
     groupControl:SetSelected(Sszorak:IsMapRotated() and GROUP_RIGHT or GROUP_LEFT)
-    Layout.Row(groupRow, { groupLabel, groupControl }, Spacing.LARGE)
+    Layout.Row(groupCell, { groupLabel, groupControl }, Spacing.LARGE)
 
+    -- The right cell stays empty unless jailbreak is registered; that is what hides the toggle.
     if Sszorak.IsCalloutModeAvailable(Sszorak.CALLOUT_MODE_JAILBREAK) then
-        local modeRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-        local modeLabel = Widgets.CreateLabel(modeRow, Fonts.BODY, L.SSZORAK_CALLOUT_MODE)
+        local modeLabel = Widgets.CreateLabel(modeCell, Fonts.BODY, L.SSZORAK_CALLOUT_MODE)
         modeLabel:SetJustifyH("LEFT")
         -- FontStrings can't take mouse; a matching hit frame carries the tooltip.
-        local modeHit = CreateFrame("Frame", nil, modeRow)
+        local modeHit = CreateFrame("Frame", nil, modeCell)
         modeHit:SetPoint("TOPLEFT", modeLabel, "TOPLEFT")
         modeHit:SetPoint("BOTTOMRIGHT", modeLabel, "BOTTOMRIGHT")
         modeHit:EnableMouse(true)
@@ -679,7 +400,7 @@ local function BuildMapContent(content)
             tooltip:SetText(L.SSZORAK_CALLOUT_MODE_TOOLTIP)
         end)
         local modeControl
-        modeControl = Widgets.CreateSegmentedControl(modeRow, {
+        modeControl = Widgets.CreateSegmentedControl(modeCell, {
             { value = Sszorak.CALLOUT_MODE_NORMAL, text = L.SSZORAK_CALLOUT_MODE_NORMAL },
             { value = Sszorak.CALLOUT_MODE_JAILBREAK, text = L.SSZORAK_CALLOUT_MODE_JAILBREAK },
         }, function(modeId)
@@ -690,7 +411,7 @@ local function BuildMapContent(content)
             modeControl:SetSelected(Sszorak:GetCalloutMode())
         end)
         modeControl:SetSelected(Sszorak:GetCalloutMode())
-        Layout.Row(modeRow, { modeLabel, modeControl }, Spacing.LARGE)
+        Layout.Row(modeCell, { modeLabel, modeControl }, Spacing.LARGE)
     end
 
     -- B. Marker Configuration
@@ -705,15 +426,14 @@ local function BuildMapContent(content)
     resetButton:SetPoint("RIGHT", markersHeader, "RIGHT")
     UpdateResetButton()
 
-    local editorRow = body:AddRow(SszorakMapUI.GetArenaRowHeight(EDITOR_ARENA_SIZE))
-    local editorArena =
-        SszorakMapUI.CreateArenaRow(editorRow, { size = EDITOR_ARENA_SIZE, onEdgeMarkerClick = ShowPicker })
+    local editorRow = body:AddRow(Map.GetArenaRowHeight(EDITOR_ARENA_SIZE))
+    local editorArena = Map.CreateArenaRow(editorRow, { size = EDITOR_ARENA_SIZE, onEdgeMarkerClick = ShowPicker })
     local function CenterEditorArena()
         local width = editorRow:GetWidth()
         if width and width > 0 then
             editorArena.inset = math.max(0, (width - editorArena.width) / 2)
         end
-        SszorakMapUI.LayoutArenaRow(editorArena)
+        Map.LayoutArenaRow(editorArena)
     end
     editorRow:SetScript("OnSizeChanged", CenterEditorArena)
     CenterEditorArena()
@@ -758,13 +478,13 @@ local function BuildMapContent(content)
             return
         end
         Sszorak:SetMapScale(rawValue)
-        ApplyWindowScale(Sszorak:GetMapScale())
+        Window.ApplyScale(Sszorak:GetMapScale())
     end)
     Layout.Row(scaleRow, { scaleLabel }, 0)
     scaleSlider:SetPoint("LEFT", scaleLabel, "RIGHT", Spacing.LARGE, 0)
 
     local toolsRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local preview = Widgets.CreateButton(toolsRow, L.SSZORAK_START_TEST, StartPreview)
+    local preview = Widgets.CreateButton(toolsRow, L.SSZORAK_START_TEST, Window.StartPreview)
     local editPosition = Widgets.CreateButton(toolsRow, L.SSZORAK_EDIT_POSITION, BeginEditPosition)
     Layout.Row(toolsRow, { preview, editPosition }, Spacing.MEDIUM)
 
@@ -804,7 +524,7 @@ function Sszorak:OnEnable()
             UpdateResetButton()
             UpdateCommanderControls()
             -- Enabling or disabling never opens or closes a preview; during a fight it shows or hides the map.
-            UpdateWindow()
+            Window.Update()
         end,
         build = Build,
     })
@@ -814,22 +534,18 @@ function Sszorak:OnEnable()
     self:ListenForMacroSync()
     -- Register with the layout editor (local-only) before the map is first shown.
     -- Secure marker buttons must be created out of combat; OnEnable runs before pulls.
-    window = window or CreateArenaWindow()
-    calloutWindow = calloutWindow or CreateCalloutWindow()
+    Window.Ensure()
+    Callout.Ensure()
     -- Window markers are created with macro bindings; strip them for members.
-    UpdateWindowMacroClicks()
-    Combat.OnLeave(function()
-        if macroClicksDirty then
-            UpdateWindowMacroClicks()
-        end
-    end)
+    Window.UpdateMacroClicks()
+    Window.ListenForCombatDeferral()
     ns.Api.Group.OnChanged(function()
         UpdateCommanderControls()
     end)
 end
 
 function Sszorak:OnEdgeMarkersChanged()
-    SszorakMapUI.RefreshEdgeMarkers()
+    Map.RefreshEdgeMarkers()
     if resetButton then
         UpdateResetButton()
     end
@@ -837,30 +553,30 @@ end
 
 function Sszorak:OnEncounterChanged()
     -- Leaving preview behind when the fight starts (or ends) so it never outlives the pull.
-    -- Animation start/stop is handled in the logic file so a pull resets a running preview timer.
-    previewVisible = false
-    UpdateWindow()
-    UpdateCalloutWindow()
+    -- Animation start/stop is handled in Encounter.lua so a pull resets a running preview timer.
+    Window.DismissPreview()
+    Window.Update()
+    Callout.Update()
 end
 
 function Sszorak:OnPositionsChanged()
-    SszorakMapUI.RefreshPositionMarkers()
+    Map.RefreshPositionMarkers()
     -- Each return to the entrance-side home station clears fired-marker highlights for the next cycle.
     if Sszorak:IsAtHomeStation() then
-        SszorakMapUI.ResetEdgeClickHighlights()
+        Map.ResetEdgeClickHighlights()
     end
 end
 
 function Sszorak:OnMapAnimationStarted()
-    UpdateWindowMacroClicks()
+    Window.UpdateMacroClicks()
 end
 
 function Sszorak:OnMapAnimationStopped()
-    SszorakMapUI.SetEdgeClickTrackingArmed(false)
+    Map.SetEdgeClickTrackingArmed(false)
 end
 
 function Sszorak:OnCalloutChanged()
-    UpdateCalloutWindow()
+    Callout.Update()
     local resolve = Sszorak:GetDisplayedCalloutResolve()
-    SszorakMapUI.SetPathArrow(resolve and resolve.targetEdge or nil)
+    Map.SetPathArrow(resolve and resolve.targetEdge or nil)
 end

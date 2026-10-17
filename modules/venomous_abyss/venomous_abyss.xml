@@ -1,12 +1,18 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/ https://raw.githubusercontent.com/Gethe/wow-ui-source/live/Interface/AddOns/Blizzard_SharedXML/UI.xsd">
     <Script file="the_lost_explorers\TheLostExplorers.lua"/>
     <Script file="the_lost_explorers\TheLostExplorersUI.lua"/>
-    <Script file="sszorak\SszorakTimeline.lua"/>
     <Script file="sszorak\Sszorak.lua"/>
-    <Script file="sszorak\SszorakCallout.lua"/>
-    <Script file="sszorak\SszorakCalloutNormal.lua"/>
-    <Script file="sszorak\SszorakCalloutJailbreak.lua"/>
-    <Script file="sszorak\SszorakMacros.lua"/>
-    <Script file="sszorak\SszorakMapUI.lua"/>
-    <Script file="sszorak\SszorakUI.lua"/>
+    <Script file="sszorak\Timeline.lua"/>
+    <Script file="sszorak\Arena.lua"/>
+    <Script file="sszorak\Markers.lua"/>
+    <Script file="sszorak\Settings.lua"/>
+    <Script file="sszorak\Encounter.lua"/>
+    <Script file="sszorak\communication\Communication.lua"/>
+    <Script file="sszorak\communication\Normal.lua"/>
+    <Script file="sszorak\communication\Jailbreak.lua"/>
+    <Script file="sszorak\Macros.lua"/>
+    <Script file="sszorak\ui\Map.lua"/>
+    <Script file="sszorak\ui\Window.lua"/>
+    <Script file="sszorak\ui\Callout.lua"/>
+    <Script file="sszorak\ui\Panel.lua"/>
 </Ui>

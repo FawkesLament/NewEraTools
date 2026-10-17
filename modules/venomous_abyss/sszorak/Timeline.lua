@@ -12,7 +12,7 @@ local STATION_FAR = 3
 
 ---@class SszorakTimelineSchedule
 ---@field positionTimeline SszorakTimelineEntry[]  Starts on home at 0; frozen after the last entry.
----@field warningAnchors number[]  Pull-relative ENCOUNTER_WARNING times (see SszorakCallout).
+---@field warningAnchors number[]  Pull-relative ENCOUNTER_WARNING times (see communication/Communication.lua).
 
 -- Heroic: each warning-anchor group of 4 drives one home→far→home cycle:
 -- 2nd+5.7 → CENTER, that+11.7 → FAR, 4th+5.7 → CENTER, that+46.4 → HOME.

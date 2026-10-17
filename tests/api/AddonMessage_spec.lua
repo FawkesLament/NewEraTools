@@ -1,6 +1,7 @@
+-- Fake contract used by feature specs. Production behavior is AddonMessageProduction_spec.lua.
 local Loader = require("helpers.loader")
 
-describe("AddonMessage", function()
+describe("AddonMessage fake", function()
     local AddonMessage
 
     before_each(function()
@@ -78,6 +79,10 @@ describe("AddonMessage", function()
         assert.is_false(select(1, AddonMessage.Send("ok", string.rep("x", 256), "RAID")))
         assert.equals("InvalidMessage", select(2, AddonMessage.Send("ok", "a\0b", "RAID")))
         assert.equals(0, #AddonMessage.sent)
+
+        assert.is_true(AddonMessage.Send(string.rep("p", 16), "x", "RAID"))
+        assert.is_true(AddonMessage.Send("ok", string.rep("x", 255), "RAID"))
+        assert.equals(2, #AddonMessage.sent)
     end)
 
     it("surfaces transport rejection reasons", function()

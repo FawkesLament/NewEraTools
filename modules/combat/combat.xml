@@ -11,6 +11,7 @@
     <Script file="aura_tracker\ui\ProfileReport.lua"/>
     <Script file="aura_tracker\ui\bar\Chrome.lua"/>
     <Script file="aura_tracker\ui\bar\Preview.lua"/>
+    <Script file="aura_tracker\ui\bar\Appearance.lua"/>
     <Script file="aura_tracker\ui\bar\Bar.lua"/>
     <Script file="aura_tracker\ui\List.lua"/>
     <Script file="aura_tracker\ui\editor\Controls.lua"/>

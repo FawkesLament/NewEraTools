@@ -38,7 +38,7 @@ tests/            Unit tests run outside the game. WoW never loads them.
 2. List the logic file, then its UI files, in `modules/<group>/<group>.xml` (`<snake_name>\<Name>.lua`, then `<Name>UI.lua` or `<snake_name>\ui\...`).
 3. Add strings to `locales/zhCN.lua` (and other locales).
 4. A new game API call goes into an `api/` function, gets a fake in `tests/helpers/fakes/`, and is listed in `.luacheckrc`. New `api/` files are added to `api/api.xml`.
-5. Add tests in `tests/modules/<group>/<snake_name>/<Name>_spec.lua`.
+5. Add tests under tests/modules/<group>/<snake_name>/, grouped by behavior rather than production filename. Small features may use a single <Name>_spec.lua; split complex features into focused specs. Follow the testing rules below.
 
 ## Adding a floating UI element
 
@@ -51,21 +51,23 @@ Positioning is shared; appearance and visibility stay in the module.
 
 ## Code style
 
-- Folders use `lower_snake_case`. Lua files use `PascalCase` and are named after the table they define.
-- 4-space indentation, double quotes, trailing commas in multi-line tables, lines of 120 characters or fewer (`stylua .`).
-- `PascalCase` for functions and module tables, `camelCase` for locals and fields, `UPPER_SNAKE` for constants and locale keys.
-- Library tables (`Util`, `Api.*`) use dot functions. Modules use colon methods (`function Module:Foo()`).
-- File order: `local addonName, ns = ...`, then imports, constants, state, private `local function`s, public API, lifecycle hooks.
-- Public functions and data shapes carry LuaLS annotations (`---@param`, `---@return`, `---@class`).
-- Comments explain why or state a constraint; they don't narrate the code.
+- Follow existing naming and file organization conventions. Use `stylua .` for formatting and respect `.stylua.toml`.
+- Library tables (`Util`, `Api.*`) use dot functions; modules use colon methods.
+- Add LuaLS annotations (`---@param`, `---@return`, `---@class`) for public APIs and non-obvious data shapes.
+- Comments explain intent, constraints, or non-obvious behavior rather than narrating the code.
 
 ## Testing
 
-- Run `luajit tests/run.lua` from the addon folder (any Lua 5.1 interpreter works). Specs use a busted-compatible subset.
-- Tests load the addon through the TOC and its manifests with `api/` swapped for fakes. `ui/`, `*UI.lua` and `Main.lua` are skipped; `ui/Layout.lua` is tested separately with fake frames.
-- Standard Lua functions (e.g. `math.random`) are not wrapped. Stub them in `before_each` and restore them in `after_each`; addon code must look them up at call time, not cache them at load.
-- Meta tests check that the TOC and manifests match the files on disk (nothing missing, unlisted or listed twice) and that every locale key is defined.
-- UI changes need an in-game check: `/reload`, open `/netools`, and try the feature (raid features need a raid).
+- Run `luajit tests/run.lua` from the addon folder (Lua 5.1 compatible). Specs use an in-repo busted-compatible subset. Run the full suite after changes; all tests must pass.
+- Organize specs by observable behavior, not mechanically by production file. Keep each spec focused on one coherent responsibility. Avoid monolithic test files, unnecessary fragmentation, and large shared fixtures. Extract helpers only when genuinely reused; keep setup explicit and local where possible.
+- Test observable contracts, edge cases, and meaningful failure paths rather than implementation details. Assertions must verify actual outcomes, not merely that code executes. Never weaken an assertion or change expected results just to make tests pass.
+- When fixing a bug, first add a regression test that reproduces it and fails against the original implementation, then fix the code. For high-risk logic, consider a small, reversible mutation to verify that tests detect an incorrect implementation.
+- The test loader replaces most `api/` adapters with fakes; `Aura`, `Encounter`, and `MessageProtocolComm` run their production implementations. Feature tests verify logic against fakes, not Blizzard API behavior. Complex production adapters may have separate contract specs with stubbed WoW globals. Never mistake fake-only coverage for production coverage.
+- Keep mocks consistent with documented API contracts without making them unrealistically permissive. Do not derive expected behavior solely from the implementation under test. Secret values, combat restrictions, protected UI, and other client-specific behavior still require in-game validation.
+- Each example must start with isolated state. Use `before_each` for setup and `after_each` for cleanup; restore overridden globals even when assertions fail. Avoid test-order dependencies and hidden fixture defaults. Stub globals such as `math.random` without caching them in production code at load time.
+- The loader skips `ui/`, `*UI.lua`, and `Main.lua`; UI specs may load selected files with frame stubs. Meta tests verify TOC/manifest completeness and locale keys. UI changes also require an in-game check: `/reload`, open `/netools`, and exercise the feature (raid features need a raid).
+- Maintain tests alongside production changes: add or update relevant tests for changed behavior, and remove obsolete tests when features are removed. Preserve existing assertions during test-only restructuring. Do not optimize for test count or coverage percentage.
+- When reporting changes, summarize the behaviors tested, full-suite results, any regression or mutation verification, and remaining limitations requiring in-game validation.
 
 ## WoW constraints
 

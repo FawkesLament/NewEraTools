@@ -76,7 +76,7 @@ local OTHER_GROUP_STYLE = { size = 8, color = Colors.TEXT_MUTED }
 ---@field size number  Distance between opposite edges of the octagon.
 ---@field showPositions boolean|nil  Draws the boss and group positions.
 ---@field onEdgeMarkerClick fun(button: Button, edge: integer)|nil  Makes the marker icons clickable.
----@field edgeMarkerMacroName fun(edge: integer): string|nil  When set, markers are SecureActionButtons that run that macro.
+---@field edgeMarkerMacroName fun(edge: integer): string|nil  SecureActionButton macro name.
 ---@field followsRotation boolean|nil  Turns with the map rotation setting.
 
 ---@class ArenaPathMarker
@@ -118,10 +118,10 @@ local pathArrowTargetEdge = nil
 -- Every drawn arena, so a new marker assignment reaches all of them.
 local canvases = {}
 
-local SszorakMapUI = {
+local Map = {
     MARKER_NAMES = MARKER_NAMES,
 }
-ns.SszorakMapUI = SszorakMapUI
+ns.SszorakMap = Map
 
 ---@return number x, number y  Offset from the canvas center of the arena point (x, y).
 local function ToCanvas(canvas, x, y)
@@ -610,7 +610,7 @@ end
 ---Lines up the gate labels on either side of the octagon, next to their edges: the exit is on the left
 ---unless the arena is rotated.
 ---@param arena ArenaRow
-function SszorakMapUI.LayoutArenaRow(arena)
+function Map.LayoutArenaRow(arena)
     local leftCell, rightCell = arena.exitCell, arena.entranceCell
     local leftLabel, rightLabel = arena.exitLabel, arena.entranceLabel
     if arena.canvas.rotated then
@@ -628,7 +628,7 @@ end
 ---@param row Frame
 ---@param options ArenaCanvasOptions
 ---@return ArenaRow
-function SszorakMapUI.CreateArenaRow(row, options)
+function Map.CreateArenaRow(row, options)
     local exitCell, exitLabel = CreateGateCell(row, Sszorak.EXIT_EDGE)
     local entranceCell, entranceLabel = CreateGateCell(row, Sszorak.ENTRANCE_EDGE)
     -- Equal label widths keep the octagon centered between them.
@@ -653,29 +653,29 @@ end
 ---Height of a row holding an arena, with room for the marker icons outside the top and bottom walls.
 ---@param size number
 ---@return number
-function SszorakMapUI.GetArenaRowHeight(size)
+function Map.GetArenaRowHeight(size)
     return size + 2 * EDGE_MARKER_REACH
 end
 
 ---Turns an arena that follows rotation to match the saved map rotation setting.
 ---@param arena ArenaRow
-function SszorakMapUI.ApplyRotation(arena)
+function Map.ApplyRotation(arena)
     local canvas = arena.canvas
     canvas.rotated = Sszorak:IsMapRotated()
     StyleGroupMarkers(canvas)
     -- Player group follows rotation; rebuild paths from the new "You" dot.
     SyncCanvasPathMarkers(canvas)
     PlaceAll(canvas)
-    SszorakMapUI.LayoutArenaRow(arena)
+    Map.LayoutArenaRow(arena)
 end
 
-function SszorakMapUI.RefreshEdgeMarkers()
+function Map.RefreshEdgeMarkers()
     for _, canvas in ipairs(canvases) do
         RefreshEdgeMarkers(canvas)
     end
 end
 
-function SszorakMapUI.RefreshPositionMarkers()
+function Map.RefreshPositionMarkers()
     for _, canvas in ipairs(canvases) do
         if canvas.bossMarker then
             RefreshPositionMarkers(canvas)
@@ -686,7 +686,7 @@ end
 ---Shows a path line from the player's group ("You") to `targetEdge` with a tip dot, or hides it when nil.
 ---Only canvases with position markers are updated.
 ---@param targetEdge integer|nil
-function SszorakMapUI.SetPathArrow(targetEdge)
+function Map.SetPathArrow(targetEdge)
     pathArrowTargetEdge = targetEdge
     SyncAllPathMarkers()
 end
@@ -695,7 +695,7 @@ end
 ---Editor markers (plain buttons) are left alone. Blocked during combat lockdown.
 ---@param enabled boolean
 ---@return boolean applied
-function SszorakMapUI.SetEdgeMacroClicksEnabled(enabled)
+function Map.SetEdgeMacroClicksEnabled(enabled)
     if Combat.IsLockedDown() then
         return false
     end
@@ -734,19 +734,19 @@ local function ClearEdgeClickHighlights()
 end
 
 ---Clears per-edge "already clicked" flags and icon highlights (safe during combat lockdown).
-function SszorakMapUI.ResetEdgeClickHighlights()
+function Map.ResetEdgeClickHighlights()
     ClearEdgeClickUsedFlags()
     ClearEdgeClickHighlights()
 end
 
 ---Arms one-shot macro clicks for commander pull/test. Unprotected attributes; safe in combat.
 ---@param armed boolean
-function SszorakMapUI.SetEdgeClickTrackingArmed(armed)
+function Map.SetEdgeClickTrackingArmed(armed)
     local clickState = GetEdgeClickState()
     if armed then
         clickState:SetAttribute("armed", true)
     else
         clickState:SetAttribute("armed", nil)
-        SszorakMapUI.ResetEdgeClickHighlights()
+        Map.ResetEdgeClickHighlights()
     end
 end

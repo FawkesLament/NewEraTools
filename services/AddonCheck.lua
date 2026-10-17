@@ -343,10 +343,10 @@ end
 
 MessageProtocol.RegisterHandler(AddonCheck.TOPIC, OnProtocolMessage)
 
----Addon version from the centralized project source (`ns.ADDON_VERSION` / TOC).
----@return string
+---Addon version from the TOC (`## Version`), via `ns.Api.Client`.
+---@return string|nil
 function AddonCheck.GetVersion()
-    return ns.ADDON_VERSION
+    return ns.Api.Client.GetAddonVersion()
 end
 
 ---Registers a feature's configuration provider. `moduleId` must be unique for this load.
@@ -423,7 +423,7 @@ function AddonCheck.Start(options)
     local moduleIds = options and options.moduleIds
     local session = {
         id = nextSessionId,
-        version = ns.ADDON_VERSION,
+        version = AddonCheck.GetVersion(),
         localConfigs = CollectLocalConfigs(moduleIds),
         results = {},
     }

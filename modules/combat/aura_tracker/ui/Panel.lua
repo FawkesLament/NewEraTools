@@ -12,8 +12,6 @@ local Fonts = Assets.Fonts
 local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 
-local PENDING_NOTICE_HEIGHT = 36
-
 local AuraTracker = ns.Modules.Get("AuraTracker")
 
 ---@class AuraTrackerUI
@@ -51,29 +49,22 @@ end
 local function BuildVisibilityContent(content)
     local body = Layout.Stack(content, { spacing = Spacing.TINY })
 
-    local hint = body:AddRow(Sizes.CONTROL_HEIGHT)
-    local hintLabel = Widgets.CreateLabel(hint, Fonts.SMALL_MUTED, L.AURA_TRACKER_VISIBILITY_HINT)
-    hintLabel:SetJustifyH("LEFT")
-    hintLabel:SetWordWrap(false)
-    hintLabel:SetPoint("LEFT", hint, "LEFT")
-    hintLabel:SetPoint("RIGHT", hint, "RIGHT")
-
-    local skyridingRow = body:AddRow(Sizes.CONTROL_HEIGHT)
-    UI.hideSkyridingCheckbox = AddModuleCheckbox(skyridingRow, L.AURA_TRACKER_HIDE_SKYRIDING, function()
+    local hideRow = body:AddRow(Sizes.CONTROL_HEIGHT)
+    local skyridingCell, petBattleCell = Layout.SplitRow(hideRow, Spacing.MEDIUM)
+    UI.hideSkyridingCheckbox = AddModuleCheckbox(skyridingCell, L.AURA_TRACKER_HIDE_SKYRIDING, function()
         return AuraTracker:GetHideDuringSkyriding()
     end, function(checked)
         AuraTracker:SetHideDuringSkyriding(checked)
     end)
-
-    local petBattleRow = body:AddRow(Sizes.CONTROL_HEIGHT)
-    UI.hidePetBattlesCheckbox = AddModuleCheckbox(petBattleRow, L.AURA_TRACKER_HIDE_PET_BATTLES, function()
+    UI.hidePetBattlesCheckbox = AddModuleCheckbox(petBattleCell, L.AURA_TRACKER_HIDE_PET_BATTLES, function()
         return AuraTracker:GetHideDuringPetBattles()
     end, function(checked)
         AuraTracker:SetHideDuringPetBattles(checked)
     end)
 
     local cinematicRow = body:AddRow(Sizes.CONTROL_HEIGHT)
-    UI.hideCinematicsCheckbox = AddModuleCheckbox(cinematicRow, L.AURA_TRACKER_HIDE_CINEMATICS, function()
+    local cinematicCell = Layout.SplitRow(cinematicRow, Spacing.MEDIUM)
+    UI.hideCinematicsCheckbox = AddModuleCheckbox(cinematicCell, L.AURA_TRACKER_HIDE_CINEMATICS, function()
         return AuraTracker:GetHideDuringCinematics()
     end, function(checked)
         AuraTracker:SetHideDuringCinematics(checked)
@@ -162,47 +153,6 @@ function UI.PromptDeleteTracker(trackerId)
     window:Raise()
 end
 
----@param parent Frame
----@return Frame
-local function BuildPendingNotice(parent)
-    local frame = CreateFrame("Frame", nil, parent)
-    local icon = frame:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(16, 16)
-    icon:SetPoint("LEFT", Spacing.TINY, 0)
-    icon:SetAtlas(Assets.Icons.CLOCK)
-    local muted = Assets.Colors.TEXT_MUTED
-    icon:SetVertexColor(muted.r, muted.g, muted.b, 1)
-
-    local title = Widgets.CreateLabel(frame, Fonts.BODY, L.AURA_TRACKER_PENDING_TITLE)
-    title:SetJustifyH("LEFT")
-    title:SetWordWrap(false)
-    title:SetPoint("TOPLEFT", icon, "TOPRIGHT", Spacing.SMALL, 1)
-    title:SetPoint("RIGHT", frame, "RIGHT", -Spacing.SMALL, 0)
-
-    local hint = Widgets.CreateLabel(frame, Fonts.SMALL_MUTED, L.AURA_TRACKER_PENDING_HINT)
-    hint:SetJustifyH("LEFT")
-    hint:SetWordWrap(true)
-    hint:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -Spacing.TINY)
-    hint:SetPoint("RIGHT", frame, "RIGHT", -Spacing.SMALL, 0)
-    UI.pendingIcon = icon
-    UI.pendingTitle = title
-    UI.pendingHint = hint
-    return frame
-end
-
----Shows or hides the pending copy. The row height stays put, so the scroll offset does not move.
-function UI.RefreshPendingStatus()
-    if UI.pendingIcon then
-        local showPending = ns.AuraTrackerBarUI.HasPendingAppearance()
-        UI.pendingIcon:SetShown(showPending)
-        UI.pendingTitle:SetShown(showPending)
-        UI.pendingHint:SetShown(showPending)
-    end
-    if UI.RefreshPendingClocks then
-        UI.RefreshPendingClocks()
-    end
-end
-
 ---@param content Frame
 ---@return number
 local function BuildContent(content)
@@ -211,10 +161,6 @@ local function BuildContent(content)
         paddingY = Spacing.SMALL,
         spacing = Spacing.MEDIUM,
     })
-
-    -- Fixed slot: clearing the message hides the icon and text without changing page height.
-    UI.pendingNoticeHeight = PENDING_NOTICE_HEIGHT
-    UI.pendingNotice = UI.contentBody:Add(BuildPendingNotice(content), PENDING_NOTICE_HEIGHT)
 
     UI.visibilitySection = CollapsibleSection.Create(UI.contentBody, {
         title = L.AURA_TRACKER_SECTION_VISIBILITY,
@@ -240,7 +186,6 @@ local function BuildContent(content)
     UI.RefreshTrackerList()
     UI.RefreshVisibilityControls()
     UI.RefreshSelectedEditor()
-    UI.RefreshPendingStatus()
 
     return UI.contentBody:GetHeight()
 end
@@ -268,10 +213,16 @@ local function Build(containerFrame)
     UI.hideCinematicsCheckbox = nil
     UI.editorHost = nil
     UI.editorStack = nil
-    UI.pendingNotice = nil
-    UI.pendingIcon = nil
-    UI.pendingTitle = nil
-    UI.pendingHint = nil
+    if UI.editorHeader then
+        UI.editorHeader:Hide()
+        UI.editorHeader:SetParent(nil)
+    end
+    UI.editorHeader = nil
+    UI.editorHeaderPlaceholder = nil
+    UI.editorHeaderBackground = nil
+    UI.editorSpellIcon = nil
+    UI.editorNameLabel = nil
+    UI.editorSubtitleLabel = nil
     UI.pendingClocks = {}
     UI.listReady = false
     UI.trackerRows = nil
@@ -295,7 +246,19 @@ local function Build(containerFrame)
     -- Fires when this page is shown, including each time the main panel opens on it.
     containerFrame:HookScript("OnShow", function()
         UI.SelectFirstTrackerEnabledForCurrentPlayer()
+        UI.SyncEditorHeaderPosition()
     end)
+    local section = containerFrame:GetParent()
+    if section then
+        section:HookScript("OnShow", function()
+            UI.SyncEditorHeaderPosition()
+        end)
+        section:HookScript("OnHide", function()
+            if UI.editorHeader then
+                UI.editorHeader:Hide()
+            end
+        end)
+    end
     return height
 end
 
@@ -307,6 +270,7 @@ function AuraTracker:OnEnable()
         enabled = AuraTracker:IsEnabled(),
         onEnabledChanged = function(enabled)
             AuraTracker:SetEnabled(enabled)
+            UI.SyncEditorHeaderPosition()
         end,
         build = Build,
     })
@@ -338,7 +302,7 @@ function AuraTracker:OnTrackerChanged(trackerId)
     end
     AuraTrackerBarUI.Update(trackerId)
     if UI.listHost then
-        UI.RefreshPendingStatus()
+        UI.RefreshPendingClocks()
         if trackerId == nil then
             UI.SyncTrackerList()
             if UI.RefreshActivationScopeControl then
@@ -370,6 +334,6 @@ end
 function AuraTracker:OnAppearanceChanged(trackerId)
     AuraTrackerBarUI.ApplyAppearance(trackerId)
     if not UI.refreshingControls then
-        UI.RefreshPendingStatus()
+        UI.RefreshPendingClocks()
     end
 end

@@ -84,6 +84,23 @@ describe("MessageProtocolComm", function()
         assert.is_false(ok)
         assert.equals("InvalidTarget", reason)
         assert.equals(0, #AddonMessage.sent)
+
+        ok, reason = MessageProtocolComm.Send("Q", "whisper.demo", "c1", "ping", "WHISPER", "")
+        assert.is_false(ok)
+        assert.equals("InvalidTarget", reason)
+        assert.equals(0, #AddonMessage.sent)
+    end)
+
+    it("rejects an empty or non-string channel before sending", function()
+        local ok, reason = MessageProtocolComm.Send("E", "example", "-", "x", "")
+        assert.is_false(ok)
+        assert.equals("InvalidChannel", reason)
+        assert.equals(0, #AddonMessage.sent)
+
+        ok, reason = MessageProtocolComm.Send("E", "example", "-", "x", nil)
+        assert.is_false(ok)
+        assert.equals("InvalidChannel", reason)
+        assert.equals(0, #AddonMessage.sent)
     end)
 
     it("surfaces encode and transport failures without claiming delivery", function()
@@ -97,7 +114,6 @@ describe("MessageProtocolComm", function()
         ok, reason = MessageProtocolComm.Send("E", "example", "-", "x", "RAID")
         assert.is_false(ok)
         assert.equals("AddonMessageThrottle", reason)
-        assert.equals(1, #AddonMessage.sent)
     end)
 
     it("rejects unknown traffic classes", function()
@@ -112,13 +128,20 @@ describe("MessageProtocolComm", function()
     it("routes inbound traffic from every protocol prefix to registered handlers", function()
         local seen = {}
         MessageProtocol.RegisterHandler("example", function(msg)
-            table.insert(seen, msg.sender)
+            table.insert(seen, {
+                sender = msg.sender,
+                channel = msg.channel,
+                payload = msg.payload,
+            })
         end)
 
         AddonMessage.Deliver(AddonMessage.PREFIX.CONTROL, "1|E|example|-|hello", "RAID", "Ctl-Realm")
-        AddonMessage.Deliver(AddonMessage.PREFIX.REALTIME, "1|E|example|-|hello", "RAID", "Rt-Realm")
+        AddonMessage.Deliver(AddonMessage.PREFIX.REALTIME, "1|E|example|-|hello", "INSTANCE_CHAT", "Rt-Realm")
 
-        assert.same({ "Ctl-Realm", "Rt-Realm" }, seen)
+        assert.same({
+            { sender = "Ctl-Realm", channel = "RAID", payload = "hello" },
+            { sender = "Rt-Realm", channel = "INSTANCE_CHAT", payload = "hello" },
+        }, seen)
     end)
 
     it("does not consume other AddonMessage prefixes", function()

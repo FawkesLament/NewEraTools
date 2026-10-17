@@ -17,13 +17,18 @@ local function EnsureFrame()
         if not list then
             return
         end
+        -- First payload argument of a UNIT_* event is the unit token.
+        local unitToken = ...
         -- Snapshot in case a handler unsubscribes mid-dispatch.
         local snapshot = {}
         for i = 1, #list do
             snapshot[i] = list[i]
         end
         for i = 1, #snapshot do
-            snapshot[i].handler(...)
+            local entry = snapshot[i]
+            if entry.unit == nil or entry.unit == unitToken then
+                entry.handler(...)
+            end
         end
     end)
 end
@@ -42,23 +47,26 @@ local function RefreshRegistration(event)
 
     local units = {}
     local seen = {}
-    local hasUnit = false
+    local hasPlain = false
     for _, entry in ipairs(list) do
         if entry.unit then
-            hasUnit = true
             if not seen[entry.unit] then
                 seen[entry.unit] = true
                 table.insert(units, entry.unit)
             end
+        else
+            hasPlain = true
         end
     end
 
     EnsureFrame()
     frame:UnregisterEvent(event)
-    if hasUnit then
-        frame:RegisterUnitEvent(event, unpack(units))
-    else
+    -- One frame cannot RegisterEvent and RegisterUnitEvent for the same event.
+    -- RegisterUnitEvent would drop units a plain Listen must still receive.
+    if hasPlain then
         frame:RegisterEvent(event)
+    else
+        frame:RegisterUnitEvent(event, unpack(units))
     end
 end
 
@@ -101,7 +109,9 @@ function GameEvents.Listen(event, handler)
     return AddHandler(event, handler, nil)
 end
 
----Like Listen, but scopes a UNIT_* event to one unit token via RegisterUnitEvent.
+---Like Listen, but invokes `handler` only when the event's unit token matches `unit`.
+---Unit-only subscriptions use RegisterUnitEvent. A plain Listen on the same event uses
+---RegisterEvent, because one frame cannot combine both modes without dropping units.
 ---@param event string
 ---@param unit string
 ---@param handler fun(...)

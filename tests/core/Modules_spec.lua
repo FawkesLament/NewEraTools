@@ -29,8 +29,12 @@ describe("Modules", function()
             table.insert(calls, "second:enable")
         end
 
-        ns.Modules.Start(ns.Database.Load(nil))
+        local saved = ns.Database.Load(nil)
+        ns.Modules.Start(saved)
 
         assert.same({ "first:init 1", "second:init", "first:enable", "second:enable" }, calls)
+        assert.equals(saved.modules.First, first.db)
+        first.db.value = 9
+        assert.equals(9, saved.modules.First.value)
     end)
 end)

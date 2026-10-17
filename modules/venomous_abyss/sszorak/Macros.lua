@@ -16,20 +16,11 @@ local function RaidTargetIconPath(raidTarget)
     return "Interface\\TargetingFrame\\UI-RaidTargetingIcon_" .. raidTarget
 end
 
-local function IsMarkableEdge(edge)
-    return type(edge) == "number"
-        and edge >= 1
-        and edge <= Sszorak.ARENA_SIDES
-        and edge % 1 == 0
-        and edge ~= Sszorak.ENTRANCE_EDGE
-        and edge ~= Sszorak.EXIT_EDGE
-end
-
 ---Account-wide macro name for the callout bound to `edge`. At most 16 characters.
 ---@param edge integer
 ---@return string
 function Sszorak:GetEdgeMacroName(edge)
-    assert(IsMarkableEdge(edge), "Edge has no callout macro: " .. tostring(edge))
+    assert(Sszorak.IsMarkableEdge(edge), "Edge has no callout macro: " .. tostring(edge))
     return MACRO_NAME_PREFIX .. edge
 end
 
@@ -37,7 +28,7 @@ end
 ---@param edge integer
 ---@return string
 function Sszorak:GetEdgeMacroBody(edge)
-    assert(IsMarkableEdge(edge), "Edge has no callout macro: " .. tostring(edge))
+    assert(Sszorak.IsMarkableEdge(edge), "Edge has no callout macro: " .. tostring(edge))
     return self:GetActiveCalloutMode():GetEdgeMacroBody(edge, self.db.edgeMarkers)
 end
 
@@ -46,7 +37,7 @@ end
 ---@param edge integer
 ---@return number
 function Sszorak:GetEdgeMacroIcon(edge)
-    assert(IsMarkableEdge(edge), "Edge has no callout macro: " .. tostring(edge))
+    assert(Sszorak.IsMarkableEdge(edge), "Edge has no callout macro: " .. tostring(edge))
     local marker = assert(self.db.edgeMarkers[edge], "Missing edge marker")
     local raidTarget = assert(Sszorak.MARKER_RAID_TARGET[marker], "Unknown marker: " .. tostring(marker))
     return Macro.GetFileIDFromPath(RaidTargetIconPath(raidTarget))
@@ -141,6 +132,11 @@ function Sszorak:ListenForMacroSync()
     end)
 end
 
-Sszorak.BindMacroSync(function()
+---Rewrites the commander's edge macros after a marker or callout-mode change.
+---No-ops for raid members. Called from Markers.lua and Communication.lua after load.
+function Sszorak.RequestMacroSync()
+    if not Sszorak:IsRaidCommander() then
+        return
+    end
     Sszorak:SyncEdgeMacros()
-end)
+end

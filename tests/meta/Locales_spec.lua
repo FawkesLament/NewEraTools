@@ -13,6 +13,10 @@ describe("Locales", function()
     -- The fake client locale is zhCN, so this holds exactly the base locale's keys.
     local L = Loader.Load().L
 
+    it("renders a missing key in brackets", function()
+        assert.equals("[NOT_A_KEY]", L.NOT_A_KEY)
+    end)
+
     it("defines every key used in code in the base locale", function()
         for _, path in ipairs(Fs.ListFiles()) do
             if path:find("%.lua$") and not path:find("^tests/") and not path:find("^locales/") then

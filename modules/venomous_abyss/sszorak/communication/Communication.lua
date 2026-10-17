@@ -12,6 +12,8 @@ local WARNING_SEVERITY = 2
 local WARNING_DURATION = 3.5
 local WARNING_DURATION_TOLERANCE = 0.1
 local WARNING_TIME_WINDOW = 1.2
+-- Anchors are processed in groups of this size; the last slot of each group is the exit drop.
+local WARNING_ANCHOR_GROUP_SIZE = 4
 
 Sszorak.CALLOUT_DURATION_ENCOUNTER = CALLOUT_DURATION_ENCOUNTER
 Sszorak.CALLOUT_DURATION_TEST = CALLOUT_DURATION_TEST
@@ -19,6 +21,7 @@ Sszorak.WARNING_SEVERITY = WARNING_SEVERITY
 Sszorak.WARNING_DURATION = WARNING_DURATION
 Sszorak.WARNING_DURATION_TOLERANCE = WARNING_DURATION_TOLERANCE
 Sszorak.WARNING_TIME_WINDOW = WARNING_TIME_WINDOW
+Sszorak.WARNING_ANCHOR_GROUP_SIZE = WARNING_ANCHOR_GROUP_SIZE
 
 ---Payload passed to ShowResolvedCallout for HUD text and optional map path.
 ---A non-nil value always has `hudMessage`. Pass `nil` when nothing should be shown
@@ -33,7 +36,7 @@ Sszorak.WARNING_TIME_WINDOW = WARNING_TIME_WINDOW
 ---@field id string
 ---@field GetEdgeMacroBody fun(self: SszorakCalloutMode, edge: integer, assignment: table<integer, WorldMarker>): string
 ---@field Listen fun(self: SszorakCalloutMode): fun()  Subscribe mode listeners; returns unsubscribe.
----@field OnMatchedWarning fun(self: SszorakCalloutMode, anchorIndex: integer): SszorakCalloutResolve|nil  Shared filter matched a warning.
+---@field OnMatchedWarning fun(self: SszorakCalloutMode, anchorIndex: integer): SszorakCalloutResolve|nil
 ---@field BeginCapture fun(self: SszorakCalloutMode)|nil  Encounter / map-test started.
 ---@field EndCapture fun(self: SszorakCalloutMode)|nil  Encounter / map-test ended.
 ---@field ClearMessages fun(self: SszorakCalloutMode)|nil  Dots returned home mid-timeline.
@@ -68,6 +71,13 @@ end
 ---@return boolean
 function Sszorak.IsCalloutModeAvailable(modeId)
     return modes[modeId] ~= nil
+end
+
+---Falls back to normal when a saved mode is missing. Called from OnInit.
+function Sszorak:RepairCalloutMode()
+    if not Sszorak.IsCalloutModeAvailable(self.db.calloutMode) then
+        self.db.calloutMode = Sszorak.CALLOUT_MODE_NORMAL
+    end
 end
 
 ---@return SszorakCalloutMode
@@ -111,7 +121,7 @@ function Sszorak:SetCalloutMode(modeId)
     end
     self.db.calloutMode = modeId
     RestartCalloutModeListeners()
-    -- Macro bodies are mode-specific; sync is bound from SszorakMacros.lua.
+    -- Macro bodies are mode-specific. Macros.lua defines the sync.
     Sszorak.RequestMacroSync()
 end
 
@@ -246,10 +256,25 @@ local function CallActiveMode(methodName, ...)
     end
 end
 
+---Encounter and map test ask the active protocol to start collecting signals.
+function Sszorak:BeginCalloutCapture()
+    CallActiveMode("BeginCapture")
+end
+
+---Encounter end and map-test end ask the active protocol to drop what it collected.
+function Sszorak:EndCalloutCapture()
+    CallActiveMode("EndCapture")
+end
+
+---A return to the home station asks the active protocol to drop its buffer.
+function Sszorak:ClearCalloutMessages()
+    CallActiveMode("ClearMessages")
+end
+
 ---Map test only: left→center / right→center preview the same slots warnings use (anchors 1 and 3).
 ---@param fromStation integer
 ---@param toStation integer
-local function OnStationChangedForMapTest(fromStation, toStation)
+function Sszorak:NotifyCalloutStationChanged(fromStation, toStation)
     local mode = Sszorak:GetActiveCalloutMode()
     local capturing = mode.IsCapturing and mode:IsCapturing()
     if Sszorak:IsInEncounter() or not capturing or toStation ~= Sszorak.STATION_CENTER then
@@ -265,16 +290,3 @@ local function OnStationChangedForMapTest(fromStation, toStation)
     end
     Sszorak.ShowResolvedCallout(mode:OnMatchedWarning(anchorIndex), CALLOUT_DURATION_TEST, true)
 end
-
-Sszorak.BindCalloutHooks({
-    beginCapture = function()
-        CallActiveMode("BeginCapture")
-    end,
-    endCapture = function()
-        CallActiveMode("EndCapture")
-    end,
-    clearMessages = function()
-        CallActiveMode("ClearMessages")
-    end,
-    onStationChanged = OnStationChangedForMapTest,
-})

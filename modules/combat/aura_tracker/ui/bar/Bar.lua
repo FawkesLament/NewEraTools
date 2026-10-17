@@ -1,12 +1,12 @@
 local _, ns = ...
 local Util = ns.Util
-local Assets = ns.Assets
 local LayoutEditor = ns.LayoutEditor
 local Aura = ns.Api.Aura
 local Combat = ns.Api.Combat
 local Unit = ns.Api.Unit
 local Chrome = ns.AuraTrackerBarChromeUI
 local Preview = ns.AuraTrackerBarPreviewUI
+local Appearance = ns.AuraTrackerBarAppearanceUI
 local Profile = ns.AuraTrackerProfile
 local ProfileReport = ns.AuraTrackerProfileReport
 
@@ -81,7 +81,6 @@ ns.AuraTrackerBarUI = AuraTrackerBarUI
 local DestroyInstance
 local EnsureInstance
 local UpdateInstance
-local ApplyAppearanceInstance
 
 ---@param started number
 ---@param outcome string
@@ -168,6 +167,10 @@ local function ResizeLayoutHost(inst)
     local width, height = Chrome.BarSize(inst.trackerId)
     inst.layoutHost:SetSize(width, height)
 end
+
+-- Appearance.lua loads before this file and calls these at runtime.
+AuraTrackerBarUI.CanConfigureFrames = CanConfigureFrames
+AuraTrackerBarUI.ResizeLayoutHost = ResizeLayoutHost
 
 ---@param inst AuraTrackerBarInstance
 local function UnregisterLayoutElement(inst)
@@ -264,275 +267,11 @@ local function EnsureLayoutHost(trackerId)
     return layoutHost
 end
 
--- ---------------------------------------------------------------------------
--- Layout / appearance (no AuraContainer recreation)
--- ---------------------------------------------------------------------------
-
----True when addon code may call methods on the live AuraButton.
----The slot is created in `initializeFrame` before AuraContainer denies tainted access.
----@param inst AuraTrackerBarInstance
----@param button Frame|nil
----@return boolean
-local function CanTouchAuraButton(inst, button)
-    return CanConfigureFrames(inst) and Aura.CanAccessObject(button)
-end
-
----Aura slots stay anchored to the layout host so native duration bindings are preserved.
----Geometry is skipped while the slot denies tainted access; the host still tracks the saved size.
----@param inst AuraTrackerBarInstance
----@param button Frame
-local function ApplyLayout(inst, button)
-    ResizeLayoutHost(inst)
-    if not CanTouchAuraButton(inst, button) then
-        return
-    end
-    local width, height = Chrome.BarSize(inst.trackerId)
-    -- Access can flip between the check and the call. A throw here would abort the settings click.
-    pcall(function()
-        button:SetSize(width, height)
-        button:ClearAllPoints()
-        button:SetPoint("CENTER", inst.layoutHost, "CENTER")
-    end)
-end
-
----@param inst AuraTrackerBarInstance
----@param button Frame
-local function EnsureBorderFrame(inst, button)
-    if inst.borderFrame then
-        return inst.borderFrame
-    end
-    -- Overlay the bar: a 1px edge is drawn inside the same rect and would be covered if
-    -- the StatusBar sits above this frame.
-    local borderFrame = CreateFrame("Frame", nil, button, Assets.Templates.BACKDROP)
-    borderFrame:SetAllPoints(button)
-    borderFrame:SetBackdrop(Chrome.LineBackdrop(1))
-    borderFrame:SetBackdropColor(0, 0, 0, 0)
-    borderFrame:EnableMouse(false)
-    inst.borderFrame = borderFrame
-    return borderFrame
-end
-
----Host above the fill/border so value strings are not covered.
----@param inst AuraTrackerBarInstance
----@param button Frame
-local function EnsureTimeHost(inst, button)
-    if inst.timeHost then
-        if not inst.stacksText then
-            local stacksText = inst.timeHost:CreateFontString(nil, "OVERLAY")
-            stacksText:SetWordWrap(false)
-            stacksText:Hide()
-            inst.stacksText = stacksText
-        end
-        return inst.timeHost
-    end
-    local timeHost = CreateFrame("Frame", nil, button)
-    timeHost:SetAllPoints(button)
-    timeHost:EnableMouse(false)
-    local durationText = timeHost:CreateFontString(nil, "OVERLAY")
-    durationText:SetWordWrap(false)
-    durationText:Hide()
-    local stacksText = timeHost:CreateFontString(nil, "OVERLAY")
-    stacksText:SetWordWrap(false)
-    stacksText:Hide()
-    inst.timeHost = timeHost
-    inst.durationText = durationText
-    inst.stacksText = stacksText
-    return timeHost
-end
-
----Clears SetDurationText when combat/protection allows.
----@param inst AuraTrackerBarInstance
----@param button Frame
----@return boolean
-local function ClearDurationTextBinding(inst, button)
-    if not inst.durationTextBound or not CanTouchAuraButton(inst, button) then
-        return false
-    end
-    local cleared = pcall(function()
-        button:ClearDurationText()
-    end)
-    if cleared then
-        inst.durationTextBound = nil
-    end
-    return cleared
-end
-
----Clears SetApplicationCount when combat/protection allows.
----@param inst AuraTrackerBarInstance
----@param button Frame
----@return boolean
-local function ClearStacksTextBinding(inst, button)
-    if not inst.stacksTextBound or not CanTouchAuraButton(inst, button) then
-        return false
-    end
-    local cleared = pcall(function()
-        button:ClearApplicationCount()
-    end)
-    if cleared then
-        inst.stacksTextBound = nil
-    end
-    return cleared
-end
-
----Binds or clears duration and stack text independently of progress mode.
----@param inst AuraTrackerBarInstance
----@param button Frame
-local function ApplyValueText(inst, button)
-    local trackerId = inst.trackerId
-    local host = EnsureTimeHost(inst, button)
-    local border = EnsureBorderFrame(inst, button)
-    host:SetFrameLevel(border:GetFrameLevel() + 1)
-
-    local showDuration = AuraTracker:IsTextDisplayEnabled(trackerId, Schema.TEXT_DURATION)
-    local showStacks = AuraTracker:IsTextDisplayEnabled(trackerId, Schema.TEXT_STACKS)
-    -- Style before bind: SetDurationText / SetApplicationCount immediately refresh display.
-    Chrome.ApplyTextDisplayAppearance(trackerId, Schema.TEXT_DURATION, inst.durationText)
-    Chrome.ApplyTextDisplayAppearance(trackerId, Schema.TEXT_STACKS, inst.stacksText)
-
-    if not showDuration then
-        ClearDurationTextBinding(inst, button)
-        inst.durationText:Hide()
-    else
-        inst.durationText:Show()
-    end
-    if not showStacks then
-        ClearStacksTextBinding(inst, button)
-        inst.stacksText:Hide()
-    else
-        inst.stacksText:Show()
-    end
-
-    if not CanTouchAuraButton(inst, button) then
-        return
-    end
-
-    if showDuration and not inst.durationTextBound then
-        local ok = pcall(function()
-            button:SetDurationText(inst.durationText, Aura.GetDurationTextOptions())
-        end)
-        if ok then
-            inst.durationTextBound = true
-        end
-    end
-    if showStacks and not inst.stacksTextBound then
-        local ok = pcall(function()
-            button:SetApplicationCount(inst.stacksText, Aura.GetApplicationCountOptions())
-        end)
-        if ok then
-            inst.stacksTextBound = true
-        end
-    end
-end
-
----Switches the shared StatusBar between SetDurationBar and SetApplicationBar.
----@param inst AuraTrackerBarInstance
----@param button Frame
-local function SyncBarBinding(inst, button)
-    local bar = inst.durationBar
-    if not bar or not CanTouchAuraButton(inst, button) then
-        return
-    end
-    local trackerId = inst.trackerId
-    local desiredMode = AuraTracker:GetProgressMode(trackerId)
-    local maxStacks = AuraTracker:GetMaxStacks(trackerId)
-    if
-        inst.barBoundMode == desiredMode
-        and (desiredMode ~= Schema.PROGRESS_MODE_STACKS or inst.barBoundMaxStacks == maxStacks)
-    then
-        return
-    end
-
-    if inst.barBoundMode == Schema.PROGRESS_MODE_DURATION then
-        pcall(function()
-            button:ClearDurationBar()
-        end)
-    elseif inst.barBoundMode == Schema.PROGRESS_MODE_STACKS then
-        pcall(function()
-            button:ClearApplicationBar()
-        end)
-    end
-    inst.barBoundMode = nil
-    inst.barBoundMaxStacks = nil
-
-    local ok = pcall(function()
-        if desiredMode == Schema.PROGRESS_MODE_STACKS then
-            button:SetApplicationBar(bar, Aura.GetApplicationBarOptions(maxStacks))
-        else
-            button:SetDurationBar(bar, Aura.GetDurationBarOptions())
-        end
-    end)
-    if ok then
-        inst.barBoundMode = desiredMode
-        if desiredMode == Schema.PROGRESS_MODE_STACKS then
-            inst.barBoundMaxStacks = maxStacks
-        end
-    end
-end
-
----@param trackerId integer
-ApplyAppearanceInstance = function(trackerId)
-    local started = Profile.Start()
-    local inst = instances[trackerId]
-    if not inst then
-        Profile.Stop("bar.applyAppearance", started)
-        return
-    end
-    if inst.editing then
-        ResizeLayoutHost(inst)
-        Preview.ApplyAppearance(inst)
-        -- Restart so mode / maxStacks changes take effect while layout-editing.
-        Preview.StartAnimation(inst)
-        Profile.Stop("bar.applyAppearance", started)
-        return
-    end
-    if not inst.slotFrame or not inst.durationBar or not inst.backgroundTexture then
-        Profile.Stop("bar.applyAppearance", started)
-        return
-    end
-
-    ApplyLayout(inst, inst.slotFrame)
-    -- The fill bar is bound to secret aura progress, so texture and color calls fail the same
-    -- way SetSize does on the slot. Host size is already updated; the rest waits until access returns.
-    if not CanTouchAuraButton(inst, inst.slotFrame) or not Aura.CanAccessObject(inst.durationBar) then
-        -- Secret aura access can block the first paint. A later refresh retries until it sticks.
-        inst.appearanceReady = false
-        Profile.Stop("bar.applyAppearance", started)
-        return
-    end
-    Chrome.ApplyBarChrome(
-        trackerId,
-        inst.durationBar,
-        inst.backgroundTexture,
-        EnsureBorderFrame(inst, inst.slotFrame),
-        nil,
-        nil
-    )
-    inst.stackDividerHost = Chrome.EnsureStackDividerHost(inst.slotFrame, inst.stackDividerHost)
-    inst.stackDividers = inst.stackDividers or {}
-    Chrome.ApplyStackDividers(trackerId, inst.stackDividerHost, inst.stackDividers, inst.durationBar)
-    SyncBarBinding(inst, inst.slotFrame)
-    ApplyValueText(inst, inst.slotFrame)
-    -- Snapshot only after the paint. A blocked attempt leaves the previous snapshot so the
-    -- settings page can see which saved fields are still waiting.
-    if AuraTracker:HasTracker(trackerId) then
-        inst.appliedAppearance = AuraTracker:CaptureDeferredAppearance(trackerId)
-    end
-    inst.appearanceReady = true
-    Profile.Stop("bar.applyAppearance", started)
-end
-
 ---Saved appearance fields that have not been painted onto this live bar.
 ---@param trackerId integer
 ---@return table<string, boolean>
 function AuraTrackerBarUI.PendingAppearanceKeys(trackerId)
-    local inst = instances[trackerId]
-    if not inst or inst.appearanceReady ~= false or not inst.appliedAppearance then
-        return {}
-    end
-    if not AuraTracker:HasTracker(trackerId) then
-        return {}
-    end
-    return AuraTracker.DiffDeferredAppearance(inst.appliedAppearance, AuraTracker:CaptureDeferredAppearance(trackerId))
+    return Appearance.PendingKeys(instances[trackerId])
 end
 
 ---True when any live bar is still showing an older look than its saved settings.
@@ -550,57 +289,20 @@ function AuraTrackerBarUI.HasPendingAppearance(trackerId)
     return false
 end
 
----Paints a look that combat blocked earlier. One call per update; no extra timer or event.
----@param inst AuraTrackerBarInstance
-local function FlushDeferredAppearance(inst)
-    if inst.editing or inst.appearanceReady ~= false or not inst.slotFrame or not inst.durationBar then
-        return
-    end
-    if not CanConfigureFrames(inst) or not Aura.CanAccessObject(inst.slotFrame) then
-        Profile.Inc("bar.flushBlocked")
-        return
-    end
-    if not Aura.CanAccessObject(inst.durationBar) then
-        Profile.Inc("bar.flushBlocked")
-        return
-    end
-    Profile.Inc("bar.flushApply")
-    ApplyAppearanceInstance(inst.trackerId)
-end
-
+---@param trackerId integer|nil
 function AuraTrackerBarUI.ApplyAppearance(trackerId)
     if trackerId then
-        ApplyAppearanceInstance(trackerId)
+        Appearance.Apply(instances[trackerId])
         return
     end
-    for id in pairs(instances) do
-        ApplyAppearanceInstance(id)
+    for _, inst in pairs(instances) do
+        Appearance.Apply(inst)
     end
 end
 
 -- ---------------------------------------------------------------------------
 -- Tracking (AuraContainer / AuraSlot)
 -- ---------------------------------------------------------------------------
-
----Creates the shared StatusBar once; native duration/stacks binding is applied in SyncBarBinding.
----@param inst AuraTrackerBarInstance
----@param button Frame
-local function BindProgressBar(inst, button)
-    ApplyLayout(inst, button)
-
-    local bar = CreateFrame("StatusBar", nil, button)
-    bar:SetAllPoints(button)
-    bar:SetMinMaxValues(0, 1)
-    bar:SetStatusBarTexture(AuraTracker:GetTexturePath(inst.trackerId))
-
-    local background = bar:CreateTexture(nil, "BACKGROUND")
-    background:SetAllPoints(bar)
-
-    inst.durationBar = bar
-    inst.backgroundTexture = background
-    SyncBarBinding(inst, button)
-    ApplyAppearanceInstance(inst.trackerId)
-end
 
 ---@param trackerId integer
 ---@return Frame|nil
@@ -672,7 +374,7 @@ local function ConfigureSlot(inst)
             sortDirection = sortDirection,
             initializeFrame = function(button)
                 inst.slotFrame = button
-                BindProgressBar(inst, button)
+                Appearance.BindProgressBar(inst, button)
             end,
         })
         if not auraButton then
@@ -745,9 +447,13 @@ local function ApplyAuraSource(inst)
 end
 
 ---Why a live slot is being turned off outside the display path.
+---A removed tracker is not tracking. Do not look it up: `ShouldTrack` requires the saved row.
 ---@param inst AuraTrackerBarInstance
 ---@return string
 local function UnavailableSlotReason(inst)
+    if not AuraTracker:HasTracker(inst.trackerId) then
+        return REASON_SLOT_OFF_NOT_TRACKING
+    end
     if not AuraTracker:ShouldTrack(inst.trackerId) or AuraTracker:ShouldHideAuraBars() then
         return REASON_SLOT_OFF_NOT_TRACKING
     end
@@ -758,6 +464,7 @@ local function UnavailableSlotReason(inst)
 end
 
 ---Hides the bar and drops any aura instance so the next unit cannot inherit duration or stacks.
+---The frame work does not depend on the saved tracker. The profile reason is recorded after it.
 ---@param inst AuraTrackerBarInstance
 local function ClearTrackingDisplay(inst)
     local hostShown = inst.layoutHost and inst.layoutHost:IsShown()
@@ -766,11 +473,12 @@ local function ClearTrackingDisplay(inst)
     end
     local containerLive = inst.appliedEnabled or inst.appliedShown or inst.appliedSlotEnabled
     local concealed = true
+    local disabledSlot = false
     if inst.container and containerLive then
+        disabledSlot = inst.appliedSlotEnabled == true and inst.container.SetAuraSlotEnabled ~= nil
         concealed = pcall(function()
-            if inst.appliedSlotEnabled and inst.container.SetAuraSlotEnabled then
+            if disabledSlot then
                 inst.container:SetAuraSlotEnabled(SLOT_KEY, false)
-                Profile.Inc(UnavailableSlotReason(inst))
             end
             if inst.appliedEnabled then
                 inst.container:SetEnabled(false)
@@ -782,6 +490,9 @@ local function ClearTrackingDisplay(inst)
     end
     if concealed then
         MarkContainerConcealed(inst)
+        if disabledSlot then
+            Profile.Inc(UnavailableSlotReason(inst))
+        end
     end
 end
 
@@ -979,7 +690,7 @@ function AuraTrackerBarUI.Update(trackerId)
     local function Flush(id)
         local inst = instances[id]
         if inst then
-            FlushDeferredAppearance(inst)
+            Appearance.Flush(inst)
         end
     end
     if trackerId then

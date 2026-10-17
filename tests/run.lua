@@ -1,6 +1,10 @@
 -- Runs every tests/**/*_spec.lua file. Usage, from the addon folder: luajit tests/run.lua
 -- Specs use a busted-compatible subset: describe, it, before_each, after_each,
 -- assert.equals/same/is_true/is_false/is_nil.
+-- describe and it run immediately while the spec file loads. A hook applies only to
+-- examples that have not already run. Each describe keeps every before_each and
+-- after_each; a later hook does not replace an earlier one.
+-- Extra arguments run those files instead of discovery. `--no-discover` runs nothing.
 package.path = "./tests/?.lua;" .. package.path
 
 local Fs = require("helpers.fs")
@@ -71,6 +75,7 @@ assert = setmetatable({
 local passed = 0
 local failures = {}
 local scopes = {}
+local examplesRegistered = 0
 
 local function FullName(testName)
     local names = {}
@@ -81,6 +86,15 @@ local function FullName(testName)
     return table.concat(names, " > ")
 end
 
+local function Hooks(scope, key)
+    local hooks = scope[key]
+    if not hooks then
+        hooks = {}
+        scope[key] = hooks
+    end
+    return hooks
+end
+
 function describe(name, body)
     table.insert(scopes, { name = name })
     body()
@@ -88,53 +102,101 @@ function describe(name, body)
 end
 
 function before_each(callback)
-    scopes[#scopes].beforeEach = callback
+    table.insert(Hooks(scopes[#scopes], "beforeEach"), callback)
 end
 
 function after_each(callback)
-    scopes[#scopes].afterEach = callback
+    table.insert(Hooks(scopes[#scopes], "afterEach"), callback)
+end
+
+local function RunBeforeEach()
+    for _, scope in ipairs(scopes) do
+        local hooks = scope.beforeEach
+        if hooks then
+            for _, hook in ipairs(hooks) do
+                hook()
+            end
+        end
+    end
 end
 
 local function RunAfterEach()
     for index = #scopes, 1, -1 do
-        if scopes[index].afterEach then
-            scopes[index].afterEach()
+        local hooks = scopes[index].afterEach
+        if hooks then
+            for hookIndex = #hooks, 1, -1 do
+                hooks[hookIndex]()
+            end
         end
     end
 end
 
 function it(name, body)
+    examplesRegistered = examplesRegistered + 1
     local ok, err = pcall(function()
-        for _, scope in ipairs(scopes) do
-            if scope.beforeEach then
-                scope.beforeEach()
-            end
-        end
+        RunBeforeEach()
         body()
     end)
     local cleanupOk, cleanupErr = pcall(RunAfterEach)
-    if ok and not cleanupOk then
-        ok, err = false, cleanupErr
-    end
-    if ok then
+    if ok and cleanupOk then
         passed = passed + 1
-    else
+    end
+    if not ok then
         table.insert(failures, { name = FullName(name), message = tostring(err) })
+    end
+    if not cleanupOk then
+        table.insert(failures, { name = FullName(name), message = tostring(cleanupErr) })
     end
 end
 
-local specs = {}
-for _, path in ipairs(Fs.ListFiles()) do
-    if path:find("^tests/.+_spec%.lua$") then
-        table.insert(specs, path)
+local function DiscoverSpecs()
+    local specs = {}
+    for _, path in ipairs(Fs.ListFiles()) do
+        if path:find("^tests/.+_spec%.lua$") then
+            table.insert(specs, path)
+        end
     end
+    return specs
+end
+
+---Explicit arguments select files. `--no-discover` with no files is an empty run.
+---Nil means the caller asked for discovery.
+---@return string[]|nil
+local function SpecsFromArgs()
+    if type(arg) ~= "table" then
+        return nil
+    end
+    local specs = {}
+    local explicit = false
+    for index = 1, #arg do
+        explicit = true
+        if arg[index] ~= "--no-discover" then
+            table.insert(specs, arg[index])
+        end
+    end
+    if not explicit then
+        return nil
+    end
+    return specs
+end
+
+local specs = SpecsFromArgs()
+if not specs then
+    specs = DiscoverSpecs()
+end
+
+if #specs == 0 then
+    table.insert(failures, { name = "tests/run.lua", message = "no spec files discovered" })
 end
 
 for _, path in ipairs(specs) do
+    local registeredBefore = examplesRegistered
     local ok, err = pcall(dofile, path)
     if not ok then
         table.insert(failures, { name = path, message = tostring(err) })
         scopes = {}
+    elseif examplesRegistered == registeredBefore then
+        table.insert(failures, { name = path, message = "spec file registered no examples" })
     end
 end
 

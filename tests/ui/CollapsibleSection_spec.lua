@@ -62,6 +62,10 @@ local function FakeFrame(parent)
         self.shown = shown == true
     end
 
+    function frame:IsShown()
+        return self.shown == true
+    end
+
     function frame:SetFrameLevel(level)
         self.frameLevel = level
     end
@@ -111,6 +115,7 @@ local function FakeFontString(parent)
         return #self.text * 6
     end
     function label:SetJustifyH() end
+    function label:SetWordWrap() end
     return label
 end
 
@@ -127,7 +132,7 @@ describe("CollapsibleSection", function()
             Assets = {
                 Sizes = { CONTROL_ROW_HEIGHT = 32, CONTROL_HEIGHT = 24, EXPAND_ARROW = 10 },
                 Spacing = { SMALL = 4, MEDIUM = 8 },
-                Fonts = { BODY = "Body", TINY_MUTED = "TinyMuted" },
+                Fonts = { BODY = "Body", TINY_MUTED = "TinyMuted", SMALL_MUTED = "SmallMuted" },
                 Colors = {
                     SURFACE_RAISED = { r = 0.1, g = 0.1, b = 0.1, a = 1 },
                 },
@@ -283,5 +288,21 @@ describe("CollapsibleSection", function()
         assert.is_false(badge.shown)
         section:SetBadge("")
         assert.is_false(badge.shown)
+    end)
+
+    it("shows a muted hint on the header after the title, and after the badge when one is set", function()
+        local section = CreateSection({ hint = "Hide bars when" })
+        local header = section.children[1]
+        local expandButton = header.children[1]
+        local badge = header.children[2]
+        local hint = header.children[3]
+        assert.equals("Hide bars when", hint.text)
+        assert.is_true(hint.points.LEFT.relativeTo == expandButton)
+
+        section:SetBadge("2")
+        assert.is_true(hint.points.LEFT.relativeTo == badge)
+
+        section:SetBadge(nil)
+        assert.is_true(hint.points.LEFT.relativeTo == expandButton)
     end)
 end)

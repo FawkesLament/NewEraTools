@@ -16,6 +16,7 @@ ns.CollapsibleSection = CollapsibleSection
 
 ---@class CollapsibleSectionOptions
 ---@field title string  Shown in the clickable header.
+---@field hint string|nil  Muted text on the header, to the right of the title.
 ---@field expanded boolean|nil  Whether the section starts expanded. Defaults to true.
 ---@field spacingBefore number|nil  Gap above this section in the stack; defaults to the stack's spacing.
 ---@field onStackHeightChanged fun(stackHeight: number)|nil  After the stack's total height changes.
@@ -95,6 +96,24 @@ function CollapsibleSection.Create(stack, options)
     badgeLabel:SetJustifyH("CENTER")
     badgeLabel:SetPoint("CENTER")
 
+    local hint
+    if type(options.hint) == "string" and options.hint ~= "" then
+        hint = Widgets.CreateLabel(header, Fonts.SMALL_MUTED, options.hint)
+        hint:SetJustifyH("LEFT")
+        hint:SetWordWrap(false)
+    end
+
+    ---The badge shares the gap after the title, so the hint follows whichever of them is showing.
+    local function PlaceHint()
+        if not hint then
+            return
+        end
+        hint:ClearAllPoints()
+        local anchor = badge:IsShown() and badge or expandButton
+        hint:SetPoint("LEFT", anchor, "RIGHT", Spacing.MEDIUM, 0)
+        hint:SetPoint("RIGHT", header, "RIGHT")
+    end
+
     function section:IsExpanded()
         return expanded
     end
@@ -116,12 +135,14 @@ function CollapsibleSection.Create(stack, options)
     function section:SetBadge(text)
         if type(text) ~= "string" or text == "" then
             badge:Hide()
+            PlaceHint()
             return
         end
         badgeLabel:SetText(text)
         local size = math.max(badgeLabel:GetStringWidth() + Spacing.SMALL, BADGE_SIZE)
         badge:SetSize(size, size)
         badge:Show()
+        PlaceHint()
     end
 
     function section:SetContentHeight(height)
@@ -133,6 +154,8 @@ function CollapsibleSection.Create(stack, options)
     function section:GetHeight()
         return inner:GetHeight()
     end
+
+    PlaceHint()
 
     -- Mount before the first NotifyHeight so SetEntryHeight is always valid.
     stack:Add(section, inner:GetHeight(), options.spacingBefore)

@@ -9,9 +9,16 @@ describe("AddonCheck", function()
         AddonCheck = ns.AddonCheck
     end)
 
-    it("exposes the centralized addon version", function()
-        assert.equals(ns.ADDON_VERSION, AddonCheck.GetVersion())
-        assert.equals("0.2.0", AddonCheck.GetVersion())
+    it("exposes the TOC addon version", function()
+        local tocVersion
+        for line in io.lines("NewEraTools.toc") do
+            tocVersion = line:gsub("\r$", ""):match("^## Version:%s*(%S+)")
+            if tocVersion then
+                break
+            end
+        end
+        assert.equals(tocVersion, ns.Api.Client.GetAddonVersion())
+        assert.equals(tocVersion, AddonCheck.GetVersion())
     end)
 
     it("rejects duplicate module ids", function()
@@ -56,7 +63,7 @@ describe("AddonCheck", function()
 
         local session = AddonCheck.Start()
         assert.equals(1, session.id)
-        assert.equals(ns.ADDON_VERSION, session.version)
+        assert.equals(AddonCheck.GetVersion(), session.version)
         assert.same({ A = { nested = { value = 1 } }, B = "plain" }, session.localConfigs)
         assert.same({}, session.results)
 
@@ -196,7 +203,8 @@ describe("AddonCheck", function()
             local decoded = assert(MessageProtocol.Decode(sent.message))
             assert.equals(MessageProtocol.TYPE_RESPONSE, decoded.type)
             assert.equals("req1", decoded.correlationId)
-            assert.is_true(decoded.payload:find("^1|ok|" .. MODULE_ID .. "|0%.2%.0|T2:", 1) == 1)
+            local version = AddonCheck.GetVersion():gsub("%.", "%%.")
+            assert.is_true(decoded.payload:find("^1|ok|" .. MODULE_ID .. "|" .. version .. "|T2:", 1) == 1)
 
             -- Leader applies the member response through the normal pending-match path.
             Player.fullName = LEADER
@@ -238,7 +246,7 @@ describe("AddonCheck", function()
             Deliver(requestWire, "WHISPER", LEADER)
 
             local decoded = assert(MessageProtocol.Decode(LastSent().message))
-            assert.equals("1|unsupported|Missing|0.2.0|", decoded.payload)
+            assert.equals("1|unsupported|Missing|" .. AddonCheck.GetVersion() .. "|", decoded.payload)
         end)
 
         it("responds failed when the provider callback errors", function()
@@ -257,7 +265,8 @@ describe("AddonCheck", function()
             Deliver(requestWire, "WHISPER", LEADER)
 
             local decoded = assert(MessageProtocol.Decode(LastSent().message))
-            assert.equals("1|failed|" .. MODULE_ID .. "|0.2.0|provider_failed", decoded.payload)
+            local payload = "1|failed|" .. MODULE_ID .. "|" .. AddonCheck.GetVersion() .. "|provider_failed"
+            assert.equals(payload, decoded.payload)
         end)
 
         it("stores a successful configuration response on the session", function()

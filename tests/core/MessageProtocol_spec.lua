@@ -68,6 +68,8 @@ describe("MessageProtocol", function()
         assert.is_nil(select(1, MessageProtocol.Encode("X", "example", "-", "x")))
         assert.equals("invalid_type", select(2, MessageProtocol.Encode("X", "example", "-", "x")))
         assert.equals("invalid_topic", select(2, MessageProtocol.Encode("E", "", "-", "x")))
+        assert.is_nil(select(1, MessageProtocol.Encode("E", "t", "-", "a\0b")))
+        assert.equals("invalid_payload", select(2, MessageProtocol.Encode("E", "t", "-", "a\0b")))
     end)
 
     it("rejects invalid correlation ids", function()
@@ -83,6 +85,51 @@ describe("MessageProtocol", function()
         local decoded, reason = MessageProtocol.Decode("1|Q|t|-|x")
         assert.is_nil(decoded)
         assert.equals("invalid_correlation_id", reason)
+
+        local eventDecoded, eventReason = MessageProtocol.Decode("1|E|t|a7|x")
+        assert.is_nil(eventDecoded)
+        assert.equals("invalid_correlation_id", eventReason)
+    end)
+
+    it("enforces topic, correlation id, and message length limits", function()
+        local topic = string.rep("a", 48)
+        local _, topicDecoded = RoundTrip("E", topic, "-", "z")
+        assert.equals(topic, topicDecoded.topic)
+
+        local longTopic, longTopicReason = MessageProtocol.Decode("1|E|" .. string.rep("a", 49) .. "|-|z")
+        assert.is_nil(longTopic)
+        assert.equals("invalid_topic", longTopicReason)
+        assert.equals("invalid_topic", select(2, MessageProtocol.Encode("E", string.rep("a", 49), "-", "z")))
+
+        local correlationId = string.rep("b", 24)
+        local _, idDecoded = RoundTrip("R", "t", correlationId, "z")
+        assert.equals(correlationId, idDecoded.correlationId)
+
+        local longId, longIdReason = MessageProtocol.Decode("1|Q|t|" .. string.rep("b", 25) .. "|z")
+        assert.is_nil(longId)
+        assert.equals("invalid_correlation_id", longIdReason)
+
+        -- "1|E|t|-|" is 8 bytes, so a 247-byte payload fills the 255-byte addon-message limit.
+        local prefix = "1|E|t|-|"
+        assert.equals(8, #prefix)
+        local exactPayload = string.rep("x", 255 - #prefix)
+        local exactWire = prefix .. exactPayload
+        assert.equals(255, #exactWire)
+        local encoded, encodeReason = MessageProtocol.Encode("E", "t", "-", exactPayload)
+        assert.is_nil(encodeReason, encodeReason)
+        assert.equals(exactWire, encoded)
+        local exactDecoded, exactReason = MessageProtocol.Decode(exactWire)
+        assert.is_nil(exactReason, exactReason)
+        assert.equals(exactPayload, exactDecoded.payload)
+
+        local overPayload = exactPayload .. "y"
+        assert.equals(256, #(prefix .. overPayload))
+        local overEncoded, overEncodeReason = MessageProtocol.Encode("E", "t", "-", overPayload)
+        assert.is_nil(overEncoded)
+        assert.equals("too_large", overEncodeReason)
+        local overDecoded, overDecodeReason = MessageProtocol.Decode(prefix .. overPayload)
+        assert.is_nil(overDecoded)
+        assert.equals("too_large", overDecodeReason)
     end)
 
     it("ignores unsupported protocol versions", function()
@@ -175,8 +222,14 @@ describe("MessageProtocol", function()
             seen = msg
         end)
         MessageProtocol.Dispatch("1|E|meta|-|sender=fake|channel=FAKE", "Real-Realm", "INSTANCE_CHAT")
-        assert.equals("Real-Realm", seen.sender)
-        assert.equals("INSTANCE_CHAT", seen.channel)
-        assert.equals("sender=fake|channel=FAKE", seen.payload)
+        assert.same({
+            version = 1,
+            type = "E",
+            topic = "meta",
+            correlationId = "-",
+            payload = "sender=fake|channel=FAKE",
+            sender = "Real-Realm",
+            channel = "INSTANCE_CHAT",
+        }, seen)
     end)
 end)

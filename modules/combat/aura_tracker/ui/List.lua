@@ -15,8 +15,8 @@ local Spacing = Assets.Spacing
 local AuraTracker = ns.Modules.Get("AuraTracker")
 local ListPlan = ns.AuraTrackerListPlan
 local Profile = ns.AuraTrackerProfile
+local Schema = ns.AuraTrackerSchema
 
-local LIST_HEADER_HEIGHT = 14
 local TRACKER_ROW_HEIGHT = Sizes.NAV_ROW_HEIGHT
 local LIST_SPELL_ICON_SIZE = 24
 
@@ -25,6 +25,18 @@ local ROLE_LABELS = {
     HEALER = L.AURA_TRACKER_ROLE_HEALER,
     DAMAGER = L.AURA_TRACKER_ROLE_DAMAGER,
 }
+
+local UNIT_LABELS = {
+    [Schema.UNIT_PLAYER] = L.AURA_TRACKER_UNIT_PLAYER,
+    [Schema.UNIT_TARGET] = L.AURA_TRACKER_UNIT_TARGET,
+    [Schema.UNIT_FOCUS] = L.AURA_TRACKER_UNIT_FOCUS,
+}
+
+---@param unit string
+---@return string
+local function UnitLabel(unit)
+    return UNIT_LABELS[unit] or UNIT_LABELS[Schema.UNIT_PLAYER]
+end
 
 ---@class AuraTrackerUI
 local UI = ns.AuraTrackerUI or {}
@@ -109,6 +121,9 @@ function UI.RelayoutSettings()
     end
 
     UI.settingsContainer:SetContentHeight(UI.contentBody:GetHeight())
+    if UI.SyncEditorHeaderPosition then
+        UI.SyncEditorHeaderPosition()
+    end
     Profile.Stop("ui.relayout", started)
 end
 
@@ -159,14 +174,32 @@ end
 ---@field trackerId integer
 ---@field enableBox CheckButton
 ---@field spellIcon Texture
+---@field unitLabel FontString
 ---@field nameLabel FontString
 ---@field scopeLabel FontString
 ---@field isActive boolean
 ---@field selected boolean
 ---@field enabled boolean
 ---@field spellId integer
+---@field unit string
 ---@field name string
 ---@field scope string
+
+---Keeps the unit label immediately after the spell name, shortening the name before it meets the scope.
+---@param row AuraTrackerRow
+local function FitTrackerRowText(row)
+    local frameWidth = row.frame:GetWidth()
+    if frameWidth <= 0 then
+        return
+    end
+    local nameWidth = row.nameLabel:GetUnboundedStringWidth()
+    local unitWidth = row.unitLabel:GetUnboundedStringWidth()
+    local scopeWidth = row.scopeLabel:GetUnboundedStringWidth()
+    local left = Spacing.SMALL + Sizes.CHECKBOX + Spacing.SMALL + LIST_SPELL_ICON_SIZE + Spacing.SMALL
+    local right = Spacing.MEDIUM + scopeWidth + Spacing.SMALL
+    local available = frameWidth - left - Spacing.SMALL - unitWidth - right
+    row.nameLabel:SetWidth(math.max(math.min(nameWidth, available), 1))
+end
 
 ---@param parent Frame
 ---@param trackerId integer
@@ -201,11 +234,15 @@ local function CreateTrackerRow(parent, trackerId)
     nameLabel:SetWordWrap(false)
     nameLabel:SetPoint("LEFT", spellIcon, "RIGHT", Spacing.SMALL, 0)
 
+    local unitLabel = Widgets.CreateLabel(frame, Fonts.SMALL_MUTED, "")
+    unitLabel:SetJustifyH("LEFT")
+    unitLabel:SetWordWrap(false)
+    unitLabel:SetPoint("LEFT", nameLabel, "RIGHT", Spacing.SMALL, 0)
+
     local scopeLabel = Widgets.CreateLabel(frame, Fonts.SMALL_MUTED, "")
     scopeLabel:SetJustifyH("RIGHT")
     scopeLabel:SetWordWrap(false)
     scopeLabel:SetPoint("RIGHT", frame, "RIGHT", -Spacing.SMALL, 0)
-    nameLabel:SetPoint("RIGHT", scopeLabel, "LEFT", -Spacing.MEDIUM, 0)
 
     ---@type AuraTrackerRow
     local row = {
@@ -213,17 +250,22 @@ local function CreateTrackerRow(parent, trackerId)
         trackerId = trackerId,
         enableBox = enableBox,
         spellIcon = spellIcon,
+        unitLabel = unitLabel,
         nameLabel = nameLabel,
         scopeLabel = scopeLabel,
         isActive = false,
         selected = false,
         enabled = false,
         spellId = -1,
+        unit = "",
         name = "",
         scope = "",
     }
     frame:SetScript("OnClick", function()
         UI.SelectTracker(trackerId)
+    end)
+    frame:HookScript("OnSizeChanged", function()
+        FitTrackerRowText(row)
     end)
     return row
 end
@@ -236,6 +278,7 @@ local function RowDisplayMatches(row, trackerId, isActive)
         and row.selected == (UI.selectedTrackerId == trackerId)
         and row.enabled == AuraTracker:IsTrackerEnabled(trackerId)
         and row.spellId == AuraTracker:GetSpellId(trackerId)
+        and row.unit == AuraTracker:GetUnit(trackerId)
         and row.name == AuraTracker:GetDisplayName(trackerId)
         and row.scope == AuraTracker:GetActivationScopeLabel(trackerId)
 end
@@ -247,6 +290,7 @@ local function PaintRow(row, isActive)
     local selected = UI.selectedTrackerId == trackerId
     local enabled = AuraTracker:IsTrackerEnabled(trackerId)
     local spellId = AuraTracker:GetSpellId(trackerId)
+    local unit = AuraTracker:GetUnit(trackerId)
     local name = AuraTracker:GetDisplayName(trackerId)
     local scope = AuraTracker:GetActivationScopeLabel(trackerId)
     Widgets.ApplyBackdrop(
@@ -256,14 +300,18 @@ local function PaintRow(row, isActive)
     )
     row.enableBox:SetChecked(enabled)
     UI.ApplySpellIcon(row.spellIcon, spellId)
+    row.unitLabel:SetText(UnitLabel(unit))
+    row.unitLabel:SetAlpha(isActive and 1 or 0.7)
     row.nameLabel:SetFontObject(isActive and Fonts.BODY or Fonts.MUTED)
     row.nameLabel:SetText(name)
     row.scopeLabel:SetText(scope)
     row.scopeLabel:SetAlpha(isActive and 1 or 0.7)
+    FitTrackerRowText(row)
     row.isActive = isActive
     row.selected = selected
     row.enabled = enabled
     row.spellId = spellId
+    row.unit = unit
     row.name = name
     row.scope = scope
 end
@@ -325,26 +373,20 @@ local function EnsureTrackerList()
     UI.listStack = Layout.Stack(UI.listHost, { spacing = Spacing.TINY })
 
     local header = UI.listStack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local headerLabel = Widgets.CreateLabel(header, Fonts.SMALL_MUTED, L.AURA_TRACKER_LIST)
-    headerLabel:SetJustifyH("LEFT")
-    headerLabel:SetPoint("LEFT", header, "LEFT")
-    headerLabel:SetPoint("RIGHT", header, "RIGHT", -Sizes.BUTTON_MIN_WIDTH - Spacing.SMALL, 0)
-
     local addButton = Widgets.CreateButton(header, L.AURA_TRACKER_ADD, function()
         if not AuraTracker:IsEnabled() then
             return
         end
         local id = AuraTracker:AddTracker()
         UI.SelectTracker(id)
-    end)
-    addButton:SetPoint("RIGHT", header, "RIGHT")
+    end, "primary")
+    addButton:SetPoint("LEFT", header, "LEFT")
 
-    local summary = UI.listStack:AddRow(LIST_HEADER_HEIGHT)
-    UI.summaryLabel = Widgets.CreateLabel(summary, Fonts.TINY_MUTED, "")
-    UI.summaryLabel:SetJustifyH("LEFT")
+    UI.summaryLabel = Widgets.CreateLabel(header, Fonts.TINY_MUTED, "")
+    UI.summaryLabel:SetJustifyH("RIGHT")
     UI.summaryLabel:SetWordWrap(false)
-    UI.summaryLabel:SetPoint("LEFT", summary, "LEFT")
-    UI.summaryLabel:SetPoint("RIGHT", summary, "RIGHT")
+    UI.summaryLabel:SetPoint("LEFT", addButton, "RIGHT", Spacing.MEDIUM, 0)
+    UI.summaryLabel:SetPoint("RIGHT", header, "RIGHT")
 
     UI.activeGroup = CollapsibleSection.Create(UI.listStack, {
         title = L.AURA_TRACKER_GROUP_ACTIVE,

@@ -104,6 +104,7 @@ return function()
     end
 
     ---Test helper: replace the fake player's class / spec / role context.
+    ---Nil fields are left alone. Use ClearContextForTests to represent a missing specialization.
     ---@param context { classFile: string|nil, specializationId: integer|nil, role: string|nil, specializations: table|nil }
     function Player.SetContextForTests(context)
         if context.classFile ~= nil then
@@ -117,6 +118,22 @@ return function()
         end
         if context.specializations ~= nil then
             Player.specializations = context.specializations
+        end
+    end
+
+    local CLEARABLE = {
+        classFile = true,
+        specializationId = true,
+        role = true,
+    }
+
+    ---Test helper: set context fields to nil. Production getters return nil when that context is unavailable.
+    ---@param fields string[]
+    function Player.ClearContextForTests(fields)
+        assert(type(fields) == "table", "Bad context fields")
+        for _, field in ipairs(fields) do
+            assert(CLEARABLE[field] == true, "Cannot clear " .. tostring(field))
+            Player[field] = nil
         end
     end
 

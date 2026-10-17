@@ -28,6 +28,97 @@ local Controls = UI.Controls
 
 local sharedMediaListening = false
 
+---Scroll frame overlay that clips the aura header to the page viewport.
+---Parented beside the scroll frame so it draws above the scroll child.
+---@param scroll ScrollFrame
+---@return Frame
+local function EnsureEditorHeaderClip(scroll)
+    if UI.editorHeaderClip and UI.editorHeaderClip.scroll == scroll then
+        return UI.editorHeaderClip
+    end
+    local clip = CreateFrame("Frame", nil, scroll:GetParent())
+    clip:SetAllPoints(scroll)
+    clip:SetClipsChildren(true)
+    -- The clip covers the page only to crop the header. It must not take clicks or hover from the settings under it.
+    clip:EnableMouse(false)
+    clip:SetMouseClickEnabled(false)
+    clip:SetMouseMotionEnabled(false)
+    clip.scroll = scroll
+    clip:SetFrameLevel(scroll:GetFrameLevel() + 20)
+    UI.editorHeaderClip = clip
+    scroll:HookScript("OnVerticalScroll", function()
+        UI.SyncEditorHeaderPosition()
+    end)
+    scroll:HookScript("OnSizeChanged", function()
+        UI.SyncEditorHeaderPosition()
+    end)
+    scroll:HookScript("OnShow", function()
+        UI.SyncEditorHeaderPosition()
+    end)
+    return clip
+end
+
+---Keeps the selected-aura header in place once it reaches the top of the page.
+function UI.SyncEditorHeaderPosition()
+    local header = UI.editorHeader
+    local placeholder = UI.editorHeaderPlaceholder
+    local container = UI.settingsContainer
+    local clip = UI.editorHeaderClip
+    if not header or not placeholder or not container or not clip or not UI.contentBody or not UI.editorStack then
+        return
+    end
+    if not UI.editorHost or not UI.editorHost:IsShown() or not container:IsVisible() then
+        header:Hide()
+        return
+    end
+    local scroll = clip.scroll
+    if not scroll then
+        header:Hide()
+        return
+    end
+    local section = container:GetParent()
+    local pageHeaderHeight = (section and section.headerHeight) or 0
+    local layoutOffset = pageHeaderHeight
+        + UI.contentBody:GetOffset(UI.editorHost)
+        + UI.editorStack:GetOffset(placeholder)
+    local y = scroll:GetVerticalScroll() - layoutOffset
+    local pinned = y >= 0
+    if pinned then
+        y = 0
+    end
+    header:ClearAllPoints()
+    header:SetPoint("TOPLEFT", clip, "TOPLEFT", 0, y)
+    header:SetPoint("TOPRIGHT", clip, "TOPRIGHT", 0, y)
+    if UI.editorHeaderBackground then
+        UI.editorHeaderBackground:SetShown(pinned)
+    end
+    header:SetAlpha(container:GetAlpha())
+    header:Show()
+end
+
+---The header sits above the scroll child, so wheel events over it must reach the page.
+---@param _ Frame
+---@param delta number
+local function ForwardEditorHeaderWheel(_, delta)
+    local scroll = UI.PageScrollFrame(UI.settingsContainer)
+    if not scroll then
+        return
+    end
+    local handler = scroll:GetScript("OnMouseWheel")
+    if handler then
+        handler(scroll, delta)
+        return
+    end
+    local range = scroll:GetVerticalScrollRange()
+    local nextScroll = scroll:GetVerticalScroll() - delta * Sizes.CONTROL_ROW_HEIGHT
+    if nextScroll < 0 then
+        nextScroll = 0
+    elseif nextScroll > range then
+        nextScroll = range
+    end
+    scroll:SetVerticalScroll(nextScroll)
+end
+
 ---@return boolean
 function UI.CanEditSelected()
     return AuraTracker:IsEnabled() and UI.ResolveSelectedTrackerId() ~= nil
@@ -81,12 +172,36 @@ function UI.BuildEditorContent(content)
         UI.RelayoutSettings()
     end
 
-    -- Panel title for the selected aura; not another list-style selectable row.
-    local header = body:Add(CreateFrame("Frame", nil, content), EDITOR_HEADER_HEIGHT)
+    -- Holds the header's place in the scroll content. The visible header is an overlay so it can stick.
+    local placeholder = body:Add(CreateFrame("Frame", nil, content), EDITOR_HEADER_HEIGHT)
+    UI.editorHeaderPlaceholder = placeholder
+
+    local scroll = UI.PageScrollFrame(UI.settingsContainer)
+    local clip = scroll and EnsureEditorHeaderClip(scroll) or nil
+    local header = CreateFrame("Frame", nil, clip or content)
+    header:SetHeight(EDITOR_HEADER_HEIGHT)
+    -- Settings stack is inset from the scroll viewport; the overlay itself spans the viewport.
+    local inset = clip and UI.contentBody.paddingX or 0
+    if clip then
+        UI.editorHeader = header
+        header:Hide()
+        header:EnableMouse(true)
+        header:EnableMouseWheel(true)
+        header:SetScript("OnMouseWheel", ForwardEditorHeaderWheel)
+        local background = header:CreateTexture(nil, "BACKGROUND")
+        background:SetAllPoints()
+        local bg = Colors.BG
+        background:SetColorTexture(bg.r, bg.g, bg.b, 1)
+        background:Hide()
+        UI.editorHeaderBackground = background
+    else
+        body:Add(header, EDITOR_HEADER_HEIGHT)
+        body:SetEntryHeight(placeholder, 0)
+    end
 
     UI.editorSpellIcon = header:CreateTexture(nil, "ARTWORK")
     UI.editorSpellIcon:SetSize(EDITOR_HEADER_ICON_SIZE, EDITOR_HEADER_ICON_SIZE)
-    UI.editorSpellIcon:SetPoint("TOPLEFT", header, "TOPLEFT")
+    UI.editorSpellIcon:SetPoint("TOPLEFT", header, "TOPLEFT", inset, 0)
     UI.ApplySpellIcon(UI.editorSpellIcon, 0)
 
     UI.editorNameLabel = Widgets.CreateLabel(header, Fonts.TITLE, L.AURA_TRACKER_UNTITLED)
@@ -105,7 +220,13 @@ function UI.BuildEditorContent(content)
         end
         UI.PromptDeleteTracker(trackerId)
     end, Fonts.LINK_DANGER)
-    deleteButton:SetPoint("TOPRIGHT", header, "TOPRIGHT", 0, -(EDITOR_HEADER_TITLE_HEIGHT - Sizes.CONTROL_HEIGHT) / 2)
+    deleteButton:SetPoint(
+        "TOPRIGHT",
+        header,
+        "TOPRIGHT",
+        -inset,
+        -(EDITOR_HEADER_TITLE_HEIGHT - Sizes.CONTROL_HEIGHT) / 2
+    )
 
     -- No dedicated copy icon in shared widgets; match Delete as a compact text action.
     local duplicateButton = Widgets.CreateTextButton(header, L.AURA_TRACKER_DUPLICATE, function()
@@ -126,13 +247,13 @@ function UI.BuildEditorContent(content)
     UI.editorSubtitleLabel:SetJustifyH("LEFT")
     UI.editorSubtitleLabel:SetWordWrap(false)
     UI.editorSubtitleLabel:SetPoint("TOPLEFT", UI.editorNameLabel, "BOTTOMLEFT")
-    UI.editorSubtitleLabel:SetPoint("TOPRIGHT", header, "TOPRIGHT")
+    UI.editorSubtitleLabel:SetPoint("TOPRIGHT", header, "TOPRIGHT", -inset, 0)
     UI.editorSubtitleLabel:SetHeight(EDITOR_HEADER_SUBTITLE_HEIGHT)
 
     local divider = header:CreateTexture(nil, "ARTWORK")
     divider:SetHeight(Sizes.BORDER)
-    divider:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT")
-    divider:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT")
+    divider:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", inset, 0)
+    divider:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", -inset, 0)
     divider:SetColorTexture(Widgets.UnpackColor(Colors.DIVIDER))
 
     UI.basicSection = CollapsibleSection.Create(body, {
@@ -182,6 +303,7 @@ function UI.BuildEditorContent(content)
     UI.BuildTextSections(body, OnEditorHeightChanged)
 
     UI.RefreshTrackingModeControls()
+    UI.SyncEditorHeaderPosition()
 
     return body:GetHeight()
 end

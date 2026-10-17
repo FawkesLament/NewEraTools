@@ -249,6 +249,11 @@ function UI.BuildBasicSection(content)
         end
         AuraTracker:SetAuraType(trackerId, auraType)
     end)
+    UI.sourceHintLabel = Widgets.CreateLabel(auraTypeRow, Fonts.SMALL_MUTED, "")
+    UI.sourceHintLabel:SetJustifyH("LEFT")
+    UI.sourceHintLabel:SetWordWrap(false)
+    UI.sourceHintLabel:SetPoint("LEFT", UI.auraTypeControl, "RIGHT", Spacing.LARGE, 0)
+    UI.sourceHintLabel:SetPoint("RIGHT", auraTypeRow, "RIGHT")
 
     local scopeRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     UI.activationScopeControl = Controls.AddSegmentedRow(
@@ -267,13 +272,6 @@ function UI.BuildBasicSection(content)
             UI.RefreshActivationScopeControl()
         end
     )
-
-    local hintRow = body:AddRow(Sizes.CONTROL_HEIGHT)
-    UI.sourceHintLabel = Widgets.CreateLabel(hintRow, Fonts.SMALL_MUTED, "")
-    UI.sourceHintLabel:SetJustifyH("LEFT")
-    UI.sourceHintLabel:SetWordWrap(false)
-    UI.sourceHintLabel:SetPoint("LEFT", hintRow, "LEFT")
-    UI.sourceHintLabel:SetPoint("RIGHT", hintRow, "RIGHT")
 
     UI.RefreshSourceControls()
     UI.RefreshActivationScopeControl()

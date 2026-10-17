@@ -43,11 +43,14 @@ return function()
         if not list then
             return
         end
+        -- Same snapshot rule as api/GameEvents.lua: unsubscribe during dispatch
+        -- does not skip or add handlers for this fire.
+        local snapshot = {}
         for i = 1, #list do
-            local handler = list[i]
-            if handler then
-                handler(...)
-            end
+            snapshot[i] = list[i]
+        end
+        for i = 1, #snapshot do
+            snapshot[i](...)
         end
     end
 

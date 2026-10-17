@@ -6,7 +6,7 @@ ns.MessageProtocol = MessageProtocol
 ---When true, Dispatch prints handler errors via Util.Print (default off).
 MessageProtocol.debugHandlers = false
 
----Wire protocol version (independent of ns.ADDON_VERSION).
+---Wire protocol version (independent of the addon TOC version).
 MessageProtocol.VERSION = 1
 
 MessageProtocol.TYPE_EVENT = "E"
