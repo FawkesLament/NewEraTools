@@ -28,6 +28,8 @@ describe("SszorakCallout", function()
             Chat = ns.Api.Chat
             Encounter = ns.Api.Encounter
             Timer = ns.Api.Timer
+            -- Center moves print the edge-resolve pair; these examples don't assert it.
+            ns.Util.Print = function() end
             Sszorak:ListenForCalloutMode()
             Sszorak:ListenForEncounter()
         end)
@@ -137,6 +139,8 @@ describe("SszorakCallout", function()
             Chat = ns.Api.Chat
             Encounter = ns.Api.Encounter
             Timer = ns.Api.Timer
+            -- Center moves print the edge-resolve pair; these examples assert the warning HUD only.
+            ns.Util.Print = function() end
             Sszorak:ListenForCalloutMode()
             Sszorak:ListenForEncounter()
         end)
@@ -235,6 +239,148 @@ describe("SszorakCallout", function()
             Sszorak.ShowResolvedCallout(nil, Sszorak.CALLOUT_DURATION_ENCOUNTER, true)
             assert.equals(nil, Sszorak:GetDisplayedCallout())
             assert.equals(nil, Sszorak:GetDisplayedCalloutResolve())
+        end)
+    end)
+
+    describe("center edge resolves", function()
+        local Chat
+        local Encounter
+        local Timer
+        local printed
+
+        local function PairLine(firstIndex, first, second)
+            return string.format(ns.L.SSZORAK_HUD_PAIR, firstIndex, first, firstIndex + 1, second)
+        end
+
+        local function AdvanceTo(time)
+            Timer.Advance(time / Sszorak.ANIM_PREVIEW_RATE)
+        end
+
+        before_each(function()
+            Chat = ns.Api.Chat
+            Encounter = ns.Api.Encounter
+            Timer = ns.Api.Timer
+            printed = {}
+            ns.Util.Print = function(message)
+                table.insert(printed, message)
+            end
+            Sszorak:ListenForCalloutMode()
+            Sszorak:ListenForEncounter()
+        end)
+
+        it("saves and prints anchors 1 and 2 when test dots move home to center", function()
+            Sszorak:StartMapTest()
+            Chat.FireRaidLeader("{rt1}")
+            Chat.FireRaidLeader("{rt2}")
+            Chat.FireRaidLeader("third")
+            local icon1 = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t"
+            local icon2 = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_2:0|t"
+            AdvanceTo(Sszorak.ACTIVE_SCHEDULE.positionTimeline[1].time)
+            assert.same({ PairLine(1, icon1, icon2) }, printed)
+            assert.equals(icon1, Sszorak:GetDisplayedCallout())
+            assert.equals(icon1, Sszorak:GetSavedEdgeResolve(1).hudMessage)
+            assert.equals(icon2, Sszorak:GetSavedEdgeResolve(2).hudMessage)
+            assert.is_nil(Sszorak:GetSavedEdgeResolve(3))
+        end)
+
+        it("saves and prints anchors 3 and 4 when test dots move far to center", function()
+            Sszorak:StartMapTest()
+            Chat.FireRaidLeader("{rt1}")
+            Chat.FireRaidLeader("{rt2}")
+            Chat.FireRaidLeader("third")
+            local timeline = Sszorak.ACTIVE_SCHEDULE.positionTimeline
+            local icon1 = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t"
+            local icon2 = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_2:0|t"
+            AdvanceTo(timeline[2].time)
+            assert.same({ PairLine(1, icon1, icon2) }, printed)
+            AdvanceTo(timeline[3].time - timeline[2].time)
+            assert.same({
+                PairLine(1, icon1, icon2),
+                PairLine(3, "third", ns.L.SSZORAK_EXIT),
+            }, printed)
+            assert.equals("third", Sszorak:GetDisplayedCallout())
+            assert.equals("third", Sszorak:GetSavedEdgeResolve(3).hudMessage)
+            assert.equals(ns.L.SSZORAK_EXIT, Sszorak:GetSavedEdgeResolve(4).hudMessage)
+            assert.equals(Sszorak.EXIT_EDGE, Sszorak:GetSavedEdgeResolve(4).targetEdge)
+            AdvanceTo(timeline[4].time - timeline[3].time)
+            assert.equals(2, #printed)
+        end)
+
+        it("queries anchors 1 and 2 again on the next home-to-center move", function()
+            local seen = {}
+            Sszorak.RegisterCalloutMode({
+                id = "edgeresolve",
+                capturing = false,
+                GetEdgeMacroBody = function()
+                    return "/x"
+                end,
+                Listen = function()
+                    return function() end
+                end,
+                BeginCapture = function(self)
+                    self.capturing = true
+                end,
+                IsCapturing = function(self)
+                    return self.capturing
+                end,
+                OnViscousCystWarning = function(_, anchorIndex)
+                    table.insert(seen, anchorIndex)
+                    return { hudMessage = "m" .. anchorIndex, targetEdge = anchorIndex }
+                end,
+            })
+            Sszorak:SetCalloutMode("edgeresolve")
+            Sszorak:StartMapTest()
+            local timeline = Sszorak.ACTIVE_SCHEDULE.positionTimeline
+            AdvanceTo(timeline[1].time)
+            assert.same({ 1, 2 }, seen)
+            assert.same({ PairLine(1, "m1", "m2") }, printed)
+            assert.equals(1, Sszorak:GetSavedEdgeResolve(1).targetEdge)
+            AdvanceTo(timeline[3].time - timeline[1].time)
+            assert.same({ 1, 2, 3, 4 }, seen)
+            seen = {}
+            printed = {}
+            AdvanceTo(timeline[5].time - timeline[3].time)
+            assert.same({ 1, 2 }, seen)
+            assert.same({ PairLine(1, "m1", "m2") }, printed)
+        end)
+
+        it("saves and prints the same pairs during a pull without the test HUD", function()
+            Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
+            Chat.FireRaidLeader("{rt1}")
+            Chat.FireRaidLeader("second")
+            local timeline = Sszorak.ACTIVE_SCHEDULE.positionTimeline
+            local icon1 = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t"
+            Timer.Advance(timeline[1].time)
+            assert.equals(nil, Sszorak:GetDisplayedCallout())
+            assert.same({ PairLine(1, icon1, "second") }, printed)
+            assert.equals(icon1, Sszorak:GetSavedEdgeResolve(1).hudMessage)
+            assert.equals("second", Sszorak:GetSavedEdgeResolve(2).hudMessage)
+            Timer.Advance(timeline[3].time - timeline[1].time)
+            assert.same({
+                PairLine(1, icon1, "second"),
+                PairLine(3, ns.L.SSZORAK_HUD_EMPTY, ns.L.SSZORAK_EXIT),
+            }, printed)
+            assert.equals(nil, Sszorak:GetDisplayedCallout())
+            assert.equals(Sszorak.EXIT_EDGE, Sszorak:GetSavedEdgeResolve(4).targetEdge)
+        end)
+
+        it("does not print when the timeline is not capturing", function()
+            Sszorak:StartMapAnimation()
+            Timer.Advance(Sszorak.ACTIVE_SCHEDULE.positionTimeline[1].time)
+            assert.same({}, printed)
+            assert.is_nil(Sszorak:GetSavedEdgeResolve(1))
+        end)
+
+        it("drops saved resolves when the test ends and does not print the snap home", function()
+            Sszorak:StartMapTest()
+            Chat.FireRaidLeader("one")
+            Chat.FireRaidLeader("two")
+            AdvanceTo(Sszorak.ACTIVE_SCHEDULE.positionTimeline[1].time)
+            assert.equals(1, #printed)
+            assert.equals("one", Sszorak:GetSavedEdgeResolve(1).hudMessage)
+            Sszorak:EndMapTest()
+            assert.equals(1, #printed)
+            assert.is_nil(Sszorak:GetSavedEdgeResolve(1))
         end)
     end)
 end)

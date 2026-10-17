@@ -199,6 +199,8 @@ describe("Sszorak", function()
 
         it("starts on encounter pull and stops when the fight ends", function()
             local Encounter = ns.Api.Encounter
+            -- The center move reports edge resolves; this example only checks the timeline.
+            ns.Util.Print = function() end
             Sszorak:ListenForEncounter()
             Sszorak:StartMapAnimation()
             Timer.Advance(Sszorak.ACTIVE_SCHEDULE.positionTimeline[1].time)

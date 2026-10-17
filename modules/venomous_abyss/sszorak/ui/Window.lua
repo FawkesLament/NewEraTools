@@ -3,6 +3,7 @@ local L = ns.L
 local Assets = ns.Assets
 local Combat = ns.Api.Combat
 local FloatingWindow = ns.FloatingWindow
+local Instance = ns.Api.Instance
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
 
@@ -31,6 +32,38 @@ local layoutEditCount = 0
 local previewVisible = false
 -- True when role-driven macro click binding couldn't apply during combat lockdown.
 local macroClicksDirty = false
+-- True when Show/Hide was skipped because the protected window cannot change during lockdown.
+local visibilityDirty = false
+-- Unprotected overlay. Shown while the map is armed but invisible, so alpha 0 does not eat clicks.
+local clickShield
+
+local function IsInRaid()
+    return Instance.GetInfo().instanceType == "raid"
+end
+
+local function CanConfigure(frame)
+    return not Combat.IsLockedDown() or not frame.IsProtected or not frame:IsProtected()
+end
+
+---What the player should see. Encounter reveal uses alpha; Show itself is illegal once the pull starts.
+local function IsMapVisible()
+    if Sszorak:IsInEncounter() then
+        return Sszorak:IsMapEnabled()
+    end
+    return previewVisible
+end
+
+---The protected window must already be shown before combat so the encounter can fade it in.
+local function ShouldKeepShown()
+    return IsMapVisible() or (Sszorak:IsMapEnabled() and IsInRaid())
+end
+
+local function SetWindowRevealed(revealed)
+    window:SetAlpha(revealed and 1 or 0)
+    if clickShield then
+        clickShield:SetShown(not revealed)
+    end
+end
 
 function Window.IsLayoutEditing()
     return layoutEditCount > 0
@@ -59,32 +92,44 @@ function Window.ApplyScale(scale)
     ApplyWindowScale(scale)
 end
 
-local function IsWindowWanted()
-    if Sszorak:IsInEncounter() then
-        return Sszorak:IsMapEnabled()
-    end
-    return previewVisible
-end
-
 function Window.Update()
     if Window.IsLayoutEditing() then
         return
     end
-    local wanted = IsWindowWanted()
-    if not wanted and not window then
+    local visible = IsMapVisible()
+    local keepShown = ShouldKeepShown()
+    if not keepShown and not window then
         return
     end
-    window = window or Window.Create()
-    if windowCloseButton then
-        -- Encounter mode keeps the map up for the whole fight; only preview can be dismissed.
-        windowCloseButton:SetShown(not Sszorak:IsInEncounter())
+    if not window then
+        if Combat.IsLockedDown() then
+            visibilityDirty = true
+            return
+        end
+        window = Window.Create()
     end
-    if wanted then
+    if windowCloseButton and CanConfigure(windowCloseButton) then
+        windowCloseButton:SetShown(previewVisible and not Sszorak:IsInEncounter())
+    end
+    if not CanConfigure(window) then
+        if window:IsShown() then
+            -- Already open from before the pull. Alpha is not protected, so the map can still appear.
+            SetWindowRevealed(visible)
+        end
+        visibilityDirty = keepShown ~= window:IsShown()
+        return
+    end
+    visibilityDirty = false
+    if keepShown then
         if not window:IsShown() then
             window:Show()
         end
-        window:Raise()
+        SetWindowRevealed(visible)
+        if visible then
+            window:Raise()
+        end
     elseif window:IsShown() then
+        SetWindowRevealed(true)
         window:Hide()
     end
 end
@@ -159,6 +204,10 @@ local function RegisterMapLayoutElement(frame)
                 windowCloseButton:Hide()
             end
             win:Show()
+            win:SetAlpha(1)
+            if clickShield then
+                clickShield:Hide()
+            end
             win:Raise()
         end,
         onEditEnd = function()
@@ -202,6 +251,12 @@ function Window.Create()
     Window.UpdateMacroClicks()
 
     frame:SetSize(arena.width + 2 * Spacing.LARGE, stack:GetHeight())
+    -- Above the secure markers. Showing and hiding this frame stays legal during lockdown.
+    clickShield = CreateFrame("Frame", nil, frame)
+    clickShield:SetAllPoints()
+    clickShield:EnableMouse(true)
+    clickShield:SetFrameLevel(frame:GetFrameLevel() + 20)
+    clickShield:Hide()
     RegisterMapLayoutElement(frame)
     return frame
 end
@@ -235,5 +290,12 @@ function Window.ListenForCombatDeferral()
         if macroClicksDirty then
             Window.UpdateMacroClicks()
         end
+        if visibilityDirty then
+            Window.Update()
+        end
+    end)
+    -- Zoning into the raid is out of combat, which is the last chance to Show the protected map.
+    Instance.OnEnteringWorld(function()
+        Window.Update()
     end)
 end

@@ -548,8 +548,10 @@ function Sszorak:OnEnable()
     self:ListenForMacroSync()
     -- Register with the layout editor (local-only) before the map is first shown.
     -- Secure marker buttons must be created out of combat; OnEnable runs before pulls.
+    -- Show now when a raid pull could start, because Show is blocked once combat lockdown begins.
     Window.Ensure()
     Callout.Ensure()
+    Window.Update()
     -- Window markers are created with macro bindings; strip them for members.
     Window.UpdateMacroClicks()
     Window.ListenForCombatDeferral()

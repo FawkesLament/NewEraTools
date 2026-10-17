@@ -38,7 +38,7 @@ Assets.STATUS_BAR_TEXTURE_DEFAULT = "flat"
 Assets.Templates = {
     BACKDROP = "BackdropTemplate",
     SCROLL_BAR = "MinimalScrollBar",
-    -- SecureHandlerBaseTemplate allows WrapScript for one-shot clicks during combat lockdown.
+    -- SecureActionButton runs the edge-marker callout macro.
     SECURE_ACTION_BUTTON = "SecureActionButtonTemplate,SecureHandlerBaseTemplate",
 }
 

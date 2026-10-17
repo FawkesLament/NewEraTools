@@ -34,18 +34,11 @@ local EDGE_CLICK_ORDER_BADGE_SIZE = 28
 
 local HALO_ALPHA = 0.3
 
--- Unprotected host: click-used flags can be cleared mid-combat when dots return home.
--- Secure marker buttons read these via FrameRef + WrapScript (SetAttribute on protected frames is locked).
----@type Frame|nil
-local edgeClickState
-
-local function GetEdgeClickState()
-    if not edgeClickState then
-        edgeClickState = CreateFrame("Frame")
-        edgeClickState:Hide()
-    end
-    return edgeClickState
-end
+-- Plain Lua, not frame attributes: SetAttribute and SetID on the secure buttons are blocked for the whole pull.
+local clickTrackingArmed = false
+---@type table<integer, integer>
+local usedEdgeOrder = {}
+local usedEdgeCount = 0
 
 local GATES = {
     [Sszorak.ENTRANCE_EDGE] = { color = Colors.ACCENT, text = L.SSZORAK_ENTRANCE },
@@ -360,28 +353,6 @@ local function RefreshPositionMarkers(canvas)
     PlaceAll(canvas)
 end
 
----Secure pre-click: while armed, first press per edge runs the macro; lock all after N edges.
-local EDGE_MACRO_CLICK_WRAP = string.format(
-    [[
-    local state = self:GetFrameRef("clickState")
-    if not state:GetAttribute("armed") then
-        return
-    end
-    local used = tonumber(state:GetAttribute("usedCount")) or 0
-    if used >= %d then
-        return false
-    end
-    local id = self:GetAttribute("sszEdge")
-    local key = "c" .. id
-    if state:GetAttribute(key) then
-        return false
-    end
-    state:SetAttribute(key, true)
-    state:SetAttribute("usedCount", used + 1)
-]],
-    EDGE_CLICK_LOCK_COUNT
-)
-
 ---Pixel offset from the icon center to the click-order badge center, outward along the edge normal.
 ---@param canvas ArenaCanvas
 ---@param edge integer
@@ -465,6 +436,42 @@ local function SetEdgeIconHighlighted(canvas, edge, highlighted, clickOrder)
     end
 end
 
+local function UpdateEdgeClickCovers()
+    local locked = usedEdgeCount >= EDGE_CLICK_LOCK_COUNT
+    for _, canvas in ipairs(canvases) do
+        for edge, button in pairs(canvas.edgeButtons or {}) do
+            local cover = button.clickCover
+            if cover then
+                cover:SetShown(clickTrackingArmed and (locked or usedEdgeOrder[edge] ~= nil))
+            end
+        end
+    end
+end
+
+---Records one accepted macro click and covers that edge, or every edge once the lock count is reached.
+---@param canvas ArenaCanvas
+---@param edge integer
+local function AcceptEdgeMacroClick(canvas, edge)
+    if not clickTrackingArmed or usedEdgeOrder[edge] or usedEdgeCount >= EDGE_CLICK_LOCK_COUNT then
+        return
+    end
+    usedEdgeCount = usedEdgeCount + 1
+    usedEdgeOrder[edge] = usedEdgeCount
+    SetEdgeIconHighlighted(canvas, edge, true, usedEdgeCount)
+    UpdateEdgeClickCovers()
+end
+
+---Unprotected frame above the secure button. Shown to swallow further clicks; showing it stays legal in lockdown.
+---@param button Button
+local function CreateEdgeClickCover(button)
+    local cover = CreateFrame("Frame", nil, button)
+    cover:SetAllPoints()
+    cover:EnableMouse(true)
+    cover:SetFrameLevel(button:GetFrameLevel() + 5)
+    cover:Hide()
+    button.clickCover = cover
+end
+
 ---@param options ArenaCanvasOptions
 local function CreateEdgeMarkerButton(canvas, edge, options)
     local macroName = options.edgeMarkerMacroName and options.edgeMarkerMacroName(edge)
@@ -474,24 +481,14 @@ local function CreateEdgeMarkerButton(canvas, edge, options)
     Widgets.AddHoverHighlight(button)
     if macroName then
         -- Named macros stay in sync via EditMacro; the button only needs the stable name.
-        button:RegisterForClicks("AnyUp", "AnyDown")
+        -- Down only: an up click would run the macro a second time, and a secure pre-click cannot
+        -- read addon state during lockdown.
+        button:RegisterForClicks("AnyDown")
         button:SetAttribute("type", "macro")
         button:SetAttribute("macro", macroName)
-        -- One-shot + highlight while a pull/test is armed (see SetEdgeClickTrackingArmed).
-        local clickState = GetEdgeClickState()
         button:SetAttribute("sszEdge", edge)
-        button:SetFrameRef("clickState", clickState)
-        button:WrapScript(button, "OnClick", EDGE_MACRO_CLICK_WRAP)
         button:HookScript("PostClick", function()
-            if not clickState:GetAttribute("armed") then
-                return
-            end
-            if not clickState:GetAttribute("c" .. edge) then
-                return
-            end
-            -- WrapScript already bumped usedCount; that value is this click's order (1–3).
-            local order = tonumber(clickState:GetAttribute("usedCount")) or 0
-            SetEdgeIconHighlighted(canvas, edge, true, order)
+            AcceptEdgeMacroClick(canvas, edge)
         end)
     else
         button:RegisterForClicks("LeftButtonUp")
@@ -511,6 +508,8 @@ local function CreateEdgeMarkerButton(canvas, edge, options)
     if macroName then
         -- Circular digit badge sits beside the icon (outward); placement follows the edge markers.
         orderBadge = CreateEdgeClickOrderBadge(button)
+        -- After the badge so the cover sits above it and can swallow clicks once the edge is locked.
+        CreateEdgeClickCover(button)
     end
     return button, icon, orderBadge
 end
@@ -544,6 +543,11 @@ local function CreateEdgeMarkers(canvas, options)
         canvas.edgeIcons[edgeMarker.edge] = icon
         local x, y = edgeMarker.x * distance, edgeMarker.y * distance
         AddPlacement(canvas, function()
+            -- Secure edge buttons only move with rotation. Position refreshes run for the whole pull,
+            -- and Button:SetPoint is blocked while combat lockdown is active.
+            if Combat.IsLockedDown() and region.IsProtected and region:IsProtected() then
+                return
+            end
             region:SetPoint("CENTER", canvas, "CENTER", ToCanvas(canvas, x, y))
             if orderBadge then
                 PlaceEdgeClickOrder(canvas, edgeMarker.edge)
@@ -715,12 +719,10 @@ function Map.SetEdgeMacroClicksEnabled(enabled)
     return true
 end
 
-local function ClearEdgeClickUsedFlags()
-    local clickState = GetEdgeClickState()
-    for _, edge in ipairs(Sszorak.MARKABLE_EDGES) do
-        clickState:SetAttribute("c" .. edge, nil)
-    end
-    clickState:SetAttribute("usedCount", nil)
+local function ClearEdgeClickCycle()
+    usedEdgeOrder = {}
+    usedEdgeCount = 0
+    UpdateEdgeClickCovers()
 end
 
 local function ClearEdgeClickHighlights()
@@ -733,20 +735,24 @@ local function ClearEdgeClickHighlights()
     end
 end
 
----Clears per-edge "already clicked" flags and icon highlights (safe during combat lockdown).
+---Clears icon highlights and, while tracking is armed, starts a new click cycle.
+---Touches only the unprotected covers, so it stays legal during combat lockdown.
 function Map.ResetEdgeClickHighlights()
-    ClearEdgeClickUsedFlags()
+    if clickTrackingArmed then
+        ClearEdgeClickCycle()
+    end
     ClearEdgeClickHighlights()
 end
 
----Arms one-shot macro clicks for commander pull/test. Unprotected attributes; safe in combat.
+---Arms one-shot macro clicks for commander pull/test. Safe during combat lockdown.
 ---@param armed boolean
 function Map.SetEdgeClickTrackingArmed(armed)
-    local clickState = GetEdgeClickState()
-    if armed then
-        clickState:SetAttribute("armed", true)
-    else
-        clickState:SetAttribute("armed", nil)
-        Map.ResetEdgeClickHighlights()
+    local wasArmed = clickTrackingArmed
+    clickTrackingArmed = armed == true
+    if not clickTrackingArmed or not wasArmed then
+        usedEdgeOrder = {}
+        usedEdgeCount = 0
+        ClearEdgeClickHighlights()
     end
+    UpdateEdgeClickCovers()
 end

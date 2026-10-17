@@ -1,6 +1,9 @@
 local _, ns = ...
+local L = ns.L
+local Chat = ns.Api.Chat
 local Encounter = ns.Api.Encounter
 local Timer = ns.Api.Timer
+local Util = ns.Util
 
 local Sszorak = ns.Modules.Get("Sszorak")
 
@@ -383,8 +386,23 @@ local function CallActiveMode(methodName, ...)
     end
 end
 
+-- Session-only: resolves queried when dots reach center. Slots 1–2 from home, 3–4 from the far side.
+local savedEdgeResolves = {}
+
+local function ClearSavedEdgeResolves()
+    savedEdgeResolves = {}
+end
+
+---Resolve saved for `anchorIndex` (1–4) at the last matching move to center, or nil.
+---@param anchorIndex integer
+---@return SszorakCalloutResolve|nil
+function Sszorak:GetSavedEdgeResolve(anchorIndex)
+    return savedEdgeResolves[anchorIndex]
+end
+
 ---Encounter and map test ask the active protocol to start collecting signals.
 function Sszorak:BeginCalloutCapture()
+    ClearSavedEdgeResolves()
     Sszorak.ClearDisplayedCallout()
     CallActiveMode("BeginCapture")
 end
@@ -392,6 +410,7 @@ end
 ---Encounter end and map-test end ask the active protocol to drop what it collected.
 ---A preferred provider that arrived during that session is bound once the session is over.
 function Sszorak:EndCalloutCapture()
+    ClearSavedEdgeResolves()
     Sszorak.ClearDisplayedCallout()
     CallActiveMode("EndCapture")
     if pendingPreferredActivation and not ActivationBlocked() then
@@ -405,22 +424,55 @@ function Sszorak:ClearCalloutMessages()
     CallActiveMode("ClearMessages")
 end
 
----Map test only: left→center / right→center preview the same slots warnings use (anchors 1 and 3).
+---HUD text for chat. Icon tags are expanded; a missing resolve becomes the empty placeholder.
+---@param resolve SszorakCalloutResolve|nil
+---@return string
+local function DecodedHudText(resolve)
+    local text = resolve and resolve.hudMessage
+    if type(text) ~= "string" then
+        return L.SSZORAK_HUD_EMPTY
+    end
+    return Chat.ReplaceIconAndGroupExpressions(text)
+end
+
+---Home→center is anchors 1 and 2. Far→center is anchors 3 and 4. Other moves are not a pair.
+---@param fromStation integer
+---@param toStation integer
+---@return integer|nil
+---@return integer|nil
+local function CenterAnchorPair(fromStation, toStation)
+    if toStation ~= Sszorak.STATION_CENTER then
+        return nil, nil
+    end
+    if fromStation == Sszorak.STATION_HOME then
+        return 1, 2
+    end
+    if fromStation == Sszorak.STATION_FAR then
+        return 3, 4
+    end
+    return nil, nil
+end
+
+---Pulls and map tests: on each move to center, save that side's two resolves and print them.
+---Map test still previews the first of the pair on the HUD. Encounter warnings own the fight HUD.
 ---@param fromStation integer
 ---@param toStation integer
 function Sszorak:NotifyCalloutStationChanged(fromStation, toStation)
+    local firstIndex, secondIndex = CenterAnchorPair(fromStation, toStation)
+    if not firstIndex or not secondIndex then
+        return
+    end
     local mode = Sszorak:GetActiveCalloutMode()
     local capturing = mode.IsCapturing and mode:IsCapturing()
-    if Sszorak:IsInEncounter() or not capturing or toStation ~= Sszorak.STATION_CENTER then
+    if not capturing then
         return
     end
-    local anchorIndex
-    if fromStation == Sszorak.STATION_HOME then
-        anchorIndex = 1
-    elseif fromStation == Sszorak.STATION_FAR then
-        anchorIndex = 3
-    else
-        return
+    local first = mode:OnViscousCystWarning(firstIndex)
+    local second = mode:OnViscousCystWarning(secondIndex)
+    savedEdgeResolves[firstIndex] = first
+    savedEdgeResolves[secondIndex] = second
+    Util.Print(string.format(L.SSZORAK_HUD_PAIR, firstIndex, DecodedHudText(first), secondIndex, DecodedHudText(second)))
+    if not Sszorak:IsInEncounter() then
+        Sszorak.ShowResolvedCallout(first, CALLOUT_DURATION_TEST, true)
     end
-    Sszorak.ShowResolvedCallout(mode:OnViscousCystWarning(anchorIndex), CALLOUT_DURATION_TEST, true)
 end
