@@ -36,7 +36,7 @@ Sszorak.WARNING_ANCHOR_GROUP_SIZE = WARNING_ANCHOR_GROUP_SIZE
 ---@field id string
 ---@field GetEdgeMacroBody fun(self: SszorakCalloutMode, edge: integer, assignment: table<integer, WorldMarker>): string
 ---@field Listen fun(self: SszorakCalloutMode): fun()  Subscribe mode listeners; returns unsubscribe.
----@field OnMatchedWarning fun(self: SszorakCalloutMode, anchorIndex: integer): SszorakCalloutResolve|nil
+---@field OnViscousCystWarning fun(self: SszorakCalloutMode, anchorIndex: integer): SszorakCalloutResolve|nil
 ---@field BeginCapture fun(self: SszorakCalloutMode)|nil  Encounter / map-test started.
 ---@field EndCapture fun(self: SszorakCalloutMode)|nil  Encounter / map-test ended.
 ---@field ClearMessages fun(self: SszorakCalloutMode)|nil  Dots returned home mid-timeline.
@@ -57,43 +57,84 @@ local displayedResolve = nil
 local calloutModeListening = false
 ---@type fun()|nil
 local stopCalloutModeListeners = nil
+-- Mode id whose Listen is currently subscribed. Nil before ListenForCalloutMode.
+---@type string|nil
+local listeningModeId = nil
+-- Preferred provider arrived during a pull or capture; apply it when that session ends.
+local pendingPreferredActivation = false
 
 ---@param mode SszorakCalloutMode
 function Sszorak.RegisterCalloutMode(mode)
     assert(type(mode) == "table" and type(mode.id) == "string", "Bad callout mode")
     assert(type(mode.GetEdgeMacroBody) == "function", "Callout mode requires GetEdgeMacroBody")
     assert(type(mode.Listen) == "function", "Callout mode requires Listen")
-    assert(type(mode.OnMatchedWarning) == "function", "Callout mode requires OnMatchedWarning")
+    assert(type(mode.OnViscousCystWarning) == "function", "Callout mode requires OnViscousCystWarning")
     modes[mode.id] = mode
 end
 
----@param modeId string
+-- External addons register this extension type through NewEraToolsAPI. See docs/extensions.md.
+local COMMUNICATION_EXTENSION = "sszorak.communication"
+
+Sszorak.COMMUNICATION_EXTENSION = COMMUNICATION_EXTENSION
+
+---Reads the callout-mode contract fields and does not call them.
+---@param provider table
 ---@return boolean
-function Sszorak.IsCalloutModeAvailable(modeId)
-    return modes[modeId] ~= nil
+local function ImplementsCalloutMode(provider)
+    return type(provider.id) == "string"
+        and type(provider.GetEdgeMacroBody) == "function"
+        and type(provider.Listen) == "function"
+        and type(provider.OnViscousCystWarning) == "function"
 end
 
----Falls back to normal when a saved mode is missing. Called from OnInit.
+local function NotifyCalloutModesChanged()
+    if Sszorak.OnCalloutModesChanged then
+        Sszorak:OnCalloutModesChanged()
+    end
+end
+
+---Saved preference, including a provider that has not registered yet.
+---@return string
+function Sszorak:GetPreferredCalloutMode()
+    return self.db.calloutMode
+end
+
+---@param value any
+---@return boolean
+local function IsModeId(value)
+    return type(value) == "string" and #value >= 1 and #value <= 64 and value:match("^[A-Za-z][A-Za-z0-9_.%-]*$") ~= nil
+end
+
+---Replaces a preference that is not a mode id. An id with no provider yet is kept.
+---Called from OnInit, which can run before another addon registers.
 function Sszorak:RepairCalloutMode()
-    if not Sszorak.IsCalloutModeAvailable(self.db.calloutMode) then
+    if not IsModeId(self.db.calloutMode) then
         self.db.calloutMode = Sszorak.CALLOUT_MODE_NORMAL
     end
 end
 
+---@return string
+local function CurrentModeId()
+    if pendingPreferredActivation and listeningModeId and modes[listeningModeId] then
+        return listeningModeId
+    end
+    local preferred = Sszorak.db and Sszorak.db.calloutMode
+    if preferred and modes[preferred] then
+        return preferred
+    end
+    return Sszorak.CALLOUT_MODE_NORMAL
+end
+
 ---@return SszorakCalloutMode
 function Sszorak:GetActiveCalloutMode()
-    local id = self.db.calloutMode
-    local mode = modes[id] or modes[Sszorak.CALLOUT_MODE_NORMAL]
+    local mode = modes[CurrentModeId()] or modes[Sszorak.CALLOUT_MODE_NORMAL]
     return assert(mode, "No callout mode registered")
 end
 
+---Mode driving callouts right now. Falls back to normal when the preference has no provider.
 ---@return string
 function Sszorak:GetCalloutMode()
-    local id = self.db.calloutMode
-    if modes[id] then
-        return id
-    end
-    return Sszorak.CALLOUT_MODE_NORMAL
+    return CurrentModeId()
 end
 
 local function StopCalloutModeListeners()
@@ -105,30 +146,116 @@ local function StopCalloutModeListeners()
     stop()
 end
 
-local function RestartCalloutModeListeners()
-    if not calloutModeListening then
+local function BindCalloutMode(modeId)
+    StopCalloutModeListeners()
+    listeningModeId = modeId
+    stopCalloutModeListeners = modes[modeId]:Listen() or function() end
+end
+
+---True while a pull is running, or while the bound mode is still collecting a map test.
+---@return boolean
+local function ActivationBlocked()
+    if Sszorak:IsInEncounter() then
+        return true
+    end
+    if not listeningModeId then
+        return false
+    end
+    local mode = modes[listeningModeId]
+    return mode ~= nil and mode.IsCapturing ~= nil and mode:IsCapturing() == true
+end
+
+---Binds the preferred provider when it is registered and no pull or capture is in progress.
+---Macro edits still go through RequestMacroSync, which defers during lockdown.
+local function ApplyPreferredMode()
+    pendingPreferredActivation = false
+    if not Sszorak.db then
+        NotifyCalloutModesChanged()
         return
     end
-    StopCalloutModeListeners()
-    stopCalloutModeListeners = Sszorak:GetActiveCalloutMode():Listen() or function() end
+    local targetId = modes[Sszorak.db.calloutMode] and Sszorak.db.calloutMode or Sszorak.CALLOUT_MODE_NORMAL
+    if not calloutModeListening or listeningModeId == targetId then
+        NotifyCalloutModesChanged()
+        return
+    end
+    BindCalloutMode(targetId)
+    Sszorak.RequestMacroSync()
+    NotifyCalloutModesChanged()
+end
+
+local function ConsiderPreferredProvider(providerId)
+    if not Sszorak.db or Sszorak.db.calloutMode ~= providerId then
+        NotifyCalloutModesChanged()
+        return
+    end
+    if ActivationBlocked() then
+        pendingPreferredActivation = true
+        NotifyCalloutModesChanged()
+        return
+    end
+    ApplyPreferredMode()
+end
+
+---Forwards an external communication provider into the callout mode table.
+---Built-in modes already occupy their ids; those registrations are rejected so the mode table stays authoritative.
+---Registration does not itself subscribe. A provider that matches the saved preference is activated when safe.
+---@param _extensionType string
+---@param providerId string
+---@param provider table
+local function AcceptExternalCalloutMode(_extensionType, providerId, provider)
+    if not ImplementsCalloutMode(provider) then
+        error("Sszorak communication extension does not implement the callout mode contract")
+    end
+    if provider.id ~= providerId then
+        error("Sszorak communication extension id must match the provider id")
+    end
+    if modes[providerId] then
+        error("Sszorak communication extension already registered: " .. providerId)
+    end
+    Sszorak.RegisterCalloutMode(provider)
+    ConsiderPreferredProvider(providerId)
+end
+
+-- Subscribed at file load so the callback exists before OnInit and before dependent addons run.
+ns.Extensions.OnRegistered(COMMUNICATION_EXTENSION, AcceptExternalCalloutMode)
+
+---@param modeId string
+---@return boolean
+function Sszorak.IsCalloutModeAvailable(modeId)
+    return modes[modeId] ~= nil
+end
+
+---The registered provider, or nil. Host code uses this; it is not a second mode list.
+---@param modeId string
+---@return SszorakCalloutMode|nil
+function Sszorak.GetRegisteredCalloutMode(modeId)
+    return modes[modeId]
 end
 
 ---@param modeId string
 function Sszorak:SetCalloutMode(modeId)
     assert(modes[modeId], "Unknown callout mode: " .. tostring(modeId))
-    if self.db.calloutMode == modeId then
+    pendingPreferredActivation = false
+    local unchanged = self.db.calloutMode == modeId
+    if unchanged and (not calloutModeListening or listeningModeId == modeId) then
         return
     end
     self.db.calloutMode = modeId
-    RestartCalloutModeListeners()
-    -- Macro bodies are mode-specific. Macros.lua defines the sync.
+    if calloutModeListening then
+        BindCalloutMode(modeId)
+    end
+    -- Macro bodies are mode-specific. Macros.lua defers the edit during lockdown.
     Sszorak.RequestMacroSync()
+    if not unchanged then
+        NotifyCalloutModesChanged()
+    end
 end
 
 ---Starts the active callout mode's listeners. Called from OnEnable; mode switches rebind while active.
 function Sszorak:ListenForCalloutMode()
     calloutModeListening = true
-    RestartCalloutModeListeners()
+    pendingPreferredActivation = false
+    BindCalloutMode(CurrentModeId())
 end
 
 local function NotifyCalloutChanged()
@@ -211,7 +338,7 @@ local function OnEncounterWarning(warningInfo)
     if not anchorIndex then
         return
     end
-    local resolve = Sszorak:GetActiveCalloutMode():OnMatchedWarning(anchorIndex)
+    local resolve = Sszorak:GetActiveCalloutMode():OnViscousCystWarning(anchorIndex)
     Sszorak.ShowResolvedCallout(resolve, CALLOUT_DURATION_ENCOUNTER, true)
 end
 
@@ -258,16 +385,23 @@ end
 
 ---Encounter and map test ask the active protocol to start collecting signals.
 function Sszorak:BeginCalloutCapture()
+    Sszorak.ClearDisplayedCallout()
     CallActiveMode("BeginCapture")
 end
 
 ---Encounter end and map-test end ask the active protocol to drop what it collected.
+---A preferred provider that arrived during that session is bound once the session is over.
 function Sszorak:EndCalloutCapture()
+    Sszorak.ClearDisplayedCallout()
     CallActiveMode("EndCapture")
+    if pendingPreferredActivation and not ActivationBlocked() then
+        ApplyPreferredMode()
+    end
 end
 
 ---A return to the home station asks the active protocol to drop its buffer.
 function Sszorak:ClearCalloutMessages()
+    Sszorak.ClearDisplayedCallout()
     CallActiveMode("ClearMessages")
 end
 
@@ -288,5 +422,5 @@ function Sszorak:NotifyCalloutStationChanged(fromStation, toStation)
     else
         return
     end
-    Sszorak.ShowResolvedCallout(mode:OnMatchedWarning(anchorIndex), CALLOUT_DURATION_TEST, true)
+    Sszorak.ShowResolvedCallout(mode:OnViscousCystWarning(anchorIndex), CALLOUT_DURATION_TEST, true)
 end

@@ -1,3 +1,4 @@
+local EventFrames = require("helpers.event_frames")
 local Fs = require("helpers.fs")
 
 local Loader = {}
@@ -85,6 +86,10 @@ local REAL_API_FILES = {
 ---from tests/helpers/fakes/ except REAL_API_FILES, and skipping UI files and Main.lua.
 ---@return table ns
 function Loader.Load()
+    EventFrames.Reset()
+    if CreateFrame == nil or CreateFrame == EventFrames.CreateFrame then
+        CreateFrame = EventFrames.CreateFrame
+    end
     local ns = {}
     for _, path in ipairs(Loader.ReadLuaFiles()) do
         local apiName = path:match("^api/(.+)%.lua$")

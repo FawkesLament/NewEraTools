@@ -4,6 +4,7 @@
     <Script file="Locale.lua"/>
     <Script file="Database.lua"/>
     <Script file="Modules.lua"/>
+    <Script file="Extensions.lua"/>
     <Script file="MessageProtocol.lua"/>
 </Ui>
 

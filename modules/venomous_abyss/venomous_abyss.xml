@@ -8,8 +8,8 @@
     <Script file="sszorak\Settings.lua"/>
     <Script file="sszorak\Encounter.lua"/>
     <Script file="sszorak\communication\Communication.lua"/>
+    <Script file="sszorak\communication\ProviderContext.lua"/>
     <Script file="sszorak\communication\Normal.lua"/>
-    <Script file="sszorak\communication\Jailbreak.lua"/>
     <Script file="sszorak\Macros.lua"/>
     <Script file="sszorak\ui\Map.lua"/>
     <Script file="sszorak\ui\Window.lua"/>

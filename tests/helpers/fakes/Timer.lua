@@ -5,6 +5,9 @@ return function()
         return Timer.now
     end
 
+    -- A communication provider may call the game clock directly. Advance moves this the same way as Timer.GetTime.
+    _G.GetTime = Timer.GetTime
+
     function Timer.After(seconds, callback)
         table.insert(Timer.pending, { due = Timer.now + seconds, callback = callback })
     end

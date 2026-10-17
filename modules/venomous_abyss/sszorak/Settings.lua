@@ -1,4 +1,5 @@
 local _, ns = ...
+local L = ns.L
 local Util = ns.Util
 
 local Sszorak = ns.Modules.Get("Sszorak")
@@ -90,10 +91,30 @@ end
 ---@class SszorakAddonCheckConfig
 ---@field enabled boolean  Feature On/Off (`mapEnabled`).
 ---@field side "left"|"right"  From mapRotated: false → left, true → right.
----@field mode string  CALLOUT_MODE_NORMAL or CALLOUT_MODE_JAILBREAK.
+---@field mode string  Registered callout mode, or normal when the saved mode is unavailable.
+
+-- AddonCheck reads this snapshot more than once per check. Announce each missing mode once.
+local announcedUnavailable = false
+local announcedUnavailableMode
+
+---Saved mode when that provider is registered. Otherwise normal, with one chat notice.
+---Does not change the saved preference.
+---@return string
+local function ResolveAddonCheckMode()
+    local mode = Sszorak.db.calloutMode
+    if Sszorak.IsCalloutModeAvailable(mode) then
+        return mode
+    end
+    if not announcedUnavailable or announcedUnavailableMode ~= mode then
+        announcedUnavailable = true
+        announcedUnavailableMode = mode
+        Util.Print(string.format(L.SSZORAK_CALLOUT_MODE_UNAVAILABLE, tostring(mode)))
+    end
+    return Sszorak.CALLOUT_MODE_NORMAL
+end
 
 ---Live AddonCheck snapshot. Reads current settings; does not mutate them.
----Invalid or unavailable values error so AddonCheck reports `provider_failed` instead of a fake default.
+---Invalid map values error so AddonCheck reports `provider_failed` instead of a fake default.
 ---@return SszorakAddonCheckConfig
 function Sszorak:GetAddonCheckConfig()
     local mapEnabled = self.db.mapEnabled
@@ -104,13 +125,7 @@ function Sszorak:GetAddonCheckConfig()
     if type(mapRotated) ~= "boolean" then
         error("Sszorak AddonCheck: invalid mapRotated")
     end
-    local mode = self.db.calloutMode
-    if mode ~= Sszorak.CALLOUT_MODE_NORMAL and mode ~= Sszorak.CALLOUT_MODE_JAILBREAK then
-        error("Sszorak AddonCheck: invalid calloutMode")
-    end
-    if not Sszorak.IsCalloutModeAvailable(mode) then
-        error("Sszorak AddonCheck: unavailable calloutMode")
-    end
+    local mode = ResolveAddonCheckMode()
     return {
         enabled = mapEnabled,
         side = mapRotated and SIDE_RIGHT or SIDE_LEFT,

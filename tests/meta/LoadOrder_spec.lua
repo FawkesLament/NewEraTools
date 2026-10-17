@@ -30,6 +30,13 @@ describe("Load order", function()
         end
     end)
 
+    it("does not load a jailbreak provider or the private addon", function()
+        for _, path in ipairs(Loader.ReadLuaFiles()) do
+            assert.is_nil(path:lower():find("jailbreak", 1, true), path)
+            assert.is_nil(Fs.ReadFile(path):find("NewEraTools_Private", 1, true), path)
+        end
+    end)
+
     it("has a test fake for every api file", function()
         for _, path in ipairs(Loader.ReadLuaFiles()) do
             local name = path:match("^api/(.+)%.lua$")

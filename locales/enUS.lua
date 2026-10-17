@@ -97,6 +97,8 @@ L.SSZORAK_CALLOUT_WRAP = "Go %s drop cyst"
 L.SSZORAK_CALLOUT_MODE = "Assignment Mode"
 L.SSZORAK_CALLOUT_MODE_NORMAL = "Normal"
 L.SSZORAK_CALLOUT_MODE_JAILBREAK = "Jailbreak"
+-- `%s` = saved callout mode id that has no registered provider.
+L.SSZORAK_CALLOUT_MODE_UNAVAILABLE = "Assignment mode %s is unavailable. Using Normal."
 L.SSZORAK_CALLOUT_MODE_TOOLTIP =
     "Jailbreak mode will smartly assign the nearest marker and show the path on the minimap."
 L.SSZORAK_BROADCAST = "Sync to Raid"

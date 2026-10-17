@@ -1,7 +1,7 @@
 std = "lua51"
 max_line_length = 120
 
-globals = { "NewEraToolsDB" }
+globals = { "NewEraToolsDB", "NewEraToolsAPI" }
 
 -- Frame and widget API: allowed in ui/ and modules/**/*UI.lua.
 local WIDGET_API = {

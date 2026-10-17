@@ -32,6 +32,8 @@ local HINT_ROW_HEIGHT = 16
 local MARKER_NAMES = Map.MARKER_NAMES
 
 local picker
+local modeCell
+local modeControl
 local resetButton
 local createMacrosRow
 local createMacrosButton
@@ -302,6 +304,41 @@ local function BeginEditPosition()
     LayoutEditor.BeginLocal({ Window.LAYOUT_ID, Callout.LAYOUT_ID })
 end
 
+---Creates the mode toggle once jailbreak is registered, and selects the mode that is actually in use.
+local function RefreshCalloutModeControl()
+    if not modeCell or not Sszorak.IsCalloutModeAvailable(Sszorak.CALLOUT_MODE_JAILBREAK) then
+        return
+    end
+    if not modeControl then
+        local modeLabel = Widgets.CreateLabel(modeCell, Fonts.BODY, L.SSZORAK_CALLOUT_MODE)
+        modeLabel:SetJustifyH("LEFT")
+        -- FontStrings can't take mouse; a matching hit frame carries the tooltip.
+        local modeHit = CreateFrame("Frame", nil, modeCell)
+        modeHit:SetPoint("TOPLEFT", modeLabel, "TOPLEFT")
+        modeHit:SetPoint("BOTTOMRIGHT", modeLabel, "BOTTOMRIGHT")
+        modeHit:EnableMouse(true)
+        Widgets.AttachTooltip(modeHit, "ANCHOR_TOP", function(tooltip)
+            tooltip:SetText(L.SSZORAK_CALLOUT_MODE_TOOLTIP)
+        end)
+        modeControl = Widgets.CreateSegmentedControl(modeCell, {
+            { value = Sszorak.CALLOUT_MODE_NORMAL, text = L.SSZORAK_CALLOUT_MODE_NORMAL },
+            { value = Sszorak.CALLOUT_MODE_JAILBREAK, text = L.SSZORAK_CALLOUT_MODE_JAILBREAK },
+        }, function(modeId)
+            if not Sszorak:IsMapEnabled() then
+                return
+            end
+            Sszorak:SetCalloutMode(modeId)
+            modeControl:SetSelected(Sszorak:GetCalloutMode())
+        end)
+        Layout.Row(modeCell, { modeLabel, modeControl }, Spacing.LARGE)
+    end
+    modeControl:SetSelected(Sszorak:GetCalloutMode())
+end
+
+function Sszorak:OnCalloutModesChanged()
+    RefreshCalloutModeControl()
+end
+
 ---Fills the encounter-map feature body. Returns the content height.
 ---@param content Frame
 ---@return number
@@ -369,7 +406,8 @@ local function BuildMapContent(content)
     addonCheckButton:SetPoint("LEFT", addonCheckCell, "LEFT")
 
     local groupRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local groupCell, modeCell = Layout.SplitRow(groupRow, Spacing.MEDIUM)
+    local groupCell
+    groupCell, modeCell = Layout.SplitRow(groupRow, Spacing.MEDIUM)
     local groupLabel = Widgets.CreateLabel(groupCell, Fonts.BODY, L.SSZORAK_GROUP_LABEL)
     groupLabel:SetJustifyH("LEFT")
     local groupControl
@@ -387,32 +425,8 @@ local function BuildMapContent(content)
     groupControl:SetSelected(Sszorak:IsMapRotated() and GROUP_RIGHT or GROUP_LEFT)
     Layout.Row(groupCell, { groupLabel, groupControl }, Spacing.LARGE)
 
-    -- The right cell stays empty unless jailbreak is registered; that is what hides the toggle.
-    if Sszorak.IsCalloutModeAvailable(Sszorak.CALLOUT_MODE_JAILBREAK) then
-        local modeLabel = Widgets.CreateLabel(modeCell, Fonts.BODY, L.SSZORAK_CALLOUT_MODE)
-        modeLabel:SetJustifyH("LEFT")
-        -- FontStrings can't take mouse; a matching hit frame carries the tooltip.
-        local modeHit = CreateFrame("Frame", nil, modeCell)
-        modeHit:SetPoint("TOPLEFT", modeLabel, "TOPLEFT")
-        modeHit:SetPoint("BOTTOMRIGHT", modeLabel, "BOTTOMRIGHT")
-        modeHit:EnableMouse(true)
-        Widgets.AttachTooltip(modeHit, "ANCHOR_TOP", function(tooltip)
-            tooltip:SetText(L.SSZORAK_CALLOUT_MODE_TOOLTIP)
-        end)
-        local modeControl
-        modeControl = Widgets.CreateSegmentedControl(modeCell, {
-            { value = Sszorak.CALLOUT_MODE_NORMAL, text = L.SSZORAK_CALLOUT_MODE_NORMAL },
-            { value = Sszorak.CALLOUT_MODE_JAILBREAK, text = L.SSZORAK_CALLOUT_MODE_JAILBREAK },
-        }, function(modeId)
-            if not Sszorak:IsMapEnabled() then
-                return
-            end
-            Sszorak:SetCalloutMode(modeId)
-            modeControl:SetSelected(Sszorak:GetCalloutMode())
-        end)
-        modeControl:SetSelected(Sszorak:GetCalloutMode())
-        Layout.Row(modeCell, { modeLabel, modeControl }, Spacing.LARGE)
-    end
+    -- The right cell stays empty until jailbreak is registered. A later registration fills it in place.
+    RefreshCalloutModeControl()
 
     -- B. Marker Configuration
     local markersHeader = body:AddRow(Sizes.CONTENT_SECTION_HEADER, Spacing.LARGE)

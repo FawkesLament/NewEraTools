@@ -43,6 +43,18 @@ describe("Sszorak", function()
         end)
 
         it("represents every valid side and mode combination", function()
+            NewEraToolsAPI.RegisterExtension(Sszorak.COMMUNICATION_EXTENSION, Sszorak.CALLOUT_MODE_JAILBREAK, {
+                id = Sszorak.CALLOUT_MODE_JAILBREAK,
+                GetEdgeMacroBody = function()
+                    return "/raid {rt1}"
+                end,
+                Listen = function()
+                    return function() end
+                end,
+                OnViscousCystWarning = function()
+                    return nil
+                end,
+            })
             local cases = {
                 { rotated = false, mode = Sszorak.CALLOUT_MODE_NORMAL, side = Sszorak.SIDE_LEFT },
                 { rotated = true, mode = Sszorak.CALLOUT_MODE_NORMAL, side = Sszorak.SIDE_RIGHT },
@@ -141,27 +153,28 @@ describe("Sszorak", function()
             assert.equals("provider_failed", err)
         end)
 
-        it("fails safely on invalid calloutMode", function()
+        it("reports normal and announces when the saved mode is unavailable", function()
+            local printed = {}
+            ns.Util.Print = function(message)
+                printed[#printed + 1] = message
+            end
             Sszorak.db.calloutMode = "banana"
             local config, err = InspectConfig()
-            assert.equals(nil, config)
-            assert.equals("provider_failed", err)
-        end)
+            assert.is_nil(err)
+            assert.equals(Sszorak.CALLOUT_MODE_NORMAL, config.mode)
+            assert.equals("banana", Sszorak.db.calloutMode)
+            assert.same({ string.format(ns.L.SSZORAK_CALLOUT_MODE_UNAVAILABLE, "banana") }, printed)
 
-        it("fails safely when calloutMode is unavailable", function()
-            -- Simulate an unregistered mode id that still passes the known-mode string check.
-            local realAvailable = Sszorak.IsCalloutModeAvailable
-            Sszorak.IsCalloutModeAvailable = function(modeId)
-                if modeId == Sszorak.CALLOUT_MODE_JAILBREAK then
-                    return false
-                end
-                return realAvailable(modeId)
-            end
             Sszorak.db.calloutMode = Sszorak.CALLOUT_MODE_JAILBREAK
-            local config, err = InspectConfig()
-            Sszorak.IsCalloutModeAvailable = realAvailable
-            assert.equals(nil, config)
-            assert.equals("provider_failed", err)
+            config, err = InspectConfig()
+            assert.is_nil(err)
+            assert.equals(Sszorak.CALLOUT_MODE_NORMAL, config.mode)
+            assert.equals(Sszorak.CALLOUT_MODE_JAILBREAK, Sszorak.db.calloutMode)
+            InspectConfig()
+            assert.same({
+                string.format(ns.L.SSZORAK_CALLOUT_MODE_UNAVAILABLE, "banana"),
+                string.format(ns.L.SSZORAK_CALLOUT_MODE_UNAVAILABLE, Sszorak.CALLOUT_MODE_JAILBREAK),
+            }, printed)
         end)
     end)
 end)

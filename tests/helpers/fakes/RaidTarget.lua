@@ -1,3 +1,5 @@
+local EventFrames = require("helpers.event_frames")
+
 return function()
     local RaidTarget = {
         indices = {},
@@ -38,6 +40,7 @@ return function()
         for i = 1, #list do
             list[i]()
         end
+        EventFrames.Fire("RAID_TARGET_UPDATE")
     end
 
     function RaidTarget.FireChanged()
@@ -45,6 +48,7 @@ return function()
         for i = 1, #list do
             list[i]()
         end
+        EventFrames.Fire("RAID_TARGET_UPDATE")
     end
 
     return RaidTarget

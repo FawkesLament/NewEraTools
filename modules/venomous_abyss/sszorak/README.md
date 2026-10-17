@@ -23,9 +23,9 @@ ui/Panel.lua           Settings page and module startup
 
 ## Flow
 
-Commander macro → the active file in `communication/` → one shared guidance result → arena map and callout HUD.
+Commander macro → the active communication mode → one shared guidance result → arena map and callout HUD.
 
-The two modes collect signals differently. They do not draw frames. The map and the HUD only read the guidance result, so neither knows which mode produced it.
+Each mode collects signals in its own way. Modes do not draw frames. The map and the HUD only read the guidance result, so neither knows which mode produced it.
 
 Saved settings and the marker assignment stay separate from the current pull. A test uses the same movement and guidance path as a pull, with its own start and stop.
 
@@ -39,5 +39,5 @@ Secure marker buttons are created when the module enables, before a pull. Do not
 - Arena shape or edge relationships: `Arena.lua`.
 - Marker assignment or its sync: `Markers.lua`.
 - Pull timing: `Timeline.lua`. Who is in the fight, and where the boss and groups stand: `Encounter.lua`.
-- A new callout mode: a file under `communication/` that registers with `Communication.lua`, loaded after it. Mode-specific macro text stays on that mode. Macro create and update stay in `Macros.lua`.
+- A new callout mode: register it from an external addon with `NewEraToolsAPI` as extension type `sszorak.communication` (see [docs/extensions.md](../../../docs/extensions.md)). `normal` stays in this addon. Mode-specific macro text stays on that mode. Macro create and update stay in `Macros.lua`.
 - Map drawing: `ui/Map.lua`. Window show, hide, and edit position: `ui/Window.lua`. HUD frame: `ui/Callout.lua`. Settings controls: `ui/Panel.lua`.

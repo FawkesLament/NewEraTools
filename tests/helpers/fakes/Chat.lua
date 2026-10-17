@@ -1,3 +1,5 @@
+local EventFrames = require("helpers.event_frames")
+
 return function()
     local Chat = {
         sent = {},
@@ -47,6 +49,7 @@ return function()
         for i = 1, #list do
             list[i](message, ...)
         end
+        EventFrames.Fire("CHAT_MSG_RAID_LEADER", message, ...)
     end
 
     function Chat.OnRaidWarningMessage(callback)
@@ -58,7 +61,11 @@ return function()
         for i = 1, #list do
             list[i](message, ...)
         end
+        EventFrames.Fire("CHAT_MSG_RAID_WARNING", message, ...)
     end
+
+    _G.C_ChatInfo = _G.C_ChatInfo or {}
+    _G.C_ChatInfo.ReplaceIconAndGroupExpressions = Chat.ReplaceIconAndGroupExpressions
 
     return Chat
 end

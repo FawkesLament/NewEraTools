@@ -24,7 +24,6 @@ local function NotifyRaidLeaderMessagesChanged()
 end
 
 local function ClearRaidLeaderMessages()
-    Sszorak.ClearDisplayedCallout()
     if #raidLeaderMessages == 0 then
         return
     end
@@ -68,7 +67,7 @@ end
 
 ---@param anchorIndex integer
 ---@return SszorakCalloutResolve|nil
-function Normal:OnMatchedWarning(anchorIndex)
+function Normal:OnViscousCystWarning(anchorIndex)
     local messageIndex = ((anchorIndex - 1) % WARNING_ANCHOR_GROUP_SIZE) + 1
     -- Last slot in each anchor group is always the exit drop (no raid-leader message).
     if messageIndex == WARNING_ANCHOR_GROUP_SIZE then

@@ -8,7 +8,7 @@ A World of Warcraft (retail) addon written in Lua 5.1. These rules apply to peop
 NewEraTools.toc   Loads one XML manifest per layer, then Main.lua.
 <folder>.xml      Each folder's manifest: lists its .lua files and sub-folder manifests, in load order.
 Main.lua          Entry point: loads saved variables and starts modules.
-core/             Basic utilities and pure logic: namespace, util, locale table, database, module registry, MessageProtocol.
+core/             Basic utilities and pure logic: namespace, util, locale table, database, module registry, extension registry, MessageProtocol.
 api/              The only code that calls Blizzard game functions or listens to game events.
 locales/          Translations. zhCN.lua is the base locale and defines every key.
 services/         Shared non-UI services used by modules (and optionally ui/), e.g. AddonCheck.
@@ -28,9 +28,13 @@ tests/            Unit tests run outside the game. WoW never loads them.
 4. Logic files (`core/`, `services/`, module `<Name>.lua`, shared files in `modules/`) use only plain Lua and `ns`. They do not call `CreateFrame`; they may ask a UI component to build frames, and they stay independent of a concrete UI. `services/` holds cross-feature non-UI behavior that may call `api/`; keep `core/` limited to basics and pure helpers.
 5. Every feature is a module: `ns.Modules.New(name, { defaults = ... })`. `self.db` holds its saved settings. `OnInit` runs for all modules, then `OnEnable` for all modules. Feature modules never reference each other; they may use UI services such as `ns.MainPanel`, shared services such as `ns.AddonCheck`, and shared content such as `ns.PanelGroups`. Shared content in `modules/` is data, not a module, and is loaded by `modules/modules.xml` before any feature. Feature UI may use shared `ui/` and its own module's public interface. Shared `ui/` never names a feature or a group. Extract a shared component only when the abstraction is genuinely reusable.
 6. Loading a file only defines things. Frames, events and slash commands are set up in `OnEnable`.
-7. All shared state lives in the `ns` table. Globals are limited to `NewEraToolsDB`, slash commands and named frames, all prefixed `NewEraTools`.
+7. All shared state lives in the `ns` table. Globals are limited to `NewEraToolsDB`, the `NewEraToolsAPI` registration table, slash commands and named frames, all prefixed `NewEraTools`. Do not put `ns` or feature modules on `NewEraToolsAPI`. See [docs/extensions.md](docs/extensions.md).
 8. No user-visible string literals in code: use `L.KEY`, defined in `locales/zhCN.lua`.
 9. To change the shape of saved data, bump `SCHEMA_VERSION` in `core/Database.lua` and add a migration.
+
+## Extensions
+
+External addons register optional feature extensions on `NewEraToolsAPI`. The host runs fully with none installed. Feature modules read them through `ns.Extensions` and define the provider contract for their own extension type. Contracts are not a shared provider interface. See [docs/extensions.md](docs/extensions.md).
 
 ## Adding a feature
 
