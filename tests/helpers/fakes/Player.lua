@@ -60,6 +60,18 @@ return function()
         return Player.specializationId
     end
 
+    function Player.GetSpecializationIcon(specializationId)
+        if type(specializationId) ~= "number" then
+            return nil
+        end
+        for _, spec in ipairs(Player.specializations) do
+            if spec.id == specializationId then
+                return spec.icon
+            end
+        end
+        return nil
+    end
+
     function Player.GetRole()
         return Player.role
     end

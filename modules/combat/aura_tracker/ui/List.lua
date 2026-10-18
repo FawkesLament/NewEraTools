@@ -19,6 +19,7 @@ local Schema = ns.AuraTrackerSchema
 
 local TRACKER_ROW_HEIGHT = Sizes.NAV_ROW_HEIGHT
 local LIST_SPELL_ICON_SIZE = 24
+local SPEC_ICON_SIZE = 16
 
 local ROLE_LABELS = {
     TANK = L.AURA_TRACKER_ROLE_TANK,
@@ -379,14 +380,22 @@ local function EnsureTrackerList()
         end
         local id = AuraTracker:AddTracker()
         UI.SelectTracker(id)
-    end, "primary")
-    addButton:SetPoint("LEFT", header, "LEFT")
+    end, "accent", Assets.Glyphs.INCREASE)
+    addButton:SetPoint("RIGHT", header, "RIGHT")
 
-    UI.summaryLabel = Widgets.CreateLabel(header, Fonts.TINY_MUTED, "")
-    UI.summaryLabel:SetJustifyH("RIGHT")
+    local specIcon = header:CreateTexture(nil, "ARTWORK")
+    specIcon:SetSize(SPEC_ICON_SIZE, SPEC_ICON_SIZE)
+    specIcon:SetPoint("LEFT", header, "LEFT")
+    specIcon:Hide()
+    UI.summaryIcon = specIcon
+    UI.summaryHeader = header
+    UI.summaryAddButton = addButton
+
+    UI.summaryLabel = Widgets.CreateLabel(header, Fonts.BODY, "")
+    UI.summaryLabel:SetJustifyH("LEFT")
     UI.summaryLabel:SetWordWrap(false)
-    UI.summaryLabel:SetPoint("LEFT", addButton, "RIGHT", Spacing.MEDIUM, 0)
-    UI.summaryLabel:SetPoint("RIGHT", header, "RIGHT")
+    UI.summaryLabel:SetPoint("LEFT", header, "LEFT")
+    UI.summaryLabel:SetPoint("RIGHT", addButton, "LEFT", -Spacing.MEDIUM, 0)
 
     UI.activeGroup = CollapsibleSection.Create(UI.listStack, {
         title = L.AURA_TRACKER_GROUP_ACTIVE,
@@ -417,13 +426,26 @@ local function EnsureTrackerList()
 end
 
 local function RefreshCharacterSummary()
-    if not UI.summaryLabel then
+    if not UI.summaryLabel or not UI.summaryIcon then
         return
     end
     local text = FormatCharacterSummary()
-    if UI.summaryText ~= text then
-        UI.summaryText = text
-        UI.summaryLabel:SetText(text)
+    local icon = Player.GetSpecializationIcon(Player.GetSpecializationId())
+    if UI.summaryText == text and UI.summaryIconPath == icon then
+        return
+    end
+    UI.summaryText = text
+    UI.summaryIconPath = icon
+    UI.summaryLabel:SetText(text)
+    UI.summaryLabel:ClearAllPoints()
+    UI.summaryLabel:SetPoint("RIGHT", UI.summaryAddButton, "LEFT", -Spacing.MEDIUM, 0)
+    if icon then
+        UI.summaryIcon:SetTexture(icon)
+        UI.summaryIcon:Show()
+        UI.summaryLabel:SetPoint("LEFT", UI.summaryIcon, "RIGHT", Spacing.SMALL, 0)
+    else
+        UI.summaryIcon:Hide()
+        UI.summaryLabel:SetPoint("LEFT", UI.summaryHeader, "LEFT")
     end
 end
 

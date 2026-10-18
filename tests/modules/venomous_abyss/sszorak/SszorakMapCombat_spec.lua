@@ -27,9 +27,12 @@ describe("Sszorak map during combat lockdown", function()
             if self.protected then
                 protectedSetPoints = protectedSetPoints + 1
             end
-            local x = select(4, ...)
+            local x, y = select(4, ...)
             if type(x) == "number" then
                 self.anchorX = x
+            end
+            if type(y) == "number" then
+                self.anchorY = y
             end
         end
         function region:CreateTexture()
@@ -188,7 +191,7 @@ describe("Sszorak map during combat lockdown", function()
             end
         end
         assert(before, "expected a secure edge button anchor")
-        Sszorak:SetMapRotated(true)
+        Sszorak:SetMapRotation(180)
         Map.ApplyRotation(arena)
         local flipped = false
         for _, region in ipairs(regions) do
@@ -198,6 +201,41 @@ describe("Sszorak map during combat lockdown", function()
             end
         end
         assert.is_true(flipped)
+    end)
+
+    it("moves the entrance and exit labels with the map rotation", function()
+        local arena = CreateArena()
+        assert.is_true(arena.entranceLabel.anchorX > 0)
+        assert.is_true(arena.exitLabel.anchorX < 0)
+
+        Sszorak:SetMapRotation(180)
+        Map.ApplyRotation(arena)
+        assert.is_true(arena.entranceLabel.anchorX < 0)
+        assert.is_true(arena.exitLabel.anchorX > 0)
+
+        Sszorak:SetMapRotation(90)
+        Map.ApplyRotation(arena)
+        assert.is_true(math.abs(arena.entranceLabel.anchorX) < 1e-6)
+        assert.is_true(arena.entranceLabel.anchorY > 0)
+        assert.is_true(math.abs(arena.exitLabel.anchorX) < 1e-6)
+        assert.is_true(arena.exitLabel.anchorY < 0)
+    end)
+
+    it("does not move secure edge buttons when only the side changes", function()
+        local arena = CreateArena()
+        local before = {}
+        for _, region in ipairs(regions) do
+            if region.protected and region.anchorX then
+                before[region] = region.anchorX
+            end
+        end
+        assert(next(before), "expected a secure edge button anchor")
+        Sszorak:SetPlayerSide(Sszorak.SIDE_RIGHT)
+        Map.ApplyRotation(arena)
+        Map.RefreshPlayerGroup()
+        for region, x in pairs(before) do
+            assert.equals(x, region.anchorX)
+        end
     end)
 
     it("locks further edge clicks during combat without SetID", function()

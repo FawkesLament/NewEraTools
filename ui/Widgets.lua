@@ -15,6 +15,17 @@ local CHEVRON_RIGHT = { { 3, 1 }, { 7, 5 }, { 3, 9 } }
 local CHEVRON_DOWN = { { 1, 3 }, { 5, 7 }, { 9, 3 } }
 -- Flatter down-chevron for dropdown triggers (wider tip angle than CHEVRON_DOWN).
 local DROPDOWN_CARET = { { 1, 3 }, { 5, 5 }, { 9, 3 } }
+-- Corner brackets in a 12px box (y grows downward). Reads as a layout frame being moved.
+local LAYOUT_MOVE_STROKES = {
+    { 1, 1, 4, 1 },
+    { 1, 1, 1, 4 },
+    { 8, 1, 11, 1 },
+    { 11, 1, 11, 4 },
+    { 1, 8, 1, 11 },
+    { 1, 11, 4, 11 },
+    { 11, 8, 11, 11 },
+    { 8, 11, 11, 11 },
+}
 local SHADOW_ALPHA = 0.6
 local BACKDROP = {
     bgFile = Assets.Textures.WHITE,
@@ -22,13 +33,18 @@ local BACKDROP = {
     edgeSize = Sizes.BORDER,
 }
 
----@alias ButtonVariant "primary"|"secondary"|"warning"
+---@alias ButtonVariant "primary"|"secondary"|"warning"|"accent"
 
 local BUTTON_STYLES = {
     primary = { fill = Colors.ACCENT, border = Colors.ACCENT, font = Fonts.ON_ACCENT },
     secondary = { fill = Colors.SURFACE_RAISED, border = Colors.BORDER, font = Fonts.BODY },
     warning = { fill = Colors.WARNING, border = Colors.WARNING, font = Fonts.ON_ACCENT },
+    -- Dark fill with a turquoise edge. Quieter than a solid accent bar.
+    accent = { fill = Colors.SURFACE_RAISED, border = Colors.ACCENT, font = Fonts.BODY },
 }
+
+-- Pressed wash over an accent button. Light enough that the label stays readable.
+local ACCENT_PRESS_ALPHA = 0.16
 
 local Widgets = {}
 ns.Widgets = Widgets
@@ -155,16 +171,141 @@ local function CreateFlatButton(parent, variant, onClick)
     return button
 end
 
+---Hides the built-in label and draws `glyph` plus `text`, centered as one cluster.
+---@param button Button
+---@param text string
+---@param glyph string
+---@return FontString glyphLabel, FontString caption
+local function AddButtonGlyph(button, text, glyph)
+    button:SetText(text)
+    local builtin = button:GetFontString()
+    if builtin then
+        builtin:Hide()
+    end
+
+    local glyphLabel = Widgets.CreateLabel(button, Fonts.BODY, glyph)
+    glyphLabel:SetTextColor(Widgets.UnpackColor(Colors.ACCENT))
+    local caption = Widgets.CreateLabel(button, Fonts.BODY, text)
+    caption:SetTextColor(Widgets.UnpackColor(Colors.TEXT))
+
+    local gap = Spacing.SMALL
+    local clusterWidth = glyphLabel:GetStringWidth() + gap + caption:GetStringWidth()
+    glyphLabel:SetPoint("LEFT", button, "CENTER", -clusterWidth / 2, 0)
+    caption:SetPoint("LEFT", glyphLabel, "RIGHT", gap, 0)
+
+    local width = math.max(clusterWidth + Sizes.BUTTON_TEXT_PADDING, Sizes.BUTTON_MIN_WIDTH)
+    button:SetSize(width, Sizes.CONTROL_HEIGHT)
+    return glyphLabel, caption
+end
+
+---Accent stays opaque when disabled and shifts to a neutral fill instead of fading the turquoise edge.
+---@param button Button
+---@param enabled boolean
+local function ApplyAccentEnabled(button, enabled)
+    button:SetAlpha(1)
+    if enabled then
+        ApplyButtonStyle(button, "accent")
+    else
+        Widgets.ApplyBackdrop(button, Colors.SURFACE, Colors.BORDER)
+        button:SetNormalFontObject(Fonts.MUTED)
+        button:SetDisabledFontObject(Fonts.MUTED)
+        button.accentWash:Hide()
+    end
+    local mark = enabled and Colors.ACCENT or Colors.TEXT_MUTED
+    local caption = enabled and Colors.TEXT or Colors.TEXT_MUTED
+    if button.accentGlyph then
+        button.accentGlyph:SetTextColor(Widgets.UnpackColor(mark))
+    end
+    if button.accentCaption then
+        button.accentCaption:SetTextColor(Widgets.UnpackColor(caption))
+    end
+end
+
 ---Creates a flat button sized to fit its text, so translations can't overflow it.
 ---@param parent Frame
 ---@param text string
 ---@param onClick fun(button: Button)
----@param variant ButtonVariant|nil  "primary" for the main action; "warning" for amber danger actions. Defaults to "secondary".
+---@param variant ButtonVariant|nil  "primary" fills with accent. "accent" keeps the dark fill and a turquoise edge. "warning" is amber. Defaults to "secondary".
+---@param glyph string|nil  Small mark drawn before the label. Used with "accent".
 ---@return Button
-function Widgets.CreateButton(parent, text, onClick, variant)
-    local button = CreateFlatButton(parent, variant or "secondary", onClick)
+function Widgets.CreateButton(parent, text, onClick, variant, glyph)
+    variant = variant or "secondary"
+    local button = CreateFlatButton(parent, variant, onClick)
     button:SetText(text)
-    local width = math.max(button:GetTextWidth() + Sizes.BUTTON_TEXT_PADDING, Sizes.BUTTON_MIN_WIDTH)
+
+    if variant == "accent" then
+        local wash = button:CreateTexture(nil, "ARTWORK")
+        wash:SetAllPoints()
+        local r, g, b = Widgets.UnpackColor(Colors.ACCENT)
+        wash:SetColorTexture(r, g, b, ACCENT_PRESS_ALPHA)
+        wash:Hide()
+        button.accentWash = wash
+        button:HookScript("OnMouseDown", function(self)
+            if self:IsEnabled() then
+                wash:Show()
+            end
+        end)
+        button:HookScript("OnMouseUp", function()
+            wash:Hide()
+        end)
+
+        local rawSetEnabled = button.SetEnabled
+        function button:SetEnabled(enabled)
+            rawSetEnabled(self, enabled)
+            ApplyAccentEnabled(self, enabled == true)
+        end
+    end
+
+    if variant == "accent" and type(glyph) == "string" and glyph ~= "" then
+        button.accentGlyph, button.accentCaption = AddButtonGlyph(button, text, glyph)
+    else
+        local width = math.max(button:GetTextWidth() + Sizes.BUTTON_TEXT_PADDING, Sizes.BUTTON_MIN_WIDTH)
+        button:SetSize(width, Sizes.CONTROL_HEIGHT)
+    end
+    return button
+end
+
+---Line-drawn layout frame. Stays sharp when the main panel is scaled.
+---@param parent Frame
+---@return Frame
+local function CreateLayoutMoveIcon(parent)
+    local icon = CreateFrame("Frame", nil, parent)
+    icon:SetSize(Sizes.LAYOUT_EDIT_ICON, Sizes.LAYOUT_EDIT_ICON)
+    for _, stroke in ipairs(LAYOUT_MOVE_STROKES) do
+        local line = icon:CreateLine(nil, "ARTWORK")
+        line:SetThickness(Sizes.LAYOUT_EDIT_ICON_THICKNESS)
+        line:SetColorTexture(Widgets.UnpackColor(Colors.TEXT_MUTED))
+        line:SetSnapToPixelGrid(false)
+        line:SetTexelSnappingBias(0)
+        line:SetStartPoint("TOPLEFT", icon, stroke[1], -stroke[2])
+        line:SetEndPoint("TOPLEFT", icon, stroke[3], -stroke[4])
+    end
+    return icon
+end
+
+---Secondary button that enters layout editing: muted move icon, then the label, centered as a pair.
+---@param parent Frame
+---@param text string
+---@param onClick fun(button: Button)
+---@return Button
+function Widgets.CreateLayoutEditButton(parent, text, onClick)
+    local button = CreateFlatButton(parent, "secondary", onClick)
+    -- Keep the label available to GetText, but draw our own so the icon and text center together.
+    button:SetText(text)
+    local builtin = button:GetFontString()
+    if builtin then
+        builtin:Hide()
+    end
+
+    local icon = CreateLayoutMoveIcon(button)
+    local caption = Widgets.CreateLabel(button, Fonts.BODY, text)
+    caption:SetJustifyH("LEFT")
+    local gap = Spacing.SMALL
+    local clusterWidth = Sizes.LAYOUT_EDIT_ICON + gap + caption:GetStringWidth()
+    icon:SetPoint("LEFT", button, "CENTER", -clusterWidth / 2, 0)
+    caption:SetPoint("LEFT", icon, "RIGHT", gap, 0)
+
+    local width = math.max(clusterWidth + Sizes.BUTTON_TEXT_PADDING, Sizes.BUTTON_MIN_WIDTH)
     button:SetSize(width, Sizes.CONTROL_HEIGHT)
     return button
 end
@@ -322,6 +463,7 @@ end
 ---@field SetJustifyH fun(self: Dropdown, justifyH: string)  Horizontal alignment of the selected-value label.
 ---@field SetEnabled fun(self: Dropdown, enabled: boolean)
 ---@field IsEnabled fun(self: Dropdown): boolean
+---@field Close fun(self: Dropdown)  Hides the popup and its outside-click catcher.
 
 -- Above MainPanel (DIALOG) and layout-edit chrome (FULLSCREEN_DIALOG) so popups are never covered.
 local DROPDOWN_MENU_STRATA = "TOOLTIP"
@@ -500,6 +642,11 @@ function Widgets.CreateDropdown(parent, items, onSelect)
             return
         end
         menu:ClearAllPoints()
+        -- Match the trigger when it lives on a scaled panel (the edit toolbar, or the main panel).
+        local uiScale = UIParent:GetEffectiveScale()
+        if uiScale and uiScale > 0 then
+            menu:SetScale(dropdown:GetEffectiveScale() / uiScale)
+        end
         -- Pin both corners so the popup width always matches the trigger, including anchor-stretched triggers.
         menu:SetPoint("TOPLEFT", dropdown, "BOTTOMLEFT", 0, -Spacing.TINY)
         menu:SetPoint("TOPRIGHT", dropdown, "BOTTOMRIGHT", 0, -Spacing.TINY)
@@ -578,6 +725,11 @@ function Widgets.CreateDropdown(parent, items, onSelect)
 
     function dropdown:IsEnabled()
         return dropdownEnabled
+    end
+
+    ---Hides the popup. Safe when the menu has never been opened.
+    function dropdown:Close()
+        CloseMenu()
     end
 
     ApplyItems(items)
@@ -828,10 +980,11 @@ end
 ---@field allowMouseWheel boolean|nil  When true, the mouse wheel steps the value. Defaults to false.
 ---@field allowTypedValue boolean|nil  When true, shows an editable number box. Defaults to true.
 ---@field percentage boolean|nil  When true, the box shows `value * 100` with a "%" suffix. Defaults to false.
+---@field suffix string|nil  Text after the value box. `percentage` uses the percent suffix instead.
 
 ---@class SliderControl: Slider
 ---@field valueBox EditBox|nil  Present when typed values are enabled; anchored to the right of the slider by default.
----@field valueSuffix FontString|nil  "%" label when `percentage` is true.
+---@field valueSuffix FontString|nil  Suffix after the value box, such as "%" or "°".
 
 ---Digits needed to show the larger of `|a|` and `|b|` as integers.
 ---@param a number
@@ -865,6 +1018,7 @@ function Widgets.CreateSlider(parent, minValue, maxValue, step, allowMouseWheelO
     local allowTypedValue = options.allowTypedValue ~= false
     local percentage = options.percentage == true
     local displayScale = percentage and 100 or 1
+    local suffixText = percentage and L.PERCENT_SUFFIX or options.suffix
 
     local slider = CreateFrame("Slider", nil, parent) --[[@as SliderControl]]
     slider:SetOrientation("HORIZONTAL")
@@ -914,8 +1068,8 @@ function Widgets.CreateSlider(parent, minValue, maxValue, step, allowMouseWheelO
         })
         valueBox:SetPoint("LEFT", slider, "RIGHT", Spacing.MEDIUM, 0)
         slider.valueBox = valueBox
-        if percentage then
-            local suffix = Widgets.CreateLabel(parent, Fonts.SMALL_MUTED, L.PERCENT_SUFFIX)
+        if type(suffixText) == "string" and suffixText ~= "" then
+            local suffix = Widgets.CreateLabel(parent, Fonts.BODY, suffixText)
             suffix:SetPoint("LEFT", valueBox, "RIGHT", Spacing.TINY, 0)
             slider.valueSuffix = suffix
         end

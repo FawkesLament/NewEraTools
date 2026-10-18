@@ -2,7 +2,6 @@ local _, ns = ...
 local L = ns.L
 local Assets = ns.Assets
 local Combat = ns.Api.Combat
-local Layout = ns.Layout
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
@@ -70,7 +69,7 @@ local OTHER_GROUP_STYLE = { size = 8, color = Colors.TEXT_MUTED }
 ---@field showPositions boolean|nil  Draws the boss and group positions.
 ---@field onEdgeMarkerClick fun(button: Button, edge: integer)|nil  Makes the marker icons clickable.
 ---@field edgeMarkerMacroName fun(edge: integer): string|nil  SecureActionButton macro name.
----@field followsRotation boolean|nil  Turns with the map rotation setting.
+---@field followsRotation boolean|nil  Turns with the saved map rotation angle.
 
 ---@class ArenaPathMarker
 ---@field edge integer  Fixed destination edge this path aims at.
@@ -84,7 +83,7 @@ local OTHER_GROUP_STYLE = { size = 8, color = Colors.TEXT_MUTED }
 
 ---@class ArenaCanvas: Frame
 ---@field scale number
----@field rotated boolean
+---@field rotation number  Degrees counterclockwise. 0 leaves the entrance on the right.
 ---@field placements function[]
 ---@field bossMarker ArenaPositionMarker|nil
 ---@field groupMarkers table<string, ArenaPositionMarker>|nil
@@ -101,12 +100,10 @@ local pathArrowTargetEdge = nil
 ---@class ArenaRow
 ---@field row Frame
 ---@field canvas ArenaCanvas
----@field exitLabel FontString
----@field entranceLabel FontString
----@field exitCell Frame  Hosts exitLabel; Layout.Row needs frames when the canvas is protected.
----@field entranceCell Frame  Hosts entranceLabel.
----@field width number  Of the labels and octagon side by side.
----@field inset number  Gap from the row's left side to the first label.
+---@field exitLabel FontString  Sits outside the exit gate and turns with the map.
+---@field entranceLabel FontString  Sits outside the entrance gate and turns with the map.
+---@field width number  Octagon plus room for a gate label on either side.
+---@field inset number  Gap from the row's left side to the octagon's reserved box.
 
 -- Every drawn arena, so a new marker assignment reaches all of them.
 local canvases = {}
@@ -116,13 +113,32 @@ local Map = {
 }
 ns.SszorakMap = Map
 
+---Turns an arena point counterclockwise by `degrees` (y up). 0, 90, 180, and 270 stay exact.
+---@param degrees number
+---@param x number
+---@param y number
+---@return number rx, number ry
+local function Rotate(degrees, x, y)
+    local turns = degrees % 360
+    if turns == 0 then
+        return x, y
+    elseif turns == 90 then
+        return -y, x
+    elseif turns == 180 then
+        return -x, -y
+    elseif turns == 270 then
+        return y, -x
+    end
+    local radians = math.rad(turns)
+    local cosAngle = math.cos(radians)
+    local sinAngle = math.sin(radians)
+    return x * cosAngle - y * sinAngle, x * sinAngle + y * cosAngle
+end
+
 ---@return number x, number y  Offset from the canvas center of the arena point (x, y).
 local function ToCanvas(canvas, x, y)
-    local scale = canvas.scale
-    if canvas.rotated then
-        return -x * scale, -y * scale
-    end
-    return x * scale, y * scale
+    local rx, ry = Rotate(canvas.rotation, x, y)
+    return rx * canvas.scale, ry * canvas.scale
 end
 
 -- Anchors depend on the rotation, so every drawn piece keeps a function that places it, rerun on rotation.
@@ -275,7 +291,8 @@ end
 local function PlaceMarkerLabel(canvas, marker)
     -- Keep labels toward the arena center so they don't sit on the nearer gate.
     marker.label:ClearAllPoints()
-    local labelOnLeft = (marker.point.x >= 0) ~= canvas.rotated
+    local screenX = Rotate(canvas.rotation, marker.point.x, marker.point.y)
+    local labelOnLeft = screenX >= 0
     if labelOnLeft then
         marker.label:SetPoint("RIGHT", marker.dot, "CENTER", -marker.offset, 0)
     else
@@ -319,7 +336,7 @@ local function StyleMarker(canvas, marker, style, text)
     PlaceMarkerLabel(canvas, marker)
 end
 
--- The player's group can change with the map rotation, so the group markers are restyled rather than redrawn.
+-- The player's group can change with the side setting, so the group markers are restyled rather than redrawn.
 local function StyleGroupMarkers(canvas)
     local playerGroup = Sszorak:GetPlayerGroup()
     for group, marker in pairs(canvas.groupMarkers) do
@@ -362,10 +379,7 @@ local function EdgeClickOrderOffset(canvas, edge)
     if not outward then
         return 0, 0
     end
-    local ux, uy = outward.x, outward.y
-    if canvas.rotated then
-        ux, uy = -ux, -uy
-    end
+    local ux, uy = Rotate(canvas.rotation, outward.x, outward.y)
     local iconSize = (canvas.edgeHighlighted and canvas.edgeHighlighted[edge]) and EDGE_MARKER_HIGHLIGHT_SIZE
         or EDGE_MARKER_SIZE
     local dist = iconSize / 2 + EDGE_CLICK_ORDER_GAP + EDGE_CLICK_ORDER_BADGE_SIZE / 2
@@ -568,7 +582,7 @@ local function CreateArenaCanvas(parent, options)
     local canvas = CreateFrame("Frame", nil, parent) --[[@as ArenaCanvas]]
     canvas:SetSize(options.size, options.size)
     canvas.scale = options.size / 2
-    canvas.rotated = options.followsRotation and Sszorak:IsMapRotated() or false
+    canvas.rotation = options.followsRotation and Sszorak:GetMapRotation() or 0
     canvas.placements = {}
 
     if options.showPositions then
@@ -596,59 +610,55 @@ local function CreateGateLabel(parent, edge)
     local label = Widgets.CreateLabel(parent, Fonts.BODY, gate.text)
     label:SetTextColor(Widgets.UnpackColor(gate.color))
     label:SetWordWrap(false)
+    label:SetJustifyH("CENTER")
     return label
 end
 
----Frame cell that sizes to the label so Layout.Row never anchors a protected canvas to a FontString.
----@param parent Frame
+---Puts a gate label just outside its edge. The text stays upright and orbits as the map turns.
+---@param canvas ArenaCanvas
+---@param label FontString
 ---@param edge integer
----@return Frame cell
----@return FontString label
-local function CreateGateCell(parent, edge)
-    local cell = CreateFrame("Frame", nil, parent)
-    local label = CreateGateLabel(cell, edge)
-    label:SetPoint("CENTER")
-    return cell, label
+local function PlaceGateLabel(canvas, label, edge)
+    local mid = Sszorak:GetEdgeMidpoint(edge)
+    local rx, ry = Rotate(canvas.rotation, mid.x, mid.y)
+    local halfW = label:GetStringWidth() / 2
+    local halfH = Assets.FontStyles[Fonts.BODY].size / 2
+    -- Clear the label's box along the outward direction, not only its center.
+    local reach = math.abs(rx) * halfW + math.abs(ry) * halfH
+    local dist = canvas.scale + Spacing.MEDIUM + reach
+    label:ClearAllPoints()
+    label:SetPoint("CENTER", canvas, "CENTER", rx * dist, ry * dist)
 end
 
----Lines up the gate labels on either side of the octagon, next to their edges: the exit is on the left
----unless the arena is rotated.
+---Centers the octagon in the row. Gate labels are anchored to the canvas and updated with it.
 ---@param arena ArenaRow
 function Map.LayoutArenaRow(arena)
-    local leftCell, rightCell = arena.exitCell, arena.entranceCell
-    local leftLabel, rightLabel = arena.exitLabel, arena.entranceLabel
-    if arena.canvas.rotated then
-        leftCell, rightCell = rightCell, leftCell
-        leftLabel, rightLabel = rightLabel, leftLabel
-    end
-    leftLabel:SetJustifyH("RIGHT")
-    rightLabel:SetJustifyH("LEFT")
-    -- Cells are frames: SecureActionButton children make the canvas protected, and protected
-    -- frames cannot SetPoint to FontString/Texture regions.
-    Layout.Row(arena.row, { leftCell, arena.canvas, rightCell }, Spacing.MEDIUM, arena.inset)
+    local canvas = arena.canvas
+    canvas:ClearAllPoints()
+    -- The reserved box is wider than the octagon so side labels are not clipped.
+    local left = arena.inset + (arena.width - canvas:GetWidth()) / 2
+    canvas:SetPoint("LEFT", arena.row, "LEFT", left, 0)
 end
 
----Fills `row` with the octagon between its gate labels. Call LayoutArenaRow once `inset` is final.
+---Fills `row` with the octagon. Call LayoutArenaRow once `inset` is final.
 ---@param row Frame
 ---@param options ArenaCanvasOptions
 ---@return ArenaRow
 function Map.CreateArenaRow(row, options)
-    local exitCell, exitLabel = CreateGateCell(row, Sszorak.EXIT_EDGE)
-    local entranceCell, entranceLabel = CreateGateCell(row, Sszorak.ENTRANCE_EDGE)
-    -- Equal label widths keep the octagon centered between them.
+    local canvas = CreateArenaCanvas(row, options)
+    local exitLabel = CreateGateLabel(canvas, Sszorak.EXIT_EDGE)
+    local entranceLabel = CreateGateLabel(canvas, Sszorak.ENTRANCE_EDGE)
+    AddPlacement(canvas, function()
+        PlaceGateLabel(canvas, exitLabel, Sszorak.EXIT_EDGE)
+        PlaceGateLabel(canvas, entranceLabel, Sszorak.ENTRANCE_EDGE)
+    end)
     local labelWidth = math.max(exitLabel:GetStringWidth(), entranceLabel:GetStringWidth())
-    exitLabel:SetWidth(labelWidth)
-    entranceLabel:SetWidth(labelWidth)
-    exitCell:SetSize(labelWidth, options.size)
-    entranceCell:SetSize(labelWidth, options.size)
 
     return {
         row = row,
-        canvas = CreateArenaCanvas(row, options),
+        canvas = canvas,
         exitLabel = exitLabel,
         entranceLabel = entranceLabel,
-        exitCell = exitCell,
-        entranceCell = entranceCell,
         width = options.size + 2 * (labelWidth + Spacing.MEDIUM),
         inset = 0,
     }
@@ -661,16 +671,25 @@ function Map.GetArenaRowHeight(size)
     return size + 2 * EDGE_MARKER_REACH
 end
 
----Turns an arena that follows rotation to match the saved map rotation setting.
+---Turns an arena that follows rotation to match the saved map rotation angle.
 ---@param arena ArenaRow
 function Map.ApplyRotation(arena)
     local canvas = arena.canvas
-    canvas.rotated = Sszorak:IsMapRotated()
+    canvas.rotation = Sszorak:GetMapRotation()
     StyleGroupMarkers(canvas)
-    -- Player group follows rotation; rebuild paths from the new "You" dot.
     SyncCanvasPathMarkers(canvas)
     PlaceAll(canvas)
     Map.LayoutArenaRow(arena)
+end
+
+---Restyles the "You" dot after the left/right side changes, without turning the map.
+function Map.RefreshPlayerGroup()
+    for _, canvas in ipairs(canvases) do
+        if canvas.groupMarkers then
+            StyleGroupMarkers(canvas)
+            SyncCanvasPathMarkers(canvas)
+        end
+    end
 end
 
 function Map.RefreshEdgeMarkers()

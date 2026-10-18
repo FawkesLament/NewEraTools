@@ -234,6 +234,10 @@ local function Build(containerFrame)
     UI.inactiveRowStack = nil
     UI.summaryLabel = nil
     UI.summaryText = nil
+    UI.summaryIcon = nil
+    UI.summaryIconPath = nil
+    UI.summaryHeader = nil
+    UI.summaryAddButton = nil
     UI.activationScopeSignature = nil
     UI.contentBody = nil
     UI.emptyEditorHost = nil

@@ -3,7 +3,9 @@
     <Script file="Position.lua"/>
     <Script file="Color.lua"/>
     <Script file="Widgets.lua"/>
+    <Script file="PendingClock.lua"/>
     <Script file="Layout.lua"/>
+    <Script file="ActionRow.lua"/>
     <Script file="FeatureSection.lua"/>
     <Script file="CollapsibleSection.lua"/>
     <Script file="FloatingWindow.lua"/>

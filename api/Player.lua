@@ -113,6 +113,21 @@ function Player.GetSpecializationName(specializationId)
     return nil
 end
 
+---Texture file ID or path for a specialization, or nil when the client has none.
+---@param specializationId integer|nil
+---@return number|string|nil
+function Player.GetSpecializationIcon(specializationId)
+    local specId = NormalizeSpecializationId(specializationId)
+    if not specId or not GetSpecializationInfoByID then
+        return nil
+    end
+    local _, _, _, icon = GetSpecializationInfoByID(specId)
+    if type(icon) == "number" or (type(icon) == "string" and icon ~= "") then
+        return icon
+    end
+    return nil
+end
+
 ---Stable ID of the player's current specialization, or nil when unavailable.
 ---@return integer|nil
 function Player.GetSpecializationId()

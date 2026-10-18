@@ -56,13 +56,13 @@ describe("Sszorak", function()
                 end,
             })
             local cases = {
-                { rotated = false, mode = Sszorak.CALLOUT_MODE_NORMAL, side = Sszorak.SIDE_LEFT },
-                { rotated = true, mode = Sszorak.CALLOUT_MODE_NORMAL, side = Sszorak.SIDE_RIGHT },
-                { rotated = false, mode = Sszorak.CALLOUT_MODE_JAILBREAK, side = Sszorak.SIDE_LEFT },
-                { rotated = true, mode = Sszorak.CALLOUT_MODE_JAILBREAK, side = Sszorak.SIDE_RIGHT },
+                { mode = Sszorak.CALLOUT_MODE_NORMAL, side = Sszorak.SIDE_LEFT },
+                { mode = Sszorak.CALLOUT_MODE_NORMAL, side = Sszorak.SIDE_RIGHT },
+                { mode = Sszorak.CALLOUT_MODE_JAILBREAK, side = Sszorak.SIDE_LEFT },
+                { mode = Sszorak.CALLOUT_MODE_JAILBREAK, side = Sszorak.SIDE_RIGHT },
             }
             for _, case in ipairs(cases) do
-                Sszorak:SetMapRotated(case.rotated)
+                Sszorak:SetPlayerSide(case.side)
                 Sszorak:SetCalloutMode(case.mode)
                 assert.same({
                     enabled = true,
@@ -79,23 +79,23 @@ describe("Sszorak", function()
             assert.equals(false, InspectConfig().enabled)
             Sszorak:SetMapEnabled(true)
             assert.equals(true, InspectConfig().enabled)
-            Sszorak:SetMapRotated(true)
+            Sszorak:SetPlayerSide(Sszorak.SIDE_RIGHT)
             assert.equals(Sszorak.SIDE_RIGHT, InspectConfig().side)
-            Sszorak:SetMapRotated(false)
+            Sszorak:SetPlayerSide(Sszorak.SIDE_LEFT)
             assert.equals(Sszorak.SIDE_LEFT, InspectConfig().side)
         end)
 
         it("does not mutate saved configuration when inspected", function()
-            Sszorak:SetMapRotated(true)
+            Sszorak:SetPlayerSide(Sszorak.SIDE_RIGHT)
             local beforeEnabled = Sszorak.db.mapEnabled
-            local beforeRotated = Sszorak.db.mapRotated
+            local beforeSide = Sszorak.db.playerSide
             local beforeMode = Sszorak.db.calloutMode
             local snapshot = InspectConfig()
             snapshot.enabled = false
             snapshot.side = "mutated"
             snapshot.mode = "mutated"
             assert.equals(beforeEnabled, Sszorak.db.mapEnabled)
-            assert.equals(beforeRotated, Sszorak.db.mapRotated)
+            assert.equals(beforeSide, Sszorak.db.playerSide)
             assert.equals(beforeMode, Sszorak.db.calloutMode)
             assert.equals(true, InspectConfig().enabled)
             assert.equals(Sszorak.SIDE_RIGHT, InspectConfig().side)
@@ -146,8 +146,8 @@ describe("Sszorak", function()
             )
         end)
 
-        it("fails safely on invalid mapRotated", function()
-            Sszorak.db.mapRotated = "yes"
+        it("fails safely on invalid playerSide", function()
+            Sszorak.db.playerSide = "yes"
             local config, err = InspectConfig()
             assert.equals(nil, config)
             assert.equals("provider_failed", err)

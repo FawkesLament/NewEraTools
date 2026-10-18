@@ -39,8 +39,10 @@ local Sszorak = ns.Modules.New("Sszorak", {
         },
         -- When true, the map window opens automatically for this boss fight.
         mapEnabled = true,
-        -- Turns the map window half a circle, so players standing on the other side see it their way up.
-        mapRotated = false,
+        -- Player's side of the room: "left" (group A) or "right" (group B). Independent of map rotation.
+        playerSide = "left",
+        -- Degrees to turn the floating arena map, counterclockwise. Independent of the player's side.
+        mapRotation = 0,
         -- Scale of the floating arena map window.
         mapScale = 1,
         ---@type MapPosition

@@ -1,5 +1,4 @@
 local _, ns = ...
-local L = ns.L
 local Assets = ns.Assets
 local Layout = ns.Layout
 local Widgets = ns.Widgets
@@ -17,26 +16,12 @@ ns.AuraTrackerUI = UI
 local Controls = {}
 UI.Controls = Controls
 
-local PENDING_CLOCK_SIZE = 10
-
 ---Small clock just after a label. Hidden until that saved field is waiting on the live bar.
 ---The gap before the control is Spacing.LARGE, so the icon sits in that gap without moving the row.
 ---@param label FontString
 ---@param key string
 function Controls.AttachPendingClock(label, key)
-    local clock = CreateFrame("Frame", nil, label:GetParent())
-    clock:SetSize(PENDING_CLOCK_SIZE, PENDING_CLOCK_SIZE)
-    clock:SetPoint("LEFT", label, "RIGHT", 1, 0)
-    clock:EnableMouse(true)
-    local icon = clock:CreateTexture(nil, "ARTWORK")
-    icon:SetAllPoints()
-    icon:SetAtlas(Assets.Icons.CLOCK)
-    local muted = Assets.Colors.TEXT_MUTED
-    icon:SetVertexColor(muted.r, muted.g, muted.b, 1)
-    Widgets.AttachTooltip(clock, "ANCHOR_RIGHT", function(tooltip)
-        tooltip:SetText(L.AURA_TRACKER_PENDING_FIELD)
-    end)
-    clock:Hide()
+    local clock = ns.PendingClock.Attach(label)
     UI.pendingClocks = UI.pendingClocks or {}
     UI.pendingClocks[key] = clock
 end

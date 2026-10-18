@@ -20,6 +20,7 @@ local ui
 local Refresh
 
 ---Locks only the draw button when access/pool/sending blocks a draw; other controls stay usable.
+---A blocked draw explains why beside the button. Sending disables the button without that message.
 ---@param eligibleCount integer
 local function SyncControls(eligibleCount)
     ui.stepper:SetValue(RaidLottery:GetCount())
@@ -201,7 +202,7 @@ local function BuildDrawRow(row)
         if ui.excludedSection:IsExpanded() then
             ui.excludedSection:SetExpanded(false)
         end
-    end, "primary")
+    end, "accent")
     ui.drawButton = drawButton
 
     local blockedReason = Widgets.CreateLabel(row, Fonts.SMALL_MUTED)

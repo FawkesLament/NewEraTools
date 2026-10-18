@@ -4,9 +4,11 @@ local Util = ns.Util
 local Assets = ns.Assets
 local Combat = ns.Api.Combat
 local AddonCheckPanel = ns.AddonCheckPanel
+local ActionRow = ns.ActionRow
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
 local Widgets = ns.Widgets
+local PendingClock = ns.PendingClock
 
 local Colors = Assets.Colors
 local Fonts = Assets.Fonts
@@ -46,7 +48,7 @@ local roleStatus
 ---@type AddonCheckPanel|nil
 local addonCheckPanel
 
--- The default map has the entrance on the right; rotating 180° is the right-side view.
+-- Segmented-control values for the player's side. They do not turn the map.
 local GROUP_LEFT = "LEFT"
 local GROUP_RIGHT = "RIGHT"
 
@@ -290,6 +292,8 @@ local function ShowAddonCheckPanel()
     EnsureAddonCheckPanel():Show()
 end
 
+local SCOPE_ID = "sszorak"
+
 local function BeginEditPosition()
     if Combat.IsInCombat() or Combat.IsLockedDown() then
         Util.Print(L.LAYOUT_EDIT_IN_COMBAT)
@@ -299,9 +303,7 @@ local function BeginEditPosition()
         Util.Print(L.LAYOUT_EDIT_NONE)
         return
     end
-    Window.Ensure()
-    Callout.Ensure()
-    LayoutEditor.BeginLocal({ Window.LAYOUT_ID, Callout.LAYOUT_ID })
+    LayoutEditor.BeginScope(SCOPE_ID)
 end
 
 ---Creates the mode toggle once jailbreak is registered, and selects the mode that is actually in use.
@@ -337,6 +339,21 @@ end
 
 function Sszorak:OnCalloutModesChanged()
     RefreshCalloutModeControl()
+end
+
+local RebuildMapSettings
+
+local function ResetBuiltControls()
+    modeCell = nil
+    modeControl = nil
+    resetButton = nil
+    createMacrosRow = nil
+    createMacrosButton = nil
+    addonCheckButton = nil
+    syncRow = nil
+    mapBody = nil
+    roleLabel = nil
+    roleStatus = nil
 end
 
 ---Fills the encounter-map feature body. Returns the content height.
@@ -418,11 +435,11 @@ local function BuildMapContent(content)
         if not Sszorak:IsMapEnabled() then
             return
         end
-        Sszorak:SetMapRotated(group == GROUP_RIGHT)
+        Sszorak:SetPlayerSide(group == GROUP_RIGHT and Sszorak.SIDE_RIGHT or Sszorak.SIDE_LEFT)
         groupControl:SetSelected(group)
-        Window.ApplyRotation()
+        Map.RefreshPlayerGroup()
     end)
-    groupControl:SetSelected(Sszorak:IsMapRotated() and GROUP_RIGHT or GROUP_LEFT)
+    groupControl:SetSelected(Sszorak:GetPlayerSide() == Sszorak.SIDE_RIGHT and GROUP_RIGHT or GROUP_LEFT)
     Layout.Row(groupCell, { groupLabel, groupControl }, Spacing.LARGE)
 
     -- The right cell stays empty until jailbreak is registered. A later registration fills it in place.
@@ -467,17 +484,62 @@ local function BuildMapContent(content)
     -- C. UI Tools
     Widgets.LayoutSectionHeader(body:AddRow(Sizes.CONTENT_SECTION_HEADER, Spacing.LARGE), L.SSZORAK_SECTION_TOOLS)
 
-    local toolsHintRow = body:AddRow(HINT_ROW_HEIGHT)
-    local toolsHint = Widgets.CreateLabel(toolsHintRow, Fonts.SMALL_MUTED, L.SSZORAK_TOOLS_HINT)
-    toolsHint:SetJustifyH("LEFT")
-    toolsHint:SetPoint("LEFT", toolsHintRow, "LEFT")
-    toolsHint:SetPoint("RIGHT", toolsHintRow, "RIGHT")
+    ---Label, flexible slider, value box, and optional suffix, filling one half of a row.
+    ---@param cell Frame
+    ---@param label FontString
+    ---@param slider SliderControl
+    local function PlaceHalfSlider(cell, label, slider)
+        label:SetJustifyH("LEFT")
+        label:SetPoint("LEFT", cell, "LEFT")
+        local box = slider.valueBox
+        local suffix = slider.valueSuffix
+        if suffix then
+            suffix:ClearAllPoints()
+            suffix:SetPoint("RIGHT", cell, "RIGHT")
+            box:ClearAllPoints()
+            box:SetPoint("RIGHT", suffix, "LEFT", -Spacing.TINY, 0)
+        else
+            box:ClearAllPoints()
+            box:SetPoint("RIGHT", cell, "RIGHT")
+        end
+        slider:ClearAllPoints()
+        -- LARGE leaves room for the pending-combat clock between the label and the slider.
+        slider:SetPoint("LEFT", label, "RIGHT", Spacing.LARGE, 0)
+        slider:SetPoint("RIGHT", box, "LEFT", -Spacing.MEDIUM, 0)
+    end
 
-    local scaleRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local scaleLabel = Widgets.CreateLabel(scaleRow, Fonts.BODY, L.SSZORAK_MAP_SCALE)
-    scaleLabel:SetJustifyH("LEFT")
+    ---Saves `rawValue` immediately. The live map waits until combat ends; the slider stays editable.
+    ---@param slider SliderControl
+    ---@param clock PendingClockFrame
+    ---@param write fun(value: number)
+    ---@param apply fun()
+    local function BindDeferredSlider(slider, clock, write, apply)
+        slider:SetScript("OnValueChanged", function(_, rawValue)
+            if not Sszorak:IsMapEnabled() then
+                return
+            end
+            write(rawValue)
+            PendingClock.Defer(clock, apply, RebuildMapSettings)
+        end)
+    end
+
+    local toolsRow = body:AddRow(ActionRow.HEIGHT)
+    ActionRow.Apply(toolsRow, {
+        title = L.SSZORAK_TOOLS_PREVIEW,
+        description = L.SSZORAK_TOOLS_PREVIEW_DESC,
+        buttons = {
+            { text = L.SSZORAK_START_TEST, onClick = Window.StartPreview },
+            { text = L.SSZORAK_EDIT_POSITION, onClick = BeginEditPosition, layout = true },
+        },
+    })
+
+    local sliderRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local scaleCell, rotationCell = Layout.SplitRow(sliderRow, Spacing.MEDIUM)
+
+    local scaleLabel = Widgets.CreateLabel(scaleCell, Fonts.BODY, L.SSZORAK_MAP_SCALE)
+    local scaleClock = PendingClock.Attach(scaleLabel)
     local scaleSlider = Widgets.CreateSlider(
-        scaleRow,
+        scaleCell,
         Sszorak.MAP_SCALE_MIN,
         Sszorak.MAP_SCALE_MAX,
         Sszorak.MAP_SCALE_STEP,
@@ -487,22 +549,52 @@ local function BuildMapContent(content)
         tooltip:SetText(L.SSZORAK_MAP_SCALE_TOOLTIP)
     end)
     scaleSlider:SetValue(Sszorak:GetMapScale())
-    scaleSlider:SetScript("OnValueChanged", function(_, rawValue)
-        if not Sszorak:IsMapEnabled() then
-            return
-        end
+    BindDeferredSlider(scaleSlider, scaleClock, function(rawValue)
         Sszorak:SetMapScale(rawValue)
+    end, function()
         Window.ApplyScale(Sszorak:GetMapScale())
     end)
-    Layout.Row(scaleRow, { scaleLabel }, 0)
-    scaleSlider:SetPoint("LEFT", scaleLabel, "RIGHT", Spacing.LARGE, 0)
+    PlaceHalfSlider(scaleCell, scaleLabel, scaleSlider)
 
-    local toolsRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local preview = Widgets.CreateButton(toolsRow, L.SSZORAK_START_TEST, Window.StartPreview)
-    local editPosition = Widgets.CreateButton(toolsRow, L.SSZORAK_EDIT_POSITION, BeginEditPosition)
-    Layout.Row(toolsRow, { preview, editPosition }, Spacing.MEDIUM)
+    local rotationLabel = Widgets.CreateLabel(rotationCell, Fonts.BODY, L.SSZORAK_MAP_ROTATION)
+    local rotationClock = PendingClock.Attach(rotationLabel)
+    local rotationSlider = Widgets.CreateSlider(
+        rotationCell,
+        Sszorak.MAP_ROTATION_MIN,
+        Sszorak.MAP_ROTATION_MAX,
+        Sszorak.MAP_ROTATION_STEP,
+        { suffix = L.DEGREE_SUFFIX }
+    )
+    Widgets.AttachTooltip(rotationSlider, "ANCHOR_BOTTOM", function(tooltip)
+        tooltip:SetText(L.SSZORAK_MAP_ROTATION_TOOLTIP)
+    end)
+    rotationSlider:SetValue(Sszorak:GetMapRotation())
+    BindDeferredSlider(rotationSlider, rotationClock, function(rawValue)
+        Sszorak:SetMapRotation(rawValue)
+    end, function()
+        Window.ApplyRotation()
+    end)
+    PlaceHalfSlider(rotationCell, rotationLabel, rotationSlider)
 
     return body:GetHeight()
+end
+
+---Drops the settings widgets and builds them again from the saved values.
+---Used after a combat-deferred scale or rotation is applied, so the pending clocks are gone.
+function RebuildMapSettings()
+    if not mapSection then
+        return
+    end
+    HidePicker()
+    local children = { mapSection:GetChildren() }
+    for _, child in ipairs(children) do
+        child:Hide()
+        child:SetParent(nil)
+    end
+    ResetBuiltControls()
+    mapSection:SetContentHeight(BuildMapContent(mapSection))
+    mapSection:RefreshContentInteractive()
+    UpdateCommanderControls()
 end
 
 ---@param container Frame
@@ -525,6 +617,16 @@ local function Build(container)
 end
 
 function Sszorak:OnEnable()
+    LayoutEditor.RegisterScope({
+        id = SCOPE_ID,
+        label = L.SSZORAK_LAYOUT_SCOPE,
+        order = 5,
+        elementIds = { Window.LAYOUT_ID, Callout.LAYOUT_ID },
+        prepare = function()
+            Window.Ensure()
+            Callout.Ensure()
+        end,
+    })
     ns.MainPanel:RegisterSection({
         title = L.SSZORAK_TITLE,
         headerTitle = L.SSZORAK_DROP_BALL,
@@ -539,6 +641,9 @@ function Sszorak:OnEnable()
             UpdateCommanderControls()
             -- Enabling or disabling never opens or closes a preview; during a fight it shows or hides the map.
             Window.Update()
+            if LayoutEditor.IsEditing() then
+                LayoutEditor.Refresh()
+            end
         end,
         build = Build,
     })
@@ -546,7 +651,7 @@ function Sszorak:OnEnable()
     self:ListenForEncounter()
     self:ListenForCalloutMode()
     self:ListenForMacroSync()
-    -- Register with the layout editor (local-only) before the map is first shown.
+    -- Register layout elements before the map is first shown.
     -- Secure marker buttons must be created out of combat; OnEnable runs before pulls.
     -- Show now when a raid pull could start, because Show is blocked once combat lockdown begins.
     Window.Ensure()

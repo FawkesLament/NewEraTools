@@ -3,6 +3,7 @@ local L = ns.L
 local Assets = ns.Assets
 local CalloutMessage = ns.CalloutMessage
 local Combat = ns.Api.Combat
+local ActionRow = ns.ActionRow
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
 local Util = ns.Util
@@ -15,6 +16,7 @@ local Spacing = Assets.Spacing
 local TheLostExplorers = ns.Modules.Get("TheLostExplorers")
 
 local LAYOUT_ID_CALLOUT = "TheLostExplorers:callout"
+local LAYOUT_SCOPE_ID = "the_lost_explorers"
 local CALLOUT_WIDTH = 420
 local CALLOUT_HEIGHT = 72
 -- Dropdown sentinel for an empty feed-order slot (distinct from boss id strings).
@@ -99,8 +101,7 @@ local function BeginEditPosition()
         Util.Print(L.LAYOUT_EDIT_NONE)
         return
     end
-    calloutWindow = calloutWindow or CreateCalloutWindow()
-    LayoutEditor.BeginLocal(LAYOUT_ID_CALLOUT)
+    LayoutEditor.BeginScope(LAYOUT_SCOPE_ID)
 end
 
 local FEED_ORDER_CHOICE_SLOTS = TheLostExplorers.FEED_ORDER_SIZE - 1
@@ -221,9 +222,14 @@ local function BuildContent(content)
     end
     Layout.Row(orderRow, orderWidgets, Spacing.SMALL)
 
-    local toolsRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local editPosition = Widgets.CreateButton(toolsRow, L.THE_LOST_EXPLORERS_EDIT_POSITION, BeginEditPosition)
-    Layout.Row(toolsRow, { editPosition }, Spacing.MEDIUM)
+    local toolsRow = body:AddRow(ActionRow.HEIGHT)
+    ActionRow.Apply(toolsRow, {
+        title = L.THE_LOST_EXPLORERS_TOOLS_LAYOUT,
+        description = L.THE_LOST_EXPLORERS_TOOLS_LAYOUT_DESC,
+        buttons = {
+            { text = L.THE_LOST_EXPLORERS_EDIT_POSITION, onClick = BeginEditPosition, layout = true },
+        },
+    })
 
     return body:GetHeight()
 end
@@ -237,6 +243,15 @@ local function Build(container)
 end
 
 function TheLostExplorers:OnEnable()
+    LayoutEditor.RegisterScope({
+        id = LAYOUT_SCOPE_ID,
+        label = L.THE_LOST_EXPLORERS_LAYOUT_SCOPE,
+        order = 3,
+        elementIds = { LAYOUT_ID_CALLOUT },
+        prepare = function()
+            calloutWindow = calloutWindow or CreateCalloutWindow()
+        end,
+    })
     ns.MainPanel:RegisterSection({
         title = L.THE_LOST_EXPLORERS_TITLE,
         headerTitle = L.THE_LOST_EXPLORERS_FEED_FISH,
@@ -244,6 +259,9 @@ function TheLostExplorers:OnEnable()
         enabled = TheLostExplorers:IsEnabled(),
         onEnabledChanged = function(enabled)
             TheLostExplorers:SetEnabled(enabled)
+            if LayoutEditor.IsEditing() then
+                LayoutEditor.Refresh()
+            end
         end,
         build = Build,
     })

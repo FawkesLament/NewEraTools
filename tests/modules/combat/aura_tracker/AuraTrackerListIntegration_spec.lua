@@ -44,7 +44,15 @@ describe("AuraTracker settings list", function()
         function frame:SetAlpha() end
         function frame:SetFontObject() end
         function frame:SetJustifyH() end
+        function frame:SetJustifyV() end
         function frame:SetWordWrap() end
+        function frame:SetTextColor() end
+        function frame:GetStringHeight()
+            return 0
+        end
+        function frame:SetEnabled(enabled)
+            self.enabled = enabled == true
+        end
         function frame:SetChecked() end
         function frame:GetChecked()
             return false

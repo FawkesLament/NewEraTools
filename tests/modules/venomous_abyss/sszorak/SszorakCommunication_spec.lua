@@ -287,7 +287,7 @@ describe("SszorakCallout", function()
             assert.equals(expected, Sszorak:GetSavedEdgeResolve(1).hudMessage)
             assert.equals(2, Sszorak:GetSavedEdgeResolve(1).targetEdge)
 
-            Sszorak:SetMapRotated(true)
+            Sszorak:SetPlayerSide(Sszorak.SIDE_RIGHT)
             Sszorak:NotifyCalloutStationChanged(Sszorak.STATION_HOME, Sszorak.STATION_CENTER)
             local sameSide = Icon(1) .. " " .. Relative(ns.L.SSZORAK_SIDE_SAME, ns.L.SSZORAK_DEPTH_NEAR)
             assert.equals(sameSide, Sszorak:GetSavedEdgeResolve(1).hudMessage)

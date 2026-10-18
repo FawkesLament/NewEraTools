@@ -180,8 +180,8 @@ Assets.Sizes = {
     CLOSE_BUTTON = 22,
     -- Compact title bar when a settings panel is collapsed (outer frame height).
     COLLAPSED_PANEL_HEIGHT = 40,
-    -- Fits logo + title + Edit Layout + collapse/close without the scale chrome.
-    COLLAPSED_PANEL_WIDTH = 300,
+    -- Fits logo + title + Edit Layout (with its move icon) + collapse/close without the scale chrome.
+    COLLAPSED_PANEL_WIDTH = 320,
     SLIDER_WIDTH = 96,
     SLIDER_HEIGHT = 16,
     SLIDER_TRACK = 2,
@@ -206,6 +206,9 @@ Assets.Sizes = {
     ROLE_ICON = 14,
     BUTTON_MIN_WIDTH = 64,
     BUTTON_TEXT_PADDING = 20,
+    -- Muted corner-bracket mark on buttons that enter layout editing.
+    LAYOUT_EDIT_ICON = 12,
+    LAYOUT_EDIT_ICON_THICKNESS = 1,
     -- Prominent Done control while repositioning floating UI.
     LAYOUT_EDIT_DONE_HEIGHT = 36,
     LAYOUT_EDIT_DONE_MIN_WIDTH = 120,

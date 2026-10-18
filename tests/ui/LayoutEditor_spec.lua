@@ -260,6 +260,13 @@ describe("LayoutEditor", function()
             GetFrame = function(self)
                 return self.panelFrame
             end,
+            GetScale = function()
+                return MainPanel.db.scale
+            end,
+            OnScaleChanged = function(callback)
+                MainPanel.scaleListener = callback
+                return function() end
+            end,
         }
 
         Inspector = {
@@ -294,6 +301,7 @@ describe("LayoutEditor", function()
             MainPanel = MainPanel,
             LayoutCoordinateInspector = Inspector,
             L = {
+                LAYOUT_EDIT_SCOPE_COMMON = "Common UI",
                 LAYOUT_EDIT_DONE = "Done",
                 LAYOUT_EDIT_IN_COMBAT = "in combat",
                 LAYOUT_EDIT_NONE = "none",
@@ -314,7 +322,7 @@ describe("LayoutEditor", function()
                     LAYOUT_EDIT_LABEL = { r = 0, g = 1, b = 0, a = 1 },
                     LAYOUT_EDIT_DIMMER = { r = 0, g = 0, b = 0, a = 0.55 },
                 },
-                Fonts = { SMALL_MUTED = "Font", LAYOUT_EDIT_DONE = "LayoutEditDone" },
+                Fonts = { SMALL_MUTED = "Font", BODY = "Body", LAYOUT_EDIT_DONE = "LayoutEditDone" },
                 Spacing = { TINY = 2, SMALL = 4, LARGE = 12, XLARGE = 16, MEDIUM = 8 },
                 Sizes = {
                     CONTROL_HEIGHT = 22,
@@ -336,10 +344,11 @@ describe("LayoutEditor", function()
             UnpackColor = function(color)
                 return color.r, color.g, color.b, color.a or 1
             end,
-            CreateLabel = function(parent, _, text)
+            CreateLabel = function(parent, font, text)
                 -- FontStrings are not listed in Frame:GetChildren(); keep them off the children list.
                 local label = FakeFrame(nil)
                 label.parent = parent
+                label.font = font
                 label.text = text
                 return label
             end,
@@ -368,6 +377,26 @@ describe("LayoutEditor", function()
             end,
             CreateSurface = function(parent)
                 return FakeFrame(parent)
+            end,
+            CreateDropdown = function(parent, items, onSelect)
+                local dropdown = FakeFrame(parent)
+                dropdown.items = items
+                dropdown.onSelect = onSelect
+                dropdown.width = 120
+                dropdown.height = 22
+                function dropdown:SetItems(nextItems)
+                    self.items = nextItems
+                end
+                function dropdown:SetSelected(value)
+                    self.selected = value
+                end
+                function dropdown:SetJustifyH(justifyH)
+                    self.justifyH = justifyH
+                end
+                function dropdown:Close()
+                    self.closeCount = (self.closeCount or 0) + 1
+                end
+                return dropdown
             end,
             AttachTooltip = function(frame, _, populate)
                 frame.tooltipPopulate = populate
@@ -423,6 +452,29 @@ describe("LayoutEditor", function()
         return frame, position, calls
     end
 
+    local function FindToolbar()
+        for _, child in ipairs(UIParent.children) do
+            if child.doneButton then
+                for _, grand in ipairs(child.children) do
+                    if grand.SetItems then
+                        return child, grand
+                    end
+                end
+                return child, nil
+            end
+        end
+    end
+
+    local function ShownOverlays(frame)
+        local count = 0
+        for _, child in ipairs(frame.children) do
+            if child.elementId and child.shown then
+                count = count + 1
+            end
+        end
+        return count
+    end
+
     it("applies and reads UIParent anchors", function()
         local frame = FakeFrame(UIParent)
         LayoutEditor.ApplyPosition(frame, { point = "TOP", relativePoint = "CENTER", x = 4, y = -8 })
@@ -476,36 +528,214 @@ describe("LayoutEditor", function()
         assert.equals(1, timerCalls.ending)
     end)
 
-    it("Refresh ends the session when every element becomes disabled", function()
+    it("Refresh keeps the session when every element in the scope becomes disabled", function()
         local opts = { global = true, enabled = true }
         local _, _, calls = RegisterElement("AuraTracker:1", opts)
         assert.is_true(LayoutEditor.BeginGlobal())
         opts.enabled = false
         LayoutEditor.Refresh()
-        assert.is_false(LayoutEditor.IsEditing())
+        assert.is_true(LayoutEditor.IsEditing())
+        assert.equals(LayoutEditor.COMMON_SCOPE_ID, LayoutEditor.GetActiveScopeId())
         assert.equals(1, calls.ending)
-    end)
+        local bar = FindToolbar()
+        assert.is_true(bar:IsShown())
 
-    it("begins local edit for a single element", function()
-        RegisterElement("CombatTimer:1", { global = true, enabled = true })
-        local _, _, localCalls = RegisterElement("Sszorak:map", { global = false, enabled = true })
-
-        assert.is_true(LayoutEditor.BeginLocal("Sszorak:map"))
-        assert.equals(1, localCalls.begin)
+        opts.enabled = true
+        LayoutEditor.Refresh()
+        assert.equals(2, calls.begin)
+        assert.equals(1, calls.ending)
         LayoutEditor.End()
-        assert.equals(1, localCalls.ending)
     end)
 
-    it("begins local edit for multiple elements", function()
+    it("refuses to enter a scope that has no enabled elements", function()
+        RegisterElement("AuraTracker:1", { global = true, enabled = false })
+        LayoutEditor.RegisterScope({
+            id = "sszorak",
+            label = "Sszorak",
+            elementIds = { "Sszorak:map" },
+        })
+        RegisterElement("Sszorak:map", { global = false, enabled = false })
+
+        assert.is_false(LayoutEditor.BeginGlobal())
+        assert.is_false(LayoutEditor.BeginScope("sszorak"))
+        assert.same({ "none", "none" }, printed)
+        assert.is_false(LayoutEditor.IsEditing())
+    end)
+
+    it("edits only the elements in the active scope", function()
+        local _, _, globalCalls = RegisterElement("CombatTimer:1", { global = true, enabled = true })
         local _, _, mapCalls = RegisterElement("Sszorak:map", { global = false, enabled = true })
         local _, _, calloutCalls = RegisterElement("Sszorak:callout", { global = false, enabled = true })
+        local _, _, disabledCalls = RegisterElement("Sszorak:extra", { global = false, enabled = false })
+        LayoutEditor.RegisterScope({
+            id = "sszorak",
+            label = "Sszorak · Boss UI",
+            elementIds = { "Sszorak:map", "Sszorak:callout", "Sszorak:extra" },
+        })
 
-        assert.is_true(LayoutEditor.BeginLocal({ "Sszorak:map", "Sszorak:callout" }))
+        assert.is_true(LayoutEditor.BeginScope("sszorak"))
+        assert.equals("sszorak", LayoutEditor.GetActiveScopeId())
+        assert.equals(0, globalCalls.begin)
         assert.equals(1, mapCalls.begin)
         assert.equals(1, calloutCalls.begin)
+        assert.equals(0, disabledCalls.begin)
+
         LayoutEditor.End()
         assert.equals(1, mapCalls.ending)
         assert.equals(1, calloutCalls.ending)
+        assert.equals(0, globalCalls.ending)
+        assert.equals(0, disabledCalls.ending)
+    end)
+
+    it("lists the common scope first, then module scopes by order", function()
+        LayoutEditor.RegisterScope({ id = "sszorak", label = "Sszorak", order = 5, elementIds = { "Sszorak:map" } })
+        LayoutEditor.RegisterScope({
+            id = "the_lost_explorers",
+            label = "Explorers",
+            order = 3,
+            elementIds = { "TheLostExplorers:callout" },
+        })
+        RegisterElement("CombatTimer:1", { global = true, enabled = true })
+
+        assert.is_true(LayoutEditor.BeginGlobal())
+        local _, dropdown = FindToolbar()
+        assert.same({
+            { value = "common", text = "Common UI" },
+            { value = "the_lost_explorers", text = "Explorers" },
+            { value = "sszorak", text = "Sszorak" },
+        }, dropdown.items)
+        assert.equals("common", dropdown.selected)
+        assert.equals("common", LayoutEditor.GetActiveScopeId())
+    end)
+
+    it("centers the selected scope in the toolbar", function()
+        RegisterElement("CombatTimer:1", { global = true, enabled = true })
+        assert.is_true(LayoutEditor.BeginGlobal())
+        local bar, dropdown = FindToolbar()
+        assert.is_nil(bar.scopeLabel)
+        assert.equals("CENTER", dropdown.justifyH)
+        LayoutEditor.End()
+    end)
+
+    it("scales the edit toolbar with the main panel slider", function()
+        RegisterElement("CombatTimer:1", { global = true, enabled = true })
+        assert.is_true(LayoutEditor.BeginGlobal())
+        local bar = FindToolbar()
+        assert.equals(1.2, bar:GetScale())
+        MainPanel.db.scale = 0.8
+        MainPanel.scaleListener(0.8)
+        assert.equals(0.8, bar:GetScale())
+        LayoutEditor.End()
+        assert.equals(0.8, bar:GetScale())
+    end)
+
+    it("switches scopes from the toolbar without leaving the session", function()
+        local timerFrame, _, timerCalls = RegisterElement("CombatTimer:1", { global = true, enabled = true })
+        local mapFrame, mapPosition, mapCalls = RegisterElement("Sszorak:map", { global = false, enabled = true })
+        mapPosition.x = 12
+        local prepared = 0
+        LayoutEditor.RegisterScope({
+            id = "sszorak",
+            label = "Sszorak",
+            elementIds = { "Sszorak:map" },
+            prepare = function()
+                prepared = prepared + 1
+            end,
+        })
+
+        assert.is_true(LayoutEditor.BeginGlobal())
+        local timerOverlay = timerFrame.children[#timerFrame.children]
+        timerOverlay.scripts.OnMouseUp(timerOverlay, "LeftButton")
+        assert.equals("CombatTimer:1", Inspector.selected.id)
+        local listeners = #Combat.enterCallbacks
+        local _, dropdown = FindToolbar()
+
+        dropdown.onSelect("sszorak")
+        assert.is_true(LayoutEditor.IsEditing())
+        assert.equals("sszorak", LayoutEditor.GetActiveScopeId())
+        assert.equals("sszorak", dropdown.selected)
+        assert.equals(1, timerCalls.ending)
+        assert.equals(1, mapCalls.begin)
+        assert.equals(1, prepared)
+        assert.is_false(Inspector.shown)
+        assert.is_nil(Inspector.selected)
+        assert.equals(0, ShownOverlays(timerFrame))
+        assert.equals(1, ShownOverlays(mapFrame))
+        assert.equals(listeners, #Combat.enterCallbacks)
+        assert.equals(12, mapPosition.x)
+        assert.is_true(FindToolbar():IsShown())
+
+        local mapOverlay = mapFrame.children[#mapFrame.children]
+        mapOverlay.scripts.OnMouseUp(mapOverlay, "LeftButton")
+        assert.equals("Sszorak:map", Inspector.selected.id)
+
+        dropdown.onSelect("common")
+        assert.equals("common", LayoutEditor.GetActiveScopeId())
+        assert.equals(1, mapCalls.ending)
+        assert.equals(2, timerCalls.begin)
+        assert.is_false(Inspector.shown)
+        assert.equals(0, ShownOverlays(mapFrame))
+        assert.equals(1, ShownOverlays(timerFrame))
+        assert.equals(12, mapPosition.x)
+
+        dropdown.onSelect("common")
+        assert.equals(2, timerCalls.begin)
+        assert.equals(1, timerCalls.ending)
+
+        FindToolbar().doneButton.onClick()
+        assert.is_false(LayoutEditor.IsEditing())
+        assert.equals(0, ShownOverlays(timerFrame))
+        assert.equals(2, timerCalls.ending)
+        assert.is_false(FindToolbar():IsShown())
+        assert.equals(listeners, #Combat.enterCallbacks)
+    end)
+
+    it("keeps the toolbar when switching to a scope with nothing enabled", function()
+        local _, _, timerCalls = RegisterElement("CombatTimer:1", { global = true, enabled = true })
+        local bossOpts = { global = false, enabled = false }
+        local _, _, bossCalls = RegisterElement("Sszorak:map", bossOpts)
+        LayoutEditor.RegisterScope({
+            id = "sszorak",
+            label = "Sszorak",
+            elementIds = { "Sszorak:map" },
+        })
+
+        assert.is_true(LayoutEditor.BeginGlobal())
+        assert.is_true(LayoutEditor.BeginScope("sszorak"))
+        assert.is_true(LayoutEditor.IsEditing())
+        assert.equals("sszorak", LayoutEditor.GetActiveScopeId())
+        assert.equals(1, timerCalls.ending)
+        assert.equals(0, bossCalls.begin)
+        assert.is_true(FindToolbar():IsShown())
+        assert.same({}, printed)
+
+        bossOpts.enabled = true
+        LayoutEditor.Refresh()
+        assert.equals(1, bossCalls.begin)
+        assert.equals(1, timerCalls.begin)
+        assert.equals(1, timerCalls.ending)
+        LayoutEditor.End()
+        assert.equals(1, bossCalls.ending)
+    end)
+
+    it("reuses the toolbar and combat listener across sessions", function()
+        RegisterElement("CombatTimer:1", { global = true, enabled = true })
+        assert.is_true(LayoutEditor.BeginGlobal())
+        local bar1, firstDropdown = FindToolbar()
+        LayoutEditor.End()
+        assert.is_true(LayoutEditor.BeginGlobal())
+        local bar2, secondDropdown = FindToolbar()
+        assert.is_true(bar1 == bar2)
+        assert.is_true(firstDropdown == secondDropdown)
+        assert.equals(1, #Combat.enterCallbacks)
+        LayoutEditor.End()
+    end)
+
+    it("ignores an unknown scope", function()
+        RegisterElement("CombatTimer:1", { global = true, enabled = true })
+        assert.is_false(LayoutEditor.BeginScope("missing"))
+        assert.is_false(LayoutEditor.IsEditing())
+        assert.same({}, printed)
     end)
 
     it("refuses to edit in combat", function()

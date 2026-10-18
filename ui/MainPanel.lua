@@ -415,7 +415,7 @@ local function CreateHeader(frame)
     collapseButton:SetPoint("RIGHT", closeButton, "LEFT", -Spacing.MEDIUM, 0)
 
     -- Stays visible while collapsed so layout editing stays reachable from the title bar.
-    local editLayout = Widgets.CreateButton(header, L.LAYOUT_EDIT, function()
+    local editLayout = Widgets.CreateLayoutEditButton(header, L.LAYOUT_EDIT, function()
         if Combat.IsInCombat() or Combat.IsLockedDown() then
             Util.Print(L.LAYOUT_EDIT_IN_COMBAT)
             return
