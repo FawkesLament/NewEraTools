@@ -11,7 +11,7 @@ local MAP_SCALE_STEP = 0.05
 -- Full circle, in degrees. 0 leaves the entrance on the right; 360 matches 0.
 local MAP_ROTATION_MIN = 0
 local MAP_ROTATION_MAX = 360
-local MAP_ROTATION_STEP = 1
+local MAP_ROTATION_STEP = 45
 -- Saved player side and AddonCheck snapshot values. Left is group A; right is group B.
 local SIDE_LEFT = "left"
 local SIDE_RIGHT = "right"

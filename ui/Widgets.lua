@@ -311,6 +311,7 @@ function Widgets.CreateLayoutEditButton(parent, text, onClick)
 end
 
 ---Creates a borderless, link-style button: accent-colored text that turns white on hover, sized to fit.
+---Disabled text uses the muted face.
 ---@param parent Frame
 ---@param text string
 ---@param onClick fun(button: Button)
@@ -321,6 +322,7 @@ function Widgets.CreateTextButton(parent, text, onClick, font)
     local button = CreateFrame("Button", nil, parent)
     button:SetNormalFontObject(font or Fonts.LINK)
     button:SetHighlightFontObject(Fonts.BODY)
+    button:SetDisabledFontObject(Fonts.MUTED)
     button:SetText(text)
     button:SetSize(button:GetTextWidth() + 2 * Spacing.SMALL, Sizes.CONTROL_HEIGHT)
     button:SetScript("OnClick", onClick)

@@ -182,6 +182,9 @@ local function CreateSection(frame, def)
     section.body = body
     section.bodyHeight = 0
     section.headerHeight = PAGE_HEADER_HEIGHT
+    -- Callers may add a compact readout on this row. The title stays left; a toggle, if any, stays right.
+    body.header = header
+    body.titleLabel = title
 
     if def.onEnabledChanged then
         local enabled = def.enabled ~= false
@@ -530,6 +533,8 @@ end
 
 ---Adds a feature settings page to the panel. The container passed to `def.build` also has
 ---`container:SetContentHeight(height)` for when its content height changes later.
+---`container.header` is the title row and `container.titleLabel` is the title on its left.
+---An On/Off toggle, when present, occupies the header's right side.
 ---When `onEnabledChanged` is set, the page header shows an On/Off toggle and the container also has
 ---`container:RefreshContentInteractive()` to re-apply enable/disable after rebuilding controls.
 ---@param def PanelSectionDef

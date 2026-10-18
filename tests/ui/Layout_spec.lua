@@ -16,6 +16,19 @@ local function FakeFrame()
         self.height = height
     end
 
+    function frame:SetWidth(width)
+        self.width = width
+    end
+
+    function frame:GetWidth()
+        return self.width or 0
+    end
+
+    function frame:HookScript(event, handler)
+        self.hooks = self.hooks or {}
+        self.hooks[event] = handler
+    end
+
     function frame:Show()
         self.shown = true
     end
@@ -122,6 +135,33 @@ describe("Layout", function()
         Layout.Row(row, { a, b }, 12, 4)
         assert.same({ relativeTo = row, relativePoint = "LEFT", x = 4, y = 0 }, a.points.LEFT)
         assert.same({ relativeTo = a, relativePoint = "RIGHT", x = 12, y = 0 }, b.points.LEFT)
+    end)
+
+    it("Columns divides a row into equal cells and follows resizes", function()
+        local row = FakeFrame()
+        row:SetWidth(332)
+        local cells = Layout.Columns(row, 3, 16)
+
+        assert.equals(3, #cells)
+        assert.equals(100, cells[1].width)
+        assert.equals(100, cells[2].width)
+        assert.equals(100, cells[3].width)
+        assert.same({ relativeTo = row, relativePoint = "TOPLEFT", x = 0, y = 0 }, cells[1].points.TOPLEFT)
+        assert.same({ relativeTo = row, relativePoint = "BOTTOMLEFT", x = 0, y = 0 }, cells[1].points.BOTTOMLEFT)
+        assert.same({ relativeTo = row, relativePoint = "TOPLEFT", x = 116, y = 0 }, cells[2].points.TOPLEFT)
+        assert.same({ relativeTo = row, relativePoint = "TOPLEFT", x = 232, y = 0 }, cells[3].points.TOPLEFT)
+
+        row.hooks.OnSizeChanged(row, 122)
+        assert.equals(30, cells[1].width)
+        assert.same({ relativeTo = row, relativePoint = "TOPLEFT", x = 46, y = 0 }, cells[2].points.TOPLEFT)
+        assert.same({ relativeTo = row, relativePoint = "TOPLEFT", x = 92, y = 0 }, cells[3].points.TOPLEFT)
+    end)
+
+    it("Columns waits until the row has a width", function()
+        local row = FakeFrame()
+        local cells = Layout.Columns(row, 3, 16)
+        assert.is_nil(cells[1].width)
+        assert.is_nil(cells[1].points.TOPLEFT)
     end)
 
     it("SplitRow divides a row into equal cells with a gap", function()

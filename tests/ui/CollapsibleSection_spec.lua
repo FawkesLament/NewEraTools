@@ -84,6 +84,10 @@ local function FakeFrame(parent)
         self.scripts[name] = handler
     end
 
+    function frame:SetParent(parent)
+        self.parent = parent
+    end
+
     function frame:CreateTexture()
         local texture = FakeFrame(self)
         function texture:SetAllPoints() end
@@ -304,5 +308,25 @@ describe("CollapsibleSection", function()
 
         section:SetBadge(nil)
         assert.is_true(hint.points.LEFT.relativeTo == expandButton)
+    end)
+
+    it("right-aligns a header action and keeps the hint clear of it", function()
+        local section = CreateSection({ hint = "Hide bars when" })
+        local header = section.children[1]
+        local hint = header.children[3]
+        local action = FakeFrame(section)
+
+        section:SetHeaderAction(action)
+
+        assert.is_true(action.parent == header)
+        assert.is_true(action.points.RIGHT.relativeTo == header)
+        assert.equals("RIGHT", action.points.RIGHT.relativePoint)
+        assert.is_true(hint.points.RIGHT.relativeTo == action)
+        assert.equals("LEFT", hint.points.RIGHT.relativePoint)
+        assert.equals(-8, hint.points.RIGHT.x)
+
+        section:SetBadge("2")
+        assert.is_true(hint.points.LEFT.relativeTo == header.children[2])
+        assert.is_true(hint.points.RIGHT.relativeTo == action)
     end)
 end)

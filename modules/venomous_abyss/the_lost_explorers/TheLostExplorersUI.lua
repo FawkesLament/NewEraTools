@@ -169,11 +169,6 @@ local function BuildContent(content)
         end
         if resolvedLabel then
             resolvedLabel:SetText(FeedOrderResolvedText())
-            -- Keep the same footprint as the editable dropdowns in this row.
-            local reference = orderDropdowns[1]
-            if reference then
-                resolvedLabel:SetWidth(reference:GetWidth())
-            end
         end
     end
 
@@ -184,24 +179,24 @@ local function BuildContent(content)
     resetOrder:SetPoint("RIGHT", orderHeader, "RIGHT")
 
     local orderRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local orderWidgets = {}
-    for slot = 1, TheLostExplorers.FEED_ORDER_SIZE do
-        if slot > 1 then
-            local arrow = Widgets.CreateLabel(orderRow, Fonts.SMALL_MUTED, L.THE_LOST_EXPLORERS_FEED_ORDER_ARROW)
-            orderWidgets[#orderWidgets + 1] = arrow
-        end
+    -- Gap holds the arrow centered between equal columns.
+    local columns = Layout.Columns(orderRow, TheLostExplorers.FEED_ORDER_SIZE, Spacing.XLARGE)
+    for slot, column in ipairs(columns) do
         local slotLabel =
-            Widgets.CreateLabel(orderRow, Fonts.BODY, string.format(L.THE_LOST_EXPLORERS_FEED_ORDER_SLOT, slot))
+            Widgets.CreateLabel(column, Fonts.BODY, string.format(L.THE_LOST_EXPLORERS_FEED_ORDER_SLOT, slot))
         slotLabel:SetJustifyH("LEFT")
-        orderWidgets[#orderWidgets + 1] = slotLabel
+        slotLabel:SetPoint("LEFT", column, "LEFT")
 
+        ---@type Region
+        local control
         if slot <= FEED_ORDER_CHOICE_SLOTS then
             local dropdown
-            dropdown = Widgets.CreateDropdown(orderRow, BuildFeedOrderItems(slot), function(value)
+            dropdown = Widgets.CreateDropdown(column, BuildFeedOrderItems(slot), function(value)
                 TheLostExplorers:SetFeedOrderSlot(slot, value)
                 RefreshFeedOrderControls()
             end)
             dropdown:SetJustifyH("CENTER")
+            dropdown:SetAutoWidth(false)
             local rawSetEnabled = dropdown.SetEnabled
             ---Later slots stay locked until every earlier slot has a boss.
             function dropdown:SetEnabled(enabled)
@@ -211,16 +206,33 @@ local function BuildContent(content)
             dropdown:SetSelected(TheLostExplorers:GetFeedOrderSlot(slot) or FEED_ORDER_NONE)
             dropdown:SetEnabled(TheLostExplorers:IsEnabled())
             orderDropdowns[slot] = dropdown
-            orderWidgets[#orderWidgets + 1] = dropdown
+            control = dropdown
         else
-            -- Slot 3 is derived from the first two choices; show as plain text.
-            resolvedLabel = Widgets.CreateLabel(orderRow, Fonts.BODY, FeedOrderResolvedText())
+            -- Slot 3 is derived from the first two choices; show as plain text in the same column.
+            resolvedLabel = Widgets.CreateLabel(column, Fonts.BODY, FeedOrderResolvedText())
             resolvedLabel:SetJustifyH("CENTER")
-            resolvedLabel:SetWidth(orderDropdowns[1]:GetWidth())
-            orderWidgets[#orderWidgets + 1] = resolvedLabel
+            resolvedLabel:SetWordWrap(false)
+            control = resolvedLabel
+        end
+
+        control:SetPoint("LEFT", slotLabel, "RIGHT", Spacing.SMALL, 0)
+        local function SyncControlWidth(_, columnWidth)
+            if not columnWidth or columnWidth <= 0 then
+                return
+            end
+            control:SetWidth(math.max(columnWidth - slotLabel:GetStringWidth() - Spacing.SMALL, 1))
+        end
+        column:HookScript("OnSizeChanged", SyncControlWidth)
+        SyncControlWidth(column, column:GetWidth())
+
+        local nextColumn = columns[slot + 1]
+        if nextColumn then
+            local arrow = Widgets.CreateLabel(orderRow, Fonts.SMALL_MUTED, L.THE_LOST_EXPLORERS_FEED_ORDER_ARROW)
+            arrow:SetJustifyH("CENTER")
+            arrow:SetPoint("LEFT", column, "RIGHT")
+            arrow:SetPoint("RIGHT", nextColumn, "LEFT")
         end
     end
-    Layout.Row(orderRow, orderWidgets, Spacing.SMALL)
 
     local toolsRow = body:AddRow(ActionRow.HEIGHT)
     ActionRow.Apply(toolsRow, {

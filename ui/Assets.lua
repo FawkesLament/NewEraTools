@@ -90,6 +90,8 @@ Assets.Colors = {
 -- Shared game textures used by floating overlays.
 Assets.Icons = {
     WARNING = "Interface\\DialogFrame\\UI-Dialog-Icon-AlertNew",
+    -- Blue information mark for neutral status lines.
+    INFO = "Interface\\FriendsFrame\\InformationIcon",
     -- Standard placeholder when a spell ID has no resolvable icon.
     QUESTION_MARK = "Interface\\Icons\\INV_Misc_QuestionMark",
     -- Minimap player arrow (points up); rotate with SetRotation for path tips.

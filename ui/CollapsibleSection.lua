@@ -28,6 +28,7 @@ ns.CollapsibleSection = CollapsibleSection
 ---@field SetExpanded fun(self: CollapsibleSection, expanded: boolean)
 ---@field IsExpanded fun(self: CollapsibleSection): boolean
 ---@field SetBadge fun(self: CollapsibleSection, text: string|nil)  Small circular count after the title; nil/"" hides it.
+---@field SetHeaderAction fun(self: CollapsibleSection, frame: Frame)  Right-aligns one compact control on the header.
 ---@field SetContentHeight fun(self: CollapsibleSection, height: number)  Height of `content` when expanded.
 ---@field GetHeight fun(self: CollapsibleSection): number
 
@@ -55,6 +56,8 @@ function CollapsibleSection.Create(stack, options)
     local expanded = options.expanded ~= false
     local contentHeight = 0
     local expandButton
+    local headerAction
+    local headerAction
 
     local function NotifyHeight()
         stack:SetEntryHeight(section, inner:GetHeight())
@@ -104,6 +107,7 @@ function CollapsibleSection.Create(stack, options)
     end
 
     ---The badge shares the gap after the title, so the hint follows whichever of them is showing.
+    ---A header action keeps the right edge, and the hint stops short of it.
     local function PlaceHint()
         if not hint then
             return
@@ -111,7 +115,11 @@ function CollapsibleSection.Create(stack, options)
         hint:ClearAllPoints()
         local anchor = badge:IsShown() and badge or expandButton
         hint:SetPoint("LEFT", anchor, "RIGHT", Spacing.MEDIUM, 0)
-        hint:SetPoint("RIGHT", header, "RIGHT")
+        if headerAction then
+            hint:SetPoint("RIGHT", headerAction, "LEFT", -Spacing.MEDIUM, 0)
+        else
+            hint:SetPoint("RIGHT", header, "RIGHT")
+        end
     end
 
     function section:IsExpanded()
@@ -129,6 +137,20 @@ function CollapsibleSection.Create(stack, options)
         if options.onExpandedChanged then
             options.onExpandedChanged(expanded)
         end
+    end
+
+    ---Right-aligns `frame` on the header. One action at a time; a later call replaces the anchor.
+    ---@param frame Frame
+    function section:SetHeaderAction(frame)
+        assert(
+            type(frame) == "table" and type(frame.SetPoint) == "function",
+            "CollapsibleSection header action must be a frame"
+        )
+        frame:SetParent(header)
+        frame:ClearAllPoints()
+        frame:SetPoint("RIGHT", header, "RIGHT")
+        headerAction = frame
+        PlaceHint()
     end
 
     ---@param text string|nil

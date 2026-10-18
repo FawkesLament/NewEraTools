@@ -161,6 +161,40 @@ function Layout.Row(row, widgets, spacing, inset)
     end
 end
 
+---Splits `row` into `count` equal-width cells with `gap` between neighbors.
+---Widths follow the row; a row that has no width yet is laid out on its first resize.
+---@param row Frame
+---@param count integer
+---@param gap number  Space between neighboring cells.
+---@return Frame[]
+function Layout.Columns(row, count, gap)
+    ---@type Frame[]
+    local cells = {}
+    for index = 1, count do
+        cells[index] = CreateFrame("Frame", nil, row)
+    end
+
+    local function Apply(width)
+        if not width or width <= 0 or count < 1 then
+            return
+        end
+        local cellWidth = math.max((width - gap * (count - 1)) / count, 1)
+        for index, cell in ipairs(cells) do
+            local x = (index - 1) * (cellWidth + gap)
+            cell:ClearAllPoints()
+            cell:SetWidth(cellWidth)
+            cell:SetPoint("TOPLEFT", row, "TOPLEFT", x, 0)
+            cell:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", x, 0)
+        end
+    end
+
+    row:HookScript("OnSizeChanged", function(_, width)
+        Apply(width)
+    end)
+    Apply(row:GetWidth())
+    return cells
+end
+
 ---Splits `row` into two equal-width cells with `gap` between them.
 ---@param row Frame
 ---@param gap number  Space between the cells.

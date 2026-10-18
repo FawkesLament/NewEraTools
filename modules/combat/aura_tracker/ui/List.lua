@@ -442,7 +442,7 @@ local function RefreshCharacterSummary()
     if icon then
         UI.summaryIcon:SetTexture(icon)
         UI.summaryIcon:Show()
-        UI.summaryLabel:SetPoint("LEFT", UI.summaryIcon, "RIGHT", Spacing.SMALL, 0)
+        UI.summaryLabel:SetPoint("LEFT", UI.summaryIcon, "RIGHT", Spacing.LARGE, 0)
     else
         UI.summaryIcon:Hide()
         UI.summaryLabel:SetPoint("LEFT", UI.summaryHeader, "LEFT")
