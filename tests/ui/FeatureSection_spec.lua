@@ -76,6 +76,26 @@ local function FakeFrame(parent)
 
     function frame:EnableMouse() end
 
+    function frame:SetParent(parent)
+        self.parent = parent
+    end
+
+    function frame:Enable()
+        self.enabled = true
+    end
+
+    function frame:Disable()
+        self.enabled = false
+    end
+
+    function frame:CreateTexture()
+        local texture = FakeFrame(self)
+        self.textures = self.textures or {}
+        table.insert(self.textures, texture)
+        function texture:SetColorTexture() end
+        return texture
+    end
+
     function frame:SetScript(name, handler)
         self.scripts[name] = handler
     end
@@ -117,6 +137,7 @@ describe("FeatureSection", function()
             Assets = {
                 Sizes = { CONTROL_ROW_HEIGHT = 32, CONTROL_HEIGHT = 24, BORDER = 1 },
                 Spacing = { SMALL = 4, MEDIUM = 8 },
+                Colors = { DIVIDER = { 1, 1, 1, 1 } },
                 Fonts = { BODY = "Body" },
             },
         }
@@ -145,6 +166,9 @@ describe("FeatureSection", function()
             return control
         end
         function Widgets.AttachTooltip() end
+        function Widgets.UnpackColor(color)
+            return color[1], color[2], color[3], color[4]
+        end
 
         assert(loadfile("ui/FeatureSection.lua"))(Loader.ADDON_NAME, ns)
         FeatureSection = ns.FeatureSection
@@ -257,9 +281,49 @@ describe("FeatureSection", function()
         assert.same({ true }, enabledChanges)
     end)
 
+    it("draws a divider under the title when asked", function()
+        local plain = CreateSection()
+        assert.equals(nil, plain.children[1].textures)
+
+        local section = CreateSection({ divider = true })
+        local divider = section.children[1].textures[1]
+        assert.equals(1, divider.height)
+        assert.is_true(divider.points.BOTTOMLEFT ~= nil)
+        assert.is_true(divider.points.BOTTOMRIGHT ~= nil)
+    end)
+
     it("accepts an optional title tooltip", function()
         local section = CreateSection({ tooltip = "Click the vents" })
         assert.equals(32, section:GetHeight())
+    end)
+
+    it("places a header action to the left of the On/Off toggle", function()
+        local section = CreateSection()
+        local header = section.children[1]
+        local toggle = header.children[2]
+        local action = FakeFrame(section)
+
+        section:SetHeaderAction(action)
+
+        assert.is_true(action.parent == header)
+        assert.is_true(action.points.RIGHT.relativeTo == toggle)
+        assert.equals("LEFT", action.points.RIGHT.relativePoint)
+        assert.equals(-8, action.points.RIGHT.x)
+    end)
+
+    it("disables the header action while the feature is off", function()
+        local section = CreateSection()
+        local action = FakeFrame(section)
+        function action:SetEnabled(enabled)
+            self.enabled = enabled == true
+        end
+        section:SetHeaderAction(action)
+        assert.is_true(action.enabled)
+
+        section:SetEnabled(false)
+        assert.is_false(action.enabled)
+        section:SetEnabled(true)
+        assert.is_true(action.enabled)
     end)
 
     it("gates nested feature sections without overwriting their On/Off state", function()

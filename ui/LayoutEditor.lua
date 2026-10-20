@@ -314,7 +314,6 @@ local function EnsureToolbar()
     local dropdown = Widgets.CreateDropdown(bar, {}, function(scopeId)
         LayoutEditor.BeginScope(scopeId)
     end)
-    dropdown:SetJustifyH("CENTER")
 
     local button = Widgets.CreateButton(bar, L.LAYOUT_EDIT_DONE, function()
         LayoutEditor.End()

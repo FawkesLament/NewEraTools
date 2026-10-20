@@ -4,8 +4,10 @@ local Assets = ns.Assets
 local Layout = ns.Layout
 local Widgets = ns.Widgets
 
+local Colors = Assets.Colors
 local Fonts = Assets.Fonts
 local Sizes = Assets.Sizes
+local Spacing = Assets.Spacing
 
 -- Matches Widgets' disabled button fade.
 local DISABLED_ALPHA = 0.4
@@ -18,6 +20,7 @@ ns.FeatureSection = FeatureSection
 ---@field tooltip string|nil  Shown when hovering the title.
 ---@field enabled boolean|nil  Whether the feature starts enabled. Defaults to true.
 ---@field onEnabledChanged fun(enabled: boolean)|nil  After the enabled state changes via the toggle or SetEnabled.
+---@field divider boolean|nil  Draw a line under the title row, as a subsection header does.
 ---@field spacingBefore number|nil  Gap above this section in the stack; defaults to the stack's spacing.
 ---@field onStackHeightChanged fun(stackHeight: number)|nil  After the stack's total height changes.
 
@@ -28,6 +31,7 @@ ns.FeatureSection = FeatureSection
 ---@field SetEnabled fun(self: FeatureSection, enabled: boolean)
 ---@field IsEnabled fun(self: FeatureSection): boolean
 ---@field SetParentFeatureEnabled fun(self: FeatureSection, parentEnabled: boolean)  Nested gating; does not change On/Off.
+---@field SetHeaderAction fun(self: FeatureSection, frame: Frame)  Places one compact control to the left of the On/Off toggle.
 ---@field SetContentHeight fun(self: FeatureSection, height: number)  Height of `content`.
 ---@field GetHeight fun(self: FeatureSection): number
 ---@field RefreshContentInteractive fun(self: FeatureSection)  Re-applies enable/disable to content after the caller changes controls.
@@ -90,6 +94,7 @@ function FeatureSection.Create(stack, options)
     local parentFeatureEnabled = true
     local contentHeight = 0
     local toggle
+    local headerAction
 
     local function NotifyHeight()
         stack:SetEntryHeight(section, inner:GetHeight())
@@ -98,10 +103,24 @@ function FeatureSection.Create(stack, options)
         end
     end
 
+    local function SetHeaderActionEnabled(isEnabled)
+        if not headerAction then
+            return
+        end
+        if headerAction.SetEnabled then
+            headerAction:SetEnabled(isEnabled)
+        elseif isEnabled then
+            headerAction:Enable()
+        else
+            headerAction:Disable()
+        end
+    end
+
     local function ApplyContentInteractive()
         local interactive = enabled and parentFeatureEnabled
         content:SetAlpha(enabled and 1 or DISABLED_ALPHA)
         FeatureSection.SetSubtreeInteractive(content, interactive)
+        SetHeaderActionEnabled(interactive)
         if toggle then
             toggle:SetEnabled(parentFeatureEnabled)
             toggle:SetAlpha(1)
@@ -137,6 +156,14 @@ function FeatureSection.Create(stack, options)
     toggle:SetPoint("RIGHT", header, "RIGHT")
     toggle:SetSelected(enabled)
 
+    if options.divider then
+        local divider = header:CreateTexture(nil, "ARTWORK")
+        divider:SetHeight(1)
+        divider:SetPoint("BOTTOMLEFT")
+        divider:SetPoint("BOTTOMRIGHT")
+        divider:SetColorTexture(Widgets.UnpackColor(Colors.DIVIDER))
+    end
+
     function section:IsEnabled()
         return enabled
     end
@@ -153,6 +180,21 @@ function FeatureSection.Create(stack, options)
         if options.onEnabledChanged then
             options.onEnabledChanged(enabled)
         end
+    end
+
+    ---Places `frame` immediately left of the On/Off toggle. One action at a time; a later call replaces the anchor.
+    ---Disabled with the feature content; the toggle stays available.
+    ---@param frame Frame
+    function section:SetHeaderAction(frame)
+        assert(
+            type(frame) == "table" and type(frame.SetPoint) == "function",
+            "FeatureSection header action must be a frame"
+        )
+        frame:SetParent(header)
+        frame:ClearAllPoints()
+        frame:SetPoint("RIGHT", toggle, "LEFT", -Spacing.MEDIUM, 0)
+        headerAction = frame
+        ApplyContentInteractive()
     end
 
     ---Called by a parent FeatureSection so nesting does not overwrite this section's On/Off.

@@ -36,18 +36,18 @@ function Unit.Exists(unit)
     return exists == true or exists == 1
 end
 
----Plain boolean from UnitCanAssist. Nil when the call failed or the value is secret.
+---Plain boolean from a UnitCan* call. Nil when the call failed or the value is secret.
 ---@param ok boolean
----@param canAssist any
+---@param value any
 ---@return boolean|nil
-local function ReadCanAssist(ok, canAssist)
-    if not ok or (issecret and issecret(canAssist)) then
+local function ReadPlainBoolean(ok, value)
+    if not ok or (issecret and issecret(value)) then
         return nil
     end
-    if canAssist == true or canAssist == 1 then
+    if value == true or value == 1 then
         return true
     end
-    if canAssist == false or canAssist == 0 then
+    if value == false or value == 0 then
         return false
     end
     return nil
@@ -65,11 +65,22 @@ function Unit.CanPlayerAssist(unit)
     -- true, true: still assistable while immune or uninteractable (vehicle, CC, teleport).
     -- That form can come back secret while the two-argument call is a plain boolean; a secret
     -- result must not hide a hostile target that the plain call can still classify.
-    local parsed = ReadCanAssist(pcall(UnitCanAssist, "player", unit, true, true))
+    local parsed = ReadPlainBoolean(pcall(UnitCanAssist, "player", unit, true, true))
     if parsed ~= nil then
         return parsed
     end
-    return ReadCanAssist(pcall(UnitCanAssist, "player", unit))
+    return ReadPlainBoolean(pcall(UnitCanAssist, "player", unit))
+end
+
+---Whether the player can attack `unit`. Nil when the unit is missing or the result is secret —
+---callers must treat nil as "not an enemy".
+---@param unit string
+---@return boolean|nil
+function Unit.CanPlayerAttack(unit)
+    if not Unit.Exists(unit) then
+        return nil
+    end
+    return ReadPlainBoolean(pcall(UnitCanAttack, "player", unit))
 end
 
 ---@param unit string  A unit token, e.g. "player" or "raid3".

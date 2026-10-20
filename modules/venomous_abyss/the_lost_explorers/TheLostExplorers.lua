@@ -1,6 +1,5 @@
 local _, ns = ...
 local L = ns.L
-local Position = ns.Position
 local Combat = ns.Api.Combat
 local Encounter = ns.Api.Encounter
 local EncounterTimeline = ns.Api.EncounterTimeline
@@ -22,20 +21,12 @@ local BOSS_SCROLLAGE = "scrollage"
 local BOSS_TRADER = "trader"
 local FEED_BOSSES = { BOSS_FIRST_MATE, BOSS_SCROLLAGE, BOSS_TRADER }
 
----@class TheLostExplorersPosition
----@field point string
----@field relativePoint string
----@field x number
----@field y number
-
 ---@class TheLostExplorers: Module
 ---@field OnCalloutChanged fun(self: TheLostExplorers)|nil  Defined by the UI file; callout shown or cleared.
 local TheLostExplorers = ns.Modules.New("TheLostExplorers", {
     defaults = {
         -- When true, the feed-fish assistant listens during this boss fight.
         enabled = false,
-        ---@type TheLostExplorersPosition
-        calloutPosition = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 160 },
         -- Optional boss ids for slots 1–2; slot 3 is derived when both are set.
         -- Custom callout text applies only when the order is complete.
         ---@type string[]
@@ -214,18 +205,8 @@ local function IsTimelineDurationMatch(duration)
     return math.floor(duration + 0.5) == TIMELINE_DURATION
 end
 
----@param eventInfo table
+---@param eventInfo table  Active encounter-sourced bar; OnEventAdded already filtered source and state.
 local function OnTimelineEventAdded(eventInfo)
-    if type(eventInfo) ~= "table" then
-        return
-    end
-    -- Encounter-sourced only (ignore script / edit-mode bars).
-    if eventInfo.source ~= EncounterTimeline.EVENT_SOURCE_ENCOUNTER then
-        return
-    end
-    if EncounterTimeline.GetEventState(eventInfo.id) ~= EncounterTimeline.EVENT_STATE_ACTIVE then
-        return
-    end
     -- ~60s active bars ≈ Mor'zahi's Command or Final Ascension.
     if not IsTimelineDurationMatch(eventInfo.duration) then
         return
@@ -299,17 +280,14 @@ function TheLostExplorers:GetCalloutRemainingSeconds()
     return math.max(0, math.ceil(calloutExpireTime - Timer.GetTime()))
 end
 
----@return TheLostExplorersPosition
+---@return CalloutAnchor
 function TheLostExplorers:GetCalloutPosition()
-    return self.db.calloutPosition
+    return ns.CalloutPosition.GetPosition()
 end
 
----@param position TheLostExplorersPosition
+---@param position CalloutAnchor
 function TheLostExplorers:SetCalloutPosition(position)
-    assert(Position.IsValid(position), "Bad callout position")
-    local saved = self.db.calloutPosition
-    saved.point, saved.relativePoint = position.point, position.relativePoint
-    saved.x, saved.y = position.x, position.y
+    ns.CalloutPosition.SetPosition(position)
 end
 
 ---@return string[]
@@ -419,8 +397,5 @@ function TheLostExplorers:ListenForFeedFish()
 end
 
 function TheLostExplorers:OnInit()
-    if not Position.IsValid(self.db.calloutPosition) then
-        self.db.calloutPosition = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 160 }
-    end
     NormalizeFeedOrder()
 end

@@ -34,9 +34,9 @@ describe("Sszorak", function()
             assert.equals("Sszorak", Sszorak.ADDON_CHECK_MODULE_ID)
         end)
 
-        it("returns default enabled, left side, and normal mode", function()
+        it("returns the map off, the left side, and normal mode", function()
             assert.same({
-                enabled = true,
+                enabled = false,
                 side = Sszorak.SIDE_LEFT,
                 mode = Sszorak.CALLOUT_MODE_NORMAL,
             }, InspectConfig())
@@ -65,7 +65,7 @@ describe("Sszorak", function()
                 Sszorak:SetPlayerSide(case.side)
                 Sszorak:SetCalloutMode(case.mode)
                 assert.same({
-                    enabled = true,
+                    enabled = false,
                     side = case.side,
                     mode = case.mode,
                 }, InspectConfig())
@@ -73,12 +73,12 @@ describe("Sszorak", function()
         end)
 
         it("reflects enablement and side changes on the next GetConfig call", function()
-            assert.equals(true, InspectConfig().enabled)
-            assert.equals(Sszorak.SIDE_LEFT, InspectConfig().side)
-            Sszorak:SetMapEnabled(false)
             assert.equals(false, InspectConfig().enabled)
+            assert.equals(Sszorak.SIDE_LEFT, InspectConfig().side)
             Sszorak:SetMapEnabled(true)
             assert.equals(true, InspectConfig().enabled)
+            Sszorak:SetMapEnabled(false)
+            assert.equals(false, InspectConfig().enabled)
             Sszorak:SetPlayerSide(Sszorak.SIDE_RIGHT)
             assert.equals(Sszorak.SIDE_RIGHT, InspectConfig().side)
             Sszorak:SetPlayerSide(Sszorak.SIDE_LEFT)
@@ -97,7 +97,7 @@ describe("Sszorak", function()
             assert.equals(beforeEnabled, Sszorak.db.mapEnabled)
             assert.equals(beforeSide, Sszorak.db.playerSide)
             assert.equals(beforeMode, Sszorak.db.calloutMode)
-            assert.equals(true, InspectConfig().enabled)
+            assert.equals(false, InspectConfig().enabled)
             assert.equals(Sszorak.SIDE_RIGHT, InspectConfig().side)
             assert.equals(Sszorak.CALLOUT_MODE_NORMAL, InspectConfig().mode)
         end)

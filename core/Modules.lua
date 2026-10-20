@@ -12,6 +12,15 @@ ns.Modules = Modules
 
 local ordered = {}
 local byName = {}
+local beforeInit = {}
+
+---Runs on Start, before any module OnInit, with the loaded saved-variable table.
+---Use it for saved data that more than one module reads.
+---@param callback fun(saved: table)
+function Modules.BeforeInit(callback)
+    assert(type(callback) == "function", "Modules.BeforeInit requires a function")
+    table.insert(beforeInit, callback)
+end
 
 ---@param name string
 ---@param options { defaults: table|nil }|nil
@@ -36,6 +45,9 @@ end
 
 ---@param saved table  Result of Database.Load.
 function Modules.Start(saved)
+    for _, callback in ipairs(beforeInit) do
+        callback(saved)
+    end
     for _, module in ipairs(ordered) do
         module.db = ns.Database.GetModuleSettings(saved, module.name, module.defaults)
     end

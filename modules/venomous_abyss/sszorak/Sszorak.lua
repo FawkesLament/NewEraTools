@@ -38,7 +38,7 @@ local Sszorak = ns.Modules.New("Sszorak", {
             [8] = "SQUARE",
         },
         -- When true, the map window opens automatically for this boss fight.
-        mapEnabled = true,
+        mapEnabled = false,
         -- Player's side of the room: "left" (group A) or "right" (group B). Independent of map rotation.
         playerSide = "left",
         -- Degrees to turn the floating arena map, counterclockwise. Independent of the player's side.
@@ -47,8 +47,6 @@ local Sszorak = ns.Modules.New("Sszorak", {
         mapScale = 1,
         ---@type MapPosition
         mapPosition = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 0 },
-        ---@type MapPosition  On-screen raid callout text.
-        calloutPosition = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 160 },
         -- Shows RL markers as-is, or jailbreak decrypt/retarget (see CALLOUT_MODE_*).
         calloutMode = CALLOUT_MODE_NORMAL,
     },

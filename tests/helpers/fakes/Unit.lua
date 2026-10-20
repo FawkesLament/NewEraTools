@@ -13,6 +13,8 @@ return function()
         assist = {
             player = true,
         },
+        ---@type table<string, boolean|nil>  nil = secret / unknown.
+        attack = {},
     }
 
     function Unit.GetFullName(name)
@@ -41,8 +43,20 @@ return function()
         return canAssist == true
     end
 
+    ---@return boolean|nil
+    function Unit.CanPlayerAttack(unit)
+        if not Unit.Exists(unit) then
+            return nil
+        end
+        local canAttack = Unit.attack[unit]
+        if canAttack == nil then
+            return nil
+        end
+        return canAttack == true
+    end
+
     ---@param unit string
-    ---@param state { exists: boolean|nil, guid: string|nil, canAssist: boolean|nil }
+    ---@param state { exists: boolean|nil, guid: string|nil, canAssist: boolean|nil, canAttack: boolean|nil }
     function Unit.SetForTests(unit, state)
         if state.exists == nil then
             Unit.exists[unit] = false
@@ -54,6 +68,11 @@ return function()
             Unit.assist[unit] = nil
         else
             Unit.assist[unit] = state.canAssist == true
+        end
+        if state.canAttack == nil then
+            Unit.attack[unit] = nil
+        else
+            Unit.attack[unit] = state.canAttack == true
         end
     end
 

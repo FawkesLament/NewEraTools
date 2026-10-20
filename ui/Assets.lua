@@ -16,6 +16,8 @@ Assets.Textures = {
     RAID_BAR = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
     -- Mask texture that clips a texture to a circle.
     CIRCLE_MASK = "Interface\\CHARACTERFRAME\\TempPortraitAlphaMask",
+    -- Rounded-square HUD chip (media/icons/interrupt_badge_ice_blue.tga).
+    ROUNDED_SQUARE = MEDIA_PATH .. "icons\\interrupt_badge_ice_blue",
     MINIMAP_HIGHLIGHT = "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight",
     MINIMAP_BACKGROUND = "Interface\\Minimap\\UI-Minimap-Background",
     MINIMAP_BORDER = "Interface\\Minimap\\MiniMap-TrackingBorder",

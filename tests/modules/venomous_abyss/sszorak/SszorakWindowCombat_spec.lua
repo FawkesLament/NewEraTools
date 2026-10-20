@@ -112,6 +112,8 @@ describe("Sszorak map window during combat lockdown", function()
             Window.Update()
         end
         Window.ListenForCombatDeferral()
+        -- The window is armed only while the map feature is on.
+        Sszorak:SetMapEnabled(true)
     end)
 
     after_each(function()

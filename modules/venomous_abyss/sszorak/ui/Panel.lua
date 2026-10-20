@@ -367,7 +367,16 @@ local function BuildMapContent(content)
     })
     mapBody = body
 
-    -- Mode sits just under the page On/Off toggle, before section headers.
+    local toolsRow = body:AddRow(ActionRow.HEIGHT)
+    ActionRow.Apply(toolsRow, {
+        title = L.SSZORAK_TOOLS_PREVIEW,
+        description = L.SSZORAK_TOOLS_PREVIEW_DESC,
+        buttons = {
+            { text = L.SSZORAK_START_TEST, onClick = Window.StartPreview },
+            { text = L.SSZORAK_EDIT_POSITION, onClick = BeginEditPosition, layout = true },
+        },
+    })
+
     local roleRow = body:AddRow(HINT_ROW_HEIGHT)
     roleLabel = Widgets.CreateLabel(roleRow, Fonts.SMALL_MUTED)
     roleLabel:SetJustifyH("LEFT")
@@ -522,16 +531,6 @@ local function BuildMapContent(content)
             PendingClock.Defer(clock, apply, RebuildMapSettings)
         end)
     end
-
-    local toolsRow = body:AddRow(ActionRow.HEIGHT)
-    ActionRow.Apply(toolsRow, {
-        title = L.SSZORAK_TOOLS_PREVIEW,
-        description = L.SSZORAK_TOOLS_PREVIEW_DESC,
-        buttons = {
-            { text = L.SSZORAK_START_TEST, onClick = Window.StartPreview },
-            { text = L.SSZORAK_EDIT_POSITION, onClick = BeginEditPosition, layout = true },
-        },
-    })
 
     local sliderRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local scaleCell, rotationCell = Layout.SplitRow(sliderRow, Spacing.MEDIUM)

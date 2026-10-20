@@ -88,18 +88,14 @@ function Sszorak:SetMapPosition(position)
     saved.x, saved.y = position.x, position.y
 end
 
----@return MapPosition
+---@return CalloutAnchor
 function Sszorak:GetCalloutPosition()
-    return self.db.calloutPosition
+    return ns.CalloutPosition.GetPosition()
 end
 
----@param position MapPosition
+---@param position CalloutAnchor
 function Sszorak:SetCalloutPosition(position)
-    assert(type(position.point) == "string" and type(position.relativePoint) == "string", "Bad anchor points")
-    assert(type(position.x) == "number" and type(position.y) == "number", "Bad offsets")
-    local saved = self.db.calloutPosition
-    saved.point, saved.relativePoint = position.point, position.relativePoint
-    saved.x, saved.y = position.x, position.y
+    ns.CalloutPosition.SetPosition(position)
 end
 
 ---Group assignment isn't implemented yet; the left/right setting chooses the group.

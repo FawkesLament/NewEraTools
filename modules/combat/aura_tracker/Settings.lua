@@ -3,6 +3,7 @@ local Color = ns.Color
 local Position = ns.Position
 local Util = ns.Util
 local Media = ns.AuraTrackerMedia
+local SharedMedia = ns.SharedMedia
 local Activation = ns.AuraTrackerActivation
 local Schema = ns.AuraTrackerSchema
 
@@ -773,7 +774,7 @@ end
 ---@return string
 function AuraTracker:GetTextDisplayFont(trackerId, kind)
     local fontId = RequireTextDisplay(RequireTracker(self, trackerId), kind).font
-    return Media.IsKnownFont(fontId) and fontId or Schema.TEXT_FONT_DEFAULT
+    return SharedMedia.IsKnownFont(fontId) and fontId or Schema.TEXT_FONT_DEFAULT
 end
 
 ---File path for the selected text font, or nil to use the game's locale font in UI code.
@@ -781,14 +782,14 @@ end
 ---@param kind string
 ---@return string|nil
 function AuraTracker:GetTextDisplayFontPath(trackerId, kind)
-    return Media.ResolveFontPath(self:GetTextDisplayFont(trackerId, kind))
+    return SharedMedia.ResolveFontPath(self:GetTextDisplayFont(trackerId, kind))
 end
 
 ---@param trackerId integer
 ---@param kind string
 ---@param fontId string
 function AuraTracker:SetTextDisplayFont(trackerId, kind, fontId)
-    assert(Media.IsKnownFont(fontId), "Unknown font: " .. tostring(fontId))
+    assert(SharedMedia.IsKnownFont(fontId), "Unknown font: " .. tostring(fontId))
     local display = RequireTextDisplay(RequireTracker(self, trackerId), kind)
     if display.font == fontId then
         return

@@ -41,7 +41,7 @@ local function RegisterCalloutLayoutElement(frame)
             Sszorak:SetCalloutPosition(position)
         end,
         getDefaultPosition = function()
-            return { point = "CENTER", relativePoint = "CENTER", x = 0, y = 160 }
+            return ns.CalloutPosition.DefaultPosition()
         end,
         onEditBegin = function()
             Window.BeginLayoutEdit()
@@ -82,6 +82,7 @@ function Callout.Update()
         return
     end
     calloutWindow = calloutWindow or Callout.Create()
+    LayoutEditor.ApplyPosition(calloutWindow, Sszorak:GetCalloutPosition())
     local text = Sszorak:GetDisplayedCallout()
     if text == nil then
         calloutWindow:Clear()

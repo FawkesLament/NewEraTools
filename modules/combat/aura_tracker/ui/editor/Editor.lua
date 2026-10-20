@@ -27,6 +27,7 @@ ns.AuraTrackerUI = UI
 local Controls = UI.Controls
 
 local sharedMediaListening = false
+local fontListListening = false
 
 ---Scroll frame overlay that clips the aura header to the page viewport.
 ---Parented beside the scroll frame so it draws above the scroll child.
@@ -124,18 +125,22 @@ function UI.CanEditSelected()
     return AuraTracker:IsEnabled() and UI.ResolveSelectedTrackerId() ~= nil
 end
 
----LibSharedMedia fires this after a successful Register; refresh the texture/font picker lists.
+---LibSharedMedia fires this after a successful Register; refresh the texture picker list.
 ---@param _ any
 ---@param mediaType string
 local function OnSharedMediaRegistered(_, mediaType)
     if mediaType == "statusbar" then
         UI.RefreshTextureDropdown()
-    elseif mediaType == "font" then
-        UI.RefreshTextFontDropdowns()
     end
 end
 
 function UI.ListenForSharedMedia()
+    if not fontListListening then
+        fontListListening = true
+        ns.SharedMedia.OnFontsRegistered(function()
+            UI.RefreshTextFontDropdowns()
+        end)
+    end
     if sharedMediaListening or LibStub == nil then
         return
     end

@@ -390,9 +390,6 @@ describe("LayoutEditor", function()
                 function dropdown:SetSelected(value)
                     self.selected = value
                 end
-                function dropdown:SetJustifyH(justifyH)
-                    self.justifyH = justifyH
-                end
                 function dropdown:Close()
                     self.closeCount = (self.closeCount or 0) + 1
                 end
@@ -606,15 +603,6 @@ describe("LayoutEditor", function()
         }, dropdown.items)
         assert.equals("common", dropdown.selected)
         assert.equals("common", LayoutEditor.GetActiveScopeId())
-    end)
-
-    it("centers the selected scope in the toolbar", function()
-        RegisterElement("CombatTimer:1", { global = true, enabled = true })
-        assert.is_true(LayoutEditor.BeginGlobal())
-        local bar, dropdown = FindToolbar()
-        assert.is_nil(bar.scopeLabel)
-        assert.equals("CENTER", dropdown.justifyH)
-        LayoutEditor.End()
     end)
 
     it("scales the edit toolbar with the main panel slider", function()

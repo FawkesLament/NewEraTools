@@ -37,4 +37,22 @@ describe("Modules", function()
         first.db.value = 9
         assert.equals(9, saved.modules.First.value)
     end)
+
+    it("runs BeforeInit callbacks before any OnInit", function()
+        local calls = {}
+        ns.Modules.BeforeInit(function(saved)
+            table.insert(calls, "before")
+            saved.ready = true
+        end)
+        local module = ns.Modules.New("BeforeInitProbe")
+        function module:OnInit()
+            table.insert(calls, self.db and "init" or "init-without-db")
+        end
+
+        local saved = ns.Database.Load(nil)
+        ns.Modules.Start(saved)
+
+        assert.same({ "before", "init" }, calls)
+        assert.is_true(saved.ready)
+    end)
 end)

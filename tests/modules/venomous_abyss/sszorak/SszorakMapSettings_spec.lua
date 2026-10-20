@@ -17,8 +17,8 @@ describe("Sszorak", function()
     end)
 
     describe("map enabled", function()
-        it("is on by default", function()
-            assert.is_true(Sszorak:IsMapEnabled())
+        it("is off by default", function()
+            assert.is_false(Sszorak:IsMapEnabled())
         end)
 
         it("is saved", function()

@@ -45,6 +45,7 @@ function UpdateCalloutWindow()
         return
     end
     calloutWindow = calloutWindow or CreateCalloutWindow()
+    LayoutEditor.ApplyPosition(calloutWindow, TheLostExplorers:GetCalloutPosition())
     local text = TheLostExplorers:GetDisplayedCallout()
     if text == nil then
         calloutWindow:Clear()
@@ -78,7 +79,7 @@ function RegisterCalloutLayoutElement(frame)
             TheLostExplorers:SetCalloutPosition(position)
         end,
         getDefaultPosition = function()
-            return { point = "CENTER", relativePoint = "CENTER", x = 0, y = 160 }
+            return ns.CalloutPosition.DefaultPosition()
         end,
         onEditBegin = function()
             layoutEditing = true
@@ -149,6 +150,15 @@ local function BuildContent(content)
         spacing = Spacing.SMALL,
     })
 
+    local toolsRow = body:AddRow(ActionRow.HEIGHT)
+    ActionRow.Apply(toolsRow, {
+        title = L.THE_LOST_EXPLORERS_TOOLS_LAYOUT,
+        description = L.THE_LOST_EXPLORERS_TOOLS_LAYOUT_DESC,
+        buttons = {
+            { text = L.THE_LOST_EXPLORERS_EDIT_POSITION, onClick = BeginEditPosition, layout = true },
+        },
+    })
+
     local orderHeader = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local orderLabel = Widgets.CreateLabel(orderHeader, Fonts.BODY, L.THE_LOST_EXPLORERS_FEED_ORDER)
     orderLabel:SetJustifyH("LEFT")
@@ -195,7 +205,6 @@ local function BuildContent(content)
                 TheLostExplorers:SetFeedOrderSlot(slot, value)
                 RefreshFeedOrderControls()
             end)
-            dropdown:SetJustifyH("CENTER")
             dropdown:SetAutoWidth(false)
             local rawSetEnabled = dropdown.SetEnabled
             ---Later slots stay locked until every earlier slot has a boss.
@@ -233,15 +242,6 @@ local function BuildContent(content)
             arrow:SetPoint("RIGHT", nextColumn, "LEFT")
         end
     end
-
-    local toolsRow = body:AddRow(ActionRow.HEIGHT)
-    ActionRow.Apply(toolsRow, {
-        title = L.THE_LOST_EXPLORERS_TOOLS_LAYOUT,
-        description = L.THE_LOST_EXPLORERS_TOOLS_LAYOUT_DESC,
-        buttons = {
-            { text = L.THE_LOST_EXPLORERS_EDIT_POSITION, onClick = BeginEditPosition, layout = true },
-        },
-    })
 
     return body:GetHeight()
 end

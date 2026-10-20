@@ -15,4 +15,12 @@
     <Script file="sszorak\ui\Window.lua"/>
     <Script file="sszorak\ui\Callout.lua"/>
     <Script file="sszorak\ui\Panel.lua"/>
+    <Script file="twin_fangs\Schema.lua"/>
+    <Script file="twin_fangs\TwinFangs.lua"/>
+    <Script file="twin_fangs\Encounter.lua"/>
+    <Script file="twin_fangs\ui\Hint.lua"/>
+    <Script file="twin_fangs\ui\InterruptBadge.lua"/>
+    <Script file="twin_fangs\ui\Nameplates.lua"/>
+    <Script file="twin_fangs\ui\Callout.lua"/>
+    <Script file="twin_fangs\ui\Panel.lua"/>
 </Ui>

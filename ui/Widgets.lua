@@ -462,7 +462,7 @@ end
 ---@field SetSelected fun(self: Dropdown, value: any)  Updates the trigger label for `value`.
 ---@field SetItems fun(self: Dropdown, items: DropdownItem[])  Replaces the choice list; recreates the popup on next open.
 ---@field SetAutoWidth fun(self: Dropdown, enabled: boolean)  When false, width comes from anchors/SetWidth; popup still matches.
----@field SetJustifyH fun(self: Dropdown, justifyH: string)  Horizontal alignment of the selected-value label.
+---@field SetJustifyH fun(self: Dropdown, justifyH: string)  Horizontal alignment of the selected-value label. Defaults to CENTER.
 ---@field SetEnabled fun(self: Dropdown, enabled: boolean)
 ---@field IsEnabled fun(self: Dropdown): boolean
 ---@field Close fun(self: Dropdown)  Hides the popup and its outside-click catcher.
@@ -668,7 +668,7 @@ function Widgets.CreateDropdown(parent, items, onSelect)
     end
 
     label = Widgets.CreateLabel(trigger, Fonts.BODY)
-    label:SetJustifyH("LEFT")
+    label:SetJustifyH("CENTER")
     label:SetWordWrap(false)
     label:SetPoint("LEFT", Spacing.MEDIUM, 0)
     label:SetPoint("RIGHT", trigger, "RIGHT", -(Spacing.MEDIUM + Spacing.LARGE), 0)
@@ -735,6 +735,60 @@ function Widgets.CreateDropdown(parent, items, onSelect)
     end
 
     ApplyItems(items)
+    return dropdown
+end
+
+---@class FontDropdown: Dropdown
+---@field label FontString  Caption to the left of the trigger; callers may attach a pending clock.
+---@field RefreshItems fun(self: FontDropdown)  Rebuilds the list from SharedMedia.
+
+---Labeled dropdown of `default` plus LibSharedMedia fonts. Stretches to fill `parent`.
+---@param parent Frame
+---@param labelText string
+---@param onSelect fun(fontId: string)
+---@return FontDropdown
+function Widgets.CreateFontDropdown(parent, labelText, onSelect)
+    local SharedMedia = ns.SharedMedia
+    local nameLabel = Widgets.CreateLabel(parent, Fonts.BODY, labelText)
+    nameLabel:SetJustifyH("LEFT")
+    nameLabel:SetPoint("LEFT", parent, "LEFT")
+
+    local function BuildItems()
+        local items = {}
+        for _, fontId in ipairs(SharedMedia.ListFontIds()) do
+            items[#items + 1] = {
+                value = fontId,
+                text = fontId == SharedMedia.FONT_DEFAULT and L.FONT_DEFAULT or fontId,
+            }
+        end
+        return items
+    end
+
+    local dropdown = Widgets.CreateDropdown(parent, BuildItems(), onSelect) --[[@as FontDropdown]]
+    dropdown.label = nameLabel
+    dropdown:SetAutoWidth(false)
+    dropdown:ClearAllPoints()
+    dropdown:SetPoint("LEFT", nameLabel, "RIGHT", Spacing.LARGE, 0)
+    dropdown:SetHeight(Sizes.CONTROL_HEIGHT)
+
+    local function SyncWidth()
+        local parentWidth = parent:GetWidth()
+        if parentWidth <= 0 then
+            return
+        end
+        local width = parentWidth - nameLabel:GetStringWidth() - Spacing.LARGE
+        dropdown:SetWidth(math.max(width, Sizes.DROPDOWN_MIN_WIDTH))
+    end
+    parent:HookScript("OnSizeChanged", SyncWidth)
+    SyncWidth()
+
+    function dropdown:RefreshItems()
+        self:SetItems(BuildItems())
+    end
+
+    SharedMedia.OnFontsRegistered(function()
+        dropdown:RefreshItems()
+    end)
     return dropdown
 end
 
@@ -975,6 +1029,14 @@ function Widgets.CreateCheckbox(parent)
     fill:SetPoint("BOTTOMRIGHT", -Sizes.CHECKBOX_FILL_INSET, Sizes.CHECKBOX_FILL_INSET)
     fill:SetColorTexture(Widgets.UnpackColor(Colors.ACCENT))
     box:SetCheckedTexture(fill)
+    -- FeatureSection uses SetEnabled; CheckButton only has Enable/Disable natively.
+    function box:SetEnabled(enabled)
+        if enabled then
+            self:Enable()
+        else
+            self:Disable()
+        end
+    end
     return box
 end
 

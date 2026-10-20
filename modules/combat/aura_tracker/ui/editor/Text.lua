@@ -4,7 +4,7 @@ local Assets = ns.Assets
 local CollapsibleSection = ns.CollapsibleSection
 local FeatureSection = ns.FeatureSection
 local Layout = ns.Layout
-local Media = ns.AuraTrackerMedia
+local Widgets = ns.Widgets
 local Schema = ns.AuraTrackerSchema
 
 local Sizes = Assets.Sizes
@@ -22,7 +22,7 @@ local Controls = UI.Controls
 ---@field kind string
 ---@field collapsible CollapsibleSection
 ---@field feature FeatureSection
----@field fontDropdown Dropdown
+---@field fontDropdown FontDropdown
 ---@field fontSizeSlider Slider
 ---@field offsetXStepper NumberStepper
 ---@field offsetYStepper NumberStepper
@@ -30,24 +30,11 @@ local Controls = UI.Controls
 ---@type table<string, AuraTrackerTextDisplayEditor>
 local textDisplayEditors = {}
 
----@return DropdownItem[]
-local function BuildTextFontItems()
-    local items = {}
-    for _, fontId in ipairs(Media.ListTimeFontIds()) do
-        items[#items + 1] = {
-            value = fontId,
-            text = fontId == Schema.TEXT_FONT_DEFAULT and L.AURA_TRACKER_TEXT_FONT_DEFAULT or fontId,
-        }
-    end
-    return items
-end
-
 function UI.RefreshTextFontDropdowns()
-    local items = BuildTextFontItems()
     local trackerId = UI.ResolveSelectedTrackerId()
     for _, editor in pairs(textDisplayEditors) do
         if editor.fontDropdown then
-            editor.fontDropdown:SetItems(items)
+            editor.fontDropdown:RefreshItems()
             if trackerId then
                 editor.fontDropdown:SetSelected(AuraTracker:GetTextDisplayFont(trackerId, editor.kind))
             end
@@ -83,18 +70,22 @@ local function BuildTextDisplayStyleContent(content, editor)
 
     local fontRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local fontCell, sizeCell = Layout.SplitRow(fontRow, Spacing.MEDIUM)
-    editor.fontDropdown = Controls.AddDropdown(
-        fontCell,
-        L.AURA_TRACKER_TEXT_FONT,
-        BuildTextFontItems(),
-        function(trackerId)
-            return AuraTracker:GetTextDisplayFont(trackerId, kind)
-        end,
-        function(trackerId, fontId)
-            AuraTracker:SetTextDisplayFont(trackerId, kind, fontId)
-        end,
-        "text." .. kind .. ".font"
-    )
+    editor.fontDropdown = Widgets.CreateFontDropdown(fontCell, L.AURA_TRACKER_TEXT_FONT, function(fontId)
+        if UI.refreshingControls or not UI.CanEditSelected() then
+            return
+        end
+        local trackerId = UI.ResolveSelectedTrackerId()
+        if not trackerId then
+            return
+        end
+        AuraTracker:SetTextDisplayFont(trackerId, kind, fontId)
+        editor.fontDropdown:SetSelected(AuraTracker:GetTextDisplayFont(trackerId, kind))
+    end)
+    Controls.AttachPendingClock(editor.fontDropdown.label, "text." .. kind .. ".font")
+    local selectedId = UI.ResolveSelectedTrackerId()
+    if selectedId then
+        editor.fontDropdown:SetSelected(AuraTracker:GetTextDisplayFont(selectedId, kind))
+    end
     editor.fontSizeSlider = Controls.AddSlider(
         sizeCell,
         L.AURA_TRACKER_TEXT_FONT_SIZE,

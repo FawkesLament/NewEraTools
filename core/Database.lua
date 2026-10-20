@@ -3,7 +3,7 @@ local _, ns = ...
 local Database = {}
 ns.Database = Database
 
-local SCHEMA_VERSION = 7
+local SCHEMA_VERSION = 8
 
 -- migrations[n] upgrades saved data from version n - 1 to version n, in place.
 local migrations = {}
@@ -26,6 +26,44 @@ migrations[7] = function(saved)
         end
     end
     settings.mapRotated = nil
+end
+
+local function IsCalloutPosition(position)
+    return type(position) == "table"
+        and type(position.point) == "string"
+        and type(position.relativePoint) == "string"
+        and type(position.x) == "number"
+        and type(position.y) == "number"
+end
+
+local function CalloutPositionOf(settings)
+    if type(settings) ~= "table" or not IsCalloutPosition(settings.calloutPosition) then
+        return nil
+    end
+    return settings.calloutPosition
+end
+
+-- One shared on-screen callout anchor. Sszorak's anchor wins when it is valid; otherwise The Lost Explorers.
+migrations[8] = function(saved)
+    local modules = saved.modules
+    if type(modules) ~= "table" then
+        return
+    end
+    local chosen = CalloutPositionOf(modules.Sszorak) or CalloutPositionOf(modules.TheLostExplorers)
+    if chosen then
+        saved.calloutPosition = {
+            point = chosen.point,
+            relativePoint = chosen.relativePoint,
+            x = chosen.x,
+            y = chosen.y,
+        }
+    end
+    if type(modules.Sszorak) == "table" then
+        modules.Sszorak.calloutPosition = nil
+    end
+    if type(modules.TheLostExplorers) == "table" then
+        modules.TheLostExplorers.calloutPosition = nil
+    end
 end
 
 ---Upgrades saved variables to the current schema, creating them if missing.

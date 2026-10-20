@@ -22,6 +22,9 @@ local function InstallClient()
     UnitCanAssist = function()
         return false
     end
+    UnitCanAttack = function()
+        return false
+    end
     UnitGUID = function()
         return nil
     end
@@ -41,6 +44,7 @@ describe("Unit production", function()
         saved.GetNormalizedRealmName = GetNormalizedRealmName
         saved.UnitExists = UnitExists
         saved.UnitCanAssist = UnitCanAssist
+        saved.UnitCanAttack = UnitCanAttack
         saved.UnitGUID = UnitGUID
         saved.UnitClass = UnitClass
         saved.UnitClassBase = UnitClassBase
@@ -58,6 +62,7 @@ describe("Unit production", function()
         GetNormalizedRealmName = saved.GetNormalizedRealmName
         UnitExists = saved.UnitExists
         UnitCanAssist = saved.UnitCanAssist
+        UnitCanAttack = saved.UnitCanAttack
         UnitGUID = saved.UnitGUID
         UnitClass = saved.UnitClass
         UnitClassBase = saved.UnitClassBase
@@ -195,6 +200,56 @@ describe("Unit production", function()
             Assist(SECRET, SECRET)
             assert.is_nil(Unit.CanPlayerAssist("target"))
             assert.equals(2, #calls)
+        end)
+    end)
+
+    describe("CanPlayerAttack", function()
+        it("returns nil for a missing unit and does not call UnitCanAttack", function()
+            local Unit = Load()
+            local called = false
+            UnitCanAttack = function()
+                called = true
+            end
+            assert.is_nil(Unit.CanPlayerAttack("target"))
+            assert.is_nil(Unit.CanPlayerAttack(""))
+            assert.is_false(called)
+        end)
+
+        it("reads a plain UnitCanAttack result and fails closed on secret or junk", function()
+            local Unit = Load()
+            UnitExists = function(unit)
+                return unit == "target"
+            end
+            UnitCanAttack = function(_, unit)
+                assert.equals("target", unit)
+                return true
+            end
+            assert.is_true(Unit.CanPlayerAttack("target"))
+
+            UnitCanAttack = function()
+                return 1
+            end
+            assert.is_true(Unit.CanPlayerAttack("target"))
+
+            UnitCanAttack = function()
+                return false
+            end
+            assert.is_false(Unit.CanPlayerAttack("target"))
+
+            UnitCanAttack = function()
+                return 0
+            end
+            assert.is_false(Unit.CanPlayerAttack("target"))
+
+            UnitCanAttack = function()
+                return SECRET
+            end
+            assert.is_nil(Unit.CanPlayerAttack("target"))
+
+            UnitCanAttack = function()
+                error("secret call failed")
+            end
+            assert.is_nil(Unit.CanPlayerAttack("target"))
         end)
     end)
 

@@ -3,7 +3,7 @@ max_line_length = 120
 
 globals = { "NewEraToolsDB", "NewEraToolsAPI" }
 
--- Frame and widget API: allowed in ui/ and modules/**/*UI.lua.
+-- Frame and widget API: allowed in ui/, modules/**/ui/, and modules/**/*UI.lua.
 local WIDGET_API = {
     "ColorPickerFrame",
     "CreateFont",
@@ -27,10 +27,13 @@ local GAME_API = {
     "C_ClassColor",
     "C_EncounterTimeline",
     "C_InstanceEncounter",
+    "C_NamePlate",
     "C_PetBattles",
     "C_PlayerInfo",
     "C_SpecializationInfo",
     "C_Spell",
+    "C_TTSSettings",
+    "C_VoiceChat",
     "C_Secrets",
     "C_StringUtil",
     "C_Timer",
@@ -67,6 +70,7 @@ local GAME_API = {
     "SendChatMessage",
     "UnitAffectingCombat",
     "UnitCanAssist",
+    "UnitCanAttack",
     "UnitClass",
     "UnitClassBase",
     "UnitExists",
@@ -94,6 +98,7 @@ files["api"] = { read_globals = Concat(GAME_API, WIDGET_API), globals = { "_G", 
 files["ui"] = { read_globals = WIDGET_API }
 files["modules/**/*UI.lua"] = { read_globals = Concat(WIDGET_API, { "LibStub" }) }
 files["modules/**/ui/**/*.lua"] = { read_globals = Concat(WIDGET_API, { "LibStub" }) }
+files["services/SharedMedia.lua"] = { read_globals = { "LibStub" } }
 files["modules/combat/aura_tracker/Media.lua"] = { read_globals = { "LibStub" } }
 files["modules/combat/aura_tracker/Profile.lua"] = { read_globals = { "debugprofilestop" } }
 files["tests"] = { std = "+busted" }

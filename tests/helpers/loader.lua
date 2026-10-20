@@ -79,6 +79,7 @@ end
 local REAL_API_FILES = {
     Aura = true,
     Encounter = true,
+    EncounterTimeline = true,
     MessageProtocolComm = true,
 }
 
@@ -97,6 +98,8 @@ function Loader.Load()
             assert(loadfile(path))(Loader.ADDON_NAME, ns)
             if apiName == "Encounter" then
                 dofile(FAKES_PATH .. "Encounter.lua")(ns.Api.Encounter, ns.Api.GameEvents)
+            elseif apiName == "EncounterTimeline" then
+                dofile(FAKES_PATH .. "EncounterTimeline.lua")(ns.Api.EncounterTimeline, ns.Api.GameEvents)
             end
         elseif apiName then
             ns.Api[apiName] = dofile(FAKES_PATH .. apiName .. ".lua")()
