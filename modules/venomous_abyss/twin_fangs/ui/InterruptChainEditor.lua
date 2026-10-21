@@ -59,9 +59,8 @@ local ui
 local Refresh
 local NotifyHeight
 
-local function IsCommander()
-    local TwinFangs = ns.Modules.Get("TwinFangs")
-    return TwinFangs ~= nil and TwinFangs:IsRaidCommander()
+local function CanEdit()
+    return Chain.CanEdit()
 end
 
 ---@param classFile string|nil
@@ -163,9 +162,17 @@ end
 
 local function BuildOverview(parent)
     local grid = CreateFrame("Frame", nil, parent)
+    -- Anchored halves follow the grid's width, so cards place correctly before it is measured.
+    local gridStack = Layout.Stack(grid, { spacing = CARD_GAP })
+    local topRow = gridStack:AddRow(CardHeight())
+    local bottomRow = gridStack:AddRow(CardHeight())
+    local cells = {}
+    cells[1], cells[2] = Layout.SplitRow(topRow, CARD_GAP)
+    cells[3], cells[4] = Layout.SplitRow(bottomRow, CARD_GAP)
     local cards = {}
-    for _, regionId in ipairs(Chain.REGION_IDS) do
-        local card = CreateFrame("Button", nil, grid, Assets.Templates.BACKDROP) --[[@as Button]]
+    for index, regionId in ipairs(Chain.REGION_IDS) do
+        local card = CreateFrame("Button", nil, cells[index], Assets.Templates.BACKDROP) --[[@as Button]]
+        card:SetAllPoints(cells[index])
         Widgets.ApplyBackdrop(card, Colors.SURFACE_RAISED, Colors.BORDER)
         Widgets.AddHoverHighlight(card)
         AddAccentBar(card, REGION_ACCENTS[regionId])
@@ -200,25 +207,13 @@ local function BuildOverview(parent)
     end
 
     local function LayoutCards()
-        local width = grid:GetWidth() or 0
-        if width <= 0 and ui and ui.panel then
-            width = math.max((ui.panel:GetWidth() or 0) - 2 * (ui.stack.paddingX or 0), 0)
-        end
-        if width <= 0 then
-            return
-        end
-        local cardWidth = math.max((width - CARD_GAP) / 2, 1)
         local cardHeight = CardHeight()
-        for index, regionId in ipairs(Chain.REGION_IDS) do
-            local x, y = Layout.GridCell(index, 2, cardWidth + CARD_GAP, cardHeight + CARD_GAP)
-            local card = cards[regionId]
-            card:ClearAllPoints()
-            card:SetSize(cardWidth, cardHeight)
-            card:SetPoint("TOPLEFT", grid, "TOPLEFT", x, y)
-        end
+        gridStack:BeginUpdate()
+        gridStack:SetEntryHeight(topRow, cardHeight)
+        gridStack:SetEntryHeight(bottomRow, cardHeight)
+        gridStack:EndUpdate()
     end
 
-    grid:HookScript("OnSizeChanged", LayoutCards)
     grid.cards = cards
     grid.LayoutCards = LayoutCards
     return grid
@@ -684,7 +679,7 @@ local lastNotifiedHeight
 local shownView
 
 function NotifyHeight()
-    if not ui or not ui.onHeightChanged or not IsCommander() then
+    if not ui or not ui.onHeightChanged or not CanEdit() or not ui.panel:IsShown() then
         return
     end
     local height = ui.stack:GetHeight()
@@ -696,7 +691,7 @@ function NotifyHeight()
 end
 
 local function LayoutShownView()
-    if not ui or not IsCommander() then
+    if not ui or not CanEdit() or not ui.panel:IsShown() then
         return
     end
     local editing = selectedRegion ~= nil
@@ -816,7 +811,7 @@ function InterruptChainEditor.Mount(host, onHeightChanged)
 end
 
 function InterruptChainEditor.Refresh()
-    if not ui or not IsCommander() then
+    if not ui or not CanEdit() then
         return
     end
     lastNotifiedHeight = nil

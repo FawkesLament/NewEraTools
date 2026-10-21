@@ -470,6 +470,93 @@ local function BackupRegionOf(state, guid)
     end
 end
 
+---@param entry TwinFangsInterruptPlayer|string|nil
+---@return TwinFangsInterruptPlayer|nil
+local function CopyStoredPlayer(entry)
+    if type(entry) == "table" then
+        return CopyPlayer(entry)
+    end
+    if type(entry) == "string" and entry ~= "" then
+        return { name = entry }
+    end
+end
+
+---@param players TwinFangsInterruptPlayer[]|nil
+---@return TwinFangsInterruptPlayer[]
+local function CopyStoredPlayers(players)
+    local copy = {}
+    if type(players) ~= "table" then
+        return copy
+    end
+    for index, entry in ipairs(players) do
+        copy[index] = CopyStoredPlayer(entry)
+    end
+    return copy
+end
+
+---@param regionId string
+---@param region table
+---@return TwinFangsInterruptMemberAssignment
+local function CopyAssignment(regionId, region)
+    ---@class TwinFangsInterruptMemberAssignment
+    ---@field regionId string
+    ---@field group number|nil
+    ---@field players TwinFangsInterruptPlayer[]
+    ---@field backup TwinFangsInterruptPlayer|nil
+    return {
+        regionId = regionId,
+        group = IsRaidGroup(region.group) and region.group or nil,
+        players = CopyStoredPlayers(region.players),
+        backup = CopyStoredPlayer(region.backup),
+    }
+end
+
+---Read-only assignments for one player. Matches stored GUIDs only; does not mutate `chain`.
+---@param chain TwinFangsInterruptChainSettings|nil
+---@param guid string|nil
+---@return TwinFangsInterruptMemberView
+function InterruptChain.GetMemberView(chain, guid)
+    ---@class TwinFangsInterruptMemberView
+    ---@field primary TwinFangsInterruptMemberAssignment|nil
+    ---@field backups TwinFangsInterruptMemberAssignment[]
+    local view = { backups = {} }
+    if type(guid) ~= "string" or guid == "" or type(chain) ~= "table" then
+        return view
+    end
+    local seen = {}
+    for _, regionId in ipairs(InterruptChain.REGION_IDS) do
+        local region = chain[regionId]
+        if type(region) == "table" and type(region.players) == "table" then
+            for _, player in ipairs(region.players) do
+                if InterruptChain.PlayerGuid(player) == guid then
+                    view.primary = CopyAssignment(regionId, region)
+                    seen[regionId] = true
+                    break
+                end
+            end
+        end
+        if view.primary then
+            break
+        end
+    end
+    for _, regionId in ipairs(InterruptChain.REGION_IDS) do
+        if not seen[regionId] then
+            local region = chain[regionId]
+            if type(region) == "table" and InterruptChain.PlayerGuid(region.backup) == guid then
+                view.backups[#view.backups + 1] = CopyAssignment(regionId, region)
+                seen[regionId] = true
+            end
+        end
+    end
+    return view
+end
+
+---Raid leaders and assistants can edit the chain; everyone else is member-view only.
+---@return boolean
+function InterruptChain.CanEdit()
+    return ns.Api.Group.IsPlayerRaidLeaderOrAssistant()
+end
+
 ---@param state TwinFangsInterruptChainState
 ---@param region TwinFangsInterruptChainRegion
 ---@param group number|nil

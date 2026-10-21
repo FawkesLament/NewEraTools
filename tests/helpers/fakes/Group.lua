@@ -33,7 +33,7 @@ return function()
     end
 
     function Group.IsPlayerRaidLeaderOrAssistant()
-        return Group.isLeaderOrAssistant
+        return Group.isRaidLeader or Group.isLeaderOrAssistant
     end
 
     function Group.GetRaidLeaderFullName()

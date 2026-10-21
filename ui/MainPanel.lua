@@ -33,7 +33,7 @@ local SCALE_STEP = 0.05
 ---@field title string  Shown in the sidebar. Also used as the page header unless `headerTitle` is set.
 ---@field headerTitle string|nil  Page header title when it should name the sub-feature instead of `title`.
 ---@field group PanelGroup  The sidebar lists the section under this group's title.
----@field build fun(container: Frame): number|nil  Fills the container and returns its content height.
+---@field build fun(container: Frame): number|nil  Fills the container and returns its content height. Runs once, the first time the page is on screen.
 ---@field enabled boolean|nil  Initial On/Off when `onEnabledChanged` is set. Defaults to true.
 ---@field onEnabledChanged fun(enabled: boolean)|nil  When set, the page header shows an On/Off toggle and gates the body.
 ---@field tooltip string|nil  Shown when hovering the page title.
@@ -259,6 +259,23 @@ local function SetSectionBodyHeight(frame, section, height)
     end
 end
 
+-- Frames created under a hidden page can keep an unresolved rect until they are hidden and shown
+-- again, so `build` waits until its page is on screen for the first time.
+local function EnsureSectionBuilt(frame, section)
+    if not section or section.built or not section:IsVisible() then
+        return
+    end
+    section.built = true
+    local body = section.body
+    local height = section.def.build and section.def.build(body)
+    if type(height) == "number" then
+        SetSectionBodyHeight(frame, section, height)
+    end
+    if body.RefreshContentInteractive then
+        body:RefreshContentInteractive()
+    end
+end
+
 ---Shows one feature page and hides the others. Resets scroll so each page starts at the top.
 local function SelectSection(frame, section)
     if frame.activeSection == section then
@@ -306,6 +323,12 @@ local function AddSection(frame, def)
     local headers, sections = CountEntriesThrough(frame, group)
     local section = CreateSection(frame, def)
     section.group = group
+    section.def = def
+    section.built = false
+    -- Fires on selection, on opening the panel, and on expanding it from collapsed.
+    section:HookScript("OnShow", function()
+        EnsureSectionBuilt(frame, section)
+    end)
     table.insert(frame.sections, sections + 1, section)
 
     local navButton = CreateNavButton(frame.sidebar, def)
@@ -317,11 +340,6 @@ local function AddSection(frame, def)
     -- The page exists before `build`, so it may call SetContentHeight right away.
     local body = section.body
     function body:SetContentHeight(height)
-        SetSectionBodyHeight(frame, section, height)
-    end
-
-    local height = def.build and def.build(body)
-    if type(height) == "number" then
         SetSectionBodyHeight(frame, section, height)
     end
 
@@ -542,7 +560,8 @@ local function CreatePanel()
     return frame
 end
 
----Adds a feature settings page to the panel. The container passed to `def.build` also has
+---Adds a feature settings page to the panel. `def.build` runs the first time the page is visible,
+---so modules must not depend on its widgets existing before then. The container passed to it also has
 ---`container:SetContentHeight(height)` for when its content height changes later.
 ---`container.header` is the title row and `container.titleLabel` is the title on its left.
 ---An On/Off toggle, when present, occupies the header's right side.

@@ -25,5 +25,6 @@
     <Script file="twin_fangs\ui\Nameplates.lua"/>
     <Script file="twin_fangs\ui\Callout.lua"/>
     <Script file="twin_fangs\ui\InterruptChainEditor.lua"/>
+    <Script file="twin_fangs\ui\InterruptChainMemberView.lua"/>
     <Script file="twin_fangs\ui\Panel.lua"/>
 </Ui>

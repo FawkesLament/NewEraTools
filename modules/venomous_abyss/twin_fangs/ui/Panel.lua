@@ -76,6 +76,11 @@ local function BuildContent(content)
     end
     SyncPreviewButton()
 
+    content:HookScript("OnShow", function()
+        if syncInterruptChainEditor then
+            syncInterruptChainEditor()
+        end
+    end)
     content:HookScript("OnHide", function()
         TwinFangs:SetNameplateHintPreviewing(false)
     end)
@@ -124,8 +129,16 @@ local function BuildContent(content)
         end,
     })
     local interruptBody = Layout.Stack(interrupt.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
-    local interruptRoleRow = interruptBody:AddRow(ns.RaidRoleModeLabel.HEIGHT)
+    local interruptRoleRow = interruptBody:AddRow(Sizes.CONTROL_HEIGHT)
     interruptRoleLabel = ns.RaidRoleModeLabel.Create(interruptRoleRow, L.TWIN_FANGS_INTERRUPT_RAID_ROLE_TOOLTIP)
+    local preferMemberView = false
+    local viewSwitch = Widgets.CreateTextButton(interruptRoleRow, L.TWIN_FANGS_INTERRUPT_VIEW_MEMBER, function()
+        preferMemberView = not preferMemberView
+        if syncInterruptChainEditor then
+            syncInterruptChainEditor()
+        end
+    end)
+    viewSwitch:SetPoint("RIGHT", interruptRoleRow, "RIGHT")
 
     local voiceRow = interruptBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local voiceBox = Widgets.CreateCheckbox(voiceRow)
@@ -143,7 +156,8 @@ local function BuildContent(content)
     voiceBox:SetHitRectInsets(0, -(voiceLabel:GetStringWidth() + Spacing.SMALL), 0, 0)
 
     local chainHost = interruptBody:Add(CreateFrame("Frame", nil, interrupt.content), 1)
-    local chainMounted
+    local editorMounted
+    local memberViewMounted
     local function ApplyChainHostHeight(height)
         interruptBody:SetEntryHeight(chainHost, height)
         interrupt:SetContentHeight(interruptBody:GetHeight())
@@ -152,27 +166,53 @@ local function BuildContent(content)
     end
 
     local function EnsureChainEditor()
-        if chainMounted then
+        if editorMounted then
             ns.TwinFangsInterruptChainEditor.Refresh()
             return
         end
         ns.TwinFangsInterruptChainEditor.Mount(chainHost, ApplyChainHostHeight)
-        chainMounted = true
+        editorMounted = true
+    end
+
+    local function EnsureMemberView()
+        if memberViewMounted then
+            ns.TwinFangsInterruptChainMemberView.Refresh()
+            return
+        end
+        ns.TwinFangsInterruptChainMemberView.Mount(chainHost, ApplyChainHostHeight)
+        memberViewMounted = true
     end
 
     function syncInterruptChainEditor()
         if interruptRoleLabel then
             ns.RaidRoleModeLabel.Update(interruptRoleLabel)
         end
-        local isCommander = TwinFangs:IsRaidCommander()
-        if isCommander then
-            chainHost:Show()
+        local canEdit = ns.TwinFangsInterruptChain.CanEdit()
+        if not canEdit then
+            preferMemberView = false
+        end
+        viewSwitch:SetShown(canEdit)
+        if canEdit then
+            viewSwitch:SetText(
+                preferMemberView and L.TWIN_FANGS_INTERRUPT_VIEW_EDITOR or L.TWIN_FANGS_INTERRUPT_VIEW_MEMBER
+            )
+            viewSwitch:SetSize(viewSwitch:GetTextWidth() + 2 * Spacing.SMALL, Sizes.CONTROL_HEIGHT)
+        end
+        -- Frames mounted under a hidden page keep an unresolved rect until hidden and shown again.
+        -- Role changes can arrive while the page is closed; its OnShow runs this again.
+        if not content:IsVisible() then
+            return
+        end
+        chainHost:Show()
+        local showEditor = canEdit and not preferMemberView
+        if showEditor then
+            ns.TwinFangsInterruptChainMemberView.SetShown(false)
             EnsureChainEditor()
             ns.TwinFangsInterruptChainEditor.SetShown(true)
         else
             ns.TwinFangsInterruptChainEditor.SetShown(false)
-            chainHost:Hide()
-            ApplyChainHostHeight(0)
+            EnsureMemberView()
+            ns.TwinFangsInterruptChainMemberView.SetShown(true)
         end
     end
 
