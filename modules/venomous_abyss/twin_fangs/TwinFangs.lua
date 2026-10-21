@@ -18,6 +18,9 @@ local TwinFangs = ns.Modules.New("TwinFangs", {
     defaults = Schema.NewSettings(),
 })
 
+-- Raid leader is commander for interrupt reminder; everyone else is a member.
+ns.RaidRole.Attach(TwinFangs)
+
 local function NotifyNameplateHintChanged()
     if TwinFangs.OnNameplateHintChanged then
         TwinFangs:OnNameplateHintChanged()
@@ -328,6 +331,12 @@ function TwinFangs:OnInit()
         self.db.soakReminder.group = Schema.GROUP_LEFT
     end
     SanitizeNameplateHint(self.db.nameplateHint)
+    local reminder = self.db.interruptReminder
+    if type(reminder) ~= "table" then
+        reminder = { enabled = false, voice = false, chain = Schema.NewInterruptChain() }
+        self.db.interruptReminder = reminder
+    end
+    reminder.chain = ns.TwinFangsInterruptChain.SanitizeSaved(reminder.chain)
 end
 
 ---Drops a pending or visible soak reminder. Defined with the encounter listener.

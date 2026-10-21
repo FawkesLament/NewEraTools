@@ -1,6 +1,7 @@
 return function()
     local Group = {
         members = {},
+        rosterComplete = nil,
         raidChatType = nil,
         isRaidLeader = false,
         isLeaderOrAssistant = false,
@@ -18,6 +19,13 @@ return function()
 
     function Group.GetRaidChatType()
         return Group.raidChatType
+    end
+
+    function Group.HasCompleteRaidRoster()
+        if Group.rosterComplete ~= nil then
+            return Group.rosterComplete
+        end
+        return Group.raidChatType ~= nil and #Group.members > 0
     end
 
     function Group.IsPlayerRaidLeader()

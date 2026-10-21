@@ -17,6 +17,8 @@ local Schema = ns.TwinFangsSchema
 local Callout = ns.TwinFangsCalloutUI
 
 local SCOPE_ID = "twin_fangs"
+local interruptRoleLabel
+local syncInterruptChainEditor
 
 local function BeginEditPosition()
     LayoutEditor.BeginScope(SCOPE_ID)
@@ -121,7 +123,10 @@ local function BuildContent(content)
             end
         end,
     })
-    local interruptBody = Layout.Stack(interrupt.content, { paddingY = Spacing.SMALL })
+    local interruptBody = Layout.Stack(interrupt.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
+    local interruptRoleRow = interruptBody:AddRow(ns.RaidRoleModeLabel.HEIGHT)
+    interruptRoleLabel = ns.RaidRoleModeLabel.Create(interruptRoleRow, L.TWIN_FANGS_INTERRUPT_RAID_ROLE_TOOLTIP)
+
     local voiceRow = interruptBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local voiceBox = Widgets.CreateCheckbox(voiceRow)
     voiceBox:SetChecked(TwinFangs:IsInterruptVoiceEnabled())
@@ -136,6 +141,43 @@ local function BuildContent(content)
     voiceLabel:SetJustifyH("LEFT")
     Layout.Row(voiceRow, { voiceBox, voiceLabel }, Spacing.SMALL)
     voiceBox:SetHitRectInsets(0, -(voiceLabel:GetStringWidth() + Spacing.SMALL), 0, 0)
+
+    local chainHost = interruptBody:Add(CreateFrame("Frame", nil, interrupt.content), 1)
+    local chainMounted
+    local function ApplyChainHostHeight(height)
+        interruptBody:SetEntryHeight(chainHost, height)
+        interrupt:SetContentHeight(interruptBody:GetHeight())
+        content:SetContentHeight(body:GetHeight())
+        interrupt:RefreshContentInteractive()
+    end
+
+    local function EnsureChainEditor()
+        if chainMounted then
+            ns.TwinFangsInterruptChainEditor.Refresh()
+            return
+        end
+        ns.TwinFangsInterruptChainEditor.Mount(chainHost, ApplyChainHostHeight)
+        chainMounted = true
+    end
+
+    function syncInterruptChainEditor()
+        if interruptRoleLabel then
+            ns.RaidRoleModeLabel.Update(interruptRoleLabel)
+        end
+        local isCommander = TwinFangs:IsRaidCommander()
+        if isCommander then
+            chainHost:Show()
+            EnsureChainEditor()
+            ns.TwinFangsInterruptChainEditor.SetShown(true)
+        else
+            ns.TwinFangsInterruptChainEditor.SetShown(false)
+            chainHost:Hide()
+            ApplyChainHostHeight(0)
+        end
+    end
+
+    syncInterruptChainEditor()
+
     interrupt:SetContentHeight(interruptBody:GetHeight())
     interrupt:RefreshContentInteractive()
 
@@ -355,6 +397,11 @@ function TwinFangs:OnEnable()
         build = BuildContent,
     })
     self:ListenForEncounter()
+    ns.Api.Group.OnChanged(function()
+        if syncInterruptChainEditor then
+            syncInterruptChainEditor()
+        end
+    end)
     -- TEMP: nameplate-hint casts listen outside the encounter for in-game testing.
     self:ListenForNameplateHint()
     Callout.Ensure()

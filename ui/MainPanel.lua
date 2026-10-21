@@ -237,6 +237,17 @@ local function SyncActivePageHeight(frame)
         height = math.max(section.headerHeight + section.bodyHeight, 1)
     end
     frame.content:SetHeight(height)
+    local scrollFrame = frame.scrollFrame
+    if scrollFrame then
+        if scrollFrame.UpdateScrollChildRect then
+            scrollFrame:UpdateScrollChildRect()
+        end
+        local range = scrollFrame.GetVerticalScrollRange and scrollFrame:GetVerticalScrollRange() or 0
+        local current = scrollFrame.GetVerticalScroll and scrollFrame:GetVerticalScroll() or 0
+        if current > range then
+            scrollFrame:SetVerticalScroll(range)
+        end
+    end
 end
 
 local function SetSectionBodyHeight(frame, section, height)

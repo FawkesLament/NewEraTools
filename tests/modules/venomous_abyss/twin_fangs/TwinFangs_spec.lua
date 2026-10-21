@@ -1,10 +1,10 @@
 local Loader = require("helpers.loader")
 
 describe("TwinFangs", function()
-    local Module, Schema
+    local ns, Module, Schema
 
     before_each(function()
-        local ns = Loader.Load()
+        ns = Loader.Load()
         ns.Modules.Start(ns.Database.Load(nil))
         Module = ns.Modules.Get("TwinFangs")
         Schema = ns.TwinFangsSchema
@@ -20,6 +20,20 @@ describe("TwinFangs", function()
         assert.is_false(Module:IsNameplateHintEnabled())
         assert.is_false(Module.db.nameplateHint.enabled)
         assert.equals(Schema.GROUP_LEFT, Module:GetSoakGroup())
+    end)
+
+    describe("raid role", function()
+        it("is member unless the player is the raid leader", function()
+            local Group = ns.Api.Group
+            assert.equals(Module.RAID_ROLE_MEMBER, Module:GetRaidRole())
+            assert.is_false(Module:IsRaidCommander())
+            Group.isRaidLeader = true
+            assert.equals(Module.RAID_ROLE_COMMANDER, Module:GetRaidRole())
+            assert.is_true(Module:IsRaidCommander())
+            Group.isRaidLeader = false
+            assert.equals(Module.RAID_ROLE_MEMBER, Module:GetRaidRole())
+            assert.is_false(Module:IsRaidCommander())
+        end)
     end)
 
     it("toggles each reminder independently", function()

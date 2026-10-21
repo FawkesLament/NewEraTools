@@ -4,9 +4,25 @@ local _, ns = ...
 ---@field enabled boolean
 ---@field group "left"|"middle"|"right"
 
+---@class TwinFangsInterruptPlayer
+---@field guid string|nil  Canonical identity when resolved; nil when a legacy name is unresolved.
+---@field name string  Cached "Name-Realm" for display.
+
+---@class TwinFangsInterruptChainRegion
+---@field group number|nil
+---@field players TwinFangsInterruptPlayer[]
+---@field backup TwinFangsInterruptPlayer|nil
+
+---@class TwinFangsInterruptChainSettings
+---@field front_left TwinFangsInterruptChainRegion
+---@field front_right TwinFangsInterruptChainRegion
+---@field back_left TwinFangsInterruptChainRegion
+---@field back_right TwinFangsInterruptChainRegion
+
 ---@class TwinFangsReminder
 ---@field enabled boolean
 ---@field voice boolean
+---@field chain TwinFangsInterruptChainSettings
 
 ---@class TwinFangsNameplateHint
 ---@field enabled boolean
@@ -76,6 +92,27 @@ local Schema = {
 }
 ns.TwinFangsSchema = Schema
 
+---A fresh region assignment. Nested player lists are new tables on every call.
+---@return TwinFangsInterruptChainRegion
+function Schema.NewInterruptRegion()
+    return {
+        group = nil,
+        players = {},
+        backup = nil,
+    }
+end
+
+---A fresh four-region interrupt-chain table. Nested tables are new on every call.
+---@return TwinFangsInterruptChainSettings
+function Schema.NewInterruptChain()
+    return {
+        front_left = Schema.NewInterruptRegion(),
+        front_right = Schema.NewInterruptRegion(),
+        back_left = Schema.NewInterruptRegion(),
+        back_right = Schema.NewInterruptRegion(),
+    }
+end
+
 ---A fresh nameplate-hint record, including a new color table, on every call.
 ---@return TwinFangsNameplateHint
 function Schema.NewNameplateHint()
@@ -104,6 +141,7 @@ function Schema.NewSettings()
         interruptReminder = {
             enabled = false,
             voice = false,
+            chain = Schema.NewInterruptChain(),
         },
         nameplateHint = Schema.NewNameplateHint(),
     }

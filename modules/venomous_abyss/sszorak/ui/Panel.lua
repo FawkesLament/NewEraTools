@@ -170,19 +170,6 @@ local function SetRoleStatus(message, color)
     end
 end
 
----Wraps `text` in the accent color escape so it stands out inside a muted FontString.
----@param text string
----@return string
-local function AccentText(text)
-    local r, g, b = Widgets.UnpackColor(Colors.ACCENT)
-    return string.format(
-        "|cff%02x%02x%02x%s|r",
-        math.floor(r * 255 + 0.5),
-        math.floor(g * 255 + 0.5),
-        math.floor(b * 255 + 0.5),
-        text
-    )
-end
 
 local function HideAddonCheckPanel()
     if addonCheckPanel then
@@ -207,8 +194,7 @@ end
 local function UpdateCommanderControls()
     local isCommander = Sszorak:IsRaidCommander()
     if roleLabel then
-        local roleName = isCommander and L.SSZORAK_RAID_ROLE_COMMANDER or L.SSZORAK_RAID_ROLE_MEMBER
-        roleLabel:SetFormattedText(L.SSZORAK_RAID_ROLE_MODE, AccentText(roleName))
+        ns.RaidRoleModeLabel.Update(roleLabel)
     end
     SetCommanderRowShown(createMacrosRow, isCommander)
     SetCommanderRowShown(syncRow, isCommander)
@@ -377,18 +363,8 @@ local function BuildMapContent(content)
         },
     })
 
-    local roleRow = body:AddRow(HINT_ROW_HEIGHT)
-    roleLabel = Widgets.CreateLabel(roleRow, Fonts.SMALL_MUTED)
-    roleLabel:SetJustifyH("LEFT")
-    roleLabel:SetPoint("LEFT", roleRow, "LEFT")
-    -- FontStrings can't take mouse; a matching hit frame carries the tooltip.
-    local roleHit = CreateFrame("Frame", nil, roleRow)
-    roleHit:SetPoint("TOPLEFT", roleLabel, "TOPLEFT")
-    roleHit:SetPoint("BOTTOMRIGHT", roleLabel, "BOTTOMRIGHT")
-    roleHit:EnableMouse(true)
-    Widgets.AttachTooltip(roleHit, "ANCHOR_TOP", function(tooltip)
-        tooltip:SetText(L.SSZORAK_RAID_ROLE_MODE_TOOLTIP)
-    end)
+    local roleRow = body:AddRow(ns.RaidRoleModeLabel.HEIGHT)
+    roleLabel = ns.RaidRoleModeLabel.Create(roleRow, L.SSZORAK_RAID_ROLE_MODE_TOOLTIP)
 
     -- A. Basic Settings
     Widgets.LayoutSectionHeader(body:AddRow(Sizes.CONTENT_SECTION_HEADER), L.SSZORAK_SECTION_BASIC)

@@ -1,12 +1,8 @@
 local _, ns = ...
-local Group = ns.Api.Group
 
 -- Saved callout-mode ids. Implementations register against these from communication/.
 local CALLOUT_MODE_NORMAL = "normal"
 local CALLOUT_MODE_JAILBREAK = "jailbreak"
--- Raid role: raid leader is commander (macros / sync UI); everyone else is a member.
-local RAID_ROLE_MEMBER = "member"
-local RAID_ROLE_COMMANDER = "commander"
 -- Stable AddonCheck provider id; version is owned by AddonCheck, not this snapshot.
 local ADDON_CHECK_MODULE_ID = "Sszorak"
 
@@ -54,23 +50,9 @@ local Sszorak = ns.Modules.New("Sszorak", {
 
 Sszorak.CALLOUT_MODE_NORMAL = CALLOUT_MODE_NORMAL
 Sszorak.CALLOUT_MODE_JAILBREAK = CALLOUT_MODE_JAILBREAK
-Sszorak.RAID_ROLE_MEMBER = RAID_ROLE_MEMBER
-Sszorak.RAID_ROLE_COMMANDER = RAID_ROLE_COMMANDER
 Sszorak.ADDON_CHECK_MODULE_ID = ADDON_CHECK_MODULE_ID
-
----Raid leader is commander (edge-click macros / sync UI); everyone else is a member.
----@return string
-function Sszorak:GetRaidRole()
-    if Group.IsPlayerRaidLeader() then
-        return RAID_ROLE_COMMANDER
-    end
-    return RAID_ROLE_MEMBER
-end
-
----@return boolean
-function Sszorak:IsRaidCommander()
-    return self:GetRaidRole() == RAID_ROLE_COMMANDER
-end
+-- Raid leader is commander (macros / sync UI); everyone else is a member.
+ns.RaidRole.Attach(Sszorak)
 
 function Sszorak:OnInit()
     -- Later files add these repair steps. OnInit runs after every file has loaded.

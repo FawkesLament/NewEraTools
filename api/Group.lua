@@ -10,6 +10,7 @@ ns.Api.Group = Group
 ---@field name string  As shown in the roster; no realm for same-realm players.
 ---@field fullName string  "Name-Realm"; stable across realms.
 ---@field guid string|nil  Unit GUID when available; preferred local identity key.
+---@field index number  GetRaidRosterInfo index; use this for subgroup slot order.
 ---@field subgroup number
 ---@field classFile string|nil  e.g. "WARRIOR".
 ---@field role GroupRole
@@ -38,6 +39,7 @@ function Group.GetRaidMembers()
                 name = name,
                 fullName = Unit.GetFullName(name),
                 guid = Unit.GetGUID(unit),
+                index = index,
                 subgroup = subgroup,
                 classFile = classFile,
                 role = UnitGroupRolesAssigned(unit),
@@ -45,6 +47,24 @@ function Group.GetRaidMembers()
         end
     end
     return members
+end
+
+---Whether every current raid roster slot resolved a name. False when not in a raid.
+---@return boolean
+function Group.HasCompleteRaidRoster()
+    if not IsInRaid() then
+        return false
+    end
+    local expected = GetNumGroupMembers()
+    if type(expected) ~= "number" or expected < 1 then
+        return false
+    end
+    for index = 1, expected do
+        if not GetRaidRosterInfo(index) then
+            return false
+        end
+    end
+    return true
 end
 
 ---@alias PartyCategoryType number

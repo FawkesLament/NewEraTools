@@ -8,6 +8,7 @@
     <Script file="ActionRow.lua"/>
     <Script file="ActionFooter.lua"/>
     <Script file="FeatureSection.lua"/>
+    <Script file="RaidRoleModeLabel.lua"/>
     <Script file="CollapsibleSection.lua"/>
     <Script file="FloatingWindow.lua"/>
     <Script file="AddonCheckPanelModel.lua"/>
