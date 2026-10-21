@@ -288,7 +288,7 @@ describe("TwinFangs interrupt chain editor", function()
         assert.is_true(codes.backup_shared)
     end)
 
-    it("marks a complete assignment as unsynced because sync is not implemented", function()
+    it("marks a complete unpublished assignment as unsynced", function()
         local assignments = {
             [Chain.FRONT_LEFT] = { Guid("清风"), Guid("余烬") },
             [Chain.FRONT_RIGHT] = { Guid("流火"), Guid("栖梧") },

@@ -18,6 +18,7 @@
     <Script file="twin_fangs\Schema.lua"/>
     <Script file="twin_fangs\TwinFangs.lua"/>
     <Script file="twin_fangs\InterruptChain.lua"/>
+    <Script file="twin_fangs\InterruptChainSync.lua"/>
     <Script file="twin_fangs\Encounter.lua"/>
     <Script file="twin_fangs\NameplateHint.lua"/>
     <Script file="twin_fangs\ui\Hint.lua"/>

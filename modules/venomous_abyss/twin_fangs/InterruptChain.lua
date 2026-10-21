@@ -19,6 +19,8 @@ local InterruptChain = {
     REGION_IDS = { FRONT_LEFT, FRONT_RIGHT, BACK_LEFT, BACK_RIGHT },
     GROUP_MIN = 1,
     GROUP_MAX = 8,
+    POSITION_MIN = 1,
+    POSITION_MAX = 5,
     ADD_NONE = false,
     BACKUP_NONE = false,
     ---Raid groups 1–4 map onto the four battlefield regions.
@@ -210,6 +212,59 @@ function InterruptChain.SanitizeSaved(chain)
     return chain
 end
 
+---Whether any region has a group, interrupt player, or backup.
+---@param chain TwinFangsInterruptChainSettings|nil
+---@return boolean
+function InterruptChain.HasAssignments(chain)
+    if type(chain) ~= "table" then
+        return false
+    end
+    for _, regionId in ipairs(InterruptChain.REGION_IDS) do
+        local region = chain[regionId]
+        if type(region) == "table" then
+            if IsRaidGroup(region.group) then
+                return true
+            end
+            if type(region.players) == "table" and #region.players > 0 then
+                return true
+            end
+            if region.backup ~= nil then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+---Empty-state copy for Member View. Does not read or write saved assignments.
+---@param chain TwinFangsInterruptChainSettings|nil
+---@param inRaid boolean
+---@return string
+function InterruptChain.MemberViewEmptyText(chain, inRaid)
+    if not inRaid then
+        return L.TWIN_FANGS_INTERRUPT_NOT_IN_RAID
+    end
+    if InterruptChain.HasAssignments(chain) then
+        return L.TWIN_FANGS_INTERRUPT_NO_ASSIGNMENT
+    end
+    return L.TWIN_FANGS_INTERRUPT_SYNC_NONE
+end
+
+---Replaces all four regions on `target` from `source`. Nested tables are new copies.
+---@param target TwinFangsInterruptChainSettings
+---@param source TwinFangsInterruptChainSettings
+function InterruptChain.ReplaceChain(target, source)
+    local incoming = InterruptChain.SanitizeSaved({
+        [FRONT_LEFT] = source[FRONT_LEFT],
+        [FRONT_RIGHT] = source[FRONT_RIGHT],
+        [BACK_LEFT] = source[BACK_LEFT],
+        [BACK_RIGHT] = source[BACK_RIGHT],
+    })
+    for _, regionId in ipairs(InterruptChain.REGION_IDS) do
+        target[regionId] = incoming[regionId]
+    end
+end
+
 ---@param members RaidMember[]
 ---@return table<string, RaidMember>
 local function IndexRosterByGuid(members)
@@ -376,7 +431,7 @@ function InterruptChain.NewState(saved)
     ---@class TwinFangsInterruptChainState
     ---@field regions TwinFangsInterruptChainSettings
     ---@field roster RaidMember[]
-    ---@field dirty boolean  Always true until real sync exists.
+    ---@field dirty boolean  True until a publication is accepted by the transport.
 
     local regions
     if type(saved) == "table" then
@@ -551,10 +606,22 @@ function InterruptChain.GetMemberView(chain, guid)
     return view
 end
 
----Raid leaders and assistants can edit the chain; everyone else is member-view only.
+---Only the raid leader can edit the chain; everyone else is member-view only.
 ---@return boolean
 function InterruptChain.CanEdit()
-    return ns.Api.Group.IsPlayerRaidLeaderOrAssistant()
+    return ns.Api.Group.IsPlayerRaidLeader()
+end
+
+---Picks the settings chain view. Only the raid leader sees the Editor and the view switch.
+---@param canEdit boolean
+---@param preferMemberView boolean
+---@return boolean showEditor
+---@return boolean preferMemberView
+function InterruptChain.ResolveSettingsView(canEdit, preferMemberView)
+    if not canEdit then
+        return false, false
+    end
+    return not preferMemberView, preferMemberView
 end
 
 ---@param state TwinFangsInterruptChainState

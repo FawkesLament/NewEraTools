@@ -188,9 +188,8 @@ local function BuildContent(content)
             ns.RaidRoleModeLabel.Update(interruptRoleLabel)
         end
         local canEdit = ns.TwinFangsInterruptChain.CanEdit()
-        if not canEdit then
-            preferMemberView = false
-        end
+        local showEditor
+        showEditor, preferMemberView = ns.TwinFangsInterruptChain.ResolveSettingsView(canEdit, preferMemberView)
         viewSwitch:SetShown(canEdit)
         if canEdit then
             viewSwitch:SetText(
@@ -204,7 +203,6 @@ local function BuildContent(content)
             return
         end
         chainHost:Show()
-        local showEditor = canEdit and not preferMemberView
         if showEditor then
             ns.TwinFangsInterruptChainMemberView.SetShown(false)
             EnsureChainEditor()
@@ -437,6 +435,12 @@ function TwinFangs:OnEnable()
         build = BuildContent,
     })
     self:ListenForEncounter()
+    self:ListenForInterruptChain()
+    self.OnInterruptChainChanged = function()
+        if syncInterruptChainEditor then
+            syncInterruptChainEditor()
+        end
+    end
     ns.Api.Group.OnChanged(function()
         if syncInterruptChainEditor then
             syncInterruptChainEditor()

@@ -273,8 +273,10 @@ local function Refresh()
     if not ui then
         return
     end
+    local inRaid = ns.Api.Group.GetRaidChatType() ~= nil
+    local chain = SavedChain()
     local playerGuid = Unit.GetGUID("player")
-    local view = Chain.GetMemberView(SavedChain(), playerGuid)
+    local view = inRaid and Chain.GetMemberView(chain, playerGuid) or { backups = {} }
     local roster = Roster()
     local hasPrimary = view.primary ~= nil
     local extraBackup = hasPrimary and view.backups[1] or nil
@@ -283,6 +285,9 @@ local function Refresh()
     local hasAssignment = mainAssignment ~= nil
 
     ui.empty:SetShown(not hasAssignment)
+    if not hasAssignment then
+        ui.emptyLabel:SetText(Chain.MemberViewEmptyText(chain, inRaid))
+    end
 
     if hasAssignment then
         ui.stack:SetEntryHeight(ui.empty, 1)
@@ -342,9 +347,10 @@ function MemberView.Mount(host, onHeightChanged)
     title:SetPoint("LEFT", header, "LEFT")
 
     ui.empty = stack:AddRow(EMPTY_HEIGHT)
-    local empty = Widgets.CreateLabel(ui.empty, Fonts.SMALL_MUTED, L.TWIN_FANGS_INTERRUPT_NO_ASSIGNMENT)
+    local empty = Widgets.CreateLabel(ui.empty, Fonts.SMALL_MUTED, L.TWIN_FANGS_INTERRUPT_SYNC_NONE)
     empty:SetJustifyH("LEFT")
     empty:SetPoint("LEFT", ui.empty, "LEFT")
+    ui.emptyLabel = empty
 
     ui.cardsRow = stack:AddRow(1)
     ui.left, ui.right = Layout.SplitRow(ui.cardsRow, Spacing.MEDIUM)

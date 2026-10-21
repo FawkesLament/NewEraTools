@@ -167,6 +167,14 @@ describe("TwinFangs interrupt chain member view", function()
             assert.equals(Guid("清风"), chain.front_left.players[1].guid)
         end)
 
+        it("shows the not-in-raid empty state without clearing saved assignments", function()
+            local before = Snapshot(chain)
+            assert.equals(ns.L.TWIN_FANGS_INTERRUPT_NOT_IN_RAID, Chain.MemberViewEmptyText(chain, false))
+            assert.equals(ns.L.TWIN_FANGS_INTERRUPT_NO_ASSIGNMENT, Chain.MemberViewEmptyText(chain, true))
+            assert.equals(ns.L.TWIN_FANGS_INTERRUPT_SYNC_NONE, Chain.MemberViewEmptyText(Schema.NewInterruptChain(), true))
+            assert.same(before, Snapshot(chain))
+        end)
+
         it("handles a missing or empty identity without assigning anyone", function()
             assert.is_nil(Chain.GetMemberView(chain, "").primary)
             assert.is_nil(Chain.GetMemberView(nil, Guid("夜雨")).primary)
@@ -175,7 +183,7 @@ describe("TwinFangs interrupt chain member view", function()
     end)
 
     describe("view selection", function()
-        it("lets the raid leader and an assistant edit, but not an ordinary member", function()
+        it("lets only the raid leader edit", function()
             local Group = ns.Api.Group
             assert.is_false(Chain.CanEdit())
 
@@ -184,10 +192,21 @@ describe("TwinFangs interrupt chain member view", function()
 
             Group.isRaidLeader = false
             Group.isLeaderOrAssistant = true
-            assert.is_true(Chain.CanEdit())
-
-            Group.isLeaderOrAssistant = false
             assert.is_false(Chain.CanEdit())
+        end)
+
+        it("shows Member View when the player cannot edit", function()
+            local showEditor, preferMemberView = Chain.ResolveSettingsView(false, true)
+            assert.is_false(showEditor)
+            assert.is_false(preferMemberView)
+
+            showEditor, preferMemberView = Chain.ResolveSettingsView(true, false)
+            assert.is_true(showEditor)
+            assert.is_false(preferMemberView)
+
+            showEditor, preferMemberView = Chain.ResolveSettingsView(true, true)
+            assert.is_false(showEditor)
+            assert.is_true(preferMemberView)
         end)
     end)
 end)

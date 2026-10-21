@@ -339,6 +339,11 @@ function TwinFangs:OnInit()
     reminder.chain = ns.TwinFangsInterruptChain.SanitizeSaved(reminder.chain)
 end
 
+---Adopts interrupt-chain publications from the raid. Called from OnEnable.
+function TwinFangs:ListenForInterruptChain()
+    ns.TwinFangsInterruptChain.Listen()
+end
+
 ---Drops a pending or visible soak reminder. Defined with the encounter listener.
 function TwinFangs:CancelSoakCallout() end
 

@@ -671,8 +671,9 @@ local function RefreshHeader()
     if primary then
         ui.footer:SetMessage({ text = primary.text, severity = primary.severity })
     else
-        ui.footer:SetMessage({ text = L.TWIN_FANGS_INTERRUPT_SYNC_UNAVAILABLE, severity = "info" })
+        ui.footer:SetMessage(nil)
     end
+    ui.footer.button:SetEnabled(Chain.CanEdit())
 end
 
 local lastNotifiedHeight
@@ -771,20 +772,23 @@ function InterruptChainEditor.Mount(host, onHeightChanged)
 
     ui.footer = ActionFooter.Create(panel, {
         text = L.TWIN_FANGS_INTERRUPT_SYNC,
-        onClick = function() end,
+        onClick = function()
+            Chain.UseRaidRoster(session)
+            Chain.Publish(session)
+            Refresh()
+        end,
         onHeightChanged = function(height)
             stack:SetEntryHeight(ui.footer, height)
             NotifyHeight()
         end,
     })
     stack:Add(ui.footer, ui.footer:GetHeight(), Spacing.MEDIUM)
-    local rawFooterSetEnabled = ui.footer.button.SetEnabled
-    function ui.footer.button:SetEnabled()
-        rawFooterSetEnabled(self, false)
-    end
-    ui.footer.button:SetEnabled(false)
     Widgets.AttachTooltip(ui.footer.button, "ANCHOR_TOP", function(tooltip)
-        tooltip:SetText(L.TWIN_FANGS_INTERRUPT_SYNC_UNAVAILABLE)
+        if Chain.CanEdit() then
+            tooltip:SetText(L.TWIN_FANGS_INTERRUPT_SYNC_HINT)
+        else
+            tooltip:SetText(L.TWIN_FANGS_INTERRUPT_SYNC_UNAVAILABLE)
+        end
     end)
 
     ui.autoAssign = Widgets.CreateButton(ui.footer, L.TWIN_FANGS_INTERRUPT_AUTO_ASSIGN, PromptAutoAssign, "secondary")
