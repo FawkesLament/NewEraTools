@@ -15,6 +15,8 @@ return function()
         },
         ---@type table<string, boolean|nil>  nil = secret / unknown.
         attack = {},
+        ---@type table<string, boolean|nil>  nil = secret / unknown.
+        bossMob = {},
     }
 
     function Unit.GetFullName(name)
@@ -55,8 +57,20 @@ return function()
         return canAttack == true
     end
 
+    ---@return boolean|nil
+    function Unit.IsBossMob(unit)
+        if type(unit) ~= "string" or unit == "" then
+            return nil
+        end
+        local isBoss = Unit.bossMob[unit]
+        if isBoss == nil then
+            return nil
+        end
+        return isBoss == true
+    end
+
     ---@param unit string
-    ---@param state { exists: boolean|nil, guid: string|nil, canAssist: boolean|nil, canAttack: boolean|nil }
+    ---@param state { exists: boolean|nil, guid: string|nil, canAssist: boolean|nil, canAttack: boolean|nil, isBossMob: boolean|nil }
     function Unit.SetForTests(unit, state)
         if state.exists == nil then
             Unit.exists[unit] = false
@@ -73,6 +87,11 @@ return function()
             Unit.attack[unit] = nil
         else
             Unit.attack[unit] = state.canAttack == true
+        end
+        if state.isBossMob == nil then
+            Unit.bossMob[unit] = nil
+        else
+            Unit.bossMob[unit] = state.isBossMob == true
         end
     end
 

@@ -279,8 +279,14 @@ describe("TheLostExplorers", function()
             StartFight()
             local expected = {
                 string.format(ns.L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT_ORDERED, ns.L.THE_LOST_EXPLORERS_BOSS_TRADER),
-                string.format(ns.L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT_ORDERED, ns.L.THE_LOST_EXPLORERS_BOSS_FIRST_MATE),
-                string.format(ns.L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT_ORDERED, ns.L.THE_LOST_EXPLORERS_BOSS_SCROLLAGE),
+                string.format(
+                    ns.L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT_ORDERED,
+                    ns.L.THE_LOST_EXPLORERS_BOSS_FIRST_MATE
+                ),
+                string.format(
+                    ns.L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT_ORDERED,
+                    ns.L.THE_LOST_EXPLORERS_BOSS_SCROLLAGE
+                ),
             }
             local calloutIndex = 0
             for index = 1, 6 do

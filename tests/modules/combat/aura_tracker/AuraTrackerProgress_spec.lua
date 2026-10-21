@@ -116,4 +116,3 @@ describe("progress mode", function()
         assert.equals(9, AuraTracker:GetTextDisplayOffsetX(id, Schema.TEXT_DURATION))
     end)
 end)
-

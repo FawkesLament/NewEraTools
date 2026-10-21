@@ -147,19 +147,12 @@ describe("SszorakCallout", function()
                 changes = changes + 1
             end
             local provider = StubMode(Sszorak.CALLOUT_MODE_JAILBREAK)
-            NewEraToolsAPI.RegisterExtension(
-                Sszorak.COMMUNICATION_EXTENSION,
-                Sszorak.CALLOUT_MODE_JAILBREAK,
-                provider
-            )
+            NewEraToolsAPI.RegisterExtension(Sszorak.COMMUNICATION_EXTENSION, Sszorak.CALLOUT_MODE_JAILBREAK, provider)
             assert.is_true(provider.listened)
             assert.is_true(changes >= 1)
             assert.equals(Sszorak.CALLOUT_MODE_JAILBREAK, Sszorak:GetPreferredCalloutMode())
             assert.equals(provider, Sszorak:GetActiveCalloutMode())
-            assert.equals(
-                provider,
-                ns.Extensions.Get(Sszorak.COMMUNICATION_EXTENSION, Sszorak.CALLOUT_MODE_JAILBREAK)
-            )
+            assert.equals(provider, ns.Extensions.Get(Sszorak.COMMUNICATION_EXTENSION, Sszorak.CALLOUT_MODE_JAILBREAK))
         end)
 
         it("defers a saved jailbreak preference until the current pull ends", function()
@@ -172,11 +165,7 @@ describe("SszorakCallout", function()
             Sszorak:ListenForEncounter()
             ns.Api.Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
             local provider = StubMode(Sszorak.CALLOUT_MODE_JAILBREAK)
-            NewEraToolsAPI.RegisterExtension(
-                Sszorak.COMMUNICATION_EXTENSION,
-                Sszorak.CALLOUT_MODE_JAILBREAK,
-                provider
-            )
+            NewEraToolsAPI.RegisterExtension(Sszorak.COMMUNICATION_EXTENSION, Sszorak.CALLOUT_MODE_JAILBREAK, provider)
             assert.is_false(provider.listened)
             assert.equals(Sszorak.CALLOUT_MODE_NORMAL, Sszorak:GetCalloutMode())
             assert.equals(Sszorak.CALLOUT_MODE_JAILBREAK, Sszorak:GetPreferredCalloutMode())
@@ -194,11 +183,7 @@ describe("SszorakCallout", function()
             Sszorak:ListenForCalloutMode()
             Sszorak:StartMapTest()
             local provider = StubMode(Sszorak.CALLOUT_MODE_JAILBREAK)
-            NewEraToolsAPI.RegisterExtension(
-                Sszorak.COMMUNICATION_EXTENSION,
-                Sszorak.CALLOUT_MODE_JAILBREAK,
-                provider
-            )
+            NewEraToolsAPI.RegisterExtension(Sszorak.COMMUNICATION_EXTENSION, Sszorak.CALLOUT_MODE_JAILBREAK, provider)
             assert.is_false(provider.listened)
             assert.equals(Sszorak.CALLOUT_MODE_NORMAL, Sszorak:GetCalloutMode())
             Sszorak:EndMapTest()
@@ -224,11 +209,7 @@ describe("SszorakCallout", function()
             provider.GetEdgeMacroBody = function()
                 return "/raid switched"
             end
-            NewEraToolsAPI.RegisterExtension(
-                Sszorak.COMMUNICATION_EXTENSION,
-                Sszorak.CALLOUT_MODE_JAILBREAK,
-                provider
-            )
+            NewEraToolsAPI.RegisterExtension(Sszorak.COMMUNICATION_EXTENSION, Sszorak.CALLOUT_MODE_JAILBREAK, provider)
             assert.is_true(provider.listened)
             assert.equals("/raid {rt4}", ns.Api.Macro.Get(name).body)
             ns.Api.Combat.FireLeave()

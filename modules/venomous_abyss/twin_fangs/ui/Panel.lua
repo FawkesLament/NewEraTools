@@ -199,8 +199,7 @@ local function BuildContent(content)
     Layout.Row(positionCell, { positionLabel, positionControl }, Spacing.LARGE)
 
     local sizeLabel = Widgets.CreateLabel(sizeCell, Fonts.BODY, L.TWIN_FANGS_NAMEPLATE_HINT_SIZE)
-    local sizeSlider =
-        Widgets.CreateSlider(sizeCell, Schema.SIZE_MIN, Schema.SIZE_MAX, Schema.SIZE_STEP)
+    local sizeSlider = Widgets.CreateSlider(sizeCell, Schema.SIZE_MIN, Schema.SIZE_MAX, Schema.SIZE_STEP)
     sizeSlider:SetValue(TwinFangs:GetNameplateHintSize())
     sizeSlider:SetScript("OnValueChanged", function(_, rawValue)
         if not TwinFangs:IsNameplateHintEnabled() then
@@ -290,12 +289,8 @@ local function BuildContent(content)
 
     local fontSizeLabel = Widgets.CreateLabel(fontSizeCell, Fonts.BODY, L.TWIN_FANGS_NAMEPLATE_HINT_FONT_SIZE)
     fontSizeLabel:SetJustifyH("LEFT")
-    local fontSizeSlider = Widgets.CreateSlider(
-        fontSizeCell,
-        Schema.FONT_SIZE_MIN,
-        Schema.FONT_SIZE_MAX,
-        Schema.FONT_SIZE_STEP
-    )
+    local fontSizeSlider =
+        Widgets.CreateSlider(fontSizeCell, Schema.FONT_SIZE_MIN, Schema.FONT_SIZE_MAX, Schema.FONT_SIZE_STEP)
     fontSizeSlider:SetValue(TwinFangs:GetNameplateHintFontSize())
     fontSizeSlider:SetScript("OnValueChanged", function(_, rawValue)
         if not TwinFangs:IsNameplateHintEnabled() then
@@ -360,6 +355,8 @@ function TwinFangs:OnEnable()
         build = BuildContent,
     })
     self:ListenForEncounter()
+    -- TEMP: nameplate-hint casts listen outside the encounter for in-game testing.
+    self:ListenForNameplateHint()
     Callout.Ensure()
     Callout.Update()
 end

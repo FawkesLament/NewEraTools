@@ -76,6 +76,7 @@ local GAME_API = {
     "UnitExists",
     "UnitGroupRolesAssigned",
     "UnitGUID",
+    "UnitIsBossMob",
     "UnitIsGroupAssistant",
     "UnitIsGroupLeader",
     "UnitName",

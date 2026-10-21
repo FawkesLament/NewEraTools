@@ -158,7 +158,8 @@ end
 ---@param body string
 ---@return string|nil
 function Codec.EncodeResponsePayload(status, moduleId, version, body)
-    if type(status) ~= "string"
+    if
+        type(status) ~= "string"
         or status == ""
         or status:find("|", 1, true)
         or not Codec.IsValidModuleId(moduleId)
@@ -186,7 +187,8 @@ function Codec.DecodeResponsePayload(payload)
         return nil
     end
     local version, status, moduleId, addonVersion, body = payload:match("^([^|]*)|([^|]*)|([^|]*)|([^|]*)|(.*)$")
-    if version ~= Codec.PAYLOAD_VERSION
+    if
+        version ~= Codec.PAYLOAD_VERSION
         or type(status) ~= "string"
         or status == ""
         or not Codec.IsValidModuleId(moduleId)

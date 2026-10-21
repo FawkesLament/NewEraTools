@@ -91,15 +91,15 @@ describe("AddonCheckPanel", function()
         return result
     end
 
-        it("shows empty state before the first check", function()
-            local model = AddonCheckPanel.BuildViewModel(nil, {
-                moduleId = MODULE_ID,
-                columns = COLUMNS,
-            })
-            assert.is_false(model.hasSession)
-            assert.equals(L.ADDONCHECK_EMPTY, model.emptyText)
-            assert.equals(0, #model.rows)
-        end)
+    it("shows empty state before the first check", function()
+        local model = AddonCheckPanel.BuildViewModel(nil, {
+            moduleId = MODULE_ID,
+            columns = COLUMNS,
+        })
+        assert.is_false(model.hasSession)
+        assert.equals(L.ADDONCHECK_EMPTY, model.emptyText)
+        assert.equals(0, #model.rows)
+    end)
 
     it("formats module columns and uses em dash for missing values", function()
         local session = MakeSession({
@@ -175,7 +175,7 @@ describe("AddonCheckPanel", function()
         assert.equals("Ada", model.visibleRows[3].playerName)
     end)
 
-        it("classifies pending, timeout, unsupported, provider error, and ok", function()
+    it("classifies pending, timeout, unsupported, provider error, and ok", function()
         local session = MakeSession({
             results = {
                 p = Result(AddonCheck.State.PENDING, { playerName = "Pending-R" }),
@@ -503,7 +503,8 @@ describe("AddonCheckPanel", function()
             local ok = i % 3 == 0
             local timedOut = i % 3 == 1
             results[key] = Result(
-                ok and AddonCheck.State.RESPONDED or (timedOut and AddonCheck.State.TIMED_OUT or AddonCheck.State.FAILED),
+                ok and AddonCheck.State.RESPONDED
+                    or (timedOut and AddonCheck.State.TIMED_OUT or AddonCheck.State.FAILED),
                 {
                     playerName = string.format("P%02d-Realm", i),
                     version = ok and "0.2.0" or nil,

@@ -45,6 +45,8 @@ local ORDER_LEFT_FIRST = { Schema.GROUP_LEFT, Schema.GROUP_RIGHT, Schema.GROUP_M
 local fight = nil
 ---@type fun()|nil
 local unsubscribeTimeline = nil
+---@type fun()|nil
+local unsubscribeNameplateHint = nil
 -- Identified Ravenous Feast begin casts this pull.
 local feastCount = 0
 -- ~61s bars seen this pull.
@@ -201,13 +203,12 @@ local function OnTimelineEventAdded(eventInfo)
     end
 end
 
-local function StopTimelineListener()
-    if not unsubscribeTimeline then
-        return
+local function StopListener(unsubscribe)
+    if not unsubscribe then
+        return nil
     end
-    local unsubscribe = unsubscribeTimeline
-    unsubscribeTimeline = nil
     unsubscribe()
+    return nil
 end
 
 ---@return boolean
@@ -219,6 +220,12 @@ end
 ---@return boolean
 function TwinFangs:IsListeningForTimeline()
     return unsubscribeTimeline ~= nil
+end
+
+---Whether this pull is subscribed to nameplate-hint cast events.
+---@return boolean
+function TwinFangs:IsListeningForNameplateHint()
+    return unsubscribeNameplateHint ~= nil
 end
 
 ---@return string|nil
@@ -234,7 +241,8 @@ function TwinFangs:GetCalloutRemainingSeconds()
     return math.max(0, math.ceil(calloutExpireTime - Timer.GetTime()))
 end
 
----Starts watching for this boss fight. Timeline events are subscribed only on Mythic. Called from OnEnable.
+---Starts watching for this boss fight. Timeline events and nameplate-hint casts are subscribed only on Mythic.
+---Called from OnEnable.
 function TwinFangs:ListenForEncounter()
     fight = Encounter.WhileIn(ENCOUNTER_ID, function(difficultyID)
         if difficultyID ~= Instance.DIFFICULTY_MYTHIC_RAID then
@@ -242,8 +250,10 @@ function TwinFangs:ListenForEncounter()
         end
         ResetPull()
         unsubscribeTimeline = EncounterTimeline.OnEventAdded(OnTimelineEventAdded)
+        unsubscribeNameplateHint = TwinFangs:ListenForNameplateHint()
         return function()
-            StopTimelineListener()
+            unsubscribeTimeline = StopListener(unsubscribeTimeline)
+            unsubscribeNameplateHint = StopListener(unsubscribeNameplateHint)
             ResetPull()
         end
     end)

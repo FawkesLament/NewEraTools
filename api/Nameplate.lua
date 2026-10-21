@@ -3,14 +3,31 @@ local _, ns = ...
 local Nameplate = {}
 ns.Api.Nameplate = Nameplate
 
+---A secret value throws on comparison, including `value == ""`. Check this before any other use.
+---@param value any
+---@return boolean
+local function IsSecret(value)
+    return issecretvalue and issecretvalue(value)
+end
+
 ---Blizzard nameplate frame for `unit`, or nil when that plate is not shown.
 ---@param unit string
 ---@return Frame|nil
 function Nameplate.GetFrame(unit)
-    if type(unit) ~= "string" or unit == "" then
+    if IsSecret(unit) or type(unit) ~= "string" or unit == "" then
         return nil
     end
     return C_NamePlate.GetNamePlateForUnit(unit)
+end
+
+---Whether `unit` is a plain Blizzard nameplate token (`nameplate1`, …). Secret tokens fail closed.
+---@param unit any
+---@return boolean
+function Nameplate.IsUnitToken(unit)
+    if IsSecret(unit) or type(unit) ~= "string" or unit == "" then
+        return false
+    end
+    return unit:match("^nameplate%d+$") ~= nil
 end
 
 ---Calls `handler(unit, frame)` when a Blizzard nameplate is shown for `unit`.
@@ -42,7 +59,7 @@ function Nameplate.ForEachVisible(handler)
     for i = 1, #plates do
         local frame = plates[i]
         local unit = frame and frame.namePlateUnitToken
-        if type(unit) == "string" and unit ~= "" then
+        if not IsSecret(unit) and type(unit) == "string" and unit ~= "" then
             handler(unit, frame)
         end
     end

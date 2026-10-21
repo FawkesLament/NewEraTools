@@ -41,6 +41,10 @@ return function()
         return Nameplate.frames[unit]
     end
 
+    function Nameplate.IsUnitToken(unit)
+        return type(unit) == "string" and unit:match("^nameplate%d+$") ~= nil
+    end
+
     function Nameplate.OnAdded(handler)
         return AddHandler(Nameplate.added, handler)
     end

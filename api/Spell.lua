@@ -3,6 +3,20 @@ local _, ns = ...
 local Spell = {}
 ns.Api.Spell = Spell
 
+---Calls `callback` when any unit starts a spellcast.
+---@param callback fun(unitTarget: string, castGUID: string, spellID: number)
+---@return fun()  Unsubscribe.
+function Spell.OnCastStart(callback)
+    return ns.Api.GameEvents.Listen("UNIT_SPELLCAST_START", callback)
+end
+
+---Calls `callback` when any unit stops a spellcast.
+---@param callback fun(unitTarget: string, castGUID: string, spellID: number)
+---@return fun()  Unsubscribe.
+function Spell.OnCastStop(callback)
+    return ns.Api.GameEvents.Listen("UNIT_SPELLCAST_STOP", callback)
+end
+
 ---Calls `callback` when `unit` starts channeling.
 ---@param unit string
 ---@param callback fun(unitTarget: string, castGUID: string, spellID: number, castBarID: number|nil)

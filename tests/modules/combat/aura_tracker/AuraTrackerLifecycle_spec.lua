@@ -329,5 +329,4 @@ describe("AuraTracker", function()
             assert.equals(-104, AuraTracker:GetPosition(second).y)
         end)
     end)
-
 end)

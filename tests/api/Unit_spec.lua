@@ -10,7 +10,7 @@ local function Load()
 end
 
 local function InstallClient()
-    issecret = function(value)
+    issecretvalue = function(value)
         return value == SECRET
     end
     GetNormalizedRealmName = function()
@@ -23,6 +23,9 @@ local function InstallClient()
         return false
     end
     UnitCanAttack = function()
+        return false
+    end
+    UnitIsBossMob = function()
         return false
     end
     UnitGUID = function()
@@ -40,11 +43,12 @@ describe("Unit production", function()
     local saved = {}
 
     local function SaveGlobals()
-        saved.issecret = issecret
+        saved.issecretvalue = issecretvalue
         saved.GetNormalizedRealmName = GetNormalizedRealmName
         saved.UnitExists = UnitExists
         saved.UnitCanAssist = UnitCanAssist
         saved.UnitCanAttack = UnitCanAttack
+        saved.UnitIsBossMob = UnitIsBossMob
         saved.UnitGUID = UnitGUID
         saved.UnitClass = UnitClass
         saved.UnitClassBase = UnitClassBase
@@ -58,11 +62,12 @@ describe("Unit production", function()
     end)
 
     after_each(function()
-        issecret = saved.issecret
+        issecretvalue = saved.issecretvalue
         GetNormalizedRealmName = saved.GetNormalizedRealmName
         UnitExists = saved.UnitExists
         UnitCanAssist = saved.UnitCanAssist
         UnitCanAttack = saved.UnitCanAttack
+        UnitIsBossMob = saved.UnitIsBossMob
         UnitGUID = saved.UnitGUID
         UnitClass = saved.UnitClass
         UnitClassBase = saved.UnitClassBase
@@ -250,6 +255,52 @@ describe("Unit production", function()
                 error("secret call failed")
             end
             assert.is_nil(Unit.CanPlayerAttack("target"))
+        end)
+    end)
+
+    describe("IsBossMob", function()
+        it("reads a plain UnitIsBossMob result and fails closed on secret or throw", function()
+            local Unit = Load()
+            UnitIsBossMob = function(unit)
+                assert.equals("nameplate1", unit)
+                return false
+            end
+            assert.is_false(Unit.IsBossMob("nameplate1"))
+
+            UnitIsBossMob = function()
+                return true
+            end
+            assert.is_true(Unit.IsBossMob("nameplate1"))
+
+            UnitIsBossMob = function()
+                return 1
+            end
+            assert.is_true(Unit.IsBossMob("nameplate1"))
+
+            UnitIsBossMob = function()
+                return 0
+            end
+            assert.is_false(Unit.IsBossMob("nameplate1"))
+
+            UnitIsBossMob = function()
+                return SECRET
+            end
+            assert.is_nil(Unit.IsBossMob("nameplate1"))
+
+            UnitIsBossMob = function()
+                error("secret call failed")
+            end
+            assert.is_nil(Unit.IsBossMob("nameplate1"))
+
+            local queried = 0
+            UnitIsBossMob = function()
+                queried = queried + 1
+                return false
+            end
+            assert.is_nil(Unit.IsBossMob(SECRET))
+            assert.is_nil(Unit.IsBossMob(""))
+            assert.is_nil(Unit.IsBossMob(nil))
+            assert.equals(0, queried)
         end)
     end)
 

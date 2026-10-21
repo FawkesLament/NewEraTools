@@ -11,6 +11,9 @@ local Schema = ns.TwinFangsSchema
 ---@field OnNameplateHintChanged fun(self: TwinFangs)|nil  Defined by the UI; preview button shown or hidden.
 ---@field OnNameplateHintPreviewChanged fun(self: TwinFangs)|nil  Defined by the UI; nameplate badges shown or hidden.
 ---@field OnNameplateHintAppearanceChanged fun(self: TwinFangs)|nil  Defined by the UI; visible badges restyled.
+---@field OnNameplateHintShow fun(self: TwinFangs, unit: string, number: integer)|nil  Defined by the UI; live badge attached.
+---@field OnNameplateHintHide fun(self: TwinFangs, unit: string)|nil  Defined by the UI; live badge removed.
+---@field OnNameplateHintCleared fun(self: TwinFangs)|nil  Defined by the UI; every live badge removed.
 local TwinFangs = ns.Modules.New("TwinFangs", {
     defaults = Schema.NewSettings(),
 })
@@ -41,12 +44,8 @@ local function SanitizeNameplateHint(settings)
     if not Schema.SIDES[settings.side] then
         settings.side = Schema.SIDE_LEFT
     end
-    settings.size = Util.Snap(
-        tonumber(settings.size) or Schema.SIZE_DEFAULT,
-        Schema.SIZE_MIN,
-        Schema.SIZE_MAX,
-        Schema.SIZE_STEP
-    )
+    settings.size =
+        Util.Snap(tonumber(settings.size) or Schema.SIZE_DEFAULT, Schema.SIZE_MIN, Schema.SIZE_MAX, Schema.SIZE_STEP)
     settings.offsetX =
         Util.Snap(tonumber(settings.offsetX) or 0, Schema.OFFSET_MIN, Schema.OFFSET_MAX, Schema.OFFSET_STEP)
     settings.offsetY =
@@ -139,6 +138,7 @@ function TwinFangs:SetNameplateHintEnabled(enabled)
     end
     self.db.nameplateHint.enabled = enabled
     if not enabled then
+        self:ClearNameplateHints()
         self:SetNameplateHintPreviewing(false)
     end
     NotifyNameplateHintChanged()
@@ -332,3 +332,9 @@ end
 
 ---Drops a pending or visible soak reminder. Defined with the encounter listener.
 function TwinFangs:CancelSoakCallout() end
+
+---Drops live nameplate badges. Defined with the hint listener.
+function TwinFangs:ClearNameplateHints() end
+
+---Reattaches live badges after a preview ends. Defined with the hint listener.
+function TwinFangs:ReplayNameplateHints() end

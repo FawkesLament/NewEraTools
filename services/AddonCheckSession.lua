@@ -274,16 +274,10 @@ function Session.StartCheck(moduleId, options)
         return session, "invalid_module_id"
     end
 
-    local ok, reason = MessageProtocolComm.Send(
-        MessageProtocol.TYPE_REQUEST,
-        AddonCheck.TOPIC,
-        correlationId,
-        payload,
-        chatType,
-        {
+    local ok, reason =
+        MessageProtocolComm.Send(MessageProtocol.TYPE_REQUEST, AddonCheck.TOPIC, correlationId, payload, chatType, {
             trafficClass = MessageProtocolComm.TrafficClass.CONTROL,
-        }
-    )
+        })
     if not ok then
         local now = Timer.GetTime()
         for i = 1, #session.roster do

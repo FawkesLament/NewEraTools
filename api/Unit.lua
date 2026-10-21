@@ -8,6 +8,13 @@ local HAS_UNIT_CLASS_BASE = UnitClassBase ~= nil
 
 local classColors = {}
 
+---A secret value throws on comparison, including `value == ""`. Check this before any other use.
+---@param value any
+---@return boolean
+local function IsSecret(value)
+    return issecretvalue and issecretvalue(value)
+end
+
 ---Roster names omit the realm for same-realm players; this adds it so saved keys stay unique.
 ---@param name string
 ---@return string  "Name-Realm".
@@ -23,14 +30,14 @@ end
 ---@param unit string
 ---@return boolean
 function Unit.Exists(unit)
+    if IsSecret(unit) then
+        return false
+    end
     if type(unit) ~= "string" or unit == "" then
         return false
     end
-    if issecret and issecret(unit) then
-        return false
-    end
     local exists = UnitExists(unit)
-    if issecret and issecret(exists) then
+    if IsSecret(exists) then
         return false
     end
     return exists == true or exists == 1
@@ -41,7 +48,7 @@ end
 ---@param value any
 ---@return boolean|nil
 local function ReadPlainBoolean(ok, value)
-    if not ok or (issecret and issecret(value)) then
+    if not ok or IsSecret(value) then
         return nil
     end
     if value == true or value == 1 then
@@ -83,15 +90,32 @@ function Unit.CanPlayerAttack(unit)
     return ReadPlainBoolean(pcall(UnitCanAttack, "player", unit))
 end
 
+---Whether `unit` is a boss mob. Nil when the token is secret or `UnitIsBossMob` throws or
+---returns a secret value — callers must treat nil as "not safe to label".
+---@param unit string
+---@return boolean|nil
+function Unit.IsBossMob(unit)
+    if IsSecret(unit) then
+        return nil
+    end
+    if type(unit) ~= "string" or unit == "" then
+        return nil
+    end
+    return ReadPlainBoolean(pcall(UnitIsBossMob, unit))
+end
+
 ---@param unit string  A unit token, e.g. "player" or "raid3".
 ---@return string|nil
 function Unit.GetGUID(unit)
-    if type(unit) ~= "string" or unit == "" or (issecret and issecret(unit)) then
+    if IsSecret(unit) then
+        return nil
+    end
+    if type(unit) ~= "string" or unit == "" then
         return nil
     end
     local guid = UnitGUID(unit)
     -- A secret GUID cannot be compared. Callers rescan the token instead of throwing.
-    if type(guid) ~= "string" or guid == "" or (issecret and issecret(guid)) then
+    if IsSecret(guid) or type(guid) ~= "string" or guid == "" then
         return nil
     end
     return guid

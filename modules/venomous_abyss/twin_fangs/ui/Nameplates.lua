@@ -23,8 +23,12 @@ local holder
 local pool = {}
 ---@type table<string, TwinFangsInterruptBadge>
 local active = {}
-local unsubscribes = {}
-local running = false
+---@type table<string, integer>
+local numbers = {}
+local previewUnsubscribes = {}
+local liveUnsubscribes = {}
+local previewing = false
+local watchingLive = false
 
 local function EnsureHolder()
     if holder then
@@ -83,6 +87,7 @@ end
 
 ---@param unit string
 local function HideForUnit(unit)
+    numbers[unit] = nil
     local badge = active[unit]
     if not badge then
         return
@@ -93,25 +98,36 @@ end
 
 ---@param unit string
 ---@param frame Frame
-local function ShowForUnit(unit, frame)
-    if not IsEnemy(unit) then
-        HideForUnit(unit)
-        return
-    end
+---@param number integer
+local function ShowNumber(unit, frame, number)
     local badge = active[unit]
     if not badge then
         badge = Acquire()
         active[unit] = badge
     end
-    badge:SetNumber(PLACEHOLDER_NUMBER)
+    numbers[unit] = number
+    badge:SetNumber(number)
     Attach(badge, frame)
 end
 
-local function Stop()
-    for i = #unsubscribes, 1, -1 do
-        unsubscribes[i]()
-        unsubscribes[i] = nil
+---@param unit string
+---@param frame Frame
+local function ShowPreviewForUnit(unit, frame)
+    if not IsEnemy(unit) then
+        HideForUnit(unit)
+        return
     end
+    ShowNumber(unit, frame, PLACEHOLDER_NUMBER)
+end
+
+local function StopUnsubscribes(list)
+    for i = #list, 1, -1 do
+        list[i]()
+        list[i] = nil
+    end
+end
+
+local function HideAll()
     local units = {}
     for unit in pairs(active) do
         units[#units + 1] = unit
@@ -121,33 +137,85 @@ local function Stop()
     end
 end
 
-local function Start()
+local function StopLiveWatch()
+    if not watchingLive then
+        return
+    end
+    watchingLive = false
+    StopUnsubscribes(liveUnsubscribes)
+end
+
+local function EnsureLiveWatch()
+    if watchingLive or previewing then
+        return
+    end
+    watchingLive = true
+    liveUnsubscribes[#liveUnsubscribes + 1] = Nameplate.OnRemoved(HideForUnit)
+end
+
+local function StopPreview()
+    StopUnsubscribes(previewUnsubscribes)
+    HideAll()
+end
+
+local function StartPreview()
+    StopLiveWatch()
     EnsureHolder()
-    unsubscribes[#unsubscribes + 1] = Nameplate.OnAdded(ShowForUnit)
-    unsubscribes[#unsubscribes + 1] = Nameplate.OnRemoved(HideForUnit)
-    Nameplate.ForEachVisible(ShowForUnit)
+    previewUnsubscribes[#previewUnsubscribes + 1] = Nameplate.OnAdded(ShowPreviewForUnit)
+    previewUnsubscribes[#previewUnsubscribes + 1] = Nameplate.OnRemoved(HideForUnit)
+    Nameplate.ForEachVisible(ShowPreviewForUnit)
 end
 
 ---Attaches badges to visible Blizzard nameplates while `enabled`, and hides them otherwise.
 ---@param enabled boolean
 function Nameplates.SetActive(enabled)
     enabled = enabled == true
-    if running == enabled then
+    if previewing == enabled then
         return
     end
-    running = enabled
+    previewing = enabled
     if enabled then
-        Start()
+        StartPreview()
     else
-        Stop()
+        StopPreview()
     end
+end
+
+---Attaches a numbered badge to `unit`'s nameplate. No-op while a preview is showing.
+---@param unit string
+---@param number integer
+function Nameplates.Show(unit, number)
+    if previewing then
+        return
+    end
+    local frame = Nameplate.GetFrame(unit)
+    if not frame then
+        return
+    end
+    EnsureLiveWatch()
+    ShowNumber(unit, frame, number)
+end
+
+---Hides the badge on `unit`. No-op while a preview is showing.
+---@param unit string
+function Nameplates.Hide(unit)
+    if previewing then
+        return
+    end
+    HideForUnit(unit)
+end
+
+---Hides every live badge. No-op while a preview is showing.
+function Nameplates.Clear()
+    if previewing then
+        return
+    end
+    HideAll()
+    StopLiveWatch()
 end
 
 ---Reapplies saved size, side, offsets, opacity, font, and color to every visible badge.
 function Nameplates.Refresh()
-    if not running then
-        return
-    end
     local units = {}
     for unit in pairs(active) do
         units[#units + 1] = unit
@@ -155,16 +223,33 @@ function Nameplates.Refresh()
     for i = 1, #units do
         local unit = units[i]
         local frame = Nameplate.GetFrame(unit)
-        if frame then
-            ShowForUnit(unit, frame)
-        else
+        if not frame then
             HideForUnit(unit)
+        elseif previewing then
+            ShowPreviewForUnit(unit, frame)
+        else
+            ShowNumber(unit, frame, numbers[unit] or PLACEHOLDER_NUMBER)
         end
     end
 end
 
+function TwinFangs:OnNameplateHintShow(unit, number)
+    Nameplates.Show(unit, number)
+end
+
+function TwinFangs:OnNameplateHintHide(unit)
+    Nameplates.Hide(unit)
+end
+
+function TwinFangs:OnNameplateHintCleared()
+    Nameplates.Clear()
+end
+
 function TwinFangs:OnNameplateHintPreviewChanged()
     Nameplates.SetActive(self:IsNameplateHintPreviewing())
+    if not self:IsNameplateHintPreviewing() then
+        self:ReplayNameplateHints()
+    end
 end
 
 function TwinFangs:OnNameplateHintAppearanceChanged()

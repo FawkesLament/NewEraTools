@@ -513,17 +513,11 @@ function AddonCheck.Request(checkId, target, moduleId, correlationId)
         return false, "invalid_module_id"
     end
 
-    local ok, reason = MessageProtocolComm.Send(
-        MessageProtocol.TYPE_REQUEST,
-        AddonCheck.TOPIC,
-        correlationId,
-        payload,
-        "WHISPER",
-        {
+    local ok, reason =
+        MessageProtocolComm.Send(MessageProtocol.TYPE_REQUEST, AddonCheck.TOPIC, correlationId, payload, "WHISPER", {
             target = target,
             trafficClass = MessageProtocolComm.TrafficClass.CONTROL,
-        }
-    )
+        })
     if not ok then
         AddonCheck.SetResult(checkId, target, {
             state = AddonCheck.State.FAILED,

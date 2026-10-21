@@ -184,6 +184,7 @@ describe("TwinFangs interrupt nameplate badges", function()
     after_each(function()
         if Nameplates then
             Nameplates.SetActive(false)
+            Nameplates.Clear()
         end
         CreateFrame = originalCreateFrame
         STANDARD_TEXT_FONT = originalFont
@@ -195,8 +196,8 @@ describe("TwinFangs interrupt nameplate badges", function()
         local label = badge.fontString
         local background = badge.textures and badge.textures[1]
         local defaultColor = Schema.FONT_COLOR_DEFAULT
-        assert.equals(24, badge:GetWidth())
-        assert.equals(24, badge:GetHeight())
+        assert.equals(Schema.SIZE_DEFAULT, badge:GetWidth())
+        assert.equals(Schema.SIZE_DEFAULT, badge:GetHeight())
         assert.is_false(badge.mouseEnabled)
         assert.equals(ns.Assets.Textures.ROUNDED_SQUARE, background.texture)
         assert.equals("24", label:GetText())
@@ -208,10 +209,10 @@ describe("TwinFangs interrupt nameplate badges", function()
         assert.equals("OUTLINE", label.font.flags)
         assert.is_true(label.allPoints == badge)
         assert.is_false(label.wordWrap)
-        assert.equals(15, label.font.size)
+        assert.equals(Schema.FONT_SIZE_DEFAULT, label.font.size)
         assert.equals(STANDARD_TEXT_FONT, label.font.path)
-        assert.equals(24, badge:GetWidth())
-        assert.equals(24, badge:GetHeight())
+        assert.equals(Schema.SIZE_DEFAULT, badge:GetWidth())
+        assert.equals(Schema.SIZE_DEFAULT, badge:GetHeight())
     end)
 
     it("resizes the background and applies a chosen font without tying size to badge size", function()
@@ -229,7 +230,7 @@ describe("TwinFangs interrupt nameplate badges", function()
         assert.equals(0, badge.fontString.color.b)
         badge:ApplyAppearance(24, 1)
         assert.equals(24, badge:GetWidth())
-        assert.equals(15, badge.fontString.font.size)
+        assert.equals(Schema.FONT_SIZE_DEFAULT, badge.fontString.font.size)
         assert.equals(STANDARD_TEXT_FONT, badge.fontString.font.path)
         assert.equals(1, badge.alpha)
         local defaultColor = Schema.FONT_COLOR_DEFAULT
@@ -365,8 +366,8 @@ describe("TwinFangs interrupt nameplate badges", function()
     it("keeps the default left gap when appearance settings are unchanged", function()
         local plate = MakePlate()
         local badge = ShownBadge(plate)
-        assert.equals(24, badge:GetWidth())
-        assert.equals(24, badge:GetHeight())
+        assert.equals(Schema.SIZE_DEFAULT, badge:GetWidth())
+        assert.equals(Schema.SIZE_DEFAULT, badge:GetHeight())
         assert.equals(1, badge.alpha)
         assert.equals("RIGHT", badge.points[1].point)
         assert.equals("LEFT", badge.points[1].relativePoint)
@@ -417,11 +418,11 @@ describe("TwinFangs interrupt nameplate badges", function()
         TwinFangs:SetNameplateHintSize(40)
         assert.equals(40, badge:GetWidth())
         assert.equals(40, badge:GetHeight())
-        assert.equals(15, badge.fontString.font.size)
+        assert.equals(Schema.FONT_SIZE_DEFAULT, badge.fontString.font.size)
         assert.equals("24", badge.fontString:GetText())
         TwinFangs:SetNameplateHintSize(64)
         assert.equals(64, badge:GetWidth())
-        assert.equals(15, badge.fontString.font.size)
+        assert.equals(Schema.FONT_SIZE_DEFAULT, badge.fontString.font.size)
         assert.equals("24", badge.fontString:GetText())
     end)
 
@@ -475,5 +476,77 @@ describe("TwinFangs interrupt nameplate badges", function()
         assert.equals(0, #Badges())
         Nameplates.Refresh()
         assert.equals(0, #Badges())
+    end)
+
+    it("attaches a live number and keeps it when appearance changes", function()
+        local plate = MakePlate()
+        SetEnemy("nameplate1", true)
+        Nameplate.frames.nameplate1 = plate
+        Nameplates.Show("nameplate1", 4)
+        local badges = Badges()
+        assert.equals(1, #badges)
+        assert.equals("4", badges[1].fontString:GetText())
+        assert.equals(plate, badges[1].parent)
+        assert.is_true(badges[1]:IsShown())
+
+        TwinFangs:SetNameplateHintSize(40)
+        TwinFangs:SetNameplateHintSide(Schema.SIDE_RIGHT)
+        assert.equals(1, #Badges())
+        assert.equals("4", badges[1].fontString:GetText())
+        assert.equals(40, badges[1]:GetWidth())
+        assert.equals("LEFT", badges[1].points[1].point)
+        assert.equals("RIGHT", badges[1].points[1].relativePoint)
+    end)
+
+    it("hides a live badge on stop or nameplate recycle, and clears the rest", function()
+        local plateA = MakePlate()
+        local plateB = MakePlate()
+        SetEnemy("nameplate1", true)
+        SetEnemy("nameplate2", true)
+        Nameplate.frames.nameplate1 = plateA
+        Nameplate.frames.nameplate2 = plateB
+        Nameplates.Show("nameplate1", 1)
+        Nameplates.Show("nameplate2", 8)
+        local badges = Badges()
+        assert.equals(2, #badges)
+
+        Nameplates.Hide("nameplate1")
+        assert.is_false(badges[1]:IsShown())
+        assert.is_true(badges[2]:IsShown())
+
+        Nameplate.FireRemoved("nameplate2")
+        assert.is_false(badges[2]:IsShown())
+
+        Nameplate.frames.nameplate2 = plateB
+        Nameplates.Show("nameplate2", 3)
+        local shown
+        for i = 1, #badges do
+            if badges[i]:IsShown() then
+                shown = badges[i]
+            end
+        end
+        assert.equals("3", shown.fontString:GetText())
+        Nameplates.Clear()
+        assert.is_false(shown:IsShown())
+        assert.equals(2, #Badges())
+    end)
+
+    it("does not let a live assign overwrite a preview badge", function()
+        local plate = MakePlate()
+        SetEnemy("nameplate1", true)
+        Nameplate.visible[1] = { unit = "nameplate1", frame = plate }
+        Nameplate.frames.nameplate1 = plate
+        TwinFangs:SetNameplateHintEnabled(true)
+        TwinFangs:SetNameplateHintPreviewing(true)
+        local badges = Badges()
+        assert.equals(1, #badges)
+        assert.equals("24", badges[1].fontString:GetText())
+
+        Nameplates.Show("nameplate1", 3)
+        assert.equals("24", badges[1].fontString:GetText())
+        Nameplates.Hide("nameplate1")
+        assert.is_true(badges[1]:IsShown())
+        Nameplates.Clear()
+        assert.is_true(badges[1]:IsShown())
     end)
 end)

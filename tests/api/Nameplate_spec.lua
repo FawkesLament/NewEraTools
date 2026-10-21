@@ -67,6 +67,33 @@ describe("Nameplate production", function()
         C_NamePlate = savedCNamePlate
     end)
 
+    it("accepts plain nameplate tokens and rejects secret or other units", function()
+        local savedIsSecret = issecretvalue
+        local SECRET = {}
+        issecretvalue = function(value)
+            return value == SECRET
+        end
+        assert.is_true(Nameplate.IsUnitToken("nameplate1"))
+        assert.is_true(Nameplate.IsUnitToken("nameplate40"))
+        assert.is_false(Nameplate.IsUnitToken("namePlate1"))
+        assert.is_false(Nameplate.IsUnitToken("player"))
+        assert.is_false(Nameplate.IsUnitToken("nameplate"))
+        assert.is_false(Nameplate.IsUnitToken("nameplate1x"))
+        assert.is_false(Nameplate.IsUnitToken(""))
+        assert.is_false(Nameplate.IsUnitToken(nil))
+        assert.is_false(Nameplate.IsUnitToken(SECRET))
+        assert.is_nil(Nameplate.GetFrame(SECRET))
+
+        local seen = {}
+        visiblePlates[1] = { namePlateUnitToken = SECRET }
+        visiblePlates[2] = { namePlateUnitToken = "nameplate1" }
+        Nameplate.ForEachVisible(function(unit)
+            seen[#seen + 1] = unit
+        end)
+        assert.same({ "nameplate1" }, seen)
+        issecretvalue = savedIsSecret
+    end)
+
     it("returns the Blizzard nameplate frame for a unit token", function()
         local frame = { namePlateUnitToken = "nameplate1" }
         framesByUnit.nameplate1 = frame

@@ -6,5 +6,5 @@ ns.TwinFangsHintUI = Hint
 
 -- Gap from the Blizzard nameplate before saved offsets. Not saved.
 Hint.GAP = 7
--- Interrupt order is not assigned yet; every visible enemy plate shows the same placeholder.
+-- Preview-only number. Live casts assign 1-10 from the current wave.
 Hint.PLACEHOLDER_NUMBER = 24

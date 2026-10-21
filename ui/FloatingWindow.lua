@@ -175,12 +175,7 @@ end
 function FloatingWindow.Create(options)
     options = options or {}
 
-    local frame = Widgets.CreateSurface(
-        UIParent,
-        options.fill or Colors.BG_TRANSLUCENT,
-        Colors.BORDER,
-        options.name
-    ) --[[@as FloatingWindow]]
+    local frame = Widgets.CreateSurface(UIParent, options.fill or Colors.BG_TRANSLUCENT, Colors.BORDER, options.name) --[[@as FloatingWindow]]
     frame:SetFrameStrata("MEDIUM")
     frame:SetToplevel(true)
     frame:SetClampedToScreen(true)

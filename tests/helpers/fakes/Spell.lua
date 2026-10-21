@@ -2,6 +2,8 @@ return function()
     local Spell = {}
     local names = {}
     local textures = {}
+    local castStartCallbacks = {}
+    local castStopCallbacks = {}
     local channelStartCallbacks = {}
     local channelStopCallbacks = {}
 
@@ -61,6 +63,68 @@ return function()
     ---@param texture integer|string|nil
     function Spell.SetTextureForTests(spellId, texture)
         textures[spellId] = texture
+    end
+
+    local function AddCallback(list, callback)
+        table.insert(list, callback)
+        local removed = false
+        return function()
+            if removed then
+                return
+            end
+            removed = true
+            for index, candidate in ipairs(list) do
+                if candidate == callback then
+                    table.remove(list, index)
+                    break
+                end
+            end
+        end
+    end
+
+    local function FireCallbacks(list, ...)
+        local snapshot = {}
+        for i = 1, #list do
+            snapshot[i] = list[i]
+        end
+        for i = 1, #snapshot do
+            local callback = snapshot[i]
+            if callback then
+                callback(...)
+            end
+        end
+    end
+
+    ---@param callback fun(unitTarget: string, castGUID: string, spellID: number)
+    ---@return fun()
+    function Spell.OnCastStart(callback)
+        return AddCallback(castStartCallbacks, callback)
+    end
+
+    ---@param callback fun(unitTarget: string, castGUID: string, spellID: number)
+    ---@return fun()
+    function Spell.OnCastStop(callback)
+        return AddCallback(castStopCallbacks, callback)
+    end
+
+    ---Test helper: whether any UNIT_SPELLCAST_START listeners remain.
+    function Spell.HasCastStartListener()
+        return #castStartCallbacks > 0
+    end
+
+    ---Test helper: whether any UNIT_SPELLCAST_STOP listeners remain.
+    function Spell.HasCastStopListener()
+        return #castStopCallbacks > 0
+    end
+
+    ---Test helper: fire UNIT_SPELLCAST_START.
+    function Spell.FireCastStart(unit, castGUID, spellID)
+        FireCallbacks(castStartCallbacks, unit, castGUID, spellID)
+    end
+
+    ---Test helper: fire UNIT_SPELLCAST_STOP.
+    function Spell.FireCastStop(unit, castGUID, spellID)
+        FireCallbacks(castStopCallbacks, unit, castGUID, spellID)
     end
 
     ---@param unit string

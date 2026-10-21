@@ -77,10 +77,7 @@ describe("MessageProtocol", function()
         assert.equals("invalid_correlation_id", select(2, MessageProtocol.Encode("Q", "t", "-", "")))
         assert.equals("invalid_correlation_id", select(2, MessageProtocol.Encode("Q", "t", "bad|id", "")))
         assert.equals("invalid_correlation_id", select(2, MessageProtocol.Encode("R", "t", "", "")))
-        assert.equals(
-            "invalid_correlation_id",
-            select(2, MessageProtocol.Encode("Q", "t", string.rep("a", 25), ""))
-        )
+        assert.equals("invalid_correlation_id", select(2, MessageProtocol.Encode("Q", "t", string.rep("a", 25), "")))
 
         local decoded, reason = MessageProtocol.Decode("1|Q|t|-|x")
         assert.is_nil(decoded)

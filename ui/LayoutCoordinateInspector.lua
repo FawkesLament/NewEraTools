@@ -211,7 +211,10 @@ local function EnsureWindow()
     resetButton:SetPoint("LEFT")
     resetButton:SetPoint("RIGHT")
 
-    window:SetSize(Sizes.LAYOUT_INSPECTOR_WIDTH, Sizes.CLOSE_BUTTON + stack:GetHeight() + Spacing.SMALL + 2 * Sizes.BORDER)
+    window:SetSize(
+        Sizes.LAYOUT_INSPECTOR_WIDTH,
+        Sizes.CLOSE_BUTTON + stack:GetHeight() + Spacing.SMALL + 2 * Sizes.BORDER
+    )
     return window
 end
 

@@ -50,8 +50,7 @@ return function()
     end
 
     function Instance.IsMythicDungeonDifficulty(difficultyID)
-        return difficultyID == Instance.DIFFICULTY_MYTHIC_DUNGEON
-            or difficultyID == Instance.DIFFICULTY_MYTHIC_KEYSTONE
+        return difficultyID == Instance.DIFFICULTY_MYTHIC_DUNGEON or difficultyID == Instance.DIFFICULTY_MYTHIC_KEYSTONE
     end
 
     function Instance.RefreshCaches() end

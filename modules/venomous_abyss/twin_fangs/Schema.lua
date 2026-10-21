@@ -55,7 +55,7 @@ local Schema = {
         [SIDE_BOTTOM] = true,
     },
 
-    SIZE_DEFAULT = 24,
+    SIZE_DEFAULT = 36,
     SIZE_MIN = 24,
     SIZE_MAX = 64,
     SIZE_STEP = 1,
@@ -67,7 +67,7 @@ local Schema = {
     OPACITY_MAX = 1,
     OPACITY_STEP = 0.01,
     FONT_DEFAULT = ns.SharedMedia.FONT_DEFAULT,
-    FONT_SIZE_DEFAULT = 15,
+    FONT_SIZE_DEFAULT = 20,
     FONT_SIZE_MIN = 8,
     FONT_SIZE_MAX = 32,
     FONT_SIZE_STEP = 1,

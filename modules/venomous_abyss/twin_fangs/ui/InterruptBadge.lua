@@ -40,10 +40,10 @@ function InterruptBadge.Create(parent)
     end
 
     ---Resizes the ice-blue texture and applies the saved number font.
-    ---@param size number|nil  Edge length in pixels. Defaults to 24.
+    ---@param size number|nil  Edge length in pixels. Defaults to the saved size default.
     ---@param opacity number|nil  Frame alpha in `[0, 1]`. Defaults to 1.
     ---@param fontPath string|nil  Font file. Defaults to `STANDARD_TEXT_FONT`.
-    ---@param fontSize number|nil  Number size in pixels. Defaults to 15.
+    ---@param fontSize number|nil  Number size in pixels. Defaults to the saved font size default.
     ---@param fontColor RgbColor|nil  Number RGB. Defaults to the ice-blue fill.
     function frame:ApplyAppearance(size, opacity, fontPath, fontSize, fontColor)
         size = size or SIZE

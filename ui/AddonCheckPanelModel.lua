@@ -296,17 +296,10 @@ function Model.BuildViewModel(session, options)
         if result.state ~= AddonCheck.State.PENDING then
             responded = responded + 1
         end
-        local category, statusLabel, statusIcon, invalidColumns = ClassifyResult(
-            result,
-            moduleId,
-            baselineVersion,
-            localConfig,
-            options.isConfigMismatch,
-            options.validator
-        )
+        local category, statusLabel, statusIcon, invalidColumns =
+            ClassifyResult(result, moduleId, baselineVersion, localConfig, options.isConfigMismatch, options.validator)
         local config = result.configs and result.configs[moduleId]
-        local playerName =
-            DisplayPlayerName(result.playerName or (member and member.fullName), member and member.name)
+        local playerName = DisplayPlayerName(result.playerName or (member and member.fullName), member and member.name)
         local subgroup = member and member.subgroup
         local party = (type(subgroup) == "number") and tostring(subgroup) or L.ADDONCHECK_EM_DASH
         local row = {

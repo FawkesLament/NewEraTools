@@ -49,10 +49,7 @@ local handlersByTopic = {}
 ---@param maxLength integer
 ---@return boolean
 local function IsToken(value, pattern, minLength, maxLength)
-    return type(value) == "string"
-        and #value >= minLength
-        and #value <= maxLength
-        and value:find(pattern) ~= nil
+    return type(value) == "string" and #value >= minLength and #value <= maxLength and value:find(pattern) ~= nil
 end
 
 ---@param topic string
@@ -267,9 +264,7 @@ function MessageProtocol.Dispatch(message, sender, channel)
     for i = 1, #snapshot do
         local ok, err = pcall(snapshot[i], inbound)
         if not ok and MessageProtocol.debugHandlers then
-            ns.Util.Print(
-                "MessageProtocol handler error (" .. envelope.topic .. "): " .. tostring(err)
-            )
+            ns.Util.Print("MessageProtocol handler error (" .. envelope.topic .. "): " .. tostring(err))
         end
     end
     return true

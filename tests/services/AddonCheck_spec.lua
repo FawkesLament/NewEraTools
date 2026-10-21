@@ -187,12 +187,9 @@ describe("AddonCheck", function()
                 return { mode = "normal", count = 2 }
             end)
 
-            local requestWire = assert(MessageProtocol.Encode(
-                MessageProtocol.TYPE_REQUEST,
-                AddonCheck.TOPIC,
-                "req1",
-                "1|" .. MODULE_ID
-            ))
+            local requestWire = assert(
+                MessageProtocol.Encode(MessageProtocol.TYPE_REQUEST, AddonCheck.TOPIC, "req1", "1|" .. MODULE_ID)
+            )
             Deliver(requestWire, "WHISPER", LEADER)
 
             local sent = LastSent()
@@ -223,12 +220,9 @@ describe("AddonCheck", function()
                 return {}
             end)
 
-            local requestWire = assert(MessageProtocol.Encode(
-                MessageProtocol.TYPE_REQUEST,
-                AddonCheck.TOPIC,
-                "req2",
-                "1|" .. MODULE_ID
-            ))
+            local requestWire = assert(
+                MessageProtocol.Encode(MessageProtocol.TYPE_REQUEST, AddonCheck.TOPIC, "req2", "1|" .. MODULE_ID)
+            )
             Deliver(requestWire, "WHISPER", "Intruder-TestRealm")
             assert.equals(0, #AddonMessage.sent)
         end)
@@ -237,12 +231,8 @@ describe("AddonCheck", function()
             Player.fullName = MEMBER
             Group.raidLeaderFullName = LEADER
 
-            local requestWire = assert(MessageProtocol.Encode(
-                MessageProtocol.TYPE_REQUEST,
-                AddonCheck.TOPIC,
-                "req3",
-                "1|Missing"
-            ))
+            local requestWire =
+                assert(MessageProtocol.Encode(MessageProtocol.TYPE_REQUEST, AddonCheck.TOPIC, "req3", "1|Missing"))
             Deliver(requestWire, "WHISPER", LEADER)
 
             local decoded = assert(MessageProtocol.Decode(LastSent().message))
@@ -256,12 +246,9 @@ describe("AddonCheck", function()
                 error("boom")
             end)
 
-            local requestWire = assert(MessageProtocol.Encode(
-                MessageProtocol.TYPE_REQUEST,
-                AddonCheck.TOPIC,
-                "req4",
-                "1|" .. MODULE_ID
-            ))
+            local requestWire = assert(
+                MessageProtocol.Encode(MessageProtocol.TYPE_REQUEST, AddonCheck.TOPIC, "req4", "1|" .. MODULE_ID)
+            )
             Deliver(requestWire, "WHISPER", LEADER)
 
             local decoded = assert(MessageProtocol.Decode(LastSent().message))
@@ -278,12 +265,14 @@ describe("AddonCheck", function()
 
             -- Pair order is not stable; build a response the member would send.
             local configBody = "T1:S7:enabledB1"
-            local responseWire = assert(MessageProtocol.Encode(
-                MessageProtocol.TYPE_RESPONSE,
-                AddonCheck.TOPIC,
-                "match1",
-                "1|ok|" .. MODULE_ID .. "|0.2.0|" .. configBody
-            ))
+            local responseWire = assert(
+                MessageProtocol.Encode(
+                    MessageProtocol.TYPE_RESPONSE,
+                    AddonCheck.TOPIC,
+                    "match1",
+                    "1|ok|" .. MODULE_ID .. "|0.2.0|" .. configBody
+                )
+            )
             Deliver(responseWire, "WHISPER", MEMBER)
 
             local result = session.results[MEMBER]
@@ -296,12 +285,14 @@ describe("AddonCheck", function()
             local session = AddonCheck.Start()
             assert.is_true(AddonCheck.Request(session.id, MEMBER, "Missing", "u1"))
 
-            local responseWire = assert(MessageProtocol.Encode(
-                MessageProtocol.TYPE_RESPONSE,
-                AddonCheck.TOPIC,
-                "u1",
-                "1|unsupported|Missing|0.2.0|"
-            ))
+            local responseWire = assert(
+                MessageProtocol.Encode(
+                    MessageProtocol.TYPE_RESPONSE,
+                    AddonCheck.TOPIC,
+                    "u1",
+                    "1|unsupported|Missing|0.2.0|"
+                )
+            )
             Deliver(responseWire, "WHISPER", MEMBER)
 
             local result = session.results[MEMBER]
@@ -314,12 +305,14 @@ describe("AddonCheck", function()
             local session = AddonCheck.Start()
             assert.is_true(AddonCheck.Request(session.id, MEMBER, MODULE_ID, "bad1"))
 
-            local responseWire = assert(MessageProtocol.Encode(
-                MessageProtocol.TYPE_RESPONSE,
-                AddonCheck.TOPIC,
-                "bad1",
-                "1|ok|" .. MODULE_ID .. "|0.2.0|NOT_VALID"
-            ))
+            local responseWire = assert(
+                MessageProtocol.Encode(
+                    MessageProtocol.TYPE_RESPONSE,
+                    AddonCheck.TOPIC,
+                    "bad1",
+                    "1|ok|" .. MODULE_ID .. "|0.2.0|NOT_VALID"
+                )
+            )
             Deliver(responseWire, "WHISPER", MEMBER)
 
             local result = session.results[MEMBER]
@@ -331,22 +324,26 @@ describe("AddonCheck", function()
             local session = AddonCheck.Start()
             assert.is_true(AddonCheck.Request(session.id, MEMBER, MODULE_ID, "keep1"))
 
-            local responseWire = assert(MessageProtocol.Encode(
-                MessageProtocol.TYPE_RESPONSE,
-                AddonCheck.TOPIC,
-                "other",
-                "1|ok|" .. MODULE_ID .. "|0.2.0|B1"
-            ))
+            local responseWire = assert(
+                MessageProtocol.Encode(
+                    MessageProtocol.TYPE_RESPONSE,
+                    AddonCheck.TOPIC,
+                    "other",
+                    "1|ok|" .. MODULE_ID .. "|0.2.0|B1"
+                )
+            )
             Deliver(responseWire, "WHISPER", MEMBER)
 
             assert.equals(AddonCheck.State.PENDING, session.results[MEMBER].state)
 
-            local matched = assert(MessageProtocol.Encode(
-                MessageProtocol.TYPE_RESPONSE,
-                AddonCheck.TOPIC,
-                "keep1",
-                "1|ok|" .. MODULE_ID .. "|0.2.0|B1"
-            ))
+            local matched = assert(
+                MessageProtocol.Encode(
+                    MessageProtocol.TYPE_RESPONSE,
+                    AddonCheck.TOPIC,
+                    "keep1",
+                    "1|ok|" .. MODULE_ID .. "|0.2.0|B1"
+                )
+            )
             Deliver(matched, "WHISPER", MEMBER)
             assert.equals(AddonCheck.State.RESPONDED, session.results[MEMBER].state)
             assert.same({ [MODULE_ID] = true }, session.results[MEMBER].configs)
@@ -356,12 +353,14 @@ describe("AddonCheck", function()
             local session = AddonCheck.Start()
             assert.is_true(AddonCheck.Request(session.id, MEMBER, MODULE_ID, "tgt1"))
 
-            local responseWire = assert(MessageProtocol.Encode(
-                MessageProtocol.TYPE_RESPONSE,
-                AddonCheck.TOPIC,
-                "tgt1",
-                "1|ok|" .. MODULE_ID .. "|0.2.0|B1"
-            ))
+            local responseWire = assert(
+                MessageProtocol.Encode(
+                    MessageProtocol.TYPE_RESPONSE,
+                    AddonCheck.TOPIC,
+                    "tgt1",
+                    "1|ok|" .. MODULE_ID .. "|0.2.0|B1"
+                )
+            )
             Deliver(responseWire, "WHISPER", "Other-TestRealm")
             assert.equals(AddonCheck.State.PENDING, session.results[MEMBER].state)
         end)
@@ -431,12 +430,14 @@ describe("AddonCheck", function()
 
         local function OkResponse(correlationId, moduleId, body)
             body = body or "B1"
-            return assert(MessageProtocol.Encode(
-                MessageProtocol.TYPE_RESPONSE,
-                AddonCheck.TOPIC,
-                correlationId,
-                "1|ok|" .. moduleId .. "|0.2.0|" .. body
-            ))
+            return assert(
+                MessageProtocol.Encode(
+                    MessageProtocol.TYPE_RESPONSE,
+                    AddonCheck.TOPIC,
+                    correlationId,
+                    "1|ok|" .. moduleId .. "|0.2.0|" .. body
+                )
+            )
         end
 
         it("refuses to start when the player is not raid leader", function()
