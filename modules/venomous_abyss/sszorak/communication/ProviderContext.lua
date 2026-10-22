@@ -1,6 +1,6 @@
 -- Read-only capability context for sszorak.communication providers (version 1).
 -- This file only forwards calls. The host builds GUI warnings from `targetEdge`
--- in Communication.lua.
+-- in Host.lua.
 
 local _, ns = ...
 

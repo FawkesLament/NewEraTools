@@ -1,15 +1,16 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local Assets = ns.Assets
-local Chrome = ns.AuraTrackerBarChromeUI
+local Chrome = Internals.BarChromeUI
 
 local AuraTracker = ns.Modules.Get("AuraTracker")
-local Schema = ns.AuraTrackerSchema
+local Schema = Internals.Schema
 
 -- One full deplete cycle while layout-editing; loops for a living preview.
 local PREVIEW_DURATION = 4
 
 local Preview = {}
-ns.AuraTrackerBarPreviewUI = Preview
+Internals.BarPreviewUI = Preview
 
 ---@param inst AuraTrackerBarInstance
 ---@param parent Frame

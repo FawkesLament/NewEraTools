@@ -1,10 +1,11 @@
 local Loader = require("helpers.loader")
+local InterruptChainHelper = require("helpers.interrupt_chain")
 
 describe("TwinFangs interrupt chain editor", function()
-    local ns, Chain, Schema, state
+    local ns, Chain, Labels, Schema, state
 
     local function FullName(name)
-        return name .. "-MockRealm"
+        return name .. "-" .. InterruptChainHelper.REALM
     end
 
     local function Guid(name)
@@ -17,10 +18,11 @@ describe("TwinFangs interrupt chain editor", function()
 
     before_each(function()
         ns = Loader.Load()
-        Chain = ns.TwinFangsInterruptChain
-        Schema = ns.TwinFangsSchema
+        Chain = ns.Modules.Internals("TwinFangs").InterruptChain
+        Labels = InterruptChainHelper.LoadLabels(ns)
+        Schema = ns.Modules.Internals("TwinFangs").Schema
         state = Chain.NewState()
-        Chain.SetRoster(state, Chain.MockRoster())
+        Chain.SetRoster(state, InterruptChainHelper.MockRoster())
     end)
 
     it("reads player identity from the current raid roster", function()
@@ -46,7 +48,7 @@ describe("TwinFangs interrupt chain editor", function()
         assert.is_nil(Chain.GetRegion(state, Chain.FRONT_RIGHT).group)
         assert.is_nil(Chain.GetRegion(state, Chain.BACK_LEFT).group)
         assert.is_nil(Chain.GetRegion(state, Chain.BACK_RIGHT).group)
-        assert.equals(ns.L.TWIN_FANGS_INTERRUPT_RAID_GROUP_NONE, Chain.GroupLabel(nil))
+        assert.equals(ns.L.TWIN_FANGS_INTERRUPT_RAID_GROUP_NONE, Labels.GroupLabel(nil))
         assert.equals(0, #Chain.GetRegion(state, Chain.FRONT_LEFT).players)
         assert.is_nil(Chain.GetRegion(state, Chain.FRONT_LEFT).backup)
         assert.is_true(state.dirty)
@@ -92,7 +94,7 @@ describe("TwinFangs interrupt chain editor", function()
         assert.equals("Alice-RealmA", region.players[1].name)
         assert.equals("Alice-RealmB", region.players[2].name)
         assert.is_nil(region.players[1].guid)
-        assert.equals("Alice", Chain.DisplayName(state.roster, region.players[1]))
+        assert.equals("Alice", Labels.DisplayName(state.roster, region.players[1]))
         assert.is_false(Chain.AddPlayer(state, Chain.FRONT_LEFT, "Player-A"))
     end)
 
@@ -173,9 +175,9 @@ describe("TwinFangs interrupt chain editor", function()
         assert.is_false(Chain.IsGroupAssignedElsewhere(state, Chain.FRONT_RIGHT, 3))
         assert.equals(
             ns.L.TWIN_FANGS_INTERRUPT_RAID_GROUP_ASSIGNED:format(2),
-            Chain.GroupChoiceLabel(state, Chain.FRONT_RIGHT, 2)
+            Labels.GroupChoiceLabel(state, Chain.FRONT_RIGHT, 2)
         )
-        assert.equals(Chain.GroupLabel(2), Chain.GroupChoiceLabel(state, Chain.FRONT_LEFT, 2))
+        assert.equals(Labels.GroupLabel(2), Labels.GroupChoiceLabel(state, Chain.FRONT_LEFT, 2))
     end)
 
     it("lists backup players in one group and skips backups used elsewhere", function()
@@ -324,7 +326,7 @@ describe("TwinFangs interrupt chain editor", function()
     end
 
     it("maps raid groups 1–4 onto the four regions in roster-index order", function()
-        local assignment = Chain.BuildAutoAssignment(Chain.MockRoster())
+        local assignment = Chain.BuildAutoAssignment(InterruptChainHelper.MockRoster())
         assert.equals(1, assignment[Chain.FRONT_LEFT].group)
         assert.equals(2, assignment[Chain.FRONT_RIGHT].group)
         assert.equals(3, assignment[Chain.BACK_LEFT].group)
@@ -337,7 +339,7 @@ describe("TwinFangs interrupt chain editor", function()
     end)
 
     it("sorts a shuffled roster by raid index instead of table order", function()
-        local roster = Chain.MockRoster()
+        local roster = InterruptChainHelper.MockRoster()
         local reversed = {}
         for index = #roster, 1, -1 do
             reversed[#reversed + 1] = roster[index]
@@ -393,7 +395,7 @@ describe("TwinFangs interrupt chain editor", function()
         Chain.SetGroup(state, Chain.BACK_RIGHT, 4)
         Chain.AddPlayer(state, Chain.BACK_RIGHT, Guid("朔风"))
         Chain.SetBackup(state, Chain.BACK_RIGHT, Guid("余烬"))
-        assert.is_true(Chain.AutoAssign(state, Chain.MockRoster(), true, true))
+        assert.is_true(Chain.AutoAssign(state, InterruptChainHelper.MockRoster(), true, true))
         assert.equals(1, Chain.GetRegion(state, Chain.FRONT_LEFT).group)
         assert.same({
             Player("清风"),
@@ -412,12 +414,12 @@ describe("TwinFangs interrupt chain editor", function()
     end)
 
     it("returns the same assignment for the same roster", function()
-        local first = Chain.BuildAutoAssignment(Chain.MockRoster())
-        local second = Chain.BuildAutoAssignment(Chain.MockRoster())
+        local first = Chain.BuildAutoAssignment(InterruptChainHelper.MockRoster())
+        local second = Chain.BuildAutoAssignment(InterruptChainHelper.MockRoster())
         assert.same(first, second)
-        assert.is_true(Chain.AutoAssign(state, Chain.MockRoster(), true, true))
+        assert.is_true(Chain.AutoAssign(state, InterruptChainHelper.MockRoster(), true, true))
         local once = SnapshotRegions(state)
-        assert.is_true(Chain.AutoAssign(state, Chain.MockRoster(), true, true))
+        assert.is_true(Chain.AutoAssign(state, InterruptChainHelper.MockRoster(), true, true))
         assert.same(once, SnapshotRegions(state))
     end)
 
@@ -427,7 +429,7 @@ describe("TwinFangs interrupt chain editor", function()
         Chain.SetBackup(state, Chain.FRONT_LEFT, Guid("流火"))
         local before = SnapshotRegions(state)
 
-        local ok, reason = Chain.AutoAssign(state, Chain.MockRoster(), false, true)
+        local ok, reason = Chain.AutoAssign(state, InterruptChainHelper.MockRoster(), false, true)
         assert.is_false(ok)
         assert.equals("not_in_raid", reason)
         assert.same(before, SnapshotRegions(state))
@@ -437,7 +439,7 @@ describe("TwinFangs interrupt chain editor", function()
         assert.equals("roster_unavailable", reason)
         assert.same(before, SnapshotRegions(state))
 
-        ok, reason = Chain.AutoAssign(state, Chain.MockRoster(), true, false)
+        ok, reason = Chain.AutoAssign(state, InterruptChainHelper.MockRoster(), true, false)
         assert.is_false(ok)
         assert.equals("roster_unavailable", reason)
         assert.same(before, SnapshotRegions(state))
@@ -470,7 +472,7 @@ describe("TwinFangs interrupt chain editor", function()
         Chain.AddPlayer(state, Chain.FRONT_LEFT, Guid("清风"))
         Chain.AddPlayer(state, Chain.FRONT_LEFT, Guid("夜雨"))
         local remaining = {}
-        for _, member in ipairs(Chain.MockRoster()) do
+        for _, member in ipairs(InterruptChainHelper.MockRoster()) do
             if member.name == "夜雨" then
                 member = {
                     name = member.name,
@@ -519,16 +521,16 @@ describe("TwinFangs interrupt chain editor", function()
         ns.Modules.Start(ns.Database.Load(nil))
         local module = ns.Modules.Get("TwinFangs")
         local bound = Chain.NewState(module.db.interruptReminder.chain)
-        Chain.SetRoster(bound, Chain.MockRoster())
+        Chain.SetRoster(bound, InterruptChainHelper.MockRoster())
         Chain.SetGroup(bound, Chain.FRONT_LEFT, 1)
         Chain.AddPlayer(bound, Chain.FRONT_LEFT, Guid("清风"))
         Chain.AddPlayer(bound, Chain.FRONT_LEFT, Guid("夜雨"))
         Chain.SetBackup(bound, Chain.FRONT_LEFT, Guid("流火"))
-        assert.is_true(Chain.AutoAssign(bound, Chain.MockRoster(), true, true))
+        assert.is_true(Chain.AutoAssign(bound, InterruptChainHelper.MockRoster(), true, true))
         local saved = ns.Util.DeepCopy(module.db)
 
         ns = Loader.Load()
-        Chain = ns.TwinFangsInterruptChain
+        Chain = ns.Modules.Internals("TwinFangs").InterruptChain
         ns.Modules.Start(ns.Database.Load({ modules = { TwinFangs = saved } }))
         local restored = ns.Modules.Get("TwinFangs")
         local chain = restored.db.interruptReminder.chain

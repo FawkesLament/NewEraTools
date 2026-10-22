@@ -1,5 +1,6 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/ https://raw.githubusercontent.com/Gethe/wow-ui-source/live/Interface/AddOns/Blizzard_SharedXML/UI.xsd">
     <Script file="the_lost_explorers\TheLostExplorers.lua"/>
+    <Script file="the_lost_explorers\ui\Callout.lua"/>
     <Script file="the_lost_explorers\TheLostExplorersUI.lua"/>
     <Script file="sszorak\Sszorak.lua"/>
     <Script file="sszorak\Timeline.lua"/>
@@ -7,7 +8,7 @@
     <Script file="sszorak\Markers.lua"/>
     <Script file="sszorak\Settings.lua"/>
     <Script file="sszorak\Encounter.lua"/>
-    <Script file="sszorak\communication\Communication.lua"/>
+    <Script file="sszorak\communication\Host.lua"/>
     <Script file="sszorak\communication\ProviderContext.lua"/>
     <Script file="sszorak\communication\Normal.lua"/>
     <Script file="sszorak\Macros.lua"/>
@@ -17,16 +18,19 @@
     <Script file="sszorak\ui\Panel.lua"/>
     <Script file="twin_fangs\Schema.lua"/>
     <Script file="twin_fangs\TwinFangs.lua"/>
-    <Script file="twin_fangs\InterruptChain.lua"/>
-    <Script file="twin_fangs\InterruptChainSync.lua"/>
-    <Script file="twin_fangs\InterruptMacros.lua"/>
+    <Script file="twin_fangs\interrupt_chain\Model.lua"/>
+    <Script file="twin_fangs\interrupt_chain\Editor.lua"/>
+    <Script file="twin_fangs\interrupt_chain\Assign.lua"/>
+    <Script file="twin_fangs\interrupt_chain\Sync.lua"/>
+    <Script file="twin_fangs\interrupt_chain\Macros.lua"/>
     <Script file="twin_fangs\Encounter.lua"/>
     <Script file="twin_fangs\NameplateHint.lua"/>
     <Script file="twin_fangs\ui\Hint.lua"/>
     <Script file="twin_fangs\ui\InterruptBadge.lua"/>
     <Script file="twin_fangs\ui\Nameplates.lua"/>
     <Script file="twin_fangs\ui\Callout.lua"/>
-    <Script file="twin_fangs\ui\InterruptChainEditor.lua"/>
-    <Script file="twin_fangs\ui\InterruptChainMemberView.lua"/>
+    <Script file="twin_fangs\ui\interrupt_chain\Labels.lua"/>
+    <Script file="twin_fangs\ui\interrupt_chain\Editor.lua"/>
+    <Script file="twin_fangs\ui\interrupt_chain\MemberView.lua"/>
     <Script file="twin_fangs\ui\Panel.lua"/>
 </Ui>

@@ -1,12 +1,13 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local L = ns.L
 local Assets = ns.Assets
 local Layout = ns.Layout
 local Aura = ns.Api.Aura
 local Player = ns.Api.Player
 local Widgets = ns.Widgets
-local Activation = ns.AuraTrackerActivation
-local Schema = ns.AuraTrackerSchema
+local Activation = Internals.Activation
+local Schema = Internals.Schema
 
 local Fonts = Assets.Fonts
 local Sizes = Assets.Sizes
@@ -23,8 +24,7 @@ local ROLE_LABELS = {
 }
 
 ---@class AuraTrackerUI
-local UI = ns.AuraTrackerUI or {}
-ns.AuraTrackerUI = UI
+local UI = Internals.UI
 
 local Controls = UI.Controls
 

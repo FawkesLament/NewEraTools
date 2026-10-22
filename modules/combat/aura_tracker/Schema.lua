@@ -1,5 +1,6 @@
 local _, ns = ...
-local Media = ns.AuraTrackerMedia
+local Internals = ns.Modules.Internals("AuraTracker")
+local Media = Internals.Media
 
 ---@class AuraTrackerColor
 ---@field r number
@@ -118,7 +119,7 @@ local Schema = {
     TEXT_OFFSET_MAX = 200,
     TEXT_OFFSET_STEP = 1,
 }
-ns.AuraTrackerSchema = Schema
+Internals.Schema = Schema
 
 ---A new tracker record. Omits activation scope so ApplyDefaults cannot stamp the live specialization onto `always`.
 ---Returns a fresh table, including new color and text-display tables, on every call.

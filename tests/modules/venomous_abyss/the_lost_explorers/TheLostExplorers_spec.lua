@@ -118,7 +118,7 @@ describe("TheLostExplorers", function()
 
             Timer.Advance(0.01)
             assert.equals(ns.L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT, Module:GetDisplayedCallout())
-            assert.equals(Module.CALLOUT_DURATION, Module:GetCalloutRemainingSeconds())
+            assert.equals(Timer.GetTime() + Module.CALLOUT_DURATION, Module:GetCalloutExpiresAt())
         end)
 
         it("clears the callout after its duration", function()

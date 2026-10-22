@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local Assets = ns.Assets
 
 local DEFAULT_TEXTURE = Assets.STATUS_BAR_TEXTURE_DEFAULT
@@ -8,7 +9,7 @@ local Media = {
     DEFAULT_TEXTURE = DEFAULT_TEXTURE,
     DEFAULT_TIME_FONT = ns.SharedMedia.FONT_DEFAULT,
 }
-ns.AuraTrackerMedia = Media
+Internals.Media = Media
 
 ---Optional LibSharedMedia-3.0; nil when the library is not loaded.
 ---@return table|nil

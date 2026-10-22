@@ -136,10 +136,10 @@ describe("TwinFangs interrupt nameplate badges", function()
         assert(loadfile(HINT_PATH))(Loader.ADDON_NAME, ns)
         assert(loadfile(BADGE_PATH))(Loader.ADDON_NAME, ns)
         assert(loadfile(NAMEPLATES_PATH))(Loader.ADDON_NAME, ns)
-        Badge = ns.TwinFangsInterruptBadge
-        Nameplates = ns.TwinFangsNameplates
+        Badge = ns.Modules.Internals("TwinFangs").InterruptBadge
+        Nameplates = ns.Modules.Internals("TwinFangs").Nameplates
         TwinFangs = ns.Modules.Get("TwinFangs")
-        Schema = ns.TwinFangsSchema
+        Schema = ns.Modules.Internals("TwinFangs").Schema
     end
 
     local function SetEnemy(unit, enemy)

@@ -92,7 +92,7 @@ describe("Sszorak map window during combat lockdown", function()
         ns.LayoutEditor = {
             Register = function() end,
         }
-        ns.SszorakMap = {
+        ns.Modules.Internals("Sszorak").Map = {
             GetArenaRowHeight = function()
                 return 10
             end,
@@ -106,7 +106,7 @@ describe("Sszorak map window during combat lockdown", function()
             SetEdgeClickTrackingArmed = function() end,
         }
         assert(loadfile("modules/venomous_abyss/sszorak/ui/Window.lua"))("NewEraTools", ns)
-        Window = ns.SszorakWindow
+        Window = ns.Modules.Internals("Sszorak").Window
         Sszorak:ListenForEncounter()
         Sszorak.OnEncounterChanged = function()
             Window.Update()

@@ -1,16 +1,20 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local Assets = ns.Assets
 local Layout = ns.Layout
+local ColorSwatch = ns.ColorSwatch
+local Dropdown = ns.Dropdown
+local NumberStepper = ns.NumberStepper
+local Slider = ns.Slider
 local Widgets = ns.Widgets
-local Schema = ns.AuraTrackerSchema
+local Schema = Internals.Schema
 
 local Fonts = Assets.Fonts
 local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 
 ---@class AuraTrackerUI
-local UI = ns.AuraTrackerUI or {}
-ns.AuraTrackerUI = UI
+local UI = Internals.UI
 
 ---@class AuraTrackerEditorControls
 local Controls = {}
@@ -43,7 +47,7 @@ function Controls.AddSlider(parent, labelText, min, max, step, getValue, setValu
     if pendingKey then
         Controls.AttachPendingClock(label, pendingKey)
     end
-    local slider = Widgets.CreateSlider(parent, min, max, step, {
+    local slider = Slider.Create(parent, min, max, step, {
         percentage = percentage,
     })
     local trackerId = UI.ResolveSelectedTrackerId()
@@ -116,7 +120,7 @@ function Controls.AddColor(parent, labelText, getColor, setColor, pendingKey)
         Controls.AttachPendingClock(label, pendingKey)
     end
     local trackerId = UI.ResolveSelectedTrackerId()
-    local swatch = Widgets.CreateColorSwatch(
+    local swatch = ColorSwatch.Create(
         parent,
         trackerId and getColor(trackerId) or { r = 1, g = 1, b = 1 },
         function(color)
@@ -150,7 +154,7 @@ function Controls.AddDropdown(parent, labelText, items, getValue, setValue, pend
     end
 
     local dropdown
-    dropdown = Widgets.CreateDropdown(parent, items, function(value)
+    dropdown = Dropdown.Create(parent, items, function(value)
         if UI.refreshingControls or not UI.CanEditSelected() then
             return
         end
@@ -211,9 +215,9 @@ function Controls.AddOffsetStepper(parent, labelText, getValue, setValue, pendin
         Controls.AttachPendingClock(label, pendingKey)
     end
     -- Declared first so the commit callback closes over this local. A `local stepper =`
-    -- on the CreateNumberStepper call would still see a global here.
+    -- on the NumberStepper.Create call would still see a global here.
     local stepper
-    stepper = Widgets.CreateNumberStepper(
+    stepper = NumberStepper.Create(
         parent,
         Schema.TEXT_OFFSET_MIN,
         Schema.TEXT_OFFSET_MAX,

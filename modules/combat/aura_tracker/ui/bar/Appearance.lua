@@ -1,26 +1,27 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local Assets = ns.Assets
 local Aura = ns.Api.Aura
-local Chrome = ns.AuraTrackerBarChromeUI
-local Preview = ns.AuraTrackerBarPreviewUI
-local Profile = ns.AuraTrackerProfile
+local Chrome = Internals.BarChromeUI
+local Preview = Internals.BarPreviewUI
+local Profile = Internals.Profile
 
 local AuraTracker = ns.Modules.Get("AuraTracker")
-local Schema = ns.AuraTrackerSchema
+local Schema = Internals.Schema
 
 local Appearance = {}
-ns.AuraTrackerBarAppearanceUI = Appearance
+Internals.BarAppearanceUI = Appearance
 
 ---Bar.lua loads after this file and owns these helpers.
 ---@param inst AuraTrackerBarInstance
 ---@return boolean
 local function CanConfigureFrames(inst)
-    return ns.AuraTrackerBarUI.CanConfigureFrames(inst)
+    return Internals.BarUI.CanConfigureFrames(inst)
 end
 
 ---@param inst AuraTrackerBarInstance
 local function ResizeLayoutHost(inst)
-    ns.AuraTrackerBarUI.ResizeLayoutHost(inst)
+    Internals.BarUI.ResizeLayoutHost(inst)
 end
 
 ---True when addon code may call methods on the live AuraButton.

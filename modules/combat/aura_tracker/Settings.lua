@@ -1,16 +1,17 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local Color = ns.Color
 local Position = ns.Position
 local Util = ns.Util
-local Media = ns.AuraTrackerMedia
+local Media = Internals.Media
 local SharedMedia = ns.SharedMedia
-local Activation = ns.AuraTrackerActivation
-local Schema = ns.AuraTrackerSchema
+local Activation = Internals.Activation
+local Schema = Internals.Schema
 
 local AuraTracker = ns.Modules.Get("AuraTracker")
 
 local Settings = {}
-ns.AuraTrackerSettings = Settings
+Internals.Settings = Settings
 
 -- Field writes notify through the same module callbacks the policy file uses.
 ---@param trackerId integer|nil

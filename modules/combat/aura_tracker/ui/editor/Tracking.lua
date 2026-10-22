@@ -1,9 +1,10 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local L = ns.L
 local Assets = ns.Assets
 local Layout = ns.Layout
 local Widgets = ns.Widgets
-local Schema = ns.AuraTrackerSchema
+local Schema = Internals.Schema
 
 local Fonts = Assets.Fonts
 local Sizes = Assets.Sizes
@@ -14,8 +15,7 @@ local AuraTracker = ns.Modules.Get("AuraTracker")
 local MAX_STACKS_DIGITS = 3
 
 ---@class AuraTrackerUI
-local UI = ns.AuraTrackerUI or {}
-ns.AuraTrackerUI = UI
+local UI = Internals.UI
 
 local function CommitMaxStacksFromBox()
     if UI.refreshingControls or not UI.maxStacksBox then

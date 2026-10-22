@@ -1,12 +1,13 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("TwinFangs")
 local L = ns.L
 local Util = ns.Util
-local Schema = ns.TwinFangsSchema
+local Schema = Internals.Schema
 local Group = ns.Api.Group
 local MessageProtocol = ns.MessageProtocol
 local MessageProtocolComm = ns.Api.MessageProtocolComm
 
-local InterruptChain = ns.TwinFangsInterruptChain
+local InterruptChain = Internals.InterruptChain
 
 ---MessageProtocol topic. Payload schema is owned by this feature, not the envelope.
 InterruptChain.SYNC_TOPIC = "twin_fangs.interrupts"

@@ -1,9 +1,11 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("TwinFangs")
 local L = ns.L
 local ActionFooter = ns.ActionFooter
 local Assets = ns.Assets
 local Layout = ns.Layout
 local WarningWindow = ns.WarningWindow
+local Dropdown = ns.Dropdown
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
@@ -12,7 +14,8 @@ local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 local Unit = ns.Api.Unit
 
-local Chain = ns.TwinFangsInterruptChain
+local Chain = Internals.InterruptChain
+local Labels = Internals.InterruptChainLabels
 
 local LINE_HEIGHT = 11
 local CARD_HEADER = 18
@@ -36,8 +39,8 @@ local STATUS_COLORS = {
     valid = Colors.SUCCESS,
 }
 
-local InterruptChainEditor = {}
-ns.TwinFangsInterruptChainEditor = InterruptChainEditor
+local Editor = {}
+Internals.InterruptChainEditor = Editor
 
 local session = Chain.NewState()
 
@@ -86,7 +89,7 @@ end
 ---@param player TwinFangsInterruptPlayer|string|nil
 ---@return string
 local function ColoredDisplayName(player)
-    local name = Chain.DisplayName(session.roster, player)
+    local name = Labels.DisplayName(session.roster, player)
     local member = Chain.GetMember(session, player)
     if not member then
         return name
@@ -135,7 +138,7 @@ end
 local function RefreshCard(card, regionId)
     local region = Chain.GetRegion(session, regionId)
     local issues = Chain.IssuesFor(Chain.Validate(session), regionId)
-    card.title:SetText(string.format("%s  ·  %s", Chain.RegionLabel(regionId), Chain.GroupLabel(region.group)))
+    card.title:SetText(string.format("%s  ·  %s", Labels.RegionLabel(regionId), Labels.GroupLabel(region.group)))
     if #region.players == 0 then
         card.players:SetText(L.TWIN_FANGS_INTERRUPT_CHAIN_EMPTY_ASSIGNED)
         card.players:SetTextColor(Widgets.UnpackColor(Colors.TEXT_MUTED))
@@ -251,7 +254,7 @@ local function BuildEditor(parent)
     local heading = Widgets.CreateLabel(headingRow, Fonts.BODY)
     heading:SetJustifyH("LEFT")
     local groupDropdown
-    groupDropdown = Widgets.CreateDropdown(headingRow, {}, function(group)
+    groupDropdown = Dropdown.Create(headingRow, {}, function(group)
         Chain.SetGroup(session, selectedRegion, group)
         pendingAdd = nil
         Refresh()
@@ -274,7 +277,7 @@ local function BuildEditor(parent)
 
     local addRow = stack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local addDropdown
-    addDropdown = Widgets.CreateDropdown(addRow, {}, function(value)
+    addDropdown = Dropdown.Create(addRow, {}, function(value)
         pendingAdd = value
         Refresh()
     end)
@@ -303,7 +306,7 @@ local function BuildEditor(parent)
     local backupGroupLabel = Widgets.CreateLabel(groupCell, Fonts.BODY, L.TWIN_FANGS_INTERRUPT_BACKUP_GROUP)
     backupGroupLabel:SetJustifyH("LEFT")
     local backupGroupDropdown
-    backupGroupDropdown = Widgets.CreateDropdown(groupCell, {}, function(group)
+    backupGroupDropdown = Dropdown.Create(groupCell, {}, function(group)
         if backupPicker then
             Chain.PickBackupGroup(backupPicker, group)
         end
@@ -330,7 +333,7 @@ local function BuildEditor(parent)
         Refresh()
     end)
     local backupPlayerDropdown
-    backupPlayerDropdown = Widgets.CreateDropdown(playerCell, {}, function(value)
+    backupPlayerDropdown = Dropdown.Create(playerCell, {}, function(value)
         if type(value) == "string" then
             Chain.SetBackup(session, selectedRegion, value)
             backupPicker = nil
@@ -457,7 +460,7 @@ local function RefreshPlayerRows(editor, region)
             row.number:SetText(tostring(index))
             row.number:SetTextColor(Widgets.UnpackColor(REGION_ACCENTS[selectedRegion] or Colors.ACCENT))
             local member = Chain.GetMember(session, region.players[index])
-            row.name:SetText(Chain.DisplayName(session.roster, region.players[index]))
+            row.name:SetText(Labels.DisplayName(session.roster, region.players[index]))
             row.name:SetTextColor(Widgets.UnpackColor(ClassColor(member and member.classFile)))
             row.canMoveUp = index > 1
             row.canMoveDown = index < count
@@ -481,7 +484,7 @@ local function RefreshEditor(editor)
     local regionId = selectedRegion
     local region = Chain.GetRegion(session, regionId)
     editor.nav:SetSelected(regionId)
-    editor.heading:SetText(string.format("%s  ·  %s", Chain.RegionLabel(regionId), Chain.GroupLabel(region.group)))
+    editor.heading:SetText(string.format("%s  ·  %s", Labels.RegionLabel(regionId), Labels.GroupLabel(region.group)))
 
     local groupItems = {}
     for _, group in ipairs(Chain.GetAssignableGroups(session, regionId)) do
@@ -741,7 +744,7 @@ end
 ---@param host Frame
 ---@param onHeightChanged fun(height: number)
 ---@return number
-function InterruptChainEditor.Mount(host, onHeightChanged)
+function Editor.Mount(host, onHeightChanged)
     BindSession()
     local panel = Widgets.CreateSurface(host, Colors.SURFACE, Colors.BORDER)
     panel:SetPoint("TOPLEFT")
@@ -818,7 +821,7 @@ function InterruptChainEditor.Mount(host, onHeightChanged)
     return stack:GetHeight()
 end
 
-function InterruptChainEditor.Refresh()
+function Editor.Refresh()
     if not ui or not CanEdit() then
         return
     end
@@ -828,7 +831,7 @@ end
 
 ---Shows or hides the editor. Hiding also leaves the region editor and cancels confirm.
 ---@param shown boolean
-function InterruptChainEditor.SetShown(shown)
+function Editor.SetShown(shown)
     shown = shown == true
     if not shown then
         selectedRegion = nil
@@ -847,5 +850,5 @@ function InterruptChainEditor.SetShown(shown)
     if ui then
         ui.panel:Show()
     end
-    InterruptChainEditor.Refresh()
+    Editor.Refresh()
 end

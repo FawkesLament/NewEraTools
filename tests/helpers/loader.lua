@@ -66,7 +66,12 @@ end
 
 local function IsSkipped(path)
     -- Pure data / helpers (no frames); logic modules may use them under test.
-    if path == "ui/Assets.lua" or path == "ui/Position.lua" or path == "ui/Color.lua" then
+    if
+        path == "ui/Assets.lua"
+        or path == "ui/Position.lua"
+        or path == "ui/Color.lua"
+        or path == "ui/CalloutAnchor.lua"
+    then
         return false
     end
     -- Top-level ui/, feature-local ui/ directories, and legacy *UI.lua names.

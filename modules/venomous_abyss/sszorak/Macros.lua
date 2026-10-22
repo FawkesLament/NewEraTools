@@ -149,7 +149,7 @@ function Sszorak:ListenForMacroSync()
 end
 
 ---Rewrites the commander's edge macros after a marker or callout-mode change.
----No-ops for raid members. Called from Markers.lua and Communication.lua after load.
+---No-ops for raid members. Called from Markers.lua and Host.lua after load.
 function Sszorak.RequestMacroSync()
     if not Sszorak:IsRaidCommander() then
         return

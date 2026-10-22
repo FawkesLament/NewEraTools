@@ -36,6 +36,40 @@ function Modules.New(name, options)
     return module
 end
 
+local internals = {}
+
+---Shared table for one feature's private parts (schemas, helpers, UI pieces), keyed by module name.
+---Exists before `Modules.New` so files loaded ahead of the module can use it. Each key may be defined
+---once, and reading an undefined key raises, so a broken load order fails at load instead of yielding nil.
+---Only the feature's own files may use it; `tests/meta` enforces that.
+---@param name string  Module name, e.g. "TwinFangs".
+---@return table
+function Modules.Internals(name)
+    assert(type(name) == "string", "Modules.Internals requires a module name")
+    local proxy = internals[name]
+    if proxy then
+        return proxy
+    end
+    local store = {}
+    proxy = setmetatable({}, {
+        __index = function(_, key)
+            local value = store[key]
+            if value == nil then
+                error(name .. " internal is not defined yet: " .. tostring(key), 2)
+            end
+            return value
+        end,
+        __newindex = function(_, key, value)
+            if store[key] ~= nil then
+                error(name .. " internal is defined twice: " .. tostring(key), 2)
+            end
+            store[key] = value
+        end,
+    })
+    internals[name] = proxy
+    return proxy
+end
+
 ---Returns a module defined earlier in the TOC. Only use it to reach a module from its own UI file.
 ---@param name string
 ---@return Module

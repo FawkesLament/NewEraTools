@@ -1,10 +1,11 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 
 ---Pure decisions for the tracker list: when the row order changed, and how to keep the
 ---viewport on the same content after a height change above it.
 ---@class AuraTrackerListPlan
 local ListPlan = {}
-ns.AuraTrackerListPlan = ListPlan
+Internals.ListPlan = ListPlan
 
 ---True when both arrays hold the same ids in the same order.
 ---@param left integer[]|nil

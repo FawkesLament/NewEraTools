@@ -1,6 +1,6 @@
 local Loader = require("helpers.loader")
 
-describe("Callout position", function()
+describe("CalloutAnchor", function()
     local ns, Sszorak, TheLostExplorers, TwinFangs
 
     local function Start(saved)
@@ -22,7 +22,7 @@ describe("Callout position", function()
         assert.same({ point = "CENTER", relativePoint = "CENTER", x = 0, y = 160 }, position)
         assert.equals(position, TheLostExplorers:GetCalloutPosition())
         assert.equals(position, TwinFangs:GetCalloutPosition())
-        assert.equals(position, ns.CalloutPosition.GetPosition())
+        assert.equals(position, ns.CalloutAnchor.GetPosition())
         assert.is_nil(Sszorak.db.calloutPosition)
         assert.is_nil(TheLostExplorers.db.calloutPosition)
         assert.is_nil(TwinFangs.db.soakReminder.calloutPosition)

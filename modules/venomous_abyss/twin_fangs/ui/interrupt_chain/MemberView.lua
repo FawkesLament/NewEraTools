@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("TwinFangs")
 local L = ns.L
 local Assets = ns.Assets
 local Layout = ns.Layout
@@ -10,7 +11,8 @@ local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 local Unit = ns.Api.Unit
 
-local Chain = ns.TwinFangsInterruptChain
+local Chain = Internals.InterruptChain
+local Labels = Internals.InterruptChainLabels
 
 local ACCENT_WIDTH = 2
 local CARD_HEADER = 18
@@ -27,7 +29,7 @@ local REGION_ACCENTS = {
 }
 
 local MemberView = {}
-ns.TwinFangsInterruptChainMemberView = MemberView
+Internals.InterruptChainMemberView = MemberView
 
 local ui
 local lastNotifiedHeight
@@ -211,7 +213,7 @@ local function RefreshAssignmentCard(card, assignment, playerName, roster)
     local accent = REGION_ACCENTS[assignment.regionId] or Colors.ACCENT
     card.accent:SetColorTexture(accent.r, accent.g, accent.b, 0.9)
     card.title:SetText(
-        string.format("%s  ·  %s", Chain.RegionLabel(assignment.regionId), Chain.GroupLabel(assignment.group))
+        string.format("%s  ·  %s", Labels.RegionLabel(assignment.regionId), Labels.GroupLabel(assignment.group))
     )
 
     local players = assignment.players
@@ -230,7 +232,7 @@ local function RefreshAssignmentCard(card, assignment, playerName, roster)
             local isYou = name ~= nil and name == playerName
             row.number:SetText(tostring(index))
             row.number:SetTextColor(Widgets.UnpackColor(accent))
-            row.name:SetText(Chain.DisplayName({}, player))
+            row.name:SetText(Labels.DisplayName({}, player))
             local member = RosterMember(name, roster)
             ApplyYouHighlight(row, accent, isYou)
             if isYou then
@@ -251,7 +253,7 @@ local function RefreshAssignmentCard(card, assignment, playerName, roster)
     local backup = assignment.backup
     local backupName = Chain.PlayerName(backup)
     local isYouBackup = backupName ~= nil and backupName == playerName
-    local backupName = backup and Chain.DisplayName({}, backup) or L.TWIN_FANGS_INTERRUPT_BACKUP_NONE
+    local backupName = backup and Labels.DisplayName({}, backup) or L.TWIN_FANGS_INTERRUPT_BACKUP_NONE
     card.backup:SetText(string.format(L.TWIN_FANGS_INTERRUPT_BACKUP_LINE, backupName))
     if isYouBackup then
         card.backup:SetTextColor(Widgets.UnpackColor(accent))
@@ -312,7 +314,7 @@ local function Refresh()
 
     ui.empty:SetShown(not hasAssignment)
     if not hasAssignment then
-        ui.emptyLabel:SetText(Chain.MemberViewEmptyText(chain, inRaid))
+        ui.emptyLabel:SetText(Labels.MemberViewEmptyText(chain, inRaid))
     end
 
     if hasAssignment then

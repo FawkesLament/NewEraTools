@@ -4,6 +4,7 @@ local Assets = ns.Assets
 local FloatingWindow = ns.FloatingWindow
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
+local Slider = ns.Slider
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
@@ -194,7 +195,7 @@ local function BuildContent(content)
 
     local scaleLabel = Widgets.CreateLabel(scaleCell, Fonts.BODY, L.COMBAT_TIMER_SCALE)
     scaleLabel:SetJustifyH("LEFT")
-    local scaleSlider = Widgets.CreateSlider(
+    local scaleSlider = Slider.Create(
         scaleCell,
         CombatTimer.SCALE_MIN,
         CombatTimer.SCALE_MAX,

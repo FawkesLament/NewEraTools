@@ -12,7 +12,7 @@ describe("AuraTracker profile report", function()
             return clock.now
         end
         ns = Loader.Load()
-        profile = ns.AuraTrackerProfile
+        profile = ns.Modules.Internals("AuraTracker").Profile
     end)
 
     after_each(function()

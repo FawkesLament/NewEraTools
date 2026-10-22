@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local L = ns.L
 local Assets = ns.Assets
 local FloatingWindow = ns.FloatingWindow
@@ -16,7 +17,7 @@ local SCROLL_GUTTER = Sizes.SCROLL_BAR_WIDTH + Spacing.SMALL
 local WHEEL_STEP = 24
 
 local ProfileReport = {}
-ns.AuraTrackerProfileReport = ProfileReport
+Internals.ProfileReport = ProfileReport
 
 ---@type FloatingWindow|nil
 local window

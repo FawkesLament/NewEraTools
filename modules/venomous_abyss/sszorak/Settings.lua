@@ -90,12 +90,12 @@ end
 
 ---@return CalloutAnchor
 function Sszorak:GetCalloutPosition()
-    return ns.CalloutPosition.GetPosition()
+    return ns.CalloutAnchor.GetPosition()
 end
 
 ---@param position CalloutAnchor
 function Sszorak:SetCalloutPosition(position)
-    ns.CalloutPosition.SetPosition(position)
+    ns.CalloutAnchor.SetPosition(position)
 end
 
 ---Group assignment isn't implemented yet; the left/right setting chooses the group.

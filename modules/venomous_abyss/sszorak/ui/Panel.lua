@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("Sszorak")
 local L = ns.L
 local Util = ns.Util
 local Assets = ns.Assets
@@ -7,6 +8,7 @@ local AddonCheckPanel = ns.AddonCheckPanel
 local ActionRow = ns.ActionRow
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
+local Slider = ns.Slider
 local Widgets = ns.Widgets
 local PendingClock = ns.PendingClock
 
@@ -16,9 +18,9 @@ local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 
 local Sszorak = ns.Modules.Get("Sszorak")
-local Map = ns.SszorakMap
-local Window = ns.SszorakWindow
-local Callout = ns.SszorakCalloutUI
+local Map = Internals.Map
+local Window = Internals.Window
+local Callout = Internals.CalloutUI
 
 -- Distance between opposite edges of the octagon in the panel's marker editor.
 local EDITOR_ARENA_SIZE = 160
@@ -513,7 +515,7 @@ local function BuildMapContent(content)
 
     local scaleLabel = Widgets.CreateLabel(scaleCell, Fonts.BODY, L.SSZORAK_MAP_SCALE)
     local scaleClock = PendingClock.Attach(scaleLabel)
-    local scaleSlider = Widgets.CreateSlider(
+    local scaleSlider = Slider.Create(
         scaleCell,
         Sszorak.MAP_SCALE_MIN,
         Sszorak.MAP_SCALE_MAX,
@@ -533,7 +535,7 @@ local function BuildMapContent(content)
 
     local rotationLabel = Widgets.CreateLabel(rotationCell, Fonts.BODY, L.SSZORAK_MAP_ROTATION)
     local rotationClock = PendingClock.Attach(rotationLabel)
-    local rotationSlider = Widgets.CreateSlider(
+    local rotationSlider = Slider.Create(
         rotationCell,
         Sszorak.MAP_ROTATION_MIN,
         Sszorak.MAP_ROTATION_MAX,

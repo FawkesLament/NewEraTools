@@ -1,11 +1,13 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local L = ns.L
 local Assets = ns.Assets
 local CollapsibleSection = ns.CollapsibleSection
 local FeatureSection = ns.FeatureSection
 local Layout = ns.Layout
+local Dropdown = ns.Dropdown
 local Widgets = ns.Widgets
-local Schema = ns.AuraTrackerSchema
+local Schema = Internals.Schema
 
 local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
@@ -13,8 +15,7 @@ local Spacing = Assets.Spacing
 local AuraTracker = ns.Modules.Get("AuraTracker")
 
 ---@class AuraTrackerUI
-local UI = ns.AuraTrackerUI or {}
-ns.AuraTrackerUI = UI
+local UI = Internals.UI
 
 local Controls = UI.Controls
 
@@ -70,7 +71,7 @@ local function BuildTextDisplayStyleContent(content, editor)
 
     local fontRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local fontCell, sizeCell = Layout.SplitRow(fontRow, Spacing.MEDIUM)
-    editor.fontDropdown = Widgets.CreateFontDropdown(fontCell, L.AURA_TRACKER_TEXT_FONT, function(fontId)
+    editor.fontDropdown = Dropdown.CreateFont(fontCell, L.AURA_TRACKER_TEXT_FONT, function(fontId)
         if UI.refreshingControls or not UI.CanEditSelected() then
             return
         end

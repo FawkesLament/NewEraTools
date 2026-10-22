@@ -1,7 +1,8 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local Player = ns.Api.Player
 local Spell = ns.Api.Spell
-local Activation = ns.AuraTrackerActivation
+local Activation = Internals.Activation
 local L = ns.L
 
 local AuraTracker = ns.Modules.Get("AuraTracker")

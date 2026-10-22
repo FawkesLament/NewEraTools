@@ -378,7 +378,14 @@ describe("LayoutEditor", function()
             CreateSurface = function(parent)
                 return FakeFrame(parent)
             end,
-            CreateDropdown = function(parent, items, onSelect)
+            AttachTooltip = function(frame, _, populate)
+                frame.tooltipPopulate = populate
+                frame:SetScript("OnEnter", function() end)
+                frame:SetScript("OnLeave", function() end)
+            end,
+        }
+        ns.Dropdown = {
+            Create = function(parent, items, onSelect)
                 local dropdown = FakeFrame(parent)
                 dropdown.items = items
                 dropdown.onSelect = onSelect
@@ -394,11 +401,6 @@ describe("LayoutEditor", function()
                     self.closeCount = (self.closeCount or 0) + 1
                 end
                 return dropdown
-            end,
-            AttachTooltip = function(frame, _, populate)
-                frame.tooltipPopulate = populate
-                frame:SetScript("OnEnter", function() end)
-                frame:SetScript("OnLeave", function() end)
             end,
         }
 

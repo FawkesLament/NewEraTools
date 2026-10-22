@@ -4,6 +4,7 @@ local ActionFooter = ns.ActionFooter
 local Assets = ns.Assets
 local CollapsibleSection = ns.CollapsibleSection
 local Layout = ns.Layout
+local NumberStepper = ns.NumberStepper
 local Widgets = ns.Widgets
 local Unit = ns.Api.Unit
 
@@ -192,7 +193,7 @@ local function BuildConfigRow(row)
 
     local countLabel = Widgets.CreateLabel(countCell, Fonts.BODY, L.RAID_LOTTERY_COUNT_LABEL)
     -- A large pool makes GetMaxCount return the module maximum, which sizes the box.
-    local stepper = Widgets.CreateNumberStepper(countCell, 1, RaidLottery:GetMaxCount(1000), 1, function(value)
+    local stepper = NumberStepper.Create(countCell, 1, RaidLottery:GetMaxCount(1000), 1, function(value)
         RaidLottery:SetCount(value)
         Refresh()
     end)

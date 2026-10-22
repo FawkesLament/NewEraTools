@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("TwinFangs")
 local L = ns.L
 local Assets = ns.Assets
 local ActionRow = ns.ActionRow
@@ -6,6 +7,10 @@ local CollapsibleSection = ns.CollapsibleSection
 local FeatureSection = ns.FeatureSection
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
+local ColorSwatch = ns.ColorSwatch
+local Dropdown = ns.Dropdown
+local NumberStepper = ns.NumberStepper
+local Slider = ns.Slider
 local Widgets = ns.Widgets
 
 local Fonts = Assets.Fonts
@@ -13,8 +18,8 @@ local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 
 local TwinFangs = ns.Modules.Get("TwinFangs")
-local Schema = ns.TwinFangsSchema
-local Callout = ns.TwinFangsCalloutUI
+local Schema = Internals.Schema
+local Callout = Internals.CalloutUI
 
 local SCOPE_ID = "twin_fangs"
 local interruptRoleLabel
@@ -167,19 +172,19 @@ local function BuildContent(content)
 
     local function EnsureChainEditor()
         if editorMounted then
-            ns.TwinFangsInterruptChainEditor.Refresh()
+            Internals.InterruptChainEditor.Refresh()
             return
         end
-        ns.TwinFangsInterruptChainEditor.Mount(chainHost, ApplyChainHostHeight)
+        Internals.InterruptChainEditor.Mount(chainHost, ApplyChainHostHeight)
         editorMounted = true
     end
 
     local function EnsureMemberView()
         if memberViewMounted then
-            ns.TwinFangsInterruptChainMemberView.Refresh()
+            Internals.InterruptChainMemberView.Refresh()
             return
         end
-        ns.TwinFangsInterruptChainMemberView.Mount(chainHost, ApplyChainHostHeight)
+        Internals.InterruptChainMemberView.Mount(chainHost, ApplyChainHostHeight)
         memberViewMounted = true
     end
 
@@ -187,9 +192,9 @@ local function BuildContent(content)
         if interruptRoleLabel then
             ns.RaidRoleModeLabel.Update(interruptRoleLabel)
         end
-        local canEdit = ns.TwinFangsInterruptChain.CanEdit()
+        local canEdit = Internals.InterruptChain.CanEdit()
         local showEditor
-        showEditor, preferMemberView = ns.TwinFangsInterruptChain.ResolveSettingsView(canEdit, preferMemberView)
+        showEditor, preferMemberView = Internals.InterruptChain.ResolveSettingsView(canEdit, preferMemberView)
         viewSwitch:SetShown(canEdit)
         if canEdit then
             viewSwitch:SetText(
@@ -204,13 +209,13 @@ local function BuildContent(content)
         end
         chainHost:Show()
         if showEditor then
-            ns.TwinFangsInterruptChainMemberView.SetShown(false)
+            Internals.InterruptChainMemberView.SetShown(false)
             EnsureChainEditor()
-            ns.TwinFangsInterruptChainEditor.SetShown(true)
+            Internals.InterruptChainEditor.SetShown(true)
         else
-            ns.TwinFangsInterruptChainEditor.SetShown(false)
+            Internals.InterruptChainEditor.SetShown(false)
             EnsureMemberView()
-            ns.TwinFangsInterruptChainMemberView.SetShown(true)
+            Internals.InterruptChainMemberView.SetShown(true)
         end
     end
 
@@ -279,7 +284,7 @@ local function BuildContent(content)
     Layout.Row(positionCell, { positionLabel, positionControl }, Spacing.LARGE)
 
     local sizeLabel = Widgets.CreateLabel(sizeCell, Fonts.BODY, L.TWIN_FANGS_NAMEPLATE_HINT_SIZE)
-    local sizeSlider = Widgets.CreateSlider(sizeCell, Schema.SIZE_MIN, Schema.SIZE_MAX, Schema.SIZE_STEP)
+    local sizeSlider = Slider.Create(sizeCell, Schema.SIZE_MIN, Schema.SIZE_MAX, Schema.SIZE_STEP)
     sizeSlider:SetValue(TwinFangs:GetNameplateHintSize())
     sizeSlider:SetScript("OnValueChanged", function(_, rawValue)
         if not TwinFangs:IsNameplateHintEnabled() then
@@ -294,7 +299,7 @@ local function BuildContent(content)
     local offsetXLabel = Widgets.CreateLabel(offsetXCell, Fonts.BODY, L.TWIN_FANGS_NAMEPLATE_HINT_OFFSET_X)
     offsetXLabel:SetJustifyH("LEFT")
     local offsetXStepper
-    offsetXStepper = Widgets.CreateNumberStepper(
+    offsetXStepper = NumberStepper.Create(
         offsetXCell,
         Schema.OFFSET_MIN,
         Schema.OFFSET_MAX,
@@ -313,7 +318,7 @@ local function BuildContent(content)
     local offsetYLabel = Widgets.CreateLabel(offsetYCell, Fonts.BODY, L.TWIN_FANGS_NAMEPLATE_HINT_OFFSET_Y)
     offsetYLabel:SetJustifyH("LEFT")
     local offsetYStepper
-    offsetYStepper = Widgets.CreateNumberStepper(
+    offsetYStepper = NumberStepper.Create(
         offsetYCell,
         Schema.OFFSET_MIN,
         Schema.OFFSET_MAX,
@@ -339,7 +344,7 @@ local function BuildContent(content)
     local advancedBody = Layout.Stack(advanced.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
     local opacityRow = advancedBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local opacityLabel = Widgets.CreateLabel(opacityRow, Fonts.BODY, L.TWIN_FANGS_NAMEPLATE_HINT_OPACITY)
-    local opacitySlider = Widgets.CreateSlider(
+    local opacitySlider = Slider.Create(
         opacityRow,
         Schema.OPACITY_MIN,
         Schema.OPACITY_MAX,
@@ -358,7 +363,7 @@ local function BuildContent(content)
     local fontRow = advancedBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local fontCell, fontSizeCell = Layout.SplitRow(fontRow, Spacing.MEDIUM)
     local fontDropdown
-    fontDropdown = Widgets.CreateFontDropdown(fontCell, L.TWIN_FANGS_NAMEPLATE_HINT_FONT, function(font)
+    fontDropdown = Dropdown.CreateFont(fontCell, L.TWIN_FANGS_NAMEPLATE_HINT_FONT, function(font)
         if not TwinFangs:IsNameplateHintEnabled() then
             return
         end
@@ -370,7 +375,7 @@ local function BuildContent(content)
     local fontSizeLabel = Widgets.CreateLabel(fontSizeCell, Fonts.BODY, L.TWIN_FANGS_NAMEPLATE_HINT_FONT_SIZE)
     fontSizeLabel:SetJustifyH("LEFT")
     local fontSizeSlider =
-        Widgets.CreateSlider(fontSizeCell, Schema.FONT_SIZE_MIN, Schema.FONT_SIZE_MAX, Schema.FONT_SIZE_STEP)
+        Slider.Create(fontSizeCell, Schema.FONT_SIZE_MIN, Schema.FONT_SIZE_MAX, Schema.FONT_SIZE_STEP)
     fontSizeSlider:SetValue(TwinFangs:GetNameplateHintFontSize())
     fontSizeSlider:SetScript("OnValueChanged", function(_, rawValue)
         if not TwinFangs:IsNameplateHintEnabled() then
@@ -384,7 +389,7 @@ local function BuildContent(content)
     local fontColorLabel = Widgets.CreateLabel(fontColorRow, Fonts.BODY, L.TWIN_FANGS_NAMEPLATE_HINT_FONT_COLOR)
     fontColorLabel:SetJustifyH("LEFT")
     local fontColorSwatch
-    fontColorSwatch = Widgets.CreateColorSwatch(fontColorRow, TwinFangs:GetNameplateHintFontColor(), function(color)
+    fontColorSwatch = ColorSwatch.Create(fontColorRow, TwinFangs:GetNameplateHintFontColor(), function(color)
         if not TwinFangs:IsNameplateHintEnabled() then
             fontColorSwatch:SetColor(TwinFangs:GetNameplateHintFontColor())
             return

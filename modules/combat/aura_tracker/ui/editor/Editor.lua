@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local L = ns.L
 local Assets = ns.Assets
 local CollapsibleSection = ns.CollapsibleSection
@@ -21,8 +22,7 @@ local EDITOR_HEADER_BODY_HEIGHT =
 local EDITOR_HEADER_HEIGHT = EDITOR_HEADER_BODY_HEIGHT + Spacing.SMALL + Sizes.BORDER
 
 ---@class AuraTrackerUI
-local UI = ns.AuraTrackerUI or {}
-ns.AuraTrackerUI = UI
+local UI = Internals.UI
 
 local Controls = UI.Controls
 
@@ -315,7 +315,7 @@ end
 
 function UI.RefreshPendingClocks()
     local trackerId = UI.ResolveSelectedTrackerId()
-    local pending = trackerId and ns.AuraTrackerBarUI.PendingAppearanceKeys(trackerId) or {}
+    local pending = trackerId and Internals.BarUI.PendingAppearanceKeys(trackerId) or {}
     for key, clock in pairs(UI.pendingClocks or {}) do
         clock:SetShown(pending[key] == true)
     end

@@ -19,4 +19,4 @@ Type `/nets` or click the minimap button to open the panel.
 
 See [AGENTS.md](AGENTS.md) for the project structure and coding rules. Run the tests with `luajit tests/run.lua`.
 
-Other addons can register optional feature extensions through `NewEraToolsAPI`. See [docs/extensions.md](docs/extensions.md).
+Other addons can register optional feature extensions through `NewEraToolsAPI`. See [docs/extensions/](docs/extensions/).

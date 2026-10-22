@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local Player = ns.Api.Player
 
 local ALWAYS = "always"
@@ -13,7 +14,7 @@ local Activation = {
     CLASS = CLASS,
     ROLE = ROLE,
 }
-ns.AuraTrackerActivation = Activation
+Internals.Activation = Activation
 
 ---@param scope any
 ---@return string|nil

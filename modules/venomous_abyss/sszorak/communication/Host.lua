@@ -451,13 +451,13 @@ function Sszorak:GetDisplayedCalloutResolve()
     return displayedResolve
 end
 
----Whole seconds left on the current callout countdown, or nil when nothing is shown.
----@return integer|nil
-function Sszorak:GetCalloutRemainingSeconds()
-    if displayedCallout == nil or not calloutExpireTime then
+---Absolute Timer.GetTime() when the current callout hides, or nil when nothing is shown.
+---@return number|nil
+function Sszorak:GetCalloutExpiresAt()
+    if displayedCallout == nil then
         return nil
     end
-    return math.max(0, math.ceil(calloutExpireTime - Timer.GetTime()))
+    return calloutExpireTime
 end
 
 ---Whether the HUD should append a whole-second countdown to the current callout.

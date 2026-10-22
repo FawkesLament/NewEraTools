@@ -1,17 +1,18 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local Util = ns.Util
 local LayoutEditor = ns.LayoutEditor
 local Aura = ns.Api.Aura
 local Combat = ns.Api.Combat
 local Unit = ns.Api.Unit
-local Chrome = ns.AuraTrackerBarChromeUI
-local Preview = ns.AuraTrackerBarPreviewUI
-local Appearance = ns.AuraTrackerBarAppearanceUI
-local Profile = ns.AuraTrackerProfile
-local ProfileReport = ns.AuraTrackerProfileReport
+local Chrome = Internals.BarChromeUI
+local Preview = Internals.BarPreviewUI
+local Appearance = Internals.BarAppearanceUI
+local Profile = Internals.Profile
+local ProfileReport = Internals.ProfileReport
 
 local AuraTracker = ns.Modules.Get("AuraTracker")
-local Schema = ns.AuraTrackerSchema
+local Schema = Internals.Schema
 
 local SLOT_KEY = "buff"
 
@@ -76,7 +77,7 @@ local unsupportedReported = false
 local sharedMediaListening = false
 
 local AuraTrackerBarUI = {}
-ns.AuraTrackerBarUI = AuraTrackerBarUI
+Internals.BarUI = AuraTrackerBarUI
 
 local DestroyInstance
 local EnsureInstance

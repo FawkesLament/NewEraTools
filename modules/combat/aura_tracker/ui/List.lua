@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local L = ns.L
 local Assets = ns.Assets
 local CollapsibleSection = ns.CollapsibleSection
@@ -13,9 +14,9 @@ local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 
 local AuraTracker = ns.Modules.Get("AuraTracker")
-local ListPlan = ns.AuraTrackerListPlan
-local Profile = ns.AuraTrackerProfile
-local Schema = ns.AuraTrackerSchema
+local ListPlan = Internals.ListPlan
+local Profile = Internals.Profile
+local Schema = Internals.Schema
 
 local TRACKER_ROW_HEIGHT = Sizes.NAV_ROW_HEIGHT
 local LIST_SPELL_ICON_SIZE = 24
@@ -40,8 +41,8 @@ local function UnitLabel(unit)
 end
 
 ---@class AuraTrackerUI
-local UI = ns.AuraTrackerUI or {}
-ns.AuraTrackerUI = UI
+local UI = {}
+Internals.UI = UI
 
 ---Applies a cached spell icon (or the question-mark placeholder) to an existing texture.
 ---@param icon Texture

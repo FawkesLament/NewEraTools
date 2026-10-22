@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local Activity = ns.Api.Activity
 local Aura = ns.Api.Aura
 local Combat = ns.Api.Combat
@@ -6,9 +7,9 @@ local Instance = ns.Api.Instance
 local Player = ns.Api.Player
 local Unit = ns.Api.Unit
 local Timer = ns.Api.Timer
-local Activation = ns.AuraTrackerActivation
-local Profile = ns.AuraTrackerProfile
-local Schema = ns.AuraTrackerSchema
+local Activation = Internals.Activation
+local Profile = Internals.Profile
+local Schema = Internals.Schema
 
 local AuraTracker = ns.Modules.Get("AuraTracker")
 

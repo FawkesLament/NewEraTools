@@ -1,11 +1,12 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local L = ns.L
 local CollapsibleSection = ns.CollapsibleSection
 local Layout = ns.Layout
 local WarningWindow = ns.WarningWindow
 local Widgets = ns.Widgets
-local AuraTrackerBarUI = ns.AuraTrackerBarUI
-local Profile = ns.AuraTrackerProfile
+local AuraTrackerBarUI = Internals.BarUI
+local Profile = Internals.Profile
 
 local Assets = ns.Assets
 local Fonts = Assets.Fonts
@@ -15,8 +16,7 @@ local Spacing = Assets.Spacing
 local AuraTracker = ns.Modules.Get("AuraTracker")
 
 ---@class AuraTrackerUI
-local UI = ns.AuraTrackerUI or {}
-ns.AuraTrackerUI = UI
+local UI = Internals.UI
 
 ---Builds a module-level labeled checkbox into `parent`.
 ---@param parent Frame

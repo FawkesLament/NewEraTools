@@ -1,10 +1,11 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("TwinFangs")
 local Nameplate = ns.Api.Nameplate
 local Unit = ns.Api.Unit
 local SharedMedia = ns.SharedMedia
 local TwinFangs = ns.Modules.Get("TwinFangs")
-local InterruptBadge = ns.TwinFangsInterruptBadge
-local Hint = ns.TwinFangsHintUI
+local InterruptBadge = Internals.InterruptBadge
+local Hint = Internals.HintUI
 
 local GAP = Hint.GAP
 local PLACEHOLDER_NUMBER = Hint.PLACEHOLDER_NUMBER
@@ -17,7 +18,7 @@ local ANCHORS = {
 }
 
 local Nameplates = {}
-ns.TwinFangsNameplates = Nameplates
+Internals.Nameplates = Nameplates
 
 local holder
 local pool = {}

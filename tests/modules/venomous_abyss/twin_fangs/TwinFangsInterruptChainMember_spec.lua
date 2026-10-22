@@ -1,7 +1,8 @@
 local Loader = require("helpers.loader")
+local InterruptChainHelper = require("helpers.interrupt_chain")
 
 describe("TwinFangs interrupt chain member view", function()
-    local ns, Chain, Schema
+    local ns, Chain, Labels, Schema
 
     local function FullName(name)
         return name .. "-MockRealm"
@@ -46,8 +47,9 @@ describe("TwinFangs interrupt chain member view", function()
 
     before_each(function()
         ns = Loader.Load()
-        Chain = ns.TwinFangsInterruptChain
-        Schema = ns.TwinFangsSchema
+        Chain = ns.Modules.Internals("TwinFangs").InterruptChain
+        Labels = InterruptChainHelper.LoadLabels(ns)
+        Schema = ns.Modules.Internals("TwinFangs").Schema
     end)
 
     describe("assignments", function()
@@ -73,7 +75,7 @@ describe("TwinFangs interrupt chain member view", function()
             assert.equals(FullName("石川"), view.primary.players[3].name)
             assert.equals(FullName("余烬"), view.primary.backup.name)
             assert.equals(0, #view.backups)
-            assert.equals("夜雨", Chain.DisplayName({}, view.primary.players[2]))
+            assert.equals("夜雨", Labels.DisplayName({}, view.primary.players[2]))
         end)
 
         it("returns a backup-only assignment without inventing a primary", function()
@@ -118,7 +120,7 @@ describe("TwinFangs interrupt chain member view", function()
             local view = Chain.GetMemberView(chain, "Alice-RealmB")
             assert.equals(Chain.BACK_LEFT, view.primary.regionId)
             assert.equals("Alice-RealmB", view.primary.players[2].name)
-            assert.equals("Alice", Chain.DisplayName({}, view.primary.players[2]))
+            assert.equals("Alice", Labels.DisplayName({}, view.primary.players[2]))
         end)
 
         it("keeps missing records in the stored sequence", function()
@@ -129,7 +131,7 @@ describe("TwinFangs interrupt chain member view", function()
             }
             local view = Chain.GetMemberView(chain, FullName("夜雨"))
             assert.equals(3, #view.primary.players)
-            assert.equals("清风", Chain.DisplayName({}, view.primary.players[1]))
+            assert.equals("清风", Labels.DisplayName({}, view.primary.players[1]))
             assert.equals(FullName("夜雨"), view.primary.players[2].name)
             assert.equals(FullName("石川"), view.primary.players[3].name)
         end)
@@ -156,11 +158,11 @@ describe("TwinFangs interrupt chain member view", function()
 
         it("shows the not-in-raid empty state without clearing saved assignments", function()
             local before = Snapshot(chain)
-            assert.equals(ns.L.TWIN_FANGS_INTERRUPT_NOT_IN_RAID, Chain.MemberViewEmptyText(chain, false))
-            assert.equals(ns.L.TWIN_FANGS_INTERRUPT_NO_ASSIGNMENT, Chain.MemberViewEmptyText(chain, true))
+            assert.equals(ns.L.TWIN_FANGS_INTERRUPT_NOT_IN_RAID, Labels.MemberViewEmptyText(chain, false))
+            assert.equals(ns.L.TWIN_FANGS_INTERRUPT_NO_ASSIGNMENT, Labels.MemberViewEmptyText(chain, true))
             assert.equals(
                 ns.L.TWIN_FANGS_INTERRUPT_SYNC_NONE,
-                Chain.MemberViewEmptyText(Schema.NewInterruptChain(), true)
+                Labels.MemberViewEmptyText(Schema.NewInterruptChain(), true)
             )
             assert.same(before, Snapshot(chain))
         end)

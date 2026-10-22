@@ -4,6 +4,8 @@ local Timer = ns.Api.Timer
 local Widgets = ns.Widgets
 
 local DEFAULT_DURATION = 10
+local DEFAULT_WIDTH = 420
+local DEFAULT_HEIGHT = 72
 local MESSAGE_ONLY = "%s"
 local TIMER_FORMAT = " (%d)"
 local TIMER_FORMAT_TENTHS = " (%.1f)"
@@ -19,10 +21,41 @@ ns.CalloutMessage = CalloutMessage
 ---@field font string|nil  Defaults to Assets.Fonts.CALLOUT.
 ---@field wrap string|nil  Optional SetFormattedText pattern with one `%s` for the message body (e.g. "Go %s drop ball").
 
+---@class CalloutMessageShowOptions
+---@field expiresAt number|nil  Absolute Timer.GetTime() when the message hides. Preferred over duration.
+---@field duration number|nil  Seconds from now; used when expiresAt is omitted.
+---@field appendTimer boolean|nil  When true, appends a countdown as " (n)" or " (n.n)" below 10s.
+
 ---@class CalloutMessage: Frame
----@field SetMessage fun(self: CalloutMessage, message: any, duration: number|nil, appendTimer: boolean|nil)
+---@field SetMessage fun(self: CalloutMessage, message: any, options: CalloutMessageShowOptions|nil)
 ---@field ShowPreview fun(self: CalloutMessage, message: any, remainingSeconds: integer, appendTimer: boolean|nil)
 ---@field Clear fun(self: CalloutMessage)
+
+---@class CalloutMessageBindOptions
+---@field layoutId string
+---@field label string
+---@field name string
+---@field isEnabled fun(): boolean
+---@field getText fun(): any|nil
+---@field getExpiresAt fun(): number|nil
+---@field getPosition fun(): CalloutAnchor
+---@field setPosition fun(position: CalloutAnchor)
+---@field getDefaultPosition fun(): CalloutAnchor
+---@field previewText any|fun(): any
+---@field previewDuration number|nil
+---@field getAppendTimer fun(): boolean|nil
+---@field wrap string|nil
+---@field width number|nil
+---@field height number|nil
+---@field parent Frame|nil
+---@field onEditBegin fun()|nil
+---@field onEditEnd fun()|nil
+
+---@class CalloutMessageBinding
+---@field LAYOUT_ID string
+---@field Create fun(): CalloutMessage
+---@field Ensure fun(): CalloutMessage
+---@field Update fun()
 
 ---@param options CalloutMessageOptions
 ---@return CalloutMessage
@@ -130,27 +163,44 @@ function CalloutMessage.Create(options)
         frame:Raise()
     end
 
-    ---Shows `message` for `duration` seconds (default 10). Replaces any active message immediately.
+    ---Shows `message` until `options.expiresAt` (or now + duration). Replaces any active message immediately.
     ---@param message any
-    ---@param duration number|nil
-    ---@param withTimer boolean|nil  When true, appends a countdown as " (n)" or " (n.n)" below 10s.
-    function frame:SetMessage(message, duration, withTimer)
+    ---@param options CalloutMessageShowOptions|nil
+    function frame:SetMessage(message, options)
         if message == nil then
             frame:Clear()
             return
         end
+        if options ~= nil then
+            assert(type(options) == "table", "CalloutMessage SetMessage options must be a table")
+        else
+            options = {}
+        end
+        local now = Timer.GetTime()
+        local expiresAt = options.expiresAt
+        if expiresAt == nil then
+            local duration = options.duration or DEFAULT_DURATION
+            assert(type(duration) == "number", "CalloutMessage duration must be a number")
+            expiresAt = now + duration
+        else
+            assert(type(expiresAt) == "number", "CalloutMessage expiresAt must be a number")
+        end
         token = token + 1
         local currentToken = token
-        local showDuration = duration or DEFAULT_DURATION
         activeMessage = message
         previewDuration = nil
-        appendTimer = withTimer == true
+        appendTimer = options.appendTimer == true
         shownRemaining = nil
-        expireTime = Timer.GetTime() + showDuration
+        expireTime = expiresAt
+        local remaining = expiresAt - now
+        if remaining <= 0 then
+            HideMessage()
+            return
+        end
         ApplyDisplay()
         frame:Show()
         frame:Raise()
-        Timer.After(showDuration, function()
+        Timer.After(remaining, function()
             if currentToken ~= token then
                 return
             end
@@ -169,9 +219,118 @@ function CalloutMessage.Create(options)
         if previewDuration and RemainingTime() <= 0 then
             expireTime = Timer.GetTime() + previewDuration
             shownRemaining = nil
+        elseif RemainingTime() <= 0 then
+            HideMessage()
+            return
         end
         ApplyDisplay()
     end)
 
     return frame --[[@as CalloutMessage]]
+end
+
+---Registers a layout-editable HUD callout and keeps it painted from one expiry clock.
+---@param config CalloutMessageBindOptions
+---@return CalloutMessageBinding
+function CalloutMessage.Bind(config)
+    assert(type(config) == "table", "CalloutMessage.Bind requires options")
+    assert(type(config.layoutId) == "string", "CalloutMessage.Bind requires layoutId")
+    assert(type(config.label) == "string", "CalloutMessage.Bind requires label")
+    assert(type(config.name) == "string", "CalloutMessage.Bind requires name")
+    assert(type(config.isEnabled) == "function", "CalloutMessage.Bind requires isEnabled")
+    assert(type(config.getText) == "function", "CalloutMessage.Bind requires getText")
+    assert(type(config.getExpiresAt) == "function", "CalloutMessage.Bind requires getExpiresAt")
+    assert(type(config.getPosition) == "function", "CalloutMessage.Bind requires getPosition")
+    assert(type(config.setPosition) == "function", "CalloutMessage.Bind requires setPosition")
+    assert(type(config.getDefaultPosition) == "function", "CalloutMessage.Bind requires getDefaultPosition")
+    assert(config.previewText ~= nil, "CalloutMessage.Bind requires previewText")
+
+    local LayoutEditor = ns.LayoutEditor
+    local window
+    local registered = false
+    local layoutEditing = false
+
+    ---@class CalloutMessageBinding
+    local binding = {
+        LAYOUT_ID = config.layoutId,
+    }
+
+    local function PreviewMessage()
+        local text = config.previewText
+        if type(text) == "function" then
+            return text()
+        end
+        return text
+    end
+
+    local function Register(frame)
+        if registered then
+            return
+        end
+        registered = true
+        LayoutEditor.Register({
+            id = config.layoutId,
+            label = config.label,
+            frame = frame,
+            global = false,
+            isEnabled = config.isEnabled,
+            getPosition = config.getPosition,
+            setPosition = config.setPosition,
+            getDefaultPosition = config.getDefaultPosition,
+            onEditBegin = function()
+                layoutEditing = true
+                if config.onEditBegin then
+                    config.onEditBegin()
+                end
+                local win = binding.Ensure()
+                win:ShowPreview(PreviewMessage(), config.previewDuration or DEFAULT_DURATION, true)
+            end,
+            onEditEnd = function()
+                layoutEditing = false
+                if config.onEditEnd then
+                    config.onEditEnd()
+                end
+                binding.Update()
+            end,
+        })
+    end
+
+    function binding.Create()
+        local frame = CalloutMessage.Create({
+            name = config.name,
+            parent = config.parent,
+            width = config.width or DEFAULT_WIDTH,
+            height = config.height or DEFAULT_HEIGHT,
+            wrap = config.wrap,
+        })
+        LayoutEditor.ApplyPosition(frame, config.getPosition())
+        Register(frame)
+        return frame
+    end
+
+    function binding.Ensure()
+        window = window or binding.Create()
+        return window
+    end
+
+    function binding.Update()
+        if layoutEditing then
+            return
+        end
+        window = window or binding.Create()
+        LayoutEditor.ApplyPosition(window, config.getPosition())
+        local text = config.getText()
+        local expiresAt = config.getExpiresAt()
+        if text == nil or expiresAt == nil then
+            window:Clear()
+            return
+        end
+        local appendTimer = true
+        if config.getAppendTimer then
+            appendTimer = config.getAppendTimer()
+        end
+        window:SetMessage(text, { expiresAt = expiresAt, appendTimer = appendTimer })
+    end
+
+    return binding
 end

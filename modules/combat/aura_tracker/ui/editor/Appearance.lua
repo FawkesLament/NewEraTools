@@ -1,9 +1,10 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local L = ns.L
 local Assets = ns.Assets
 local Layout = ns.Layout
-local Media = ns.AuraTrackerMedia
-local Schema = ns.AuraTrackerSchema
+local Media = Internals.Media
+local Schema = Internals.Schema
 
 local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
@@ -17,8 +18,7 @@ local TEXTURE_LABELS = {
 }
 
 ---@class AuraTrackerUI
-local UI = ns.AuraTrackerUI or {}
-ns.AuraTrackerUI = UI
+local UI = Internals.UI
 
 local Controls = UI.Controls
 

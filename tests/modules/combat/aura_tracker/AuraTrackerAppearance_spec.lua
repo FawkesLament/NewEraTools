@@ -182,7 +182,7 @@ describe("appearance", function()
     end)
 
     it("lists only built-in textures when LibSharedMedia is absent", function()
-        local ids = ns.AuraTrackerMedia.ListTextureIds()
+        local ids = ns.Modules.Internals("AuraTracker").Media.ListTextureIds()
         assert.same({ "flat", "default", "raid" }, ids)
     end)
 end)
@@ -258,7 +258,7 @@ describe("LibSharedMedia textures", function()
     end)
 
     it("skips LSM entries that duplicate built-in ids or paths", function()
-        local ids = ns.AuraTrackerMedia.ListTextureIds()
+        local ids = ns.Modules.Internals("AuraTracker").Media.ListTextureIds()
         assert.same({ "flat", "default", "raid", "Smooth" }, ids)
     end)
 
@@ -274,7 +274,7 @@ describe("LibSharedMedia textures", function()
     end)
 
     it("falls back for an unknown font and resolves one LSM font handle", function()
-        local Schema = ns.AuraTrackerSchema
+        local Schema = ns.Modules.Internals("AuraTracker").Schema
         local id = AuraTracker:AddTracker()
         local display = AuraTracker.db.trackers[1].textDisplays[Schema.TEXT_DURATION]
         assert.equals("default", display.font)
@@ -306,8 +306,8 @@ describe("AuraTracker deferred appearance", function()
 
         AuraTracker:SetWidth(id, 240)
         AuraTracker:SetFillColor(id, { r = 1, g = 0, b = 0 })
-        AuraTracker:SetProgressMode(id, ns.AuraTrackerSchema.PROGRESS_MODE_STACKS)
-        AuraTracker:SetTextDisplayEnabled(id, ns.AuraTrackerSchema.TEXT_STACKS, true)
+        AuraTracker:SetProgressMode(id, ns.Modules.Internals("AuraTracker").Schema.PROGRESS_MODE_STACKS)
+        AuraTracker:SetTextDisplayEnabled(id, ns.Modules.Internals("AuraTracker").Schema.TEXT_STACKS, true)
         AuraTracker:SetSpellId(id, 774)
         local pending = AuraTracker.DiffDeferredAppearance(painted, AuraTracker:CaptureDeferredAppearance(id))
         assert.is_true(pending.width)

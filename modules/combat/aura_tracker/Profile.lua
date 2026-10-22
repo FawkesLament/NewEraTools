@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local L = ns.L
 
 ---@class AuraTrackerProfileBucket
@@ -18,7 +19,7 @@ local L = ns.L
 ---@field SetNoteProvider fun(provider: fun(): string|nil)
 ---@field Mark fun(name: string, value: number)
 local Profile = {}
-ns.AuraTrackerProfile = Profile
+Internals.Profile = Profile
 
 local now = debugprofilestop or function()
     return 0

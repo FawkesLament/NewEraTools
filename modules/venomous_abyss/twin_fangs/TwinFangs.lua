@@ -1,7 +1,8 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("TwinFangs")
 local Color = ns.Color
 local Util = ns.Util
-local Schema = ns.TwinFangsSchema
+local Schema = Internals.Schema
 
 -- The Twin Fangs, the sixth boss of The Venomous Abyss.
 -- There is no module-wide enable. Each reminder keeps its own saved settings.
@@ -318,12 +319,12 @@ end
 
 ---@return CalloutAnchor
 function TwinFangs:GetCalloutPosition()
-    return ns.CalloutPosition.GetPosition()
+    return ns.CalloutAnchor.GetPosition()
 end
 
 ---@param position CalloutAnchor
 function TwinFangs:SetCalloutPosition(position)
-    ns.CalloutPosition.SetPosition(position)
+    ns.CalloutAnchor.SetPosition(position)
 end
 
 function TwinFangs:OnInit()
@@ -336,15 +337,15 @@ function TwinFangs:OnInit()
         reminder = { enabled = false, voice = false, chain = Schema.NewInterruptChain() }
         self.db.interruptReminder = reminder
     end
-    reminder.chain = ns.TwinFangsInterruptChain.SanitizeSaved(reminder.chain)
+    reminder.chain = Internals.InterruptChain.SanitizeSaved(reminder.chain)
 end
 
 ---Adopts interrupt-chain publications from the raid. Called from OnEnable.
 function TwinFangs:ListenForInterruptChain()
-    ns.TwinFangsInterruptChain.Listen()
+    Internals.InterruptChain.Listen()
 end
 
----Keeps the character interrupt macro in sync. Defined by InterruptMacros.lua.
+---Keeps the character interrupt macro in sync. Defined by interrupt_chain/Macros.lua.
 function TwinFangs:ListenForInterruptMacro() end
 
 ---Drops a pending or visible soak reminder. Defined with the encounter listener.

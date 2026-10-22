@@ -4,6 +4,7 @@ local Util = ns.Util
 local Assets = ns.Assets
 local FloatingWindow = ns.FloatingWindow
 local Layout = ns.Layout
+local NumberStepper = ns.NumberStepper
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
@@ -133,7 +134,7 @@ local function CreateAxisRow(parent, axisLabel, axis)
 
     -- Five signed digits, matching the previous inspector box. Screen clamp happens in ApplyAxis.
     local maxOffset = 10 ^ Sizes.LAYOUT_INSPECTOR_OFFSET_DIGITS - 1
-    local stepper = Widgets.CreateNumberStepper(parent, -maxOffset, maxOffset, 1, function(value)
+    local stepper = NumberStepper.Create(parent, -maxOffset, maxOffset, 1, function(value)
         ApplyAxis(axis, value)
         LayoutCoordinateInspector.RefreshCoordinates()
     end)

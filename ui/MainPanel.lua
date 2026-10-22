@@ -7,6 +7,7 @@ local FeatureSection = ns.FeatureSection
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
 local Util = ns.Util
+local Slider = ns.Slider
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
@@ -379,7 +380,7 @@ local function CreateScaleControl(frame, chrome, anchorRight)
     value:SetJustifyH("RIGHT")
     value:SetPoint("RIGHT", anchorRight, "LEFT", -Spacing.MEDIUM, 0)
 
-    local slider = Widgets.CreateSlider(chrome, SCALE_MIN, SCALE_MAX, SCALE_STEP, {
+    local slider = Slider.Create(chrome, SCALE_MIN, SCALE_MAX, SCALE_STEP, {
         allowMouseWheel = true,
         allowTypedValue = false,
     })

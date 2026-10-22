@@ -158,7 +158,7 @@ describe("Sszorak map during combat lockdown", function()
         }
         assert(loadfile("ui/Layout.lua"))("NewEraTools", ns)
         assert(loadfile("modules/venomous_abyss/sszorak/ui/Map.lua"))("NewEraTools", ns)
-        Map = ns.SszorakMap
+        Map = ns.Modules.Internals("Sszorak").Map
         Sszorak.OnPositionsChanged = function()
             Map.RefreshPositionMarkers()
         end

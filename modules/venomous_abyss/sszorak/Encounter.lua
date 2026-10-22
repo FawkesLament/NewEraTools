@@ -1,9 +1,10 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("Sszorak")
 local Encounter = ns.Api.Encounter
 local Timer = ns.Api.Timer
 
 local Sszorak = ns.Modules.Get("Sszorak")
-local Timeline = ns.SszorakTimeline
+local Timeline = Internals.Timeline
 
 -- Mythic Sszorak in The Venomous Abyss; matches DBM/WCL encounter ID 3420.
 local ENCOUNTER_ID = 3420
@@ -107,7 +108,7 @@ local function SetPositionStation(station)
     local fromStation = positionStation
     positionStation = station
     if station == STATION_HOME and fromStation ~= STATION_HOME then
-        -- communication/Communication.lua. Home returns clear the active protocol's buffer.
+        -- communication/Host.lua. Home returns clear the active protocol's buffer.
         Sszorak:ClearCalloutMessages()
     end
     Sszorak:NotifyCalloutStationChanged(fromStation, station)

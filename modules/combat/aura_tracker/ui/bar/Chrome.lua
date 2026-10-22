@@ -1,16 +1,17 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local Assets = ns.Assets
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
 
 local AuraTracker = ns.Modules.Get("AuraTracker")
-local Schema = ns.AuraTrackerSchema
+local Schema = Internals.Schema
 
 local TIME_OUTLINE = "OUTLINE"
 
 local Chrome = {}
-ns.AuraTrackerBarChromeUI = Chrome
+Internals.BarChromeUI = Chrome
 
 ---@param thickness number
 ---@return table

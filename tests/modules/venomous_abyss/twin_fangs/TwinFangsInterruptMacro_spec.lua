@@ -249,12 +249,12 @@ describe("TwinFangs interrupt macros", function()
                     role = "DAMAGER",
                 },
             }
-            ns.TwinFangsInterruptChain.Listen()
+            ns.Modules.Internals("TwinFangs").InterruptChain.Listen()
             local payload = "1|1:1:51|::|::|::"
             local wire = assert(
                 ns.MessageProtocol.Encode(
                     ns.MessageProtocol.TYPE_EVENT,
-                    ns.TwinFangsInterruptChain.SYNC_TOPIC,
+                    ns.Modules.Internals("TwinFangs").InterruptChain.SYNC_TOPIC,
                     "-",
                     payload
                 )

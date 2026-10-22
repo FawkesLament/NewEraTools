@@ -223,7 +223,7 @@ describe("Sszorak", function()
         it("loads the mythic schedule on mythic pulls and heroic otherwise", function()
             local Encounter = ns.Api.Encounter
             local Instance = ns.Api.Instance
-            local Timeline = ns.SszorakTimeline
+            local Timeline = ns.Modules.Internals("Sszorak").Timeline
             local mythic = Timeline.GetSchedule(Instance.DIFFICULTY_MYTHIC_RAID)
             local heroic = Timeline.GetSchedule(Instance.DIFFICULTY_HEROIC_RAID)
             Sszorak:ListenForEncounter()

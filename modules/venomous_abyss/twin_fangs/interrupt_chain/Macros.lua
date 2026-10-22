@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("TwinFangs")
 local L = ns.L
 local Colors = ns.Assets.Colors
 local Combat = ns.Api.Combat
@@ -7,7 +8,7 @@ local Player = ns.Api.Player
 local Spell = ns.Api.Spell
 
 local TwinFangs = ns.Modules.Get("TwinFangs")
-local Chain = ns.TwinFangsInterruptChain
+local Chain = Internals.InterruptChain
 
 -- Macro UI names are capped at 16 characters.
 local MACRO_NAME = "NETTwinFangInt"
@@ -288,7 +289,7 @@ function TwinFangs:MaintainInterruptMacro()
     return true
 end
 
----@class TwinFangsInterruptMacroStatus
+---@class TwinFangsInterruptChainMacroStatus
 ---@field shown boolean
 ---@field exists boolean
 ---@field buttonText string
@@ -296,7 +297,7 @@ end
 ---@field color table
 ---@field reason string
 
----@return TwinFangsInterruptMacroStatus
+---@return TwinFangsInterruptChainMacroStatus
 function TwinFangs:GetInterruptMacroStatus()
     local assigned = PrimaryAssignment() ~= nil
     if not assigned then

@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("TwinFangs")
 local L = ns.L
 local Encounter = ns.Api.Encounter
 local EncounterTimeline = ns.Api.EncounterTimeline
@@ -7,7 +8,7 @@ local Speech = ns.Api.Speech
 local Timer = ns.Api.Timer
 
 local TwinFangs = ns.Modules.Get("TwinFangs")
-local Schema = ns.TwinFangsSchema
+local Schema = Internals.Schema
 
 -- Mythic Twin Fangs in The Venomous Abyss.
 local ENCOUNTER_ID = 3421
@@ -234,11 +235,11 @@ function TwinFangs:GetDisplayedCallout()
 end
 
 ---@return number|nil
-function TwinFangs:GetCalloutRemainingSeconds()
-    if displayedText == nil or calloutExpireTime == nil then
+function TwinFangs:GetCalloutExpiresAt()
+    if displayedText == nil then
         return nil
     end
-    return math.max(0, math.ceil(calloutExpireTime - Timer.GetTime()))
+    return calloutExpireTime
 end
 
 ---Starts watching for this boss fight. Timeline events and nameplate-hint casts are subscribed only on Mythic.

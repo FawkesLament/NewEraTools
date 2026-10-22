@@ -9,8 +9,8 @@ local Position = ns.Position
 ---@field x number
 ---@field y number
 
-local CalloutPosition = {}
-ns.CalloutPosition = CalloutPosition
+local CalloutAnchor = {}
+ns.CalloutAnchor = CalloutAnchor
 
 ---@type CalloutAnchor|nil
 local savedPosition
@@ -22,13 +22,13 @@ end
 
 ---Factory anchor. A new table, so callers can store it without aliasing the saved one.
 ---@return CalloutAnchor
-function CalloutPosition.DefaultPosition()
+function CalloutAnchor.DefaultPosition()
     return FactoryPosition()
 end
 
 ---Points later reads and writes at `saved.calloutPosition`, filling the factory anchor when needed.
 ---@param saved table
-function CalloutPosition.Bind(saved)
+function CalloutAnchor.Bind(saved)
     local position = saved.calloutPosition
     if not Position.IsValid(position) then
         position = FactoryPosition()
@@ -38,14 +38,14 @@ function CalloutPosition.Bind(saved)
 end
 
 ---@return CalloutAnchor
-function CalloutPosition.GetPosition()
-    return assert(savedPosition, "Callout position is not loaded")
+function CalloutAnchor.GetPosition()
+    return assert(savedPosition, "Callout anchor is not loaded")
 end
 
 ---@param position CalloutAnchor
-function CalloutPosition.SetPosition(position)
-    assert(savedPosition, "Callout position is not loaded")
-    assert(Position.IsValid(position), "Bad callout position")
+function CalloutAnchor.SetPosition(position)
+    assert(savedPosition, "Callout anchor is not loaded")
+    assert(Position.IsValid(position), "Bad callout anchor")
     savedPosition.point = position.point
     savedPosition.relativePoint = position.relativePoint
     savedPosition.x = position.x
@@ -53,5 +53,5 @@ function CalloutPosition.SetPosition(position)
 end
 
 ns.Modules.BeforeInit(function(saved)
-    CalloutPosition.Bind(saved)
+    CalloutAnchor.Bind(saved)
 end)

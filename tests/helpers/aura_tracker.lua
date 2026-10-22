@@ -7,7 +7,7 @@ local Harness = {}
 function Harness.Start()
     local ns = Loader.Load()
     ns.Modules.Start(ns.Database.Load(nil))
-    return ns, ns.Modules.Get("AuraTracker"), ns.AuraTrackerActivation, ns.AuraTrackerSchema
+    return ns, ns.Modules.Get("AuraTracker"), ns.Modules.Internals("AuraTracker").Activation, ns.Modules.Internals("AuraTracker").Schema
 end
 
 return Harness

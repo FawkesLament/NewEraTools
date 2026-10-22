@@ -40,7 +40,7 @@ describe("TwinFangs soak reminder", function()
         ns = Loader.Load()
         ns.Modules.Start(ns.Database.Load(nil))
         Module = ns.Modules.Get("TwinFangs")
-        Schema = ns.TwinFangsSchema
+        Schema = ns.Modules.Internals("TwinFangs").Schema
         Encounter = ns.Api.Encounter
         EncounterTimeline = ns.Api.EncounterTimeline
         Instance = ns.Api.Instance
@@ -60,7 +60,7 @@ describe("TwinFangs soak reminder", function()
         assert.equals(nil, Module:GetDisplayedCallout())
         Timer.Advance(0.01)
         assert.equals(ns.L.TWIN_FANGS_SOAK_ENTER, Module:GetDisplayedCallout())
-        assert.equals(Module.HIT1_LEAD, Module:GetCalloutRemainingSeconds())
+        assert.equals(hit1, Module:GetCalloutExpiresAt())
 
         Timer.Advance(Module.HIT1_LEAD)
         assert.equals(nil, Module:GetDisplayedCallout())
@@ -78,11 +78,11 @@ describe("TwinFangs soak reminder", function()
         assert.equals(nil, Module:GetDisplayedCallout())
         Timer.Advance(0.01)
         assert.equals(ns.L.TWIN_FANGS_SOAK_PREPARE, Module:GetDisplayedCallout())
-        assert.equals(Module.PREPARE_LEAD, Module:GetCalloutRemainingSeconds())
+        assert.equals(hit1, Module:GetCalloutExpiresAt())
 
         Timer.Advance(Module.PREPARE_LEAD)
         assert.equals(ns.L.TWIN_FANGS_SOAK_NOW, Module:GetDisplayedCallout())
-        assert.equals(math.ceil(hit2 - hit1), Module:GetCalloutRemainingSeconds())
+        assert.equals(hit2, Module:GetCalloutExpiresAt())
 
         Timer.Advance(hit2 - hit1)
         assert.equals(nil, Module:GetDisplayedCallout())
@@ -97,11 +97,11 @@ describe("TwinFangs soak reminder", function()
 
         Timer.Advance(hit2 - Module.PREPARE_LEAD)
         assert.equals(ns.L.TWIN_FANGS_SOAK_PREPARE, Module:GetDisplayedCallout())
-        assert.equals(Module.PREPARE_LEAD, Module:GetCalloutRemainingSeconds())
+        assert.equals(hit2, Module:GetCalloutExpiresAt())
 
         Timer.Advance(Module.PREPARE_LEAD)
         assert.equals(ns.L.TWIN_FANGS_SOAK_NOW, Module:GetDisplayedCallout())
-        assert.equals(math.ceil(hit3 - hit2), Module:GetCalloutRemainingSeconds())
+        assert.equals(hit3, Module:GetCalloutExpiresAt())
 
         Timer.Advance(hit3 - hit2)
         assert.equals(nil, Module:GetDisplayedCallout())

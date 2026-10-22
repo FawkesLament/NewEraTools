@@ -67,7 +67,7 @@ describe("TwinFangs interrupt chain receive", function()
 
     before_each(function()
         ns = Loader.Load()
-        Chain = ns.TwinFangsInterruptChain
+        Chain = ns.Modules.Internals("TwinFangs").InterruptChain
         Group = ns.Api.Group
         AddonMessage = ns.Api.AddonMessage
         MessageProtocol = ns.MessageProtocol
@@ -259,10 +259,8 @@ describe("TwinFangs interrupt chain receive", function()
             local loaded = reloaded.Modules.Get("TwinFangs").db.interruptReminder.chain
             assert.equals("LF5-TestRealm", loaded.front_left.players[2].name)
             assert.equals("B52-TestRealm", loaded.front_left.backup.name)
-            assert.equals(
-                reloaded.TwinFangsInterruptChain.FRONT_LEFT,
-                reloaded.TwinFangsInterruptChain.GetMemberView(loaded, "LF1").primary.regionId
-            )
+            local ReloadedChain = reloaded.Modules.Internals("TwinFangs").InterruptChain
+            assert.equals(ReloadedChain.FRONT_LEFT, ReloadedChain.GetMemberView(loaded, "LF1").primary.regionId)
         end)
 
         it("treats an unused saved chain as having no received assignments", function()

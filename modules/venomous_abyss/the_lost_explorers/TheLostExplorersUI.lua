@@ -1,12 +1,13 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("TheLostExplorers")
 local L = ns.L
 local Assets = ns.Assets
-local CalloutMessage = ns.CalloutMessage
 local Combat = ns.Api.Combat
 local ActionRow = ns.ActionRow
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
 local Util = ns.Util
+local Dropdown = ns.Dropdown
 local Widgets = ns.Widgets
 
 local Fonts = Assets.Fonts
@@ -14,84 +15,11 @@ local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 
 local TheLostExplorers = ns.Modules.Get("TheLostExplorers")
+local Callout = Internals.CalloutUI
 
-local LAYOUT_ID_CALLOUT = "TheLostExplorers:callout"
 local LAYOUT_SCOPE_ID = "the_lost_explorers"
-local CALLOUT_WIDTH = 420
-local CALLOUT_HEIGHT = 72
 -- Dropdown sentinel for an empty feed-order slot (distinct from boss id strings).
 local FEED_ORDER_NONE = false
-
-local calloutWindow
-local calloutLayoutRegistered = false
-local layoutEditing = false
-local CreateCalloutWindow
-local UpdateCalloutWindow
-local RegisterCalloutLayoutElement
-
-function CreateCalloutWindow()
-    local frame = CalloutMessage.Create({
-        name = ns.ADDON_NAME .. "TheLostExplorersCallout",
-        width = CALLOUT_WIDTH,
-        height = CALLOUT_HEIGHT,
-    })
-    LayoutEditor.ApplyPosition(frame, TheLostExplorers:GetCalloutPosition())
-    RegisterCalloutLayoutElement(frame)
-    return frame
-end
-
-function UpdateCalloutWindow()
-    if layoutEditing then
-        return
-    end
-    calloutWindow = calloutWindow or CreateCalloutWindow()
-    LayoutEditor.ApplyPosition(calloutWindow, TheLostExplorers:GetCalloutPosition())
-    local text = TheLostExplorers:GetDisplayedCallout()
-    if text == nil then
-        calloutWindow:Clear()
-        return
-    end
-    local remaining = TheLostExplorers:GetCalloutRemainingSeconds()
-    if remaining == nil then
-        calloutWindow:Clear()
-        return
-    end
-    calloutWindow:SetMessage(text, remaining, true)
-end
-
-function RegisterCalloutLayoutElement(frame)
-    if calloutLayoutRegistered then
-        return
-    end
-    calloutLayoutRegistered = true
-    LayoutEditor.Register({
-        id = LAYOUT_ID_CALLOUT,
-        label = L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT_TITLE,
-        frame = frame,
-        global = false,
-        isEnabled = function()
-            return TheLostExplorers:IsEnabled()
-        end,
-        getPosition = function()
-            return TheLostExplorers:GetCalloutPosition()
-        end,
-        setPosition = function(position)
-            TheLostExplorers:SetCalloutPosition(position)
-        end,
-        getDefaultPosition = function()
-            return ns.CalloutPosition.DefaultPosition()
-        end,
-        onEditBegin = function()
-            layoutEditing = true
-            local win = calloutWindow or CreateCalloutWindow()
-            win:ShowPreview(L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT, TheLostExplorers.CALLOUT_DURATION, true)
-        end,
-        onEditEnd = function()
-            layoutEditing = false
-            UpdateCalloutWindow()
-        end,
-    })
-end
 
 local function BeginEditPosition()
     if Combat.IsInCombat() or Combat.IsLockedDown() then
@@ -201,7 +129,7 @@ local function BuildContent(content)
         local control
         if slot <= FEED_ORDER_CHOICE_SLOTS then
             local dropdown
-            dropdown = Widgets.CreateDropdown(column, BuildFeedOrderItems(slot), function(value)
+            dropdown = Dropdown.Create(column, BuildFeedOrderItems(slot), function(value)
                 TheLostExplorers:SetFeedOrderSlot(slot, value)
                 RefreshFeedOrderControls()
             end)
@@ -259,9 +187,9 @@ function TheLostExplorers:OnEnable()
         id = LAYOUT_SCOPE_ID,
         label = L.THE_LOST_EXPLORERS_LAYOUT_SCOPE,
         order = 3,
-        elementIds = { LAYOUT_ID_CALLOUT },
+        elementIds = { Callout.LAYOUT_ID },
         prepare = function()
-            calloutWindow = calloutWindow or CreateCalloutWindow()
+            Callout.Ensure()
         end,
     })
     ns.MainPanel:RegisterSection({
@@ -278,10 +206,6 @@ function TheLostExplorers:OnEnable()
         build = Build,
     })
     self:ListenForFeedFish()
-    calloutWindow = calloutWindow or CreateCalloutWindow()
-    UpdateCalloutWindow()
-end
-
-function TheLostExplorers:OnCalloutChanged()
-    UpdateCalloutWindow()
+    Callout.Ensure()
+    Callout.Update()
 end

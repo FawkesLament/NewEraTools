@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("Sszorak")
 local L = ns.L
 local Assets = ns.Assets
 local Combat = ns.Api.Combat
@@ -10,7 +11,7 @@ local LayoutEditor = ns.LayoutEditor
 local Spacing = Assets.Spacing
 
 local Sszorak = ns.Modules.Get("Sszorak")
-local Map = ns.SszorakMap
+local Map = Internals.Map
 
 -- Distance between opposite edges of the drawn octagon in the floating map.
 local ARENA_SIZE = 220
@@ -20,7 +21,7 @@ local LAYOUT_ID = "Sszorak:map"
 local Window = {
     LAYOUT_ID = LAYOUT_ID,
 }
-ns.SszorakWindow = Window
+Internals.Window = Window
 
 local window
 local windowArena
@@ -77,7 +78,7 @@ function Window.EndLayoutEdit()
     layoutEditCount = math.max(0, layoutEditCount - 1)
     if layoutEditCount == 0 then
         Window.Update()
-        ns.SszorakCalloutUI.Update()
+        Internals.CalloutUI.Update()
     end
 end
 

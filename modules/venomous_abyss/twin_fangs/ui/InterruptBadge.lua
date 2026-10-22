@@ -1,7 +1,8 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("TwinFangs")
 local Assets = ns.Assets
 
-local Schema = ns.TwinFangsSchema
+local Schema = Internals.Schema
 local SIZE = Schema.SIZE_DEFAULT
 local FONT_SIZE = Schema.FONT_SIZE_DEFAULT
 local FONT_COLOR = Schema.FONT_COLOR_DEFAULT
@@ -11,7 +12,7 @@ local FONT_COLOR = Schema.FONT_COLOR_DEFAULT
 ---@field ApplyAppearance fun(self: TwinFangsInterruptBadge, size: number|nil, opacity: number|nil, fontPath: string|nil, fontSize: number|nil, fontColor: RgbColor|nil)
 
 local InterruptBadge = {}
-ns.TwinFangsInterruptBadge = InterruptBadge
+Internals.InterruptBadge = InterruptBadge
 
 ---Compact ice-blue HUD badge. Does not receive mouse input.
 ---@param parent Frame|nil

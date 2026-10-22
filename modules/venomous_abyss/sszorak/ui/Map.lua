@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("Sszorak")
 local L = ns.L
 local Assets = ns.Assets
 local Combat = ns.Api.Combat
@@ -111,7 +112,7 @@ local canvases = {}
 local Map = {
     MARKER_NAMES = MARKER_NAMES,
 }
-ns.SszorakMap = Map
+Internals.Map = Map
 
 ---Turns an arena point counterclockwise by `degrees` (y up). 0, 90, 180, and 270 stay exact.
 ---@param degrees number

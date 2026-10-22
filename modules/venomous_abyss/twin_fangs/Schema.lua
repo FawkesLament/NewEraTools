@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("TwinFangs")
 
 ---@class TwinFangsSoakReminder
 ---@field enabled boolean
@@ -89,7 +90,7 @@ local Schema = {
     -- Ice-blue number fill (#7DD6FF).
     FONT_COLOR_DEFAULT = { r = 125 / 255, g = 214 / 255, b = 1 },
 }
-ns.TwinFangsSchema = Schema
+Internals.Schema = Schema
 
 ---A fresh region assignment. Nested player lists are new tables on every call.
 ---@return TwinFangsInterruptChainRegion

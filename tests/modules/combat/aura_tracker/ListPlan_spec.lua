@@ -5,7 +5,7 @@ describe("AuraTracker list plan", function()
 
     before_each(function()
         local ns = Loader.Load()
-        ListPlan = ns.AuraTrackerListPlan
+        ListPlan = ns.Modules.Internals("AuraTracker").ListPlan
     end)
 
     it("treats the same id order as unchanged", function()

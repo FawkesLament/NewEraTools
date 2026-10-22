@@ -7,7 +7,7 @@ describe("TwinFangs", function()
         ns = Loader.Load()
         ns.Modules.Start(ns.Database.Load(nil))
         Module = ns.Modules.Get("TwinFangs")
-        Schema = ns.TwinFangsSchema
+        Schema = ns.Modules.Internals("TwinFangs").Schema
     end)
 
     it("registers with both reminders off", function()
@@ -258,7 +258,7 @@ describe("TwinFangs", function()
             })
             ns.Modules.Start(saved)
             Module = ns.Modules.Get("TwinFangs")
-            Schema = ns.TwinFangsSchema
+            Schema = ns.Modules.Internals("TwinFangs").Schema
             assert.is_true(Module:IsNameplateHintEnabled())
             assert.equals(Schema.SIDE_LEFT, Module:GetNameplateHintSide())
             assert.equals(Schema.SIZE_MIN, Module:GetNameplateHintSize())
@@ -282,7 +282,7 @@ describe("TwinFangs", function()
             })
             ns.Modules.Start(saved)
             Module = ns.Modules.Get("TwinFangs")
-            Schema = ns.TwinFangsSchema
+            Schema = ns.Modules.Internals("TwinFangs").Schema
             assert.is_true(Module:IsNameplateHintEnabled())
             assert.equals(Schema.SIDE_LEFT, Module:GetNameplateHintSide())
             assert.equals(Schema.SIZE_DEFAULT, Module:GetNameplateHintSize())

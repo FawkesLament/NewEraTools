@@ -125,7 +125,7 @@ describe("AuraTracker settings list", function()
                 return section
             end,
         }
-        ns.AuraTrackerBarUI = {
+        ns.Modules.Internals("AuraTracker").BarUI = {
             Update = function(trackerId)
                 if trackerId == nil then
                     bar.full = bar.full + 1
@@ -143,7 +143,7 @@ describe("AuraTracker settings list", function()
 
         assert(loadfile("modules/combat/aura_tracker/ui/List.lua"))("NewEraTools", ns)
         assert(loadfile("modules/combat/aura_tracker/ui/Panel.lua"))("NewEraTools", ns)
-        UI = ns.AuraTrackerUI
+        UI = ns.Modules.Internals("AuraTracker").UI
         UI.RefreshPendingClocks = function() end
         local syncList = UI.SyncTrackerList
         function UI.SyncTrackerList(...)
@@ -315,7 +315,7 @@ describe("AuraTracker settings list", function()
     it("refreshes the live bar without rebuilding the list", function()
         local id = AuraTracker:AddTracker()
         AuraTracker:SetEnabled(true)
-        AuraTracker:SetUnit(id, ns.AuraTrackerSchema.UNIT_TARGET)
+        AuraTracker:SetUnit(id, ns.Modules.Internals("AuraTracker").Schema.UNIT_TARGET)
         local clears = structureClears
         local syncs = listSyncs
         local scrollSets = scroll.sets

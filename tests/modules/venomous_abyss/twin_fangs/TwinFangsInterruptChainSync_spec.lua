@@ -83,7 +83,7 @@ describe("TwinFangs interrupt chain sync", function()
 
     before_each(function()
         ns = Loader.Load()
-        Chain = ns.TwinFangsInterruptChain
+        Chain = ns.Modules.Internals("TwinFangs").InterruptChain
         Group = ns.Api.Group
         AddonMessage = ns.Api.AddonMessage
         MessageProtocol = ns.MessageProtocol

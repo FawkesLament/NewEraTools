@@ -273,21 +273,21 @@ function TheLostExplorers:GetDisplayedCallout()
 end
 
 ---@return number|nil
-function TheLostExplorers:GetCalloutRemainingSeconds()
-    if displayedCallout == nil or calloutExpireTime == nil then
+function TheLostExplorers:GetCalloutExpiresAt()
+    if displayedCallout == nil then
         return nil
     end
-    return math.max(0, math.ceil(calloutExpireTime - Timer.GetTime()))
+    return calloutExpireTime
 end
 
 ---@return CalloutAnchor
 function TheLostExplorers:GetCalloutPosition()
-    return ns.CalloutPosition.GetPosition()
+    return ns.CalloutAnchor.GetPosition()
 end
 
 ---@param position CalloutAnchor
 function TheLostExplorers:SetCalloutPosition(position)
-    ns.CalloutPosition.SetPosition(position)
+    ns.CalloutAnchor.SetPosition(position)
 end
 
 ---@return string[]

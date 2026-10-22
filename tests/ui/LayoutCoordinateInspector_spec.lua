@@ -334,7 +334,9 @@ describe("LayoutCoordinateInspector", function()
                 function box:SetEnabled() end
                 return box
             end,
-            CreateNumberStepper = function(parent, _, _, _, onValueChanged)
+        }
+        ns.NumberStepper = {
+            Create = function(parent, _, _, _, onValueChanged)
                 local stepper = FakeFrame(parent)
                 local box = ns.Widgets.CreateNumberBox(stepper)
                 local current = 0

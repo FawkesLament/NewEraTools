@@ -5,6 +5,7 @@ local Assets = ns.Assets
 local Combat = ns.Api.Combat
 local FloatingWindow = ns.FloatingWindow
 local LayoutCoordinateInspector = ns.LayoutCoordinateInspector
+local Dropdown = ns.Dropdown
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
@@ -311,7 +312,7 @@ local function EnsureToolbar()
     bar:EnableMouse(true)
     bar:Hide()
 
-    local dropdown = Widgets.CreateDropdown(bar, {}, function(scopeId)
+    local dropdown = Dropdown.Create(bar, {}, function(scopeId)
         LayoutEditor.BeginScope(scopeId)
     end)
 

@@ -225,7 +225,7 @@ describe("AuraTracker bar runtime", function()
             end,
             Refresh = function() end,
         }
-        ns.AuraTrackerBarChromeUI = {
+        ns.Modules.Internals("AuraTracker").BarChromeUI = {
             BarSize = function()
                 return 200, 18
             end,
@@ -241,21 +241,22 @@ describe("AuraTracker bar runtime", function()
             ApplyStackDividers = function() end,
             ApplyTextDisplayAppearance = function() end,
         }
-        ns.AuraTrackerBarPreviewUI = {
+        ns.Modules.Internals("AuraTracker").BarPreviewUI = {
             Hide = function() end,
             Show = function() end,
             StartAnimation = function() end,
             ApplyAppearance = function() end,
         }
-        ns.AuraTrackerProfileReport = {
+        ns.Modules.Internals("AuraTracker").ProfileReport = {
             Show = function() end,
             RefreshIfShown = function() end,
         }
         assert(loadfile("modules/combat/aura_tracker/ui/bar/Appearance.lua"))("NewEraTools", ns)
         assert(loadfile("modules/combat/aura_tracker/ui/bar/Bar.lua"))("NewEraTools", ns)
-        Bar = ns.AuraTrackerBarUI
-        local flush = ns.AuraTrackerBarAppearanceUI.Flush
-        function ns.AuraTrackerBarAppearanceUI.Flush(inst)
+        Bar = ns.Modules.Internals("AuraTracker").BarUI
+        local BarAppearance = ns.Modules.Internals("AuraTracker").BarAppearanceUI
+        local flush = BarAppearance.Flush
+        function BarAppearance.Flush(inst)
             flushed[#flushed + 1] = inst and inst.trackerId
             return flush(inst)
         end

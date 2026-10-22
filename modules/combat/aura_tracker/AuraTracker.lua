@@ -1,6 +1,7 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("AuraTracker")
 local Util = ns.Util
-local Schema = ns.AuraTrackerSchema
+local Schema = Internals.Schema
 
 ---@class AuraTracker: Module
 ---@field OnTrackerListChanged fun(self: AuraTracker)|nil  Add/remove; rebuild instance UIs.
@@ -159,7 +160,7 @@ function AuraTracker:AddTracker()
     tracker.id = id
     local stackIndex = #self.db.trackers
     tracker.position.y = Schema.DEFAULT_POSITION_Y - Schema.POSITION_STACK_STEP * stackIndex
-    ns.AuraTrackerSettings.Normalize(tracker)
+    Internals.Settings.Normalize(tracker)
     self.db.trackers[#self.db.trackers + 1] = tracker
 
     NotifyTrackerListChanged()
@@ -191,7 +192,7 @@ function AuraTracker:DuplicateTracker(trackerId)
 
     local tracker = Util.DeepCopy(source)
     tracker.id = id
-    ns.AuraTrackerSettings.Normalize(tracker)
+    Internals.Settings.Normalize(tracker)
     table.insert(self.db.trackers, index + 1, tracker)
 
     NotifyTrackerListChanged()
@@ -237,7 +238,7 @@ function AuraTracker:OnInit()
                 tracker.id = id
                 self.db.nextTrackerId = id + 1
             end
-            ns.AuraTrackerSettings.Normalize(tracker)
+            Internals.Settings.Normalize(tracker)
             if tracker.id > maxId then
                 maxId = tracker.id
             end
