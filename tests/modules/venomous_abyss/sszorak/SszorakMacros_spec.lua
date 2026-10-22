@@ -17,7 +17,7 @@ describe("SszorakMacros", function()
     it("names macros for NewEraTools within the 16-character limit", function()
         for _, edge in ipairs(Sszorak.MARKABLE_EDGES) do
             local name = Sszorak:GetEdgeMacroName(edge)
-            assert.equals("NewEraToolsSsz" .. edge, name)
+            assert.equals("NETSsz" .. edge, name)
             assert.is_true(#name <= 16)
         end
     end)
@@ -120,6 +120,30 @@ describe("SszorakMacros", function()
         assert.is_false(Sszorak:HasEdgeMacro(2))
         Combat.FireLeave()
         assert.is_true(Sszorak:HasAllEdgeMacros())
+    end)
+
+    it("does not rewrite an existing macro whose name, icon, and body already match", function()
+        Group.isRaidLeader = true
+        Sszorak:CreateEdgeMacros()
+        local edits = Macro.editCount
+        Sszorak:SyncEdgeMacros()
+        assert.equals(edits, Macro.editCount)
+    end)
+
+    it("restores a stale callout macro when the game reports a macro change", function()
+        Group.isRaidLeader = true
+        Sszorak:CreateEdgeMacros()
+        Sszorak:ListenForMacroSync()
+        local name = Sszorak:GetEdgeMacroName(2)
+        local index = Macro.GetIndexByName(name)
+        Macro.Edit(index, nil, nil, "/say edited")
+        local notified = 0
+        Sszorak.OnMacrosChanged = function()
+            notified = notified + 1
+        end
+        Macro.FireChanged()
+        assert.equals(Sszorak:GetEdgeMacroBody(2), Macro.Get(name).body)
+        assert.equals(1, notified)
     end)
 
     it("defers macro updates until combat ends", function()

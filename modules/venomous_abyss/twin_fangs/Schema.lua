@@ -5,8 +5,7 @@ local _, ns = ...
 ---@field group "left"|"middle"|"right"
 
 ---@class TwinFangsInterruptPlayer
----@field guid string|nil  Canonical identity when resolved; nil when a legacy name is unresolved.
----@field name string  Cached "Name-Realm" for display.
+---@field name string  "Name-Realm" identity and display.
 
 ---@class TwinFangsInterruptChainRegion
 ---@field group number|nil

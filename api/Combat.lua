@@ -23,6 +23,7 @@ end
 
 ---Calls `callback` when the player leaves combat.
 ---@param callback fun()
+---@return fun()  Unsubscribe; safe to call more than once.
 function Combat.OnLeave(callback)
-    ns.Api.GameEvents.Listen("PLAYER_REGEN_ENABLED", callback)
+    return ns.Api.GameEvents.Listen("PLAYER_REGEN_ENABLED", callback)
 end

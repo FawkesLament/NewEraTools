@@ -95,36 +95,26 @@ local function ShortName(name)
     return name:match("^([^-]+)") or name
 end
 
----@param player TwinFangsInterruptPlayer|nil
----@return boolean
-function InterruptChain.IsResolved(player)
-    return type(player) == "table" and type(player.guid) == "string" and player.guid ~= ""
-end
-
 ---@param player TwinFangsInterruptPlayer|string|nil
 ---@return string|nil
-function InterruptChain.PlayerGuid(player)
+function InterruptChain.PlayerName(player)
+    local raw
     if type(player) == "table" then
-        if type(player.guid) == "string" and player.guid ~= "" then
-            return player.guid
-        end
-        return nil
+        raw = player.name
+    elseif type(player) == "string" then
+        raw = player
     end
-    if type(player) == "string" and player ~= "" then
-        return player
-    end
+    return QualifiedName(raw)
 end
 
 ---@param player TwinFangsInterruptPlayer|nil
 ---@return TwinFangsInterruptPlayer|nil
 local function CopyPlayer(player)
-    if type(player) ~= "table" then
+    local name = InterruptChain.PlayerName(player)
+    if not name then
         return nil
     end
-    return {
-        guid = player.guid,
-        name = player.name,
-    }
+    return { name = name }
 end
 
 ---@param players TwinFangsInterruptPlayer[]|nil
@@ -143,14 +133,14 @@ end
 ---@param member RaidMember
 ---@return TwinFangsInterruptPlayer|nil
 local function RecordFromMember(member)
-    if type(member) ~= "table" or type(member.guid) ~= "string" or member.guid == "" then
+    if type(member) ~= "table" then
         return nil
     end
-    local name = QualifiedName(member.fullName or member.name)
+    local name = InterruptChain.PlayerName(member.fullName or member.name)
     if not name then
         return nil
     end
-    return { guid = member.guid, name = name }
+    return { name = name }
 end
 
 ---@param entry any
@@ -167,14 +157,10 @@ local function CoercePlayer(entry)
         return nil
     end
     local name = QualifiedName(entry.name)
-    local guid
-    if type(entry.guid) == "string" and entry.guid ~= "" then
-        guid = entry.guid
-    end
-    if not name and not guid then
+    if not name then
         return nil
     end
-    return { guid = guid, name = name or guid }
+    return { name = name }
 end
 
 ---@param region any
@@ -265,116 +251,6 @@ function InterruptChain.ReplaceChain(target, source)
     end
 end
 
----@param members RaidMember[]
----@return table<string, RaidMember>
-local function IndexRosterByGuid(members)
-    local byGuid = {}
-    for _, member in ipairs(members) do
-        if type(member.guid) == "string" and member.guid ~= "" then
-            byGuid[member.guid] = member
-        end
-    end
-    return byGuid
-end
-
----Resolves a legacy name to a roster member only when the match is unique.
----@param roster RaidMember[]
----@param raw string
----@return RaidMember|nil
-function InterruptChain.ResolveLegacyName(roster, raw)
-    if type(raw) ~= "string" or raw == "" then
-        return nil
-    end
-    local qualified = QualifiedName(raw)
-    local exact = {}
-    local short = {}
-    local rawShort = ShortName(raw)
-    for _, member in ipairs(roster) do
-        local fullName = member.fullName
-        local display = member.name
-        if fullName == raw or (qualified and fullName == qualified) then
-            exact[#exact + 1] = member
-        elseif
-            display == raw
-            or display == rawShort
-            or (type(fullName) == "string" and ShortName(fullName) == rawShort)
-        then
-            short[#short + 1] = member
-        end
-    end
-    if #exact == 1 then
-        return exact[1]
-    end
-    if #exact > 1 then
-        return nil
-    end
-    if raw:find("-", 1, true) then
-        return nil
-    end
-    if #short == 1 then
-        return short[1]
-    end
-    return nil
-end
-
----@param player TwinFangsInterruptPlayer
----@param roster RaidMember[]
----@param byGuid table<string, RaidMember>
----@return boolean
-local function RefreshOrMigratePlayer(player, roster, byGuid)
-    if InterruptChain.IsResolved(player) then
-        local member = byGuid[player.guid]
-        if member then
-            local name = QualifiedName(member.fullName or member.name)
-            if name and name ~= player.name then
-                player.name = name
-                return true
-            end
-        end
-        return false
-    end
-    local member = InterruptChain.ResolveLegacyName(roster, player.name)
-    local record = member and RecordFromMember(member)
-    if not record then
-        local qualified = QualifiedName(player.name)
-        if qualified and qualified ~= player.name then
-            player.name = qualified
-            return true
-        end
-        return false
-    end
-    player.guid = record.guid
-    player.name = record.name
-    return true
-end
-
----Fills GUIDs for uniquely matched legacy names and refreshes cached names.
----Does not add, remove, or reorder assignments.
----@param chain TwinFangsInterruptChainSettings
----@param roster RaidMember[]
----@return boolean
-function InterruptChain.MigrateAssignments(chain, roster)
-    if type(chain) ~= "table" or type(roster) ~= "table" then
-        return false
-    end
-    local changed = false
-    local byGuid = IndexRosterByGuid(roster)
-    for _, regionId in ipairs(InterruptChain.REGION_IDS) do
-        local region = chain[regionId]
-        if type(region) == "table" then
-            for _, player in ipairs(region.players or {}) do
-                if RefreshOrMigratePlayer(player, roster, byGuid) then
-                    changed = true
-                end
-            end
-            if region.backup and RefreshOrMigratePlayer(region.backup, roster, byGuid) then
-                changed = true
-            end
-        end
-    end
-    return changed
-end
-
 ---@return string
 function InterruptChain.RegionLabel(regionId)
     if regionId == FRONT_LEFT then
@@ -405,24 +281,16 @@ function InterruptChain.DisplayName(roster, player)
     if player == nil then
         return L.TWIN_FANGS_INTERRUPT_BACKUP_NONE
     end
-    local guid = InterruptChain.PlayerGuid(player)
-    if guid then
-        for _, member in ipairs(roster) do
-            if member.guid == guid then
-                return ShortName(member.name)
-            end
-        end
-    end
-    local cached
-    if type(player) == "table" then
-        cached = player.name
-    elseif type(player) == "string" then
-        cached = player
-    end
-    if type(cached) ~= "string" or cached == "" then
+    local name = InterruptChain.PlayerName(player)
+    if not name then
         return L.TWIN_FANGS_INTERRUPT_BACKUP_NONE
     end
-    return ShortName(cached)
+    for _, member in ipairs(roster) do
+        if InterruptChain.PlayerName(member.fullName or member.name) == name then
+            return ShortName(member.name)
+        end
+    end
+    return ShortName(name)
 end
 
 ---@param saved TwinFangsInterruptChainSettings|nil
@@ -450,7 +318,6 @@ end
 ---@param members RaidMember[]
 function InterruptChain.SetRoster(state, members)
     state.roster = members or {}
-    InterruptChain.MigrateAssignments(state.regions, state.roster)
 end
 
 ---Replaces the session roster with the current raid. Empty when not in a raid.
@@ -488,22 +355,41 @@ local function FindMember(state, guid)
 end
 
 ---@param state TwinFangsInterruptChainState
----@param identity TwinFangsInterruptPlayer|string|nil
+---@param name string|nil
 ---@return RaidMember|nil
-function InterruptChain.GetMember(state, identity)
-    return FindMember(state, InterruptChain.PlayerGuid(identity))
+local function FindMemberByName(state, name)
+    name = QualifiedName(name)
+    if not name then
+        return nil
+    end
+    for _, member in ipairs(state.roster) do
+        if InterruptChain.PlayerName(member.fullName or member.name) == name then
+            return member
+        end
+    end
 end
 
 ---@param state TwinFangsInterruptChainState
----@param guid string
+---@param identity TwinFangsInterruptPlayer|string|nil
+---@return RaidMember|nil
+function InterruptChain.GetMember(state, identity)
+    if type(identity) == "string" then
+        return FindMember(state, identity) or FindMemberByName(state, identity)
+    end
+    return FindMemberByName(state, InterruptChain.PlayerName(identity))
+end
+
+---@param state TwinFangsInterruptChainState
+---@param name string|nil
 ---@return string|nil
-local function PrimaryRegionOf(state, guid)
-    if type(guid) ~= "string" or guid == "" then
+local function PrimaryRegionOf(state, name)
+    name = QualifiedName(name)
+    if not name then
         return nil
     end
     for _, regionId in ipairs(InterruptChain.REGION_IDS) do
         for _, player in ipairs(state.regions[regionId].players) do
-            if player.guid == guid then
+            if InterruptChain.PlayerName(player) == name then
                 return regionId
             end
         end
@@ -511,15 +397,15 @@ local function PrimaryRegionOf(state, guid)
 end
 
 ---@param state TwinFangsInterruptChainState
----@param guid string
+---@param name string|nil
 ---@return string|nil
-local function BackupRegionOf(state, guid)
-    if type(guid) ~= "string" or guid == "" then
+local function BackupRegionOf(state, name)
+    name = QualifiedName(name)
+    if not name then
         return nil
     end
     for _, regionId in ipairs(InterruptChain.REGION_IDS) do
-        local backup = state.regions[regionId].backup
-        if backup and backup.guid == guid then
+        if InterruptChain.PlayerName(state.regions[regionId].backup) == name then
             return regionId
         end
     end
@@ -531,9 +417,7 @@ local function CopyStoredPlayer(entry)
     if type(entry) == "table" then
         return CopyPlayer(entry)
     end
-    if type(entry) == "string" and entry ~= "" then
-        return { name = entry }
-    end
+    return CopyPlayer({ name = entry })
 end
 
 ---@param players TwinFangsInterruptPlayer[]|nil
@@ -543,8 +427,11 @@ local function CopyStoredPlayers(players)
     if type(players) ~= "table" then
         return copy
     end
-    for index, entry in ipairs(players) do
-        copy[index] = CopyStoredPlayer(entry)
+    for _, entry in ipairs(players) do
+        local player = CopyStoredPlayer(entry)
+        if player then
+            copy[#copy + 1] = player
+        end
     end
     return copy
 end
@@ -566,16 +453,17 @@ local function CopyAssignment(regionId, region)
     }
 end
 
----Read-only assignments for one player. Matches stored GUIDs only; does not mutate `chain`.
+---Read-only assignments for one player. Matches stored names only; does not mutate `chain`.
 ---@param chain TwinFangsInterruptChainSettings|nil
----@param guid string|nil
+---@param identity string|nil
 ---@return TwinFangsInterruptMemberView
-function InterruptChain.GetMemberView(chain, guid)
+function InterruptChain.GetMemberView(chain, identity)
     ---@class TwinFangsInterruptMemberView
     ---@field primary TwinFangsInterruptMemberAssignment|nil
     ---@field backups TwinFangsInterruptMemberAssignment[]
     local view = { backups = {} }
-    if type(guid) ~= "string" or guid == "" or type(chain) ~= "table" then
+    local name = InterruptChain.PlayerName(identity)
+    if not name or type(chain) ~= "table" then
         return view
     end
     local seen = {}
@@ -583,7 +471,7 @@ function InterruptChain.GetMemberView(chain, guid)
         local region = chain[regionId]
         if type(region) == "table" and type(region.players) == "table" then
             for _, player in ipairs(region.players) do
-                if InterruptChain.PlayerGuid(player) == guid then
+                if InterruptChain.PlayerName(player) == name then
                     view.primary = CopyAssignment(regionId, region)
                     seen[regionId] = true
                     break
@@ -597,7 +485,7 @@ function InterruptChain.GetMemberView(chain, guid)
     for _, regionId in ipairs(InterruptChain.REGION_IDS) do
         if not seen[regionId] then
             local region = chain[regionId]
-            if type(region) == "table" and InterruptChain.PlayerGuid(region.backup) == guid then
+            if type(region) == "table" and InterruptChain.PlayerName(region.backup) == name then
                 view.backups[#view.backups + 1] = CopyAssignment(regionId, region)
                 seen[regionId] = true
             end
@@ -632,7 +520,7 @@ local function ApplyGroup(state, region, group)
     local kept = {}
     if IsRaidGroup(group) then
         for _, player in ipairs(region.players) do
-            local member = FindMember(state, player.guid)
+            local member = FindMemberByName(state, player.name)
             if member and member.subgroup == group then
                 kept[#kept + 1] = player
             end
@@ -640,7 +528,7 @@ local function ApplyGroup(state, region, group)
     end
     region.players = kept
     if region.backup then
-        local backup = FindMember(state, region.backup.guid)
+        local backup = FindMemberByName(state, region.backup.name)
         if not backup or (IsRaidGroup(group) and backup.subgroup == group) then
             region.backup = nil
         end
@@ -688,7 +576,7 @@ function InterruptChain.GetAddablePlayers(state, regionId)
         if
             member.subgroup == region.group
             and type(member.guid) == "string"
-            and not PrimaryRegionOf(state, member.guid)
+            and not PrimaryRegionOf(state, member.fullName or member.name)
         then
             addable[#addable + 1] = member
         end
@@ -705,7 +593,7 @@ function InterruptChain.GetBackupCandidates(state, regionId)
     local candidates = {}
     for _, member in ipairs(state.roster) do
         if member.subgroup ~= region.group and type(member.guid) == "string" then
-            local usedBy = BackupRegionOf(state, member.guid)
+            local usedBy = BackupRegionOf(state, member.fullName or member.name)
             if not usedBy or usedBy == regionId then
                 candidates[#candidates + 1] = member
             end
@@ -848,8 +736,8 @@ end
 function InterruptChain.SyncBackupPicker(state, regionId, picker)
     local region = state.regions[regionId]
     assert(region, "Unknown interrupt region")
-    local committed = region.backup and region.backup.guid or nil
-    local member = committed and FindMember(state, committed) or nil
+    local member = region.backup and FindMemberByName(state, region.backup.name) or nil
+    local committed = member and member.guid or nil
     if not picker or picker.region ~= regionId or picker.committed ~= committed then
         local group, player = DraftFromBackup(state, regionId, member)
         return {
@@ -894,7 +782,7 @@ function InterruptChain.AddPlayer(state, regionId, guid)
     if not member or member.subgroup ~= region.group then
         return false
     end
-    if PrimaryRegionOf(state, guid) then
+    if PrimaryRegionOf(state, member.fullName or member.name) then
         return false
     end
     local record = RecordFromMember(member)
@@ -960,11 +848,14 @@ function InterruptChain.SetBackup(state, regionId, guid)
     if not member or member.subgroup == region.group then
         return false
     end
-    local usedBy = BackupRegionOf(state, guid)
+    local usedBy = BackupRegionOf(state, member.fullName or member.name)
     if usedBy and usedBy ~= regionId then
         return false
     end
-    if region.backup and region.backup.guid == guid then
+    if
+        region.backup
+        and InterruptChain.PlayerName(region.backup) == InterruptChain.PlayerName(member.fullName or member.name)
+    then
         return false
     end
     local record = RecordFromMember(member)
@@ -987,7 +878,13 @@ end
 ---@return TwinFangsInterruptChainIssue[]
 function InterruptChain.Validate(state)
     local issues = {}
-    local roster = IndexRosterByGuid(state.roster)
+    local roster = {}
+    for _, member in ipairs(state.roster) do
+        local name = InterruptChain.PlayerName(member.fullName or member.name)
+        if name then
+            roster[name] = member
+        end
+    end
     local primaryCount = {}
     local backupCount = {}
     local groupCount = {}
@@ -995,12 +892,14 @@ function InterruptChain.Validate(state)
     for _, regionId in ipairs(InterruptChain.REGION_IDS) do
         local region = state.regions[regionId]
         for _, player in ipairs(region.players) do
-            if player.guid then
-                primaryCount[player.guid] = (primaryCount[player.guid] or 0) + 1
+            local name = InterruptChain.PlayerName(player)
+            if name then
+                primaryCount[name] = (primaryCount[name] or 0) + 1
             end
         end
-        if region.backup and region.backup.guid then
-            backupCount[region.backup.guid] = (backupCount[region.backup.guid] or 0) + 1
+        local backupName = InterruptChain.PlayerName(region.backup)
+        if backupName then
+            backupCount[backupName] = (backupCount[backupName] or 0) + 1
         end
         if IsRaidGroup(region.group) then
             groupCount[region.group] = (groupCount[region.group] or 0) + 1
@@ -1028,82 +927,64 @@ function InterruptChain.Validate(state)
         end
         for _, player in ipairs(region.players) do
             local display = InterruptChain.DisplayName(state.roster, player)
-            if not InterruptChain.IsResolved(player) then
+            local name = InterruptChain.PlayerName(player)
+            local member = name and roster[name]
+            if not member then
                 issues[#issues + 1] = {
-                    code = "unresolved_player",
+                    code = "player_missing",
                     severity = "error",
                     region = regionId,
-                    player = player.name,
-                    text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_UNRESOLVED, display),
+                    player = name,
+                    text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_MISSING, display),
                 }
-            else
-                local member = roster[player.guid]
-                if not member then
-                    issues[#issues + 1] = {
-                        code = "player_missing",
-                        severity = "error",
-                        region = regionId,
-                        player = player.guid,
-                        text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_MISSING, display),
-                    }
-                elseif member.subgroup ~= region.group then
-                    issues[#issues + 1] = {
-                        code = "primary_wrong_group",
-                        severity = "error",
-                        region = regionId,
-                        player = player.guid,
-                        text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_WRONG_GROUP, display),
-                    }
-                end
-                if (primaryCount[player.guid] or 0) > 1 then
-                    issues[#issues + 1] = {
-                        code = "duplicate_primary",
-                        severity = "error",
-                        region = regionId,
-                        player = player.guid,
-                        text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_DUPLICATE, display),
-                    }
-                end
+            elseif member.subgroup ~= region.group then
+                issues[#issues + 1] = {
+                    code = "primary_wrong_group",
+                    severity = "error",
+                    region = regionId,
+                    player = name,
+                    text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_WRONG_GROUP, display),
+                }
+            end
+            if name and (primaryCount[name] or 0) > 1 then
+                issues[#issues + 1] = {
+                    code = "duplicate_primary",
+                    severity = "error",
+                    region = regionId,
+                    player = name,
+                    text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_DUPLICATE, display),
+                }
             end
         end
         if region.backup then
             local display = InterruptChain.DisplayName(state.roster, region.backup)
-            if not InterruptChain.IsResolved(region.backup) then
+            local name = InterruptChain.PlayerName(region.backup)
+            local backup = name and roster[name]
+            if not backup then
                 issues[#issues + 1] = {
-                    code = "unresolved_player",
+                    code = "player_missing",
                     severity = "error",
                     region = regionId,
-                    player = region.backup.name,
-                    text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_UNRESOLVED, display),
+                    player = name,
+                    text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_MISSING, display),
                 }
-            else
-                local backup = roster[region.backup.guid]
-                if not backup then
-                    issues[#issues + 1] = {
-                        code = "player_missing",
-                        severity = "error",
-                        region = regionId,
-                        player = region.backup.guid,
-                        text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_MISSING, display),
-                    }
-                elseif backup.subgroup == region.group then
-                    issues[#issues + 1] = {
-                        code = "backup_same_group",
-                        severity = "error",
-                        region = regionId,
-                        player = region.backup.guid,
-                        text = L.TWIN_FANGS_INTERRUPT_ERR_BACKUP_SAME_GROUP,
-                    }
-                end
-                if (backupCount[region.backup.guid] or 0) > 1 then
-                    issues[#issues + 1] = {
-                        code = "backup_shared",
-                        severity = "error",
-                        region = regionId,
-                        player = region.backup.guid,
-                        text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_BACKUP_SHARED, display),
-                    }
-                end
+            elseif backup.subgroup == region.group then
+                issues[#issues + 1] = {
+                    code = "backup_same_group",
+                    severity = "error",
+                    region = regionId,
+                    player = name,
+                    text = L.TWIN_FANGS_INTERRUPT_ERR_BACKUP_SAME_GROUP,
+                }
+            end
+            if name and (backupCount[name] or 0) > 1 then
+                issues[#issues + 1] = {
+                    code = "backup_shared",
+                    severity = "error",
+                    region = regionId,
+                    player = name,
+                    text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_BACKUP_SHARED, display),
+                }
             end
         end
     end

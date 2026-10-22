@@ -5,12 +5,13 @@ local Macro = ns.Api.Macro
 local Sszorak = ns.Modules.Get("Sszorak")
 
 -- Macro UI names are capped at 16 characters; prefix + edge digit stays within that.
-local MACRO_NAME_PREFIX = "NewEraToolsSsz"
+local MACRO_NAME_PREFIX = "NETSsz"
 
 -- True when a marker change couldn't rewrite macros because of combat lockdown.
 local macrosDirty = false
 -- True when creating callout macros was blocked by combat lockdown.
 local macrosNeedCreate = false
+local listening = false
 
 local function RaidTargetIconPath(raidTarget)
     return "Interface\\TargetingFrame\\UI-RaidTargetingIcon_" .. raidTarget
@@ -69,6 +70,9 @@ local function WriteEdgeMacro(self, edge, createIfMissing)
     local body = self:GetEdgeMacroBody(edge)
     local index = Macro.GetIndexByName(name)
     if index > 0 then
+        if Macro.Matches(index, name, icon, body) then
+            return false
+        end
         Macro.Edit(index, name, icon, body)
         return true
     end
@@ -118,6 +122,10 @@ end
 
 ---Applies deferred macro create/rewrite when combat lockdown ends. Called from OnEnable.
 function Sszorak:ListenForMacroSync()
+    if listening then
+        return
+    end
+    listening = true
     Combat.OnLeave(function()
         if not Sszorak:IsRaidCommander() then
             macrosDirty = false
@@ -128,6 +136,14 @@ function Sszorak:ListenForMacroSync()
             Sszorak:CreateEdgeMacros()
         elseif macrosDirty then
             Sszorak:SyncEdgeMacros()
+        end
+    end)
+    Macro.OnChanged(function()
+        if Sszorak:IsRaidCommander() then
+            Sszorak:SyncEdgeMacros()
+        end
+        if Sszorak.OnMacrosChanged then
+            Sszorak:OnMacrosChanged()
         end
     end)
 end

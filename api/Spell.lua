@@ -65,18 +65,14 @@ function Spell.GetName(spellId)
     if not id then
         return nil
     end
-    if C_Spell and C_Spell.GetSpellName then
-        local name = C_Spell.GetSpellName(id)
-        if type(name) == "string" and name ~= "" then
-            return name
-        end
+
+    if not C_Spell or not C_Spell.GetSpellName then
         return nil
     end
-    if GetSpellInfo then
-        local name = GetSpellInfo(id)
-        if type(name) == "string" and name ~= "" then
-            return name
-        end
+
+    local name = C_Spell.GetSpellName(id)
+    if type(name) == "string" and name ~= "" then
+        return name
     end
     return nil
 end
@@ -113,5 +109,60 @@ function Spell.GetTexture(spellId)
     end
 
     textureCache[id] = false
+    return nil
+end
+
+local INTERRUPT_SPELLS = {
+    DEATHKNIGHT = { 47528 },
+    DEMONHUNTER = { 183752 },
+    DRUID = { 106839, 78675 },
+    EVOKER = { 351338 },
+    HUNTER = { 147362, 187707 },
+    MAGE = { 2139 },
+    MONK = { 116705 },
+    PALADIN = { 96231 },
+    PRIEST = { 15487 },
+    ROGUE = { 1766 },
+    SHAMAN = { 57994 },
+    WARLOCK = { 119914, 19647 },
+    WARRIOR = { 6552 },
+}
+
+---@param spellId integer
+---@return boolean
+function Spell.IsKnownByPlayerOrPet(spellId)
+    local isKnown = C_SpellBook and C_SpellBook.IsSpellKnown
+    if not isKnown then
+        return false
+    end
+    if isKnown(spellId) then
+        return true
+    end
+
+    local petBank = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Pet
+    return petBank and isKnown(spellId, petBank)
+end
+
+---Localized name of the player's interrupt spell, or nil when none is known.
+---@return string|nil
+function Spell.GetInterruptName()
+    local classFile = ns.Api.Player.GetClassFile()
+    if not classFile then
+        return nil
+    end
+
+    local candidates = INTERRUPT_SPELLS[classFile]
+    if not candidates then
+        return nil
+    end
+    for i = 1, #candidates do
+        local spellId = candidates[i]
+        if Spell.IsKnownByPlayerOrPet(spellId) then
+            local name = Spell.GetName(spellId)
+            if name then
+                return name
+            end
+        end
+    end
     return nil
 end

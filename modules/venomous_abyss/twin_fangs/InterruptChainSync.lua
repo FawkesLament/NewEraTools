@@ -49,19 +49,19 @@ local function RosterInApiOrder(roster)
     return ordered
 end
 
----Maps each roster GUID to its raid subgroup and 1–5 slot. Slot order matches Auto Assign.
+---Maps each roster display name to its raid subgroup and 1–5 slot. Slot order matches Auto Assign.
 ---@param roster RaidMember[]
 ---@return table<string, { group: number, position: number }>
 function InterruptChain.SubgroupPositions(roster)
     local positions = {}
     local nextSlot = {}
     for _, member in ipairs(RosterInApiOrder(roster or {})) do
-        local guid = member.guid
+        local name = InterruptChain.PlayerName(member.fullName or member.name)
         local group = member.subgroup
-        if type(guid) == "string" and guid ~= "" and IsRaidGroup(group) then
+        if name and IsRaidGroup(group) then
             local position = (nextSlot[group] or 0) + 1
             nextSlot[group] = position
-            positions[guid] = { group = group, position = position }
+            positions[name] = { group = group, position = position }
         end
     end
     return positions
@@ -83,11 +83,11 @@ local function EncodeRegion(region, positions)
     local order = {}
     local usedSlots = {}
     for _, player in ipairs(region.players) do
-        local guid = InterruptChain.PlayerGuid(player)
-        if type(guid) ~= "string" then
-            return nil, "unresolved_player"
+        local name = InterruptChain.PlayerName(player)
+        if type(name) ~= "string" then
+            return nil, "player_missing"
         end
-        local slot = positions[guid]
+        local slot = positions[name]
         if not slot then
             return nil, "player_missing"
         end
@@ -109,11 +109,11 @@ local function EncodeRegion(region, positions)
 
     local backupText = ""
     if region.backup then
-        local guid = InterruptChain.PlayerGuid(region.backup)
-        if type(guid) ~= "string" then
-            return nil, "unresolved_player"
+        local name = InterruptChain.PlayerName(region.backup)
+        if type(name) ~= "string" then
+            return nil, "player_missing"
         end
-        local slot = positions[guid]
+        local slot = positions[name]
         if not slot then
             return nil, "player_missing"
         end
@@ -266,9 +266,9 @@ function InterruptChain.SubgroupSlotMembers(roster)
     local byGroup = {}
     local nextSlot = {}
     for _, member in ipairs(RosterInApiOrder(roster or {})) do
-        local guid = member.guid
+        local name = InterruptChain.PlayerName(member.fullName or member.name)
         local group = member.subgroup
-        if type(guid) == "string" and guid ~= "" and IsRaidGroup(group) then
+        if name and IsRaidGroup(group) then
             local position = (nextSlot[group] or 0) + 1
             nextSlot[group] = position
             local slots = byGroup[group]
@@ -289,14 +289,14 @@ end
 ---@param member RaidMember
 ---@return TwinFangsInterruptPlayer|nil
 local function PlayerFromMember(member)
-    if type(member) ~= "table" or type(member.guid) ~= "string" or member.guid == "" then
+    if type(member) ~= "table" then
         return nil
     end
-    local name = member.fullName or member.name
-    if type(name) ~= "string" or name == "" then
+    local name = InterruptChain.PlayerName(member.fullName or member.name)
+    if not name then
         return nil
     end
-    return { guid = member.guid, name = ns.Api.Unit.GetFullName(name) }
+    return { name = name }
 end
 
 ---@param slots table<number, RaidMember|false>|nil
@@ -454,7 +454,12 @@ local function ReceiveFailureText(reason, detail)
     if reason == "unsupported_version" then
         return L.TWIN_FANGS_INTERRUPT_SYNC_RECEIVE_VERSION
     end
-    if reason == "malformed" or reason == "invalid_group" or reason == "invalid_position" or reason == "duplicate_position" then
+    if
+        reason == "malformed"
+        or reason == "invalid_group"
+        or reason == "invalid_position"
+        or reason == "duplicate_position"
+    then
         return L.TWIN_FANGS_INTERRUPT_SYNC_RECEIVE_MALFORMED
     end
     if type(reason) == "string" and reason ~= "" then
@@ -502,13 +507,20 @@ local function OnPublicationMessage(msg)
     local regions, reason, detail = InterruptChain.ResolvePublication(msg.payload, Group.GetRaidMembers())
     if not regions then
         Util.Print(
-            string.format(L.TWIN_FANGS_INTERRUPT_SYNC_RECEIVE_FAILED, L.TWIN_FANGS_TITLE, ReceiveFailureText(reason, detail))
+            string.format(
+                L.TWIN_FANGS_INTERRUPT_SYNC_RECEIVE_FAILED,
+                L.TWIN_FANGS_TITLE,
+                ReceiveFailureText(reason, detail)
+            )
         )
         return
     end
 
     InterruptChain.ReplaceChain(chain, regions)
     local TwinFangs = ns.Modules.Get("TwinFangs")
+    if TwinFangs and TwinFangs.MaintainInterruptMacro then
+        TwinFangs:MaintainInterruptMacro()
+    end
     if TwinFangs and TwinFangs.OnInterruptChainChanged then
         TwinFangs:OnInterruptChainChanged()
     end

@@ -647,6 +647,11 @@ function Sszorak:OnEdgeMarkersChanged()
     end
 end
 
+function Sszorak:OnMacrosChanged()
+    UpdateRoleStatus()
+    Window.UpdateMacroClicks()
+end
+
 function Sszorak:OnEncounterChanged()
     -- Leaving preview behind when the fight starts (or ends) so it never outlives the pull.
     -- Animation start/stop is handled in Encounter.lua so a pull resets a running preview timer.

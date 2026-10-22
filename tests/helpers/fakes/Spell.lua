@@ -32,6 +32,35 @@ return function()
         end
     end
 
+    local interruptName
+    local knownByPlayerOrPet = {}
+
+    ---Whether the player or their pet knows `spellId`. Unset IDs are unknown in tests.
+    ---@param spellId integer
+    ---@return boolean
+    function Spell.IsKnownByPlayerOrPet(spellId)
+        return knownByPlayerOrPet[spellId] == true
+    end
+
+    ---Test helper: mark a spell as known by the player or pet.
+    ---@param spellId integer
+    ---@param known boolean|nil
+    function Spell.SetKnownByPlayerOrPetForTests(spellId, known)
+        knownByPlayerOrPet[spellId] = known == true
+    end
+
+    ---Localized name of the player's interrupt spell, or nil when unset in tests.
+    ---@return string|nil
+    function Spell.GetInterruptName()
+        return interruptName
+    end
+
+    ---Test helper: set the name returned by GetInterruptName.
+    ---@param name string|nil
+    function Spell.SetInterruptNameForTests(name)
+        interruptName = name
+    end
+
     ---@param spellId integer
     ---@return string|nil
     function Spell.GetName(spellId)

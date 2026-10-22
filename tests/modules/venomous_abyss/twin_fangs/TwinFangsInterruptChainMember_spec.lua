@@ -7,12 +7,8 @@ describe("TwinFangs interrupt chain member view", function()
         return name .. "-MockRealm"
     end
 
-    local function Guid(name)
-        return "Player-MOCK-" .. name
-    end
-
     local function Player(name)
-        return { guid = Guid(name), name = FullName(name) }
+        return { name = FullName(name) }
     end
 
     local function CopyList(list)
@@ -68,91 +64,82 @@ describe("TwinFangs interrupt chain member view", function()
         end)
 
         it("returns the primary chain for a member, in stored order", function()
-            local view = Chain.GetMemberView(chain, Guid("夜雨"))
+            local view = Chain.GetMemberView(chain, FullName("夜雨"))
             assert.equals(Chain.FRONT_LEFT, view.primary.regionId)
             assert.equals(1, view.primary.group)
             assert.equals(3, #view.primary.players)
-            assert.equals(Guid("清风"), view.primary.players[1].guid)
-            assert.equals(Guid("夜雨"), view.primary.players[2].guid)
-            assert.equals(Guid("石川"), view.primary.players[3].guid)
-            assert.equals(Guid("余烬"), view.primary.backup.guid)
+            assert.equals(FullName("清风"), view.primary.players[1].name)
+            assert.equals(FullName("夜雨"), view.primary.players[2].name)
+            assert.equals(FullName("石川"), view.primary.players[3].name)
+            assert.equals(FullName("余烬"), view.primary.backup.name)
             assert.equals(0, #view.backups)
             assert.equals("夜雨", Chain.DisplayName({}, view.primary.players[2]))
         end)
 
         it("returns a backup-only assignment without inventing a primary", function()
-            local view = Chain.GetMemberView(chain, Guid("栖梧"))
+            local view = Chain.GetMemberView(chain, FullName("栖梧"))
             assert.is_nil(view.primary)
             assert.equals(1, #view.backups)
             assert.equals(Chain.FRONT_RIGHT, view.backups[1].regionId)
             assert.equals(2, view.backups[1].group)
-            assert.equals(Guid("流火"), view.backups[1].players[1].guid)
-            assert.equals(Guid("栖梧"), view.backups[1].backup.guid)
+            assert.equals(FullName("流火"), view.backups[1].players[1].name)
+            assert.equals(FullName("栖梧"), view.backups[1].backup.name)
         end)
 
         it("keeps an extra backup region separate from the primary assignment", function()
             chain.front_right.backup = Player("夜雨")
-            local view = Chain.GetMemberView(chain, Guid("夜雨"))
+            local view = Chain.GetMemberView(chain, FullName("夜雨"))
             assert.equals(Chain.FRONT_LEFT, view.primary.regionId)
             assert.equals(1, #view.backups)
             assert.equals(Chain.FRONT_RIGHT, view.backups[1].regionId)
-            assert.equals(Guid("夜雨"), view.backups[1].backup.guid)
+            assert.equals(FullName("夜雨"), view.backups[1].backup.name)
         end)
 
         it("does not list the same region twice when the player is also its backup", function()
             chain.front_left.backup = Player("夜雨")
-            local view = Chain.GetMemberView(chain, Guid("夜雨"))
+            local view = Chain.GetMemberView(chain, FullName("夜雨"))
             assert.equals(Chain.FRONT_LEFT, view.primary.regionId)
             assert.equals(0, #view.backups)
         end)
 
         it("shows the empty state when the player is not assigned", function()
-            local view = Chain.GetMemberView(chain, Guid("南枝"))
+            local view = Chain.GetMemberView(chain, FullName("南枝"))
             assert.is_nil(view.primary)
             assert.equals(0, #view.backups)
         end)
 
-        it("matches stored GUIDs and ignores player-name strings", function()
+        it("matches stored display names and ignores GUIDs", function()
             chain.back_left.players = {
-                { guid = "Player-A", name = "Alice-RealmA" },
-                { guid = "Player-B", name = "Alice-RealmB" },
+                { name = "Alice-RealmA" },
+                { name = "Alice-RealmB" },
             }
-            local byName = Chain.GetMemberView(chain, "Alice-RealmA")
-            assert.is_nil(byName.primary)
-            local view = Chain.GetMemberView(chain, "Player-B")
+            local byGuid = Chain.GetMemberView(chain, "Player-B")
+            assert.is_nil(byGuid.primary)
+            local view = Chain.GetMemberView(chain, "Alice-RealmB")
             assert.equals(Chain.BACK_LEFT, view.primary.regionId)
-            assert.equals("Player-B", view.primary.players[2].guid)
+            assert.equals("Alice-RealmB", view.primary.players[2].name)
             assert.equals("Alice", Chain.DisplayName({}, view.primary.players[2]))
         end)
 
-        it("keeps unresolved and missing records in the stored sequence", function()
+        it("keeps missing records in the stored sequence", function()
             chain.front_left.players = {
                 { name = FullName("清风") },
                 Player("夜雨"),
-                { guid = Guid("石川") },
+                { name = FullName("石川") },
             }
-            local view = Chain.GetMemberView(chain, Guid("夜雨"))
+            local view = Chain.GetMemberView(chain, FullName("夜雨"))
             assert.equals(3, #view.primary.players)
-            assert.is_nil(view.primary.players[1].guid)
             assert.equals("清风", Chain.DisplayName({}, view.primary.players[1]))
-            assert.equals(Guid("夜雨"), view.primary.players[2].guid)
-            assert.equals(Guid("石川"), view.primary.players[3].guid)
-            assert.equals(ns.L.TWIN_FANGS_INTERRUPT_BACKUP_NONE, Chain.DisplayName({}, view.primary.players[3]))
-        end)
-
-        it("does not treat a name-only record as the current player", function()
-            chain.front_left.players = { { name = FullName("夜雨") } }
-            local view = Chain.GetMemberView(chain, Guid("夜雨"))
-            assert.is_nil(view.primary)
-            assert.equals(0, #view.backups)
+            assert.equals(FullName("夜雨"), view.primary.players[2].name)
+            assert.equals(FullName("石川"), view.primary.players[3].name)
         end)
 
         it("does not mutate the saved configuration", function()
             local before = Snapshot(chain)
             local leftPlayers = chain.front_left.players
-            Chain.GetMemberView(chain, Guid("夜雨"))
-            Chain.GetMemberView(chain, Guid("栖梧"))
-            Chain.GetMemberView(nil, Guid("夜雨"))
+            Chain.GetMemberView(chain, FullName("夜雨"))
+            Chain.GetMemberView(chain, FullName("栖梧"))
+            Chain.GetMemberView(nil, FullName("夜雨"))
             Chain.GetMemberView(chain, nil)
             assert.same(before, Snapshot(chain))
             assert.equals(leftPlayers, chain.front_left.players)
@@ -160,25 +147,28 @@ describe("TwinFangs interrupt chain member view", function()
         end)
 
         it("returns copies so the caller cannot edit the saved chain through the view", function()
-            local view = Chain.GetMemberView(chain, Guid("夜雨"))
+            local view = Chain.GetMemberView(chain, FullName("夜雨"))
             view.primary.players[2].name = "Changed"
             view.primary.players[1] = Player("朔风")
             assert.equals(FullName("夜雨"), chain.front_left.players[2].name)
-            assert.equals(Guid("清风"), chain.front_left.players[1].guid)
+            assert.equals(FullName("清风"), chain.front_left.players[1].name)
         end)
 
         it("shows the not-in-raid empty state without clearing saved assignments", function()
             local before = Snapshot(chain)
             assert.equals(ns.L.TWIN_FANGS_INTERRUPT_NOT_IN_RAID, Chain.MemberViewEmptyText(chain, false))
             assert.equals(ns.L.TWIN_FANGS_INTERRUPT_NO_ASSIGNMENT, Chain.MemberViewEmptyText(chain, true))
-            assert.equals(ns.L.TWIN_FANGS_INTERRUPT_SYNC_NONE, Chain.MemberViewEmptyText(Schema.NewInterruptChain(), true))
+            assert.equals(
+                ns.L.TWIN_FANGS_INTERRUPT_SYNC_NONE,
+                Chain.MemberViewEmptyText(Schema.NewInterruptChain(), true)
+            )
             assert.same(before, Snapshot(chain))
         end)
 
         it("handles a missing or empty identity without assigning anyone", function()
             assert.is_nil(Chain.GetMemberView(chain, "").primary)
-            assert.is_nil(Chain.GetMemberView(nil, Guid("夜雨")).primary)
-            assert.is_nil(Chain.GetMemberView({}, Guid("夜雨")).primary)
+            assert.is_nil(Chain.GetMemberView(nil, FullName("夜雨")).primary)
+            assert.is_nil(Chain.GetMemberView({}, FullName("夜雨")).primary)
         end)
     end)
 

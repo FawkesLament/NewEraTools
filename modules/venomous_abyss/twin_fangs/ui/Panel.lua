@@ -436,6 +436,7 @@ function TwinFangs:OnEnable()
     })
     self:ListenForEncounter()
     self:ListenForInterruptChain()
+    self:ListenForInterruptMacro()
     self.OnInterruptChainChanged = function()
         if syncInterruptChainEditor then
             syncInterruptChainEditor()

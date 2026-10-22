@@ -16,7 +16,7 @@ describe("TwinFangs interrupt chain sync", function()
     end
 
     local function Player(guid)
-        return { guid = guid, name = guid .. "-TestRealm" }
+        return { name = guid .. "-TestRealm" }
     end
 
     local function Snapshot(state)
@@ -96,7 +96,7 @@ describe("TwinFangs interrupt chain sync", function()
         MessageProtocolComm.Enable()
     end)
 
-    it("maps GUIDs to subgroup slots in Auto Assign roster-index order", function()
+    it("maps display names to subgroup slots in Auto Assign roster-index order", function()
         local roster = {
             Member("late", 1, 30),
             Member("first", 1, 2),
@@ -104,21 +104,21 @@ describe("TwinFangs interrupt chain sync", function()
             Member("other", 2, 3),
         }
         local positions = Chain.SubgroupPositions(roster)
-        assert.same({ group = 1, position = 1 }, positions.first)
-        assert.same({ group = 1, position = 2 }, positions.mid)
-        assert.same({ group = 1, position = 3 }, positions.late)
-        assert.same({ group = 2, position = 1 }, positions.other)
+        assert.same({ group = 1, position = 1 }, positions["first-TestRealm"])
+        assert.same({ group = 1, position = 2 }, positions["mid-TestRealm"])
+        assert.same({ group = 1, position = 3 }, positions["late-TestRealm"])
+        assert.same({ group = 2, position = 1 }, positions["other-TestRealm"])
     end)
 
-    it("treats Player and Vehicle GUIDs as opaque identity strings", function()
+    it("encodes Player and Vehicle roster names the same way", function()
         local vehicle = "Vehicle-0-1-2-3-4-99"
         local player = "Player-0-AAA"
         local positions = Chain.SubgroupPositions({
             Member(vehicle, 8, 1),
             Member(player, 8, 2),
         })
-        assert.same({ group = 8, position = 1 }, positions[vehicle])
-        assert.same({ group = 8, position = 2 }, positions[player])
+        assert.same({ group = 8, position = 1 }, positions[vehicle .. "-TestRealm"])
+        assert.same({ group = 8, position = 2 }, positions[player .. "-TestRealm"])
         local state = Chain.NewState()
         Chain.SetRoster(state, {
             Member(vehicle, 8, 1),

@@ -62,12 +62,7 @@ describe("TwinFangs interrupt chain receive", function()
         opts = opts or {}
         local messageType = opts.type or MessageProtocol.TYPE_EVENT
         local wire = assert(MessageProtocol.Encode(messageType, Chain.SYNC_TOPIC, opts.correlationId or "-", payload))
-        AddonMessage.Deliver(
-            MessageProtocolComm.PREFIX.CONTROL,
-            wire,
-            opts.channel or "RAID",
-            opts.sender or LEADER
-        )
+        AddonMessage.Deliver(MessageProtocolComm.PREFIX.CONTROL, wire, opts.channel or "RAID", opts.sender or LEADER)
     end
 
     before_each(function()
@@ -91,23 +86,35 @@ describe("TwinFangs interrupt chain receive", function()
         it("resolves subgroup slots in interrupt order, including backups and empty fields", function()
             local regions = assert(Chain.DecodePublication(EXAMPLE, ExampleRoster()))
             assert.equals(1, regions.front_left.group)
-            assert.same({ "LF1", "LF5", "LF3", "LF2", "LF4" }, {
-                regions.front_left.players[1].guid,
-                regions.front_left.players[2].guid,
-                regions.front_left.players[3].guid,
-                regions.front_left.players[4].guid,
-                regions.front_left.players[5].guid,
+            assert.same({
+                "LF1-TestRealm",
+                "LF5-TestRealm",
+                "LF3-TestRealm",
+                "LF2-TestRealm",
+                "LF4-TestRealm",
+            }, {
+                regions.front_left.players[1].name,
+                regions.front_left.players[2].name,
+                regions.front_left.players[3].name,
+                regions.front_left.players[4].name,
+                regions.front_left.players[5].name,
             })
-            assert.equals("B52", regions.front_left.backup.guid)
-            assert.equals("LF5-TestRealm", regions.front_left.players[2].name)
+            assert.equals("B52-TestRealm", regions.front_left.backup.name)
+            assert.is_nil(regions.front_left.players[2].guid)
             assert.is_nil(regions.front_right.backup)
-            assert.equals("B61", regions.back_left.backup.guid)
-            assert.same({ "RB2", "RB5", "RB1", "RB3", "RB4" }, {
-                regions.back_right.players[1].guid,
-                regions.back_right.players[2].guid,
-                regions.back_right.players[3].guid,
-                regions.back_right.players[4].guid,
-                regions.back_right.players[5].guid,
+            assert.equals("B61-TestRealm", regions.back_left.backup.name)
+            assert.same({
+                "RB2-TestRealm",
+                "RB5-TestRealm",
+                "RB1-TestRealm",
+                "RB3-TestRealm",
+                "RB4-TestRealm",
+            }, {
+                regions.back_right.players[1].name,
+                regions.back_right.players[2].name,
+                regions.back_right.players[3].name,
+                regions.back_right.players[4].name,
+                regions.back_right.players[5].name,
             })
         end)
 
@@ -162,13 +169,13 @@ describe("TwinFangs interrupt chain receive", function()
             Deliver(EXAMPLE)
             local chain = module.db.interruptReminder.chain
             assert.equals(1, chain.front_left.group)
-            assert.equals("LF1", chain.front_left.players[1].guid)
-            assert.equals("LF5", chain.front_left.players[2].guid)
-            assert.equals("B52", chain.front_left.backup.guid)
+            assert.equals("LF1-TestRealm", chain.front_left.players[1].name)
+            assert.equals("LF5-TestRealm", chain.front_left.players[2].name)
+            assert.equals("B52-TestRealm", chain.front_left.backup.name)
             assert.equals(2, chain.front_right.group)
             assert.is_nil(chain.front_right.backup)
-            assert.equals("LB1", chain.back_left.players[1].guid)
-            assert.equals("RB2", chain.back_right.players[1].guid)
+            assert.equals("LB1-TestRealm", chain.back_left.players[1].name)
+            assert.equals("RB2-TestRealm", chain.back_right.players[1].name)
             assert.equals(1, refreshed)
             assert.equals(string.format(ns.L.TWIN_FANGS_INTERRUPT_SYNC_RECEIVED, ns.L.TWIN_FANGS_TITLE), printed[1])
             assert.equals(1, #printed)
@@ -219,10 +226,10 @@ describe("TwinFangs interrupt chain receive", function()
             Deliver(EXAMPLE)
             Group.members = { Member("unrelated", 8, 1) }
             local chain = module.db.interruptReminder.chain
-            assert.equals("LF1", chain.front_left.players[1].guid)
+            assert.equals("LF1-TestRealm", chain.front_left.players[1].name)
             local view = Chain.GetMemberView(chain, "LF5")
             assert.equals(Chain.FRONT_LEFT, view.primary.regionId)
-            assert.equals("LF5", view.primary.players[2].guid)
+            assert.equals("LF5-TestRealm", view.primary.players[2].name)
         end)
 
         it("exposes the same persisted chain to member and editor reads", function()
@@ -232,7 +239,7 @@ describe("TwinFangs interrupt chain receive", function()
             assert.is_nil(view.primary)
             assert.equals(Chain.FRONT_LEFT, view.backups[1].regionId)
             local state = Chain.NewState(chain)
-            assert.equals("LF1", state.regions.front_left.players[1].guid)
+            assert.equals("LF1-TestRealm", state.regions.front_left.players[1].name)
             assert.equals(state.regions, chain)
         end)
 
@@ -250,8 +257,8 @@ describe("TwinFangs interrupt chain receive", function()
                 },
             }))
             local loaded = reloaded.Modules.Get("TwinFangs").db.interruptReminder.chain
-            assert.equals("LF5", loaded.front_left.players[2].guid)
-            assert.equals("B52", loaded.front_left.backup.guid)
+            assert.equals("LF5-TestRealm", loaded.front_left.players[2].name)
+            assert.equals("B52-TestRealm", loaded.front_left.backup.name)
             assert.equals(
                 reloaded.TwinFangsInterruptChain.FRONT_LEFT,
                 reloaded.TwinFangsInterruptChain.GetMemberView(loaded, "LF1").primary.regionId
@@ -264,7 +271,10 @@ describe("TwinFangs interrupt chain receive", function()
             Deliver(EXAMPLE)
             assert.is_true(Chain.HasAssignments(module.db.interruptReminder.chain))
             assert.is_nil(Chain.GetMemberView(module.db.interruptReminder.chain, "nobody").primary)
-            assert.equals(Chain.FRONT_LEFT, Chain.GetMemberView(module.db.interruptReminder.chain, "LF1").primary.regionId)
+            assert.equals(
+                Chain.FRONT_LEFT,
+                Chain.GetMemberView(module.db.interruptReminder.chain, "LF1").primary.regionId
+            )
         end)
     end)
 end)

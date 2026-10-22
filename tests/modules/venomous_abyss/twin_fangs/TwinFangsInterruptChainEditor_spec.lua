@@ -12,10 +12,6 @@ describe("TwinFangs interrupt chain editor", function()
     end
 
     local function Player(name)
-        return { guid = Guid(name), name = FullName(name) }
-    end
-
-    local function Unresolved(name)
         return { name = FullName(name) }
     end
 
@@ -71,7 +67,7 @@ describe("TwinFangs interrupt chain editor", function()
         assert.same({ Player("清风") }, Chain.GetRegion(state, Chain.FRONT_LEFT).players)
     end)
 
-    it("identifies players by GUID, not by name", function()
+    it("identifies players by display name", function()
         local aliceA = {
             name = "Alice-RealmA",
             fullName = "Alice-RealmA",
@@ -93,8 +89,9 @@ describe("TwinFangs interrupt chain editor", function()
         assert.is_true(Chain.AddPlayer(state, Chain.FRONT_LEFT, "Player-A"))
         assert.is_true(Chain.AddPlayer(state, Chain.FRONT_LEFT, "Player-B"))
         local region = Chain.GetRegion(state, Chain.FRONT_LEFT)
-        assert.equals("Player-A", region.players[1].guid)
-        assert.equals("Player-B", region.players[2].guid)
+        assert.equals("Alice-RealmA", region.players[1].name)
+        assert.equals("Alice-RealmB", region.players[2].name)
+        assert.is_nil(region.players[1].guid)
         assert.equals("Alice", Chain.DisplayName(state.roster, region.players[1]))
         assert.is_false(Chain.AddPlayer(state, Chain.FRONT_LEFT, "Player-A"))
     end)
@@ -461,63 +458,11 @@ describe("TwinFangs interrupt chain editor", function()
         assert.same(before, SnapshotRegions(state))
     end)
 
-    it("migrates a unique same-realm or qualified legacy name to a GUID record", function()
-        state.regions[Chain.FRONT_LEFT].players = { { name = "清风" }, { name = FullName("夜雨") } }
-        state.regions[Chain.FRONT_LEFT].backup = { name = FullName("流火") }
-        Chain.SetRoster(state, Chain.MockRoster())
-        assert.same(Player("清风"), state.regions[Chain.FRONT_LEFT].players[1])
-        assert.same(Player("夜雨"), state.regions[Chain.FRONT_LEFT].players[2])
-        assert.same(Player("流火"), state.regions[Chain.FRONT_LEFT].backup)
-        Chain.SetRoster(state, Chain.MockRoster())
-        assert.same(Player("清风"), state.regions[Chain.FRONT_LEFT].players[1])
-    end)
-
-    it("leaves ambiguous or missing legacy names unresolved", function()
-        local aliceA = {
-            name = "Alice-RealmA",
-            fullName = "Alice-RealmA",
-            guid = "Player-A",
-            subgroup = 1,
-            classFile = "MAGE",
-            role = "DAMAGER",
-        }
-        local aliceB = {
-            name = "Alice-RealmB",
-            fullName = "Alice-RealmB",
-            guid = "Player-B",
-            subgroup = 1,
-            classFile = "ROGUE",
-            role = "DAMAGER",
-        }
-        state.regions[Chain.FRONT_LEFT].players = {
-            { name = "Alice" },
-            { name = "Ghost-Nowhere" },
-        }
-        Chain.SetRoster(state, { aliceA, aliceB })
-        local players = state.regions[Chain.FRONT_LEFT].players
-        assert.is_nil(players[1].guid)
-        assert.equals(ns.Api.Unit.GetFullName("Alice"), players[1].name)
-        assert.is_nil(players[2].guid)
-        assert.equals("Ghost-Nowhere", players[2].name)
-        local codes = {}
-        for _, issue in ipairs(Chain.Validate(state)) do
-            codes[issue.code] = (codes[issue.code] or 0) + 1
-        end
-        assert.equals(2, codes.unresolved_player)
-        assert.is_nil(codes.duplicate_primary)
-    end)
-
-    it("does not treat an unresolved record as a valid assigned player", function()
+    it("treats a stored display name as the assigned player", function()
         Chain.SetGroup(state, Chain.FRONT_LEFT, 1)
-        state.regions[Chain.FRONT_LEFT].players = { Unresolved("清风") }
-        assert.is_true(Chain.AddPlayer(state, Chain.FRONT_LEFT, Guid("清风")))
-        assert.same({ Unresolved("清风"), Player("清风") }, Chain.GetRegion(state, Chain.FRONT_LEFT).players)
-        local codes = {}
-        for _, issue in ipairs(Chain.Validate(state)) do
-            codes[issue.code] = true
-        end
-        assert.is_true(codes.unresolved_player)
-        assert.is_nil(codes.duplicate_primary)
+        state.regions[Chain.FRONT_LEFT].players = { Player("清风") }
+        assert.is_false(Chain.AddPlayer(state, Chain.FRONT_LEFT, Guid("清风")))
+        assert.same({ Player("清风") }, Chain.GetRegion(state, Chain.FRONT_LEFT).players)
     end)
 
     it("keeps saved assignments when a player leaves or switches groups", function()
@@ -554,17 +499,6 @@ describe("TwinFangs interrupt chain editor", function()
         assert.is_true(codes.primary_wrong_group)
     end)
 
-    it("refreshes a cached name from the roster without changing identity", function()
-        Chain.SetGroup(state, Chain.FRONT_LEFT, 1)
-        Chain.AddPlayer(state, Chain.FRONT_LEFT, Guid("清风"))
-        state.regions[Chain.FRONT_LEFT].players[1].name = "OldName-MockRealm"
-        local roster = Chain.MockRoster()
-        Chain.SetRoster(state, roster)
-        local player = state.regions[Chain.FRONT_LEFT].players[1]
-        assert.equals(Guid("清风"), player.guid)
-        assert.equals(FullName("清风"), player.name)
-    end)
-
     it("sanitizes missing or malformed saved configuration", function()
         local chain = Chain.SanitizeSaved({
             front_left = { group = 1, players = { "清风", { guid = Guid("夜雨"), name = "夜雨" }, 12 } },
@@ -574,7 +508,8 @@ describe("TwinFangs interrupt chain editor", function()
         assert.equals(2, #chain.front_left.players)
         assert.is_nil(chain.front_left.players[1].guid)
         assert.equals(ns.Api.Unit.GetFullName("清风"), chain.front_left.players[1].name)
-        assert.equals(Guid("夜雨"), chain.front_left.players[2].guid)
+        assert.is_nil(chain.front_left.players[2].guid)
+        assert.equals(ns.Api.Unit.GetFullName("夜雨"), chain.front_left.players[2].name)
         assert.equals(0, #chain.front_right.players)
         assert.is_nil(chain.back_left.group)
         assert.equals(0, #chain.back_right.players)

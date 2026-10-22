@@ -15,10 +15,26 @@ return function()
 
     function Combat.OnEnter(callback)
         table.insert(Combat.enterCallbacks, callback)
+        return function()
+            for index, candidate in ipairs(Combat.enterCallbacks) do
+                if candidate == callback then
+                    table.remove(Combat.enterCallbacks, index)
+                    return
+                end
+            end
+        end
     end
 
     function Combat.OnLeave(callback)
         table.insert(Combat.leaveCallbacks, callback)
+        return function()
+            for index, candidate in ipairs(Combat.leaveCallbacks) do
+                if candidate == callback then
+                    table.remove(Combat.leaveCallbacks, index)
+                    return
+                end
+            end
+        end
     end
 
     function Combat.FireEnter()
@@ -30,7 +46,11 @@ return function()
 
     function Combat.FireLeave()
         Combat.inCombat = false
-        for _, callback in ipairs(Combat.leaveCallbacks) do
+        local snapshot = {}
+        for index, callback in ipairs(Combat.leaveCallbacks) do
+            snapshot[index] = callback
+        end
+        for _, callback in ipairs(snapshot) do
             callback()
         end
     end

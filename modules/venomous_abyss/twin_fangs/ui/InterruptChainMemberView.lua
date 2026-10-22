@@ -6,6 +6,7 @@ local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
 local Fonts = Assets.Fonts
+local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 local Unit = ns.Api.Unit
 
@@ -42,15 +43,16 @@ local function Roster()
     return ns.Api.Group.GetRaidMembers()
 end
 
----@param guid string|nil
+---@param name string|nil
 ---@param roster RaidMember[]
 ---@return RaidMember|nil
-local function RosterMember(guid, roster)
-    if type(guid) ~= "string" or guid == "" then
+local function RosterMember(name, roster)
+    name = Chain.PlayerName(name)
+    if not name then
         return nil
     end
     for _, member in ipairs(roster) do
-        if member.guid == guid then
+        if Chain.PlayerName(member.fullName or member.name) == name then
             return member
         end
     end
@@ -203,12 +205,14 @@ end
 
 ---@param card Frame
 ---@param assignment TwinFangsInterruptMemberAssignment
----@param playerGuid string|nil
+---@param playerName string|nil
 ---@param roster RaidMember[]
-local function RefreshAssignmentCard(card, assignment, playerGuid, roster)
+local function RefreshAssignmentCard(card, assignment, playerName, roster)
     local accent = REGION_ACCENTS[assignment.regionId] or Colors.ACCENT
     card.accent:SetColorTexture(accent.r, accent.g, accent.b, 0.9)
-    card.title:SetText(string.format("%s  ·  %s", Chain.RegionLabel(assignment.regionId), Chain.GroupLabel(assignment.group)))
+    card.title:SetText(
+        string.format("%s  ·  %s", Chain.RegionLabel(assignment.regionId), Chain.GroupLabel(assignment.group))
+    )
 
     local players = assignment.players
     local count = #players
@@ -222,12 +226,12 @@ local function RefreshAssignmentCard(card, assignment, playerGuid, roster)
         card.empty:Hide()
         for index, player in ipairs(players) do
             local row = EnsurePlayerRow(card, index)
-            local guid = Chain.PlayerGuid(player)
-            local isYou = guid ~= nil and guid == playerGuid
+            local name = Chain.PlayerName(player)
+            local isYou = name ~= nil and name == playerName
             row.number:SetText(tostring(index))
             row.number:SetTextColor(Widgets.UnpackColor(accent))
             row.name:SetText(Chain.DisplayName({}, player))
-            local member = RosterMember(guid, roster)
+            local member = RosterMember(name, roster)
             ApplyYouHighlight(row, accent, isYou)
             if isYou then
                 row.name:SetTextColor(Widgets.UnpackColor(accent))
@@ -245,8 +249,8 @@ local function RefreshAssignmentCard(card, assignment, playerGuid, roster)
     end
 
     local backup = assignment.backup
-    local backupGuid = Chain.PlayerGuid(backup)
-    local isYouBackup = backupGuid ~= nil and backupGuid == playerGuid
+    local backupName = Chain.PlayerName(backup)
+    local isYouBackup = backupName ~= nil and backupName == playerName
     local backupName = backup and Chain.DisplayName({}, backup) or L.TWIN_FANGS_INTERRUPT_BACKUP_NONE
     card.backup:SetText(string.format(L.TWIN_FANGS_INTERRUPT_BACKUP_LINE, backupName))
     if isYouBackup then
@@ -269,14 +273,36 @@ local function NotifyHeight()
     ui.onHeightChanged(height)
 end
 
+---Sizes the create/regenerate button to its current label, then paints the adjacent status.
+---Sszorak writes this row immediately after a create; do not wait for a later full refresh.
+local function ApplyMacroStatus()
+    if not ui or not ui.macroRow then
+        return
+    end
+    local TwinFangs = ns.Modules.Get("TwinFangs")
+    local status = TwinFangs and TwinFangs.GetInterruptMacroStatus and TwinFangs:GetInterruptMacroStatus()
+    local show = status and status.shown
+    ui.macroRow:SetShown(show == true)
+    if not show then
+        ui.stack:SetEntryHeight(ui.macroRow, 1)
+        return
+    end
+    ui.stack:SetEntryHeight(ui.macroRow, Sizes.CONTROL_ROW_HEIGHT)
+    ui.macroButton:SetText(status.buttonText)
+    local width = math.max(ui.macroButton:GetTextWidth() + Sizes.BUTTON_TEXT_PADDING, Sizes.BUTTON_MIN_WIDTH)
+    ui.macroButton:SetSize(width, Sizes.CONTROL_HEIGHT)
+    ui.macroStatus:SetText(status.message)
+    ui.macroStatus:SetTextColor(Widgets.UnpackColor(status.color))
+end
+
 local function Refresh()
     if not ui then
         return
     end
     local inRaid = ns.Api.Group.GetRaidChatType() ~= nil
     local chain = SavedChain()
-    local playerGuid = Unit.GetGUID("player")
-    local view = inRaid and Chain.GetMemberView(chain, playerGuid) or { backups = {} }
+    local playerName = ns.Api.Player.GetFullName()
+    local view = inRaid and Chain.GetMemberView(chain, playerName) or { backups = {} }
     local roster = Roster()
     local hasPrimary = view.primary ~= nil
     local extraBackup = hasPrimary and view.backups[1] or nil
@@ -295,9 +321,11 @@ local function Refresh()
         ui.stack:SetEntryHeight(ui.empty, EMPTY_HEIGHT)
     end
 
+    ApplyMacroStatus()
+
     if extraBackup and mainAssignment then
-        RefreshAssignmentCard(ui.primary, mainAssignment, playerGuid, roster)
-        RefreshAssignmentCard(ui.backup, extraBackup, playerGuid, roster)
+        RefreshAssignmentCard(ui.primary, mainAssignment, playerName, roster)
+        RefreshAssignmentCard(ui.backup, extraBackup, playerName, roster)
         PlaceCard(ui.primary, ui.left)
         PlaceCard(ui.backup, ui.right)
         ui.left:Show()
@@ -306,7 +334,7 @@ local function Refresh()
         ui.backup:Show()
         ui.stack:SetEntryHeight(ui.cardsRow, math.max(CardHeight(ui.primary), CardHeight(ui.backup)))
     elseif mainAssignment then
-        RefreshAssignmentCard(ui.primary, mainAssignment, playerGuid, roster)
+        RefreshAssignmentCard(ui.primary, mainAssignment, playerName, roster)
         PlaceCard(ui.primary, ui.cardsRow)
         ui.left:Hide()
         ui.right:Hide()
@@ -356,6 +384,41 @@ function MemberView.Mount(host, onHeightChanged)
     ui.left, ui.right = Layout.SplitRow(ui.cardsRow, Spacing.MEDIUM)
     ui.primary = CreateAssignmentCard(ui.left)
     ui.backup = CreateAssignmentCard(ui.right)
+
+    ui.macroRow = stack:AddRow(1)
+    ui.macroButton = Widgets.CreateButton(ui.macroRow, L.TWIN_FANGS_INTERRUPT_MACRO_CREATE, function()
+        local TwinFangs = ns.Modules.Get("TwinFangs")
+        if not TwinFangs or not TwinFangs.CreateInterruptMacro then
+            return
+        end
+        TwinFangs:CreateInterruptMacro()
+        lastNotifiedHeight = nil
+        ApplyMacroStatus()
+        NotifyHeight()
+    end, "primary")
+    ui.macroStatus = Widgets.CreateLabel(ui.macroRow, Fonts.SMALL_MUTED)
+    ui.macroStatus:SetJustifyH("LEFT")
+    ui.macroButton:SetPoint("LEFT", ui.macroRow, "LEFT")
+    ui.macroStatus:SetPoint("LEFT", ui.macroButton, "RIGHT", Spacing.MEDIUM, 0)
+    ui.macroStatus:SetPoint("RIGHT", ui.macroRow, "RIGHT")
+    ui.macroRow:Hide()
+
+    local TwinFangs = ns.Modules.Get("TwinFangs")
+    if TwinFangs then
+        TwinFangs.OnInterruptMacroChanged = function()
+            if not ui then
+                return
+            end
+            lastNotifiedHeight = nil
+            ApplyMacroStatus()
+            NotifyHeight()
+        end
+    end
+
+    panel:HookScript("OnShow", function()
+        lastNotifiedHeight = nil
+        Refresh()
+    end)
 
     Refresh()
     return stack:GetHeight()
