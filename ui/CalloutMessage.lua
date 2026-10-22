@@ -6,6 +6,7 @@ local Widgets = ns.Widgets
 local DEFAULT_DURATION = 10
 local MESSAGE_ONLY = "%s"
 local TIMER_FORMAT = " (%d)"
+local TIMER_FORMAT_TENTHS = " (%.1f)"
 
 local CalloutMessage = {}
 ns.CalloutMessage = CalloutMessage
@@ -59,11 +60,24 @@ function CalloutMessage.Create(options)
     -- When set, countdown loops instead of hiding (layout-edit preview).
     local previewDuration = nil
 
-    local function RemainingSeconds()
+    local function RemainingTime()
         if not expireTime then
             return nil
         end
-        return math.max(0, math.ceil(expireTime - Timer.GetTime()))
+        return math.max(0, expireTime - Timer.GetTime())
+    end
+
+    ---Whole seconds at 10+, one tenth below 10. Floors tenths so the readout never rounds up.
+    ---@param remaining number
+    ---@return number
+    ---@return string
+    local function TimerDisplay(remaining)
+        if remaining < 10 then
+            local tenths = math.floor(remaining * 10 + 1e-6) / 10
+            return tenths, TIMER_FORMAT_TENTHS:format(tenths)
+        end
+        local whole = math.ceil(remaining)
+        return whole, TIMER_FORMAT:format(whole)
     end
 
     local function ApplyDisplay()
@@ -72,15 +86,16 @@ function CalloutMessage.Create(options)
         end
         local text = messageFormat:format(activeMessage)
         if appendTimer then
-            local remaining = RemainingSeconds()
+            local remaining = RemainingTime()
             if remaining == nil then
                 return
             end
-            if remaining == shownRemaining then
+            local display, suffix = TimerDisplay(remaining)
+            if display == shownRemaining then
                 return
             end
-            shownRemaining = remaining
-            text = text .. TIMER_FORMAT:format(remaining)
+            shownRemaining = display
+            text = text .. suffix
         else
             shownRemaining = nil
         end
@@ -118,7 +133,7 @@ function CalloutMessage.Create(options)
     ---Shows `message` for `duration` seconds (default 10). Replaces any active message immediately.
     ---@param message any
     ---@param duration number|nil
-    ---@param withTimer boolean|nil  When true, appends a whole-second countdown as " (n)".
+    ---@param withTimer boolean|nil  When true, appends a countdown as " (n)" or " (n.n)" below 10s.
     function frame:SetMessage(message, duration, withTimer)
         if message == nil then
             frame:Clear()
@@ -151,7 +166,7 @@ function CalloutMessage.Create(options)
         if not frame:IsShown() or activeMessage == nil or not appendTimer then
             return
         end
-        if previewDuration and RemainingSeconds() == 0 then
+        if previewDuration and RemainingTime() <= 0 then
             expireTime = Timer.GetTime() + previewDuration
             shownRemaining = nil
         end
