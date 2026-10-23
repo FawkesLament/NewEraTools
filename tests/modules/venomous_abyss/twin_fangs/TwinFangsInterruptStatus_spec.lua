@@ -147,6 +147,19 @@ describe("TwinFangs interrupt status", function()
             assert.is_false(Module:IsInterruptStatusActive())
         end)
 
+        it("shows the interrupt callout when Brood reaches the player's assignment", function()
+            AssignPrimary(1)
+            StartMythic()
+            TriggerBrood()
+            assert.equals(
+                ns.L.TWIN_FANGS_INTERRUPT_CALLOUT:format(ns.L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT),
+                Module:GetDisplayedCallout()
+            )
+            assert.is_false(Module:GetCalloutAppendTimer())
+            Encounter.FireEnd(Module.ENCOUNTER_ID, "Twin Fangs", Instance.DIFFICULTY_MYTHIC_RAID, 20, 1)
+            assert.is_nil(Module:GetDisplayedCallout())
+        end)
+
         it("starts each Brood window at round 1", function()
             AssignPrimary()
             StartMythic()
@@ -304,6 +317,66 @@ describe("TwinFangs interrupt status", function()
             Timer.Advance(Module.INTERRUPT_STATUS_DURATION)
             assert.is_false(Module:IsInterruptStatusActive())
             assert.same(ExpectedStatus(2), Module:GetInterruptStatus())
+        end)
+
+        it("shows a 10-second interrupt callout on the player's turn and hides it after", function()
+            AssignPrimary(2)
+            Module:SetInterruptReminderEnabled(true)
+            Module:SetInterruptStatusTestMode(true)
+            assert.is_nil(Module:GetDisplayedCallout())
+
+            GameEvents.Fire("CHAT_MSG_PARTY")
+            assert.equals(
+                ns.L.TWIN_FANGS_INTERRUPT_CALLOUT:format(ns.L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT),
+                Module:GetDisplayedCallout()
+            )
+            assert.equals(Timer.GetTime() + Module.INTERRUPT_CALLOUT_DURATION, Module:GetCalloutExpiresAt())
+            assert.is_false(Module:GetCalloutAppendTimer())
+
+            GameEvents.Fire("CHAT_MSG_PARTY")
+            assert.is_nil(Module:GetDisplayedCallout())
+        end)
+
+        it("shows the interrupt callout when the first assignment is the player's", function()
+            AssignPrimary(1)
+            Module:SetInterruptReminderEnabled(true)
+            Module:SetInterruptStatusTestMode(true)
+            assert.equals(
+                ns.L.TWIN_FANGS_INTERRUPT_CALLOUT:format(ns.L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT),
+                Module:GetDisplayedCallout()
+            )
+
+            Module:SetInterruptStatusTestMode(false)
+            assert.is_nil(Module:GetDisplayedCallout())
+        end)
+
+        it("hides the interrupt callout when its duration elapses", function()
+            AssignPrimary(1)
+            Module:SetInterruptReminderEnabled(true)
+            Module:SetInterruptStatusTestMode(true)
+            Timer.Advance(Module.INTERRUPT_CALLOUT_DURATION - 0.01)
+            assert.equals(
+                ns.L.TWIN_FANGS_INTERRUPT_CALLOUT:format(ns.L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT),
+                Module:GetDisplayedCallout()
+            )
+            Timer.Advance(0.01)
+            assert.is_nil(Module:GetDisplayedCallout())
+            assert.is_true(Module:IsInterruptStatusTestMode())
+        end)
+
+        it("lets a later soak callout replace the interrupt callout", function()
+            AssignPrimary(1)
+            Module:SetInterruptReminderEnabled(true)
+            Module:SetInterruptStatusTestMode(true)
+            Module:ShowCallout(ns.L.TWIN_FANGS_SOAK_ENTER, Timer.GetTime() + 20, {
+                kind = "soak",
+                appendTimer = true,
+            })
+            assert.equals(ns.L.TWIN_FANGS_SOAK_ENTER, Module:GetDisplayedCallout())
+            assert.is_true(Module:GetCalloutAppendTimer())
+
+            GameEvents.Fire("CHAT_MSG_PARTY")
+            assert.equals(ns.L.TWIN_FANGS_SOAK_ENTER, Module:GetDisplayedCallout())
         end)
 
         it("hides the HUD when the player has no primary assignment", function()

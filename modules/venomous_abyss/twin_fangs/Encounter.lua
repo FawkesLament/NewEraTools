@@ -55,9 +55,12 @@ local feastCount = 0
 -- ~61s bars seen this pull.
 local cycleCount = 0
 local calloutToken = 0
+local soakScheduleToken = 0
 local speechToken = 0
 local displayedText = nil
 local calloutExpireTime = nil
+local calloutKind = nil
+local calloutAppendTimer = true
 
 local function NotifyCalloutChanged()
     if TwinFangs.OnCalloutChanged then
@@ -65,9 +68,51 @@ local function NotifyCalloutChanged()
     end
 end
 
-function TwinFangs:CancelSoakCallout()
+---@class TwinFangsCalloutOptions
+---@field kind string|nil
+---@field appendTimer boolean|nil
+
+---Shows `text` until `expiresAt`. A later show drops the current message immediately.
+---@param text string
+---@param expiresAt number
+---@param options TwinFangsCalloutOptions|nil
+function TwinFangs:ShowCallout(text, expiresAt, options)
+    options = options or {}
+    calloutToken = calloutToken + 1
+    local token = calloutToken
+    displayedText = text
+    calloutExpireTime = expiresAt
+    calloutKind = options.kind
+    calloutAppendTimer = options.appendTimer == true
+    NotifyCalloutChanged()
+    local remaining = expiresAt - Timer.GetTime()
+    if remaining <= 0 then
+        displayedText = nil
+        calloutExpireTime = nil
+        calloutKind = nil
+        NotifyCalloutChanged()
+        return
+    end
+    Timer.After(remaining, function()
+        if token ~= calloutToken then
+            return
+        end
+        displayedText = nil
+        calloutExpireTime = nil
+        calloutKind = nil
+        NotifyCalloutChanged()
+    end)
+end
+
+---@param kind string|nil  When set, only clears a callout of that kind.
+function TwinFangs:CancelCallout(kind)
+    if kind ~= nil and calloutKind ~= kind then
+        return
+    end
     calloutToken = calloutToken + 1
     calloutExpireTime = nil
+    calloutKind = nil
+    calloutAppendTimer = true
     if displayedText == nil then
         return
     end
@@ -75,11 +120,22 @@ function TwinFangs:CancelSoakCallout()
     NotifyCalloutChanged()
 end
 
+function TwinFangs:CancelSoakCallout()
+    soakScheduleToken = soakScheduleToken + 1
+    self:CancelCallout("soak")
+end
+
+---@return boolean
+function TwinFangs:GetCalloutAppendTimer()
+    return calloutAppendTimer == true
+end
+
 local function ResetPull()
     feastCount = 0
     cycleCount = 0
     speechToken = speechToken + 1
-    TwinFangs:CancelSoakCallout()
+    soakScheduleToken = soakScheduleToken + 1
+    TwinFangs:CancelCallout()
     TwinFangs:EndInterruptStatusWindow()
 end
 
@@ -120,7 +176,7 @@ end
 ---@param untilTime number
 ---@param token integer
 local function ShowUntil(text, untilTime, token)
-    if token ~= calloutToken then
+    if token ~= soakScheduleToken then
         return
     end
     if not TwinFangs:IsSoakReminderEnabled() or not TwinFangs:IsInEncounter() then
@@ -130,17 +186,7 @@ local function ShowUntil(text, untilTime, token)
     if remaining <= 0 then
         return
     end
-    displayedText = text
-    calloutExpireTime = untilTime
-    NotifyCalloutChanged()
-    Timer.After(remaining, function()
-        if token ~= calloutToken or displayedText ~= text then
-            return
-        end
-        displayedText = nil
-        calloutExpireTime = nil
-        NotifyCalloutChanged()
-    end)
+    TwinFangs:ShowCallout(text, untilTime, { kind = "soak", appendTimer = true })
 end
 
 ---Speaks the interrupt warning and opens the interrupt-status window when this bar elapses.
@@ -167,7 +213,7 @@ local function ScheduleFeast(duration)
     if hitIndex == nil then
         return
     end
-    local token = calloutToken
+    local token = soakScheduleToken
     local now = Timer.GetTime()
     local beginAt = now + duration
     local hitAt = {

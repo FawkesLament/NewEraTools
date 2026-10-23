@@ -185,7 +185,7 @@ describe("TwinFangs InterruptStatusHUD", function()
 
     local function LoadPanel()
         ns.Modules.Internals("TwinFangs").CalloutUI = {
-            LAYOUT_ID = "TwinFangs:soak",
+            LAYOUT_ID = "TwinFangs:callout",
             Ensure = function()
                 ns.Modules.Internals("TwinFangs").CalloutUI.ensured = true
             end,
@@ -274,12 +274,12 @@ describe("TwinFangs InterruptStatusHUD", function()
         assert.is_false(hud.shown)
     end)
 
-    it("registers the interrupt status HUD in the Twin Fangs scope beside the soak callout", function()
+    it("registers the interrupt status HUD in the Twin Fangs scope beside the callout", function()
         LoadPanel()
         local scope = scopes.twin_fangs
         local binding = InterruptStatusHud()
         assert.equals(L.TWIN_FANGS_LAYOUT_SCOPE, scope.label)
-        assert.same({ "TwinFangs:soak", binding.LAYOUT_ID }, scope.elementIds)
+        assert.same({ "TwinFangs:callout", binding.LAYOUT_ID }, scope.elementIds)
         assert.is_true(ns.Modules.Internals("TwinFangs").CalloutUI.ensured)
         assert.is_true(ns.Modules.Internals("TwinFangs").CalloutUI.updated)
         assert.equals("boolean", type(registered[binding.LAYOUT_ID].global))

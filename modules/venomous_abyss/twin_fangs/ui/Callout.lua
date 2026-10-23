@@ -5,17 +5,20 @@ local L = ns.L
 local TwinFangs = ns.Modules.Get("TwinFangs")
 
 local Callout = ns.CalloutMessage.Bind({
-    layoutId = "TwinFangs:soak",
-    name = ns.ADDON_NAME .. "TwinFangsSoakCallout",
-    label = L.TWIN_FANGS_SOAK_CALLOUT_TITLE,
+    layoutId = "TwinFangs:callout",
+    name = ns.ADDON_NAME .. "TwinFangsCallout",
+    label = L.TWIN_FANGS_CALLOUT_TITLE,
     isEnabled = function()
-        return TwinFangs:IsSoakReminderEnabled()
+        return TwinFangs:IsSoakReminderEnabled() or TwinFangs:IsInterruptReminderEnabled()
     end,
     getText = function()
         return TwinFangs:GetDisplayedCallout()
     end,
     getExpiresAt = function()
         return TwinFangs:GetCalloutExpiresAt()
+    end,
+    getAppendTimer = function()
+        return TwinFangs:GetCalloutAppendTimer()
     end,
     getPosition = function()
         return TwinFangs:GetCalloutPosition()

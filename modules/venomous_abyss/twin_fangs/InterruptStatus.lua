@@ -1,5 +1,6 @@
 local _, ns = ...
 local Internals = ns.Modules.Internals("TwinFangs")
+local L = ns.L
 local GameEvents = ns.Api.GameEvents
 local Timer = ns.Api.Timer
 
@@ -8,6 +9,7 @@ local InterruptChain = Internals.InterruptChain
 
 -- Visible after Brood fires; interrupt reports do not extend this window.
 local WINDOW_SECONDS = 11
+local CALLOUT_SECONDS = 10
 -- Edit Mode uses the same snapshot as a live window at round 1 in front-left, assignment 3.
 local PREVIEW_REGION = InterruptChain.FRONT_LEFT
 local PREVIEW_INDEX = 3
@@ -15,6 +17,7 @@ local PREVIEW_COUNT = 0
 local PREVIEW_CHAIN_LENGTH = 5
 
 TwinFangs.INTERRUPT_STATUS_DURATION = WINDOW_SECONDS
+TwinFangs.INTERRUPT_CALLOUT_DURATION = CALLOUT_SECONDS
 
 ---@class TwinFangsInterruptStatus
 ---@field region string
@@ -34,10 +37,56 @@ local windowIndex = nil
 local windowChainLength = nil
 local testMode = false
 local testCount = 0
+local interruptCalloutShown = false
 ---@type fun()|nil
 local unsubscribeTest = nil
 
+---@param regionId string
+---@return string
+local function RegionLabel(regionId)
+    if regionId == InterruptChain.FRONT_LEFT then
+        return L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT
+    elseif regionId == InterruptChain.FRONT_RIGHT then
+        return L.TWIN_FANGS_INTERRUPT_REGION_FRONT_RIGHT
+    elseif regionId == InterruptChain.BACK_LEFT then
+        return L.TWIN_FANGS_INTERRUPT_REGION_BACK_LEFT
+    elseif regionId == InterruptChain.BACK_RIGHT then
+        return L.TWIN_FANGS_INTERRUPT_REGION_BACK_RIGHT
+    end
+    return regionId
+end
+
+local function HideInterruptCallout()
+    if not interruptCalloutShown then
+        return
+    end
+    interruptCalloutShown = false
+    TwinFangs:CancelCallout("interrupt")
+end
+
+local function SyncInterruptCallout()
+    local snapshot = TwinFangs:GetInterruptStatus()
+    if not snapshot then
+        HideInterruptCallout()
+        return
+    end
+    local round = snapshot.interruptCount + 1
+    if round > snapshot.index then
+        HideInterruptCallout()
+        return
+    end
+    if round ~= snapshot.index or interruptCalloutShown then
+        return
+    end
+    interruptCalloutShown = true
+    TwinFangs:ShowCallout(L.TWIN_FANGS_INTERRUPT_CALLOUT:format(RegionLabel(snapshot.region)), Timer.GetTime() + CALLOUT_SECONDS, {
+        kind = "interrupt",
+        appendTimer = false,
+    })
+end
+
 local function Notify()
+    SyncInterruptCallout()
     if TwinFangs.OnInterruptStatusChanged then
         TwinFangs:OnInterruptStatusChanged()
     end
