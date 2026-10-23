@@ -4,12 +4,16 @@ A World of Warcraft (retail) toolbox addon.
 
 ## Features
 
+General helpers:
 - **Aura Tracker**: Tracks player buff with a status bar.
 - **Auto combat log**: Automatically enables combat logging in current-expansion raids or mythic dungeons.
 - **Combat timer**: Floating timer for the current fight.
 - **Raid lottery**: Randomly picks raid members and announces them in raid chat.
-- **The Lost Explorers helper**: A reminder to feed fish.
-- **Sszorak helper**: Displays an arena map with markers and move timeline, and helps assign cysts to markers.
+
+Encounter-specific:
+- **The Lost Explorers**: Reminds feeding fish.
+- **Sszorak**: Displays an arena map with markers and move timeline, and helps assign cysts to markers.
+- **Twin Fangs**: Reminds interrupt based on custom, pre-defined rotations & soak.
 
 ## Usage
 
