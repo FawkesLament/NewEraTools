@@ -20,6 +20,7 @@ local Spacing = Assets.Spacing
 local TwinFangs = ns.Modules.Get("TwinFangs")
 local Schema = Internals.Schema
 local Callout = Internals.CalloutUI
+local InterruptStatusHud = Internals.InterruptStatusHudUI
 local AddonCheckPanel = ns.AddonCheckPanel
 
 local SCOPE_ID = "twin_fangs"
@@ -73,47 +74,13 @@ local function BuildContent(content)
     })
 
     local toolsRow = body:AddRow(ActionRow.HEIGHT)
-    local toolsButtons = ActionRow.Apply(toolsRow, {
+    ActionRow.Apply(toolsRow, {
         title = L.TWIN_FANGS_TOOLS_LAYOUT,
         description = L.TWIN_FANGS_TOOLS_LAYOUT_DESC,
         buttons = {
-            {
-                text = L.TWIN_FANGS_PREVIEW_NAMEPLATE,
-                onClick = function()
-                    if not TwinFangs:IsNameplateHintEnabled() then
-                        return
-                    end
-                    TwinFangs:SetNameplateHintPreviewing(not TwinFangs:IsNameplateHintPreviewing())
-                end,
-            },
             { text = L.TWIN_FANGS_EDIT_POSITION, onClick = BeginEditPosition, layout = true },
         },
     })
-    local previewButton = toolsButtons[1]
-    Widgets.AttachTooltip(previewButton, "ANCHOR_TOP", function(tooltip)
-        tooltip:SetText(L.TWIN_FANGS_PREVIEW_NAMEPLATE_TOOLTIP)
-    end)
-
-    local function SyncPreviewButton()
-        previewButton:SetShown(TwinFangs:IsNameplateHintEnabled())
-        previewButton:SetText(
-            TwinFangs:IsNameplateHintPreviewing() and L.TWIN_FANGS_STOP_PREVIEW_NAMEPLATE
-                or L.TWIN_FANGS_PREVIEW_NAMEPLATE
-        )
-    end
-
-    function TwinFangs:OnNameplateHintChanged()
-        SyncPreviewButton()
-    end
-
-    local notifyPreview = TwinFangs.OnNameplateHintPreviewChanged
-    function TwinFangs:OnNameplateHintPreviewChanged()
-        if notifyPreview then
-            notifyPreview(self)
-        end
-        SyncPreviewButton()
-    end
-    SyncPreviewButton()
 
     addonCheckRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     addonCheckButton = Widgets.CreateButton(addonCheckRow, L.ADDONCHECK_BUTTON, function()
@@ -132,9 +99,15 @@ local function BuildContent(content)
             syncInterruptChainEditor()
         end
     end)
-    content:HookScript("OnHide", function()
-        TwinFangs:SetNameplateHintPreviewing(false)
-    end)
+    -- Collapse hides this page; only closing the settings window should end previews.
+    local getFrame = ns.MainPanel and ns.MainPanel.GetFrame
+    local mainPanel = getFrame and ns.MainPanel:GetFrame()
+    if mainPanel then
+        mainPanel:HookScript("OnHide", function()
+            TwinFangs:SetNameplateHintPreviewing(false)
+            TwinFangs:SetInterruptStatusTestMode(false)
+        end)
+    end
 
     local soak = FeatureSection.Create(body, {
         title = L.TWIN_FANGS_SOAK_REMINDER,
@@ -179,6 +152,28 @@ local function BuildContent(content)
             end
         end,
     })
+    local testButton = Widgets.CreateButton(interrupt, L.TWIN_FANGS_TEST_INTERRUPT_STATUS, function()
+        if not TwinFangs:IsInterruptReminderEnabled() then
+            return
+        end
+        TwinFangs:SetInterruptStatusTestMode(not TwinFangs:IsInterruptStatusTestMode())
+    end)
+    local function SyncTestButton()
+        testButton:SetEnabled(TwinFangs:IsInterruptReminderEnabled())
+        testButton:SetText(
+            TwinFangs:IsInterruptStatusTestMode() and L.TWIN_FANGS_STOP_TEST_INTERRUPT_STATUS
+                or L.TWIN_FANGS_TEST_INTERRUPT_STATUS
+        )
+    end
+    function TwinFangs:OnInterruptReminderChanged()
+        SyncTestButton()
+    end
+    function TwinFangs:OnInterruptStatusTestModeChanged()
+        SyncTestButton()
+    end
+    interrupt:SetHeaderAction(testButton)
+    SyncTestButton()
+
     local interruptBody = Layout.Stack(interrupt.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
     local interruptRoleRow = interruptBody:AddRow(Sizes.CONTROL_HEIGHT)
     interruptRoleLabel = ns.RaidRoleModeLabel.Create(interruptRoleRow, L.TWIN_FANGS_INTERRUPT_RAID_ROLE_TOOLTIP)
@@ -240,8 +235,12 @@ local function BuildContent(content)
         end
         local canEdit = Internals.InterruptChain.CanEdit()
         local isCommander = TwinFangs:IsRaidCommander()
+        if addonCheckRow then
+            addonCheckRow:SetShown(isCommander)
+            body:SetEntryHeight(addonCheckRow, isCommander and Sizes.CONTROL_ROW_HEIGHT or 0)
+        end
         if addonCheckButton then
-            addonCheckButton:SetEnabled(isCommander)
+            addonCheckButton:SetShown(isCommander)
         end
         if not isCommander then
             HideAddonCheckPanel()
@@ -289,6 +288,53 @@ local function BuildContent(content)
             TwinFangs:SetNameplateHintEnabled(enabled)
         end,
     })
+    local hintHeaderActions = CreateFrame("Frame", nil, hint)
+    hintHeaderActions:SetHeight(Sizes.CONTROL_HEIGHT)
+    local previewButton = Widgets.CreateButton(hintHeaderActions, L.TWIN_FANGS_PREVIEW_NAMEPLATE, function()
+        if not TwinFangs:IsNameplateHintEnabled() then
+            return
+        end
+        TwinFangs:SetNameplateHintPreviewing(not TwinFangs:IsNameplateHintPreviewing())
+    end)
+    Widgets.AttachTooltip(previewButton, "ANCHOR_TOP", function(tooltip)
+        tooltip:SetText(L.TWIN_FANGS_PREVIEW_NAMEPLATE_TOOLTIP)
+    end)
+    local function LayoutHintHeaderActions()
+        local reset = hintHeaderActions.resetButton
+        local width = previewButton:GetWidth()
+        if reset then
+            width = width + Spacing.MEDIUM + reset:GetWidth()
+        end
+        hintHeaderActions:SetWidth(width)
+    end
+    local function SyncPreviewButton()
+        previewButton:SetEnabled(TwinFangs:IsNameplateHintEnabled())
+        previewButton:SetText(
+            TwinFangs:IsNameplateHintPreviewing() and L.TWIN_FANGS_STOP_PREVIEW_NAMEPLATE
+                or L.TWIN_FANGS_PREVIEW_NAMEPLATE
+        )
+        previewButton:SetSize(
+            math.max(previewButton:GetTextWidth() + Sizes.BUTTON_TEXT_PADDING, Sizes.BUTTON_MIN_WIDTH),
+            Sizes.CONTROL_HEIGHT
+        )
+        LayoutHintHeaderActions()
+    end
+    function TwinFangs:OnNameplateHintChanged()
+        SyncPreviewButton()
+    end
+    local notifyPreview = TwinFangs.OnNameplateHintPreviewChanged
+    function TwinFangs:OnNameplateHintPreviewChanged()
+        if notifyPreview then
+            notifyPreview(self)
+        end
+        SyncPreviewButton()
+    end
+    function hintHeaderActions:SetEnabled(enabled)
+        previewButton:SetEnabled(enabled)
+        if self.resetButton then
+            self.resetButton:SetEnabled(enabled)
+        end
+    end
     local hintBody = Layout.Stack(hint.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
 
     local function SyncHintLayout()
@@ -456,7 +502,7 @@ local function BuildContent(content)
     Layout.Row(fontColorRow, { fontColorLabel, fontColorSwatch }, Spacing.LARGE)
     advanced:SetContentHeight(advancedBody:GetHeight())
 
-    local resetButton = Widgets.CreateTextButton(hint, L.TWIN_FANGS_NAMEPLATE_HINT_RESET, function()
+    local resetButton = Widgets.CreateTextButton(hintHeaderActions, L.TWIN_FANGS_NAMEPLATE_HINT_RESET, function()
         if not TwinFangs:IsNameplateHintEnabled() then
             return
         end
@@ -471,7 +517,12 @@ local function BuildContent(content)
         fontSizeSlider:SetValue(TwinFangs:GetNameplateHintFontSize())
         fontColorSwatch:SetColor(TwinFangs:GetNameplateHintFontColor())
     end)
-    hint:SetHeaderAction(resetButton)
+    hintHeaderActions.resetButton = resetButton
+    resetButton:SetPoint("RIGHT", hintHeaderActions, "RIGHT")
+    previewButton:ClearAllPoints()
+    previewButton:SetPoint("RIGHT", resetButton, "LEFT", -Spacing.MEDIUM, 0)
+    hint:SetHeaderAction(hintHeaderActions)
+    SyncPreviewButton()
 
     hint:SetContentHeight(hintBody:GetHeight())
     hint:RefreshContentInteractive()
@@ -484,9 +535,10 @@ function TwinFangs:OnEnable()
         id = SCOPE_ID,
         label = L.TWIN_FANGS_LAYOUT_SCOPE,
         order = 6,
-        elementIds = { Callout.LAYOUT_ID },
+        elementIds = { Callout.LAYOUT_ID, InterruptStatusHud.LAYOUT_ID },
         prepare = function()
             Callout.Ensure()
+            InterruptStatusHud.Ensure()
         end,
     })
     ns.MainPanel:RegisterSection({
@@ -512,4 +564,6 @@ function TwinFangs:OnEnable()
     self:ListenForNameplateHint()
     Callout.Ensure()
     Callout.Update()
+    InterruptStatusHud.Ensure()
+    InterruptStatusHud.Update()
 end

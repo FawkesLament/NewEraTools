@@ -328,4 +328,55 @@ describe("TwinFangs", function()
             assert.equals(Schema.GROUP_LEFT, Module:GetSoakGroup())
         end)
     end)
+
+    describe("interrupt status HUD position", function()
+        it("defaults below center and persists a moved anchor", function()
+            assert.same(Schema.DefaultInterruptStatusHudPosition(), Module:GetInterruptStatusHudPosition())
+            local position = { point = "TOP", relativePoint = "TOP", x = 12, y = -40 }
+            Module:SetInterruptStatusHudPosition(position)
+            assert.same(position, Module.db.interruptStatusHudPosition)
+            assert.equals(Module.db.interruptStatusHudPosition, Module:GetInterruptStatusHudPosition())
+
+            local reloaded = Loader.Load()
+            reloaded.Modules.Start(ns.Database.Load({
+                modules = {
+                    TwinFangs = { interruptStatusHudPosition = position },
+                },
+            }))
+            assert.same(position, reloaded.Modules.Get("TwinFangs"):GetInterruptStatusHudPosition())
+        end)
+
+        it("replaces an invalid saved position with the factory anchor", function()
+            local fresh = Loader.Load()
+            fresh.Modules.Start(fresh.Database.Load({
+                modules = {
+                    TwinFangs = {
+                        interruptStatusHudPosition = {
+                            point = "CENTER",
+                            relativePoint = "CENTER",
+                            x = "bad",
+                            y = 0,
+                        },
+                    },
+                },
+            }))
+            assert.same(
+                fresh.Modules.Internals("TwinFangs").Schema.DefaultInterruptStatusHudPosition(),
+                fresh.Modules.Get("TwinFangs"):GetInterruptStatusHudPosition()
+            )
+        end)
+
+        it("adopts a leftover statusHudPosition key", function()
+            local position = { point = "TOP", relativePoint = "TOP", x = 4, y = -8 }
+            local fresh = Loader.Load()
+            fresh.Modules.Start(fresh.Database.Load({
+                modules = {
+                    TwinFangs = { statusHudPosition = position },
+                },
+            }))
+            local module = fresh.Modules.Get("TwinFangs")
+            assert.same(position, module:GetInterruptStatusHudPosition())
+            assert.is_nil(module.db.statusHudPosition)
+        end)
+    end)
 end)

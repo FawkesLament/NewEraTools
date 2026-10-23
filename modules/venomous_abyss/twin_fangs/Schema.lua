@@ -39,6 +39,7 @@ local Internals = ns.Modules.Internals("TwinFangs")
 ---@field soakReminder TwinFangsSoakReminder
 ---@field interruptReminder TwinFangsReminder
 ---@field nameplateHint TwinFangsNameplateHint
+---@field interruptStatusHudPosition FloatingWindowPosition
 
 local GROUP_LEFT = "left"
 local GROUP_MIDDLE = "middle"
@@ -130,6 +131,12 @@ function Schema.NewNameplateHint()
     }
 end
 
+---Factory interrupt-status HUD anchor. A new table, so callers can store it without aliasing.
+---@return FloatingWindowPosition
+function Schema.DefaultInterruptStatusHudPosition()
+    return { point = "CENTER", relativePoint = "CENTER", x = 0, y = 80 }
+end
+
 ---A fresh module saved-variables table. Returns new nested tables on every call.
 ---@return TwinFangsSettings
 function Schema.NewSettings()
@@ -144,5 +151,6 @@ function Schema.NewSettings()
             chain = Schema.NewInterruptChain(),
         },
         nameplateHint = Schema.NewNameplateHint(),
+        interruptStatusHudPosition = Schema.DefaultInterruptStatusHudPosition(),
     }
 end

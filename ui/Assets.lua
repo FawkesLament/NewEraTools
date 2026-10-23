@@ -120,6 +120,9 @@ Assets.Fonts = {
     DISPLAY = FONT_PREFIX .. "Display",
     -- Very large outlined callout text over the game world (e.g. Sszorak raid markers).
     CALLOUT = FONT_PREFIX .. "Callout",
+    -- Persistent StatusHUD card: same ARHei face as CALLOUT, smaller sizes.
+    STATUS_HUD_TITLE = FONT_PREFIX .. "StatusHudTitle",
+    STATUS_HUD_TEXT = FONT_PREFIX .. "StatusHudText",
     MUTED = FONT_PREFIX .. "Muted",
     SMALL_MUTED = FONT_PREFIX .. "SmallMuted",
     -- One step below SMALL_MUTED; for quiet footnotes on overlays.
@@ -150,6 +153,18 @@ Assets.FontStyles = {
         path = "Fonts\\ARHei.ttf",
         size = 56,
         color = Assets.Colors.WARNING,
+        flags = "THICKOUTLINE",
+    },
+    [Assets.Fonts.STATUS_HUD_TITLE] = {
+        path = "Fonts\\ARHei.ttf",
+        size = 14,
+        color = Assets.Colors.TEXT_MUTED,
+        flags = "OUTLINE",
+    },
+    [Assets.Fonts.STATUS_HUD_TEXT] = {
+        path = "Fonts\\ARHei.ttf",
+        size = 24,
+        color = Assets.Colors.TEXT,
         flags = "THICKOUTLINE",
     },
     [Assets.Fonts.MUTED] = { size = 12, color = Assets.Colors.TEXT_MUTED },

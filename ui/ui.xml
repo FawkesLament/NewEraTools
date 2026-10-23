@@ -20,6 +20,7 @@
     <Script file="AddonCheckPanel.lua"/>
     <Script file="WarningWindow.lua"/>
     <Script file="CalloutMessage.lua"/>
+    <Script file="StatusHUD.lua"/>
     <Script file="CollapsiblePanel.lua"/>
     <Script file="LayoutCoordinateInspector.lua"/>
     <Script file="LayoutEditor.lua"/>

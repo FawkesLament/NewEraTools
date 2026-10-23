@@ -325,8 +325,17 @@ end
 
 ---@return TwinFangsInterruptChainMacroStatus
 function TwinFangs:GetInterruptMacroStatus()
-    local assigned = PrimaryAssignment() ~= nil
-    if not assigned then
+    if not ns.Api.Group.IsInRaid() then
+        return {
+            shown = false,
+            exists = FindManagedIndex() > 0,
+            buttonText = "",
+            message = "",
+            color = Colors.TEXT_MUTED,
+            reason = "not_in_raid",
+        }
+    end
+    if PrimaryAssignment() == nil then
         return {
             shown = false,
             exists = FindManagedIndex() > 0,

@@ -21,6 +21,9 @@ local CHANGE_EVENTS = {
     "PARTY_LEADER_CHANGED",
 }
 
+---@type fun(): boolean
+Group.IsInRaid = IsInRaid
+
 ---@return RaidMember[]  Roster order; empty when not in a raid.
 function Group.GetRaidMembers()
     local members = {}

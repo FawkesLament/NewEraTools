@@ -12,12 +12,14 @@ local ADDON_CHECK_MODULE_ID = "TwinFangs"
 ---@class TwinFangs: Module
 ---@field db TwinFangsSettings
 ---@field OnCalloutChanged fun(self: TwinFangs)|nil  Defined by the UI; soak callout shown or cleared.
----@field OnNameplateHintChanged fun(self: TwinFangs)|nil  Defined by the UI; preview button shown or hidden.
+---@field OnInterruptReminderChanged fun(self: TwinFangs)|nil  Defined by the UI; interrupt test button enabled or blocked.
+---@field OnNameplateHintChanged fun(self: TwinFangs)|nil  Defined by the UI; nameplate preview button enabled or blocked.
 ---@field OnNameplateHintPreviewChanged fun(self: TwinFangs)|nil  Defined by the UI; nameplate badges shown or hidden.
 ---@field OnNameplateHintAppearanceChanged fun(self: TwinFangs)|nil  Defined by the UI; visible badges restyled.
 ---@field OnNameplateHintShow fun(self: TwinFangs, unit: string, number: integer)|nil  Defined by the UI; live badge attached.
 ---@field OnNameplateHintHide fun(self: TwinFangs, unit: string)|nil  Defined by the UI; live badge removed.
 ---@field OnNameplateHintCleared fun(self: TwinFangs)|nil  Defined by the UI; every live badge removed.
+---@field OnInterruptStatusChanged fun(self: TwinFangs)|nil  Defined by the UI; interrupt StatusHUD shown, updated, or hidden.
 local TwinFangs = ns.Modules.New("TwinFangs", {
     defaults = Schema.NewSettings(),
 })
@@ -121,6 +123,12 @@ function TwinFangs:SetInterruptReminderEnabled(enabled)
         return
     end
     self.db.interruptReminder.enabled = enabled
+    if not enabled then
+        self:SetInterruptStatusTestMode(false)
+    end
+    if TwinFangs.OnInterruptReminderChanged then
+        TwinFangs:OnInterruptReminderChanged()
+    end
 end
 
 ---@return boolean
@@ -331,9 +339,40 @@ function TwinFangs:SetCalloutPosition(position)
     ns.CalloutAnchor.SetPosition(position)
 end
 
+---@return FloatingWindowPosition
+function TwinFangs:GetInterruptStatusHudPosition()
+    return self.db.interruptStatusHudPosition
+end
+
+---@param position FloatingWindowPosition
+function TwinFangs:SetInterruptStatusHudPosition(position)
+    assert(ns.Position.IsValid(position), "Bad interrupt status HUD position")
+    local saved = self.db.interruptStatusHudPosition
+    if type(saved) ~= "table" then
+        self.db.interruptStatusHudPosition = {
+            point = position.point,
+            relativePoint = position.relativePoint,
+            x = position.x,
+            y = position.y,
+        }
+        return
+    end
+    saved.point = position.point
+    saved.relativePoint = position.relativePoint
+    saved.x = position.x
+    saved.y = position.y
+end
+
 function TwinFangs:OnInit()
     if not Schema.GROUPS[self.db.soakReminder.group] then
         self.db.soakReminder.group = Schema.GROUP_LEFT
+    end
+    if ns.Position.IsValid(self.db.statusHudPosition) then
+        self:SetInterruptStatusHudPosition(self.db.statusHudPosition)
+    end
+    self.db.statusHudPosition = nil
+    if not ns.Position.IsValid(self.db.interruptStatusHudPosition) then
+        self.db.interruptStatusHudPosition = Schema.DefaultInterruptStatusHudPosition()
     end
     SanitizeNameplateHint(self.db.nameplateHint)
     local reminder = self.db.interruptReminder
@@ -358,6 +397,21 @@ function TwinFangs:ListenForInterruptMacro() end
 
 ---Drops a pending or visible soak reminder. Defined with the encounter listener.
 function TwinFangs:CancelSoakCallout() end
+
+---Starts the Brood interrupt-status window. Defined by InterruptStatus.lua.
+function TwinFangs:BeginInterruptStatusWindow() end
+
+---Hides the interrupt-status window and resets the count. Defined by InterruptStatus.lua.
+function TwinFangs:EndInterruptStatusWindow() end
+
+---Counts party-chat interrupt reports during a Brood window. Defined by InterruptStatus.lua.
+function TwinFangs:ListenForInterruptStatus() end
+
+---Panel test mode for the interrupt-status HUD. Defined by InterruptStatus.lua.
+function TwinFangs:SetInterruptStatusTestMode() end
+
+---Whether the interrupt-status HUD is in panel test mode. Defined by InterruptStatus.lua.
+function TwinFangs:IsInterruptStatusTestMode() end
 
 ---Drops live nameplate badges. Defined with the hint listener.
 function TwinFangs:ClearNameplateHints() end

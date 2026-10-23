@@ -37,6 +37,7 @@ describe("TwinFangs interrupt macros", function()
         Colors = ns.Assets.Colors
         L = ns.L
         Spell.SetInterruptNameForTests("反制")
+        Group.inRaid = true
     end)
 
     describe("generation", function()
@@ -335,6 +336,14 @@ describe("TwinFangs interrupt macros", function()
         local function Status()
             return TwinFangs:GetInterruptMacroStatus()
         end
+
+        it("hides the action when the player is not in a raid", function()
+            AssignPrimary()
+            Group.inRaid = false
+            local status = Status()
+            assert.is_false(status.shown)
+            assert.equals("not_in_raid", status.reason)
+        end)
 
         it("hides the action when the player has no primary assignment", function()
             local status = Status()

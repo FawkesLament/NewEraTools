@@ -48,6 +48,8 @@ local fight = nil
 local unsubscribeTimeline = nil
 ---@type fun()|nil
 local unsubscribeNameplateHint = nil
+---@type fun()|nil
+local unsubscribeInterruptStatus = nil
 -- Identified Ravenous Feast begin casts this pull.
 local feastCount = 0
 -- ~61s bars seen this pull.
@@ -78,6 +80,7 @@ local function ResetPull()
     cycleCount = 0
     speechToken = speechToken + 1
     TwinFangs:CancelSoakCallout()
+    TwinFangs:EndInterruptStatusWindow()
 end
 
 ---@param duration number|nil
@@ -140,7 +143,7 @@ local function ShowUntil(text, untilTime, token)
     end)
 end
 
----Speaks the interrupt warning when this bar's duration elapses.
+---Speaks the interrupt warning and opens the interrupt-status window when this bar elapses.
 ---@param duration number
 local function ScheduleBrood(duration)
     local token = speechToken
@@ -148,6 +151,7 @@ local function ScheduleBrood(duration)
         if token ~= speechToken or not TwinFangs:IsInEncounter() then
             return
         end
+        TwinFangs:BeginInterruptStatusWindow()
         if not TwinFangs:IsInterruptReminderEnabled() or not TwinFangs:IsInterruptVoiceEnabled() then
             return
         end
@@ -252,9 +256,11 @@ function TwinFangs:ListenForEncounter()
         ResetPull()
         unsubscribeTimeline = EncounterTimeline.OnEventAdded(OnTimelineEventAdded)
         unsubscribeNameplateHint = TwinFangs:ListenForNameplateHint()
+        unsubscribeInterruptStatus = TwinFangs:ListenForInterruptStatus()
         return function()
             unsubscribeTimeline = StopListener(unsubscribeTimeline)
             unsubscribeNameplateHint = StopListener(unsubscribeNameplateHint)
+            unsubscribeInterruptStatus = StopListener(unsubscribeInterruptStatus)
             ResetPull()
         end
     end)

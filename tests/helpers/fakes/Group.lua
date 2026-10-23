@@ -2,12 +2,17 @@ return function()
     local Group = {
         members = {},
         rosterComplete = nil,
+        inRaid = false,
         raidChatType = nil,
         isRaidLeader = false,
         isLeaderOrAssistant = false,
         raidLeaderFullName = nil,
         changeCallbacks = {},
     }
+
+    function Group.IsInRaid()
+        return Group.inRaid == true
+    end
 
     function Group.GetRaidMembers()
         local copy = {}
