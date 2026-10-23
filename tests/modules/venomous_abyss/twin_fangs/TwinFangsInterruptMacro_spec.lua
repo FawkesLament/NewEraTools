@@ -6,7 +6,7 @@ describe("TwinFangs interrupt macros", function()
     local function Body(spell, whisper)
         local lines = { "#showtooltip", "/cast " .. spell, "/p 已打断" }
         if whisper then
-            lines[#lines + 1] = "/w " .. whisper .. " 已打断"
+            lines[#lines + 1] = "/w " .. whisper .. " 你是替补"
         end
         return table.concat(lines, "\n")
     end

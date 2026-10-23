@@ -32,11 +32,35 @@ describe("TwinFangs interrupt status", function()
         chain.front_left.players = players
     end
 
-    local function AssignBackupOnly()
+    local function AssignBackupOnly(chainLength)
+        chainLength = chainLength or 1
+        local players = {}
+        for i = 1, chainLength do
+            players[i] = { name = "Other" .. i .. "-TestRealm" }
+        end
         local chain = Module.db.interruptReminder.chain
         chain.front_right.group = 2
-        chain.front_right.players = { { name = "Other-TestRealm" } }
+        chain.front_right.players = players
         chain.front_right.backup = { name = Player.GetFullName() }
+    end
+
+    local function AssignBoth(primaryIndex, backupLength)
+        AssignPrimary(primaryIndex)
+        AssignBackupOnly(backupLength)
+    end
+
+    local function FireBackupWhisper()
+        GameEvents.Fire("CHAT_MSG_WHISPER", ns.L.TWIN_FANGS_INTERRUPT_MACRO_BACKUP_REPORT)
+    end
+
+    local function ExpectedBackupStatus(interruptCount, chainLength)
+        chainLength = chainLength or 1
+        return {
+            region = "front_right",
+            index = chainLength + 1,
+            interruptCount = interruptCount,
+            chainLength = chainLength,
+        }
     end
 
     local function StartMythic()
@@ -111,20 +135,25 @@ describe("TwinFangs interrupt status", function()
             assert.equals(3, live.chainLength)
         end)
 
-        it("does not activate for backup-only or unassigned players", function()
+        it("does not activate for unassigned players", function()
             assert.is_false(Module:HasPrimaryInterruptAssignment())
+            assert.is_false(Module:HasBackupInterruptAssignment())
             StartMythic()
             TriggerBrood()
             assert.is_false(Module:IsInterruptStatusActive())
             assert.is_nil(Module:GetInterruptStatus())
+            assert.is_nil(Module:GetBackupInterruptStatus())
+        end)
 
-            Encounter.FireEnd(Module.ENCOUNTER_ID, "Twin Fangs", Instance.DIFFICULTY_MYTHIC_RAID, 20, 1)
-            AssignBackupOnly()
+        it("opens the window for a backup-only assignment", function()
+            AssignBackupOnly(2)
             assert.is_false(Module:HasPrimaryInterruptAssignment())
+            assert.is_true(Module:HasBackupInterruptAssignment())
             StartMythic()
             TriggerBrood()
-            assert.is_false(Module:IsInterruptStatusActive())
+            assert.is_true(Module:IsInterruptStatusActive())
             assert.is_nil(Module:GetInterruptStatus())
+            assert.same(ExpectedBackupStatus(0, 2), Module:GetBackupInterruptStatus())
         end)
 
         it("does not activate when the interrupt reminder is off", function()
@@ -158,6 +187,21 @@ describe("TwinFangs interrupt status", function()
             assert.is_false(Module:GetCalloutAppendTimer())
             Encounter.FireEnd(Module.ENCOUNTER_ID, "Twin Fangs", Instance.DIFFICULTY_MYTHIC_RAID, 20, 1)
             assert.is_nil(Module:GetDisplayedCallout())
+        end)
+
+        it("shows the backup-region callout after the backup rotation is exhausted", function()
+            AssignBackupOnly(2)
+            StartMythic()
+            TriggerBrood()
+            assert.is_nil(Module:GetDisplayedCallout())
+            FireBackupWhisper()
+            assert.is_nil(Module:GetDisplayedCallout())
+            FireBackupWhisper()
+            assert.equals(
+                ns.L.TWIN_FANGS_INTERRUPT_CALLOUT:format(ns.L.TWIN_FANGS_INTERRUPT_REGION_FRONT_RIGHT),
+                Module:GetDisplayedCallout()
+            )
+            assert.is_false(Module:GetCalloutAppendTimer())
         end)
 
         it("starts each Brood window at round 1", function()
@@ -258,6 +302,32 @@ describe("TwinFangs interrupt status", function()
             GameEvents.Fire("CHAT_MSG_PARTY")
             GameEvents.Fire("CHAT_MSG_PARTY")
             assert.same(ExpectedStatus(5, 2), Module:GetInterruptStatus())
+        end)
+
+        it("advances the backup region on each incoming whisper without reading the payload", function()
+            AssignBoth(2, 2)
+            StartMythic()
+            TriggerBrood()
+            assert.same(ExpectedStatus(0, 2), Module:GetInterruptStatus())
+            assert.same(ExpectedBackupStatus(0, 2), Module:GetBackupInterruptStatus())
+
+            local secret = setmetatable({}, {
+                __index = function()
+                    error("secret payload was read")
+                end,
+                __tostring = function()
+                    error("secret payload was read")
+                end,
+            })
+            GameEvents.Fire("CHAT_MSG_WHISPER_INFORM", ns.L.TWIN_FANGS_INTERRUPT_MACRO_BACKUP_REPORT)
+            GameEvents.Fire("CHAT_MSG_PARTY")
+            assert.equals(1, Module:GetInterruptCount())
+            assert.equals(0, Module:GetBackupInterruptCount())
+
+            GameEvents.Fire("CHAT_MSG_WHISPER", secret)
+            GameEvents.Fire("CHAT_MSG_WHISPER")
+            assert.same(ExpectedStatus(1, 2), Module:GetInterruptStatus())
+            assert.same(ExpectedBackupStatus(2, 2), Module:GetBackupInterruptStatus())
         end)
     end)
 
@@ -387,6 +457,41 @@ describe("TwinFangs interrupt status", function()
             GameEvents.Fire("CHAT_MSG_PARTY")
             AssignPrimary(2)
             assert.same(ExpectedStatus(1, 2), Module:GetInterruptStatus())
+        end)
+
+        it("shows backup status without an encounter and counts whispers from 0", function()
+            AssignBackupOnly(2)
+            Module:SetInterruptReminderEnabled(true)
+            Module:SetInterruptStatusTestMode(true)
+            assert.is_true(Module:IsInterruptStatusTestMode())
+            assert.is_false(Module:IsInterruptStatusActive())
+            assert.is_nil(Module:GetInterruptStatus())
+            assert.same(ExpectedBackupStatus(0, 2), Module:GetBackupInterruptStatus())
+
+            local secret = setmetatable({}, {
+                __index = function()
+                    error("secret payload was read")
+                end,
+                __tostring = function()
+                    error("secret payload was read")
+                end,
+            })
+            GameEvents.Fire("CHAT_MSG_PARTY")
+            GameEvents.Fire("CHAT_MSG_WHISPER", secret)
+            assert.same(ExpectedBackupStatus(1, 2), Module:GetBackupInterruptStatus())
+            assert.is_nil(Module:GetDisplayedCallout())
+
+            GameEvents.Fire("CHAT_MSG_WHISPER_INFORM")
+            assert.equals(
+                ns.L.TWIN_FANGS_INTERRUPT_CALLOUT:format(ns.L.TWIN_FANGS_INTERRUPT_REGION_FRONT_RIGHT),
+                Module:GetDisplayedCallout()
+            )
+
+            Module:SetInterruptStatusTestMode(false)
+            assert.is_nil(Module:GetBackupInterruptStatus())
+            GameEvents.Fire("CHAT_MSG_WHISPER")
+            GameEvents.Fire("CHAT_MSG_WHISPER_INFORM")
+            assert.is_nil(Module:GetBackupInterruptStatus())
         end)
     end)
 end)

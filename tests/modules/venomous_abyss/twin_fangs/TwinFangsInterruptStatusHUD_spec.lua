@@ -47,6 +47,12 @@ describe("TwinFangs InterruptStatusHUD", function()
         function frame:SetFrameStrata() end
         function frame:SetToplevel() end
         function frame:SetClampedToScreen() end
+        function frame:ClearAllPoints()
+            self.anchor = nil
+        end
+        function frame:SetPoint(point, relative, relativePoint, x, y)
+            self.anchor = { point, relative, relativePoint, x, y }
+        end
         function frame:SetWidth(width)
             self.width = width
         end
@@ -73,6 +79,7 @@ describe("TwinFangs InterruptStatusHUD", function()
             function texture:ClearAllPoints() end
             function texture:SetPoint() end
             function texture:SetSize() end
+            function texture:SetWidth() end
             function texture:Show()
                 self.shown = true
             end
@@ -228,13 +235,20 @@ describe("TwinFangs InterruptStatusHUD", function()
 
     local function PreviewState()
         return {
-            title = L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT,
+            title = L.TWIN_FANGS_INTERRUPT_STATUS_REGION_ROLE:format(
+                L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT,
+                L.TWIN_FANGS_INTERRUPT_STATUS_PRIMARY
+            ),
             text = L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1),
             detail = L.TWIN_FANGS_INTERRUPT_STATUS_TASK:format(3),
             progress = 1,
             maxProgress = 5,
             severity = ns.StatusHUD.SEVERITY_NORMAL,
         }
+    end
+
+    local function PrimaryTitle(region)
+        return L.TWIN_FANGS_INTERRUPT_STATUS_REGION_ROLE:format(region, L.TWIN_FANGS_INTERRUPT_STATUS_PRIMARY)
     end
 
     it("creates one instance, registers it, and stays hidden in normal play", function()
@@ -339,7 +353,7 @@ describe("TwinFangs InterruptStatusHUD", function()
         local hud = binding.Ensure()
         assert.equals(hud, binding.Ensure())
         assert.is_true(hud.shown)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT, hud:GetState().title)
+        assert.equals(PrimaryTitle(L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT), hud:GetState().title)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1), hud:GetState().text)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_TASK:format(3), hud:GetState().detail)
         assert.equals(1, hud:GetState().progress)
@@ -369,7 +383,7 @@ describe("TwinFangs InterruptStatusHUD", function()
         binding.Update()
         local hud = binding.Ensure()
         assert.is_true(hud.shown)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT, hud:GetState().title)
+        assert.equals(PrimaryTitle(L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT), hud:GetState().title)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1), hud:GetState().text)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_TASK:format(2), hud:GetState().detail)
         assert.equals(1, hud:GetState().progress)
@@ -407,5 +421,90 @@ describe("TwinFangs InterruptStatusHUD", function()
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), hud:GetState().text)
         assert.equals(1, Module:GetInterruptCount())
         assert.is_true(hud.shown)
+    end)
+
+    it("paints a backup-only assignment at the saved point", function()
+        local Player = ns.Api.Player
+        local chain = Module.db.interruptReminder.chain
+        chain.front_right.players = { { name = "A-TestRealm" }, { name = "B-TestRealm" } }
+        chain.front_right.backup = { name = Player.GetFullName() }
+        Module:SetInterruptReminderEnabled(true)
+        Module:ListenForEncounter()
+        ns.Api.Encounter.FireStart(Module.ENCOUNTER_ID, "Twin Fangs", ns.Api.Instance.DIFFICULTY_MYTHIC_RAID, 20)
+        Module:BeginInterruptStatusWindow()
+
+        local binding = InterruptStatusHud()
+        binding.Update()
+        local hud = binding.Ensure()
+        local backup = binding.EnsureBackup()
+        assert.is_false(hud.shown)
+        assert.is_true(backup.shown)
+        assert.same(Module:GetInterruptStatusHudPosition(), backup.position)
+        assert.equals(L.TWIN_FANGS_INTERRUPT_REGION_FRONT_RIGHT, backup:GetState().title)
+        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1), backup:GetState().text)
+        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_BACKUP, backup:GetState().detail)
+        assert.equals(1, backup:GetState().progress)
+        assert.equals(2, backup:GetState().maxProgress)
+
+        ns.Api.GameEvents.Fire("CHAT_MSG_WHISPER", L.TWIN_FANGS_INTERRUPT_MACRO_BACKUP_REPORT)
+        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), backup:GetState().text)
+        assert.equals(2, backup:GetState().progress)
+        assert.equals(1, Module:GetBackupInterruptCount())
+    end)
+
+    it("stacks primary and backup HUDs and advances them independently", function()
+        local Player = ns.Api.Player
+        local chain = Module.db.interruptReminder.chain
+        chain.front_left.players = { { name = Player.GetFullName() } }
+        chain.front_right.players = { { name = "A-TestRealm" } }
+        chain.front_right.backup = { name = Player.GetFullName() }
+        Module:SetInterruptReminderEnabled(true)
+        Module:ListenForEncounter()
+        ns.Api.Encounter.FireStart(Module.ENCOUNTER_ID, "Twin Fangs", ns.Api.Instance.DIFFICULTY_MYTHIC_RAID, 20)
+        Module:BeginInterruptStatusWindow()
+
+        local binding = InterruptStatusHud()
+        binding.Update()
+        local hud = binding.Ensure()
+        local backup = binding.EnsureBackup()
+        assert.is_true(hud.shown)
+        assert.is_true(backup.shown)
+        assert.equals(hud, backup.anchor[2])
+        assert.equals("TOP", backup.anchor[1])
+        assert.equals("BOTTOM", backup.anchor[3])
+        assert.equals(-ns.Assets.Spacing.SMALL, backup.anchor[5])
+        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_TASK:format(1), hud:GetState().detail)
+        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_BACKUP, backup:GetState().detail)
+
+        ns.Api.GameEvents.Fire("CHAT_MSG_PARTY")
+        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), hud:GetState().text)
+        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1), backup:GetState().text)
+
+        ns.Api.GameEvents.Fire("CHAT_MSG_WHISPER", L.TWIN_FANGS_INTERRUPT_MACRO_BACKUP_REPORT)
+        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), hud:GetState().text)
+        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), backup:GetState().text)
+    end)
+
+    it("paints backup progress in test mode from matching whispers", function()
+        local Player = ns.Api.Player
+        local chain = Module.db.interruptReminder.chain
+        chain.front_right.players = { { name = "A-TestRealm" } }
+        chain.front_right.backup = { name = Player.GetFullName() }
+        Module:SetInterruptReminderEnabled(true)
+        Module:SetInterruptStatusTestMode(true)
+
+        local binding = InterruptStatusHud()
+        binding.Update()
+        local backup = binding.EnsureBackup()
+        assert.is_true(backup.shown)
+        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1), backup:GetState().text)
+
+        ns.Api.GameEvents.Fire("CHAT_MSG_WHISPER", L.TWIN_FANGS_INTERRUPT_MACRO_BACKUP_REPORT)
+        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), backup:GetState().text)
+        assert.equals(1, backup:GetState().progress)
+        assert.equals(1, backup:GetState().maxProgress)
+
+        Module:SetInterruptStatusTestMode(false)
+        assert.is_false(backup.shown)
     end)
 end)

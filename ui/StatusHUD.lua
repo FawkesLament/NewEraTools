@@ -8,9 +8,13 @@ local Fonts = Assets.Fonts
 local Spacing = Assets.Spacing
 
 local DEFAULT_WIDTH = 320
-local TITLE_ROW_HEIGHT = 20
-local TEXT_ROW_HEIGHT = 34
-local SEGMENT_HEIGHT = 4
+local TITLE_ROW_HEIGHT = 16
+local TEXT_ROW_HEIGHT = 30
+local SEGMENT_HEIGHT = 3
+local ACCENT_WIDTH = 2
+local ACCENT_INSET = 1
+local TONE_EMPHASIS = "emphasis"
+local TONE_STANDBY = "standby"
 local SEVERITY_NORMAL = "normal"
 local SEVERITY_WARNING = "warning"
 local SEVERITY_URGENT = "urgent"
@@ -36,10 +40,33 @@ local SEVERITIES = {
     },
 }
 
+local TONES = {
+    [TONE_EMPHASIS] = {
+        text = Colors.TEXT,
+        header = Colors.STATUS_HUD_REGION,
+        role = Colors.STATUS_HUD_EMPHASIS_ROLE,
+        fill = Colors.ACCENT,
+        empty = Colors.BORDER,
+        border = Colors.STATUS_HUD_EMPHASIS_BORDER,
+        background = Colors.BG_TRANSLUCENT,
+    },
+    [TONE_STANDBY] = {
+        text = Colors.STATUS_HUD_STANDBY_TEXT,
+        header = Colors.STATUS_HUD_REGION,
+        role = Colors.STATUS_HUD_STANDBY_ROLE,
+        fill = Colors.STATUS_HUD_STANDBY,
+        empty = Colors.STATUS_HUD_STANDBY_EMPTY,
+        border = Colors.STATUS_HUD_STANDBY_BORDER,
+        background = Colors.STATUS_HUD_STANDBY_BG,
+    },
+}
+
 local StatusHUD = {
     SEVERITY_NORMAL = SEVERITY_NORMAL,
     SEVERITY_WARNING = SEVERITY_WARNING,
     SEVERITY_URGENT = SEVERITY_URGENT,
+    TONE_EMPHASIS = TONE_EMPHASIS,
+    TONE_STANDBY = TONE_STANDBY,
 }
 ns.StatusHUD = StatusHUD
 
@@ -57,6 +84,7 @@ ns.StatusHUD = StatusHUD
 ---@field name string|nil  Global frame name; must start with the addon name.
 ---@field parent Frame|nil  Defaults to UIParent.
 ---@field width number|nil
+---@field tone string|nil  Optional visual weight: emphasis or standby. Default keeps the shared card look.
 
 ---@class StatusHUD: Frame
 ---@field SetState fun(self: StatusHUD, state: StatusHUDState)
@@ -75,6 +103,7 @@ ns.StatusHUD = StatusHUD
 ---@field global boolean|nil  Defaults to false; StatusHUD is encounter-specific unless set.
 ---@field parent Frame|nil
 ---@field width number|nil
+---@field tone string|nil
 ---@field onEditBegin fun()|nil
 ---@field onEditEnd fun()|nil
 
@@ -99,6 +128,22 @@ local function ResolveSeverity(severity)
     return SEVERITY_NORMAL
 end
 
+---@param tone any
+---@return table|nil
+local function ResolveTone(tone)
+    return TONES[tone]
+end
+
+---@param severity StatusHUDSeverity
+---@param tone table|nil
+---@return table
+local function ResolveStyle(severity, tone)
+    if severity ~= SEVERITY_NORMAL or not tone then
+        return SEVERITIES[severity]
+    end
+    return tone
+end
+
 ---Creates a compact persistent status card. Callers own visibility and the displayed state.
 ---@param options StatusHUDOptions|nil
 ---@return StatusHUD
@@ -106,18 +151,26 @@ function StatusHUD.Create(options)
     options = options or {}
     local parent = options.parent or UIParent
     local width = options.width or DEFAULT_WIDTH
+    local tone = ResolveTone(options.tone)
+    local background = tone and tone.background or Colors.BG_TRANSLUCENT
 
-    local frame = Widgets.CreateSurface(parent, Colors.BG_TRANSLUCENT, Colors.BORDER_SUBTLE, options.name)
+    local frame = Widgets.CreateSurface(parent, background, Colors.BORDER_SUBTLE, options.name)
     frame:SetFrameStrata("MEDIUM")
     frame:SetToplevel(true)
     frame:SetClampedToScreen(true)
     frame:SetWidth(width)
     frame:Hide()
 
+    local accent = frame:CreateTexture(nil, "ARTWORK")
+    accent:SetTexture(Assets.Textures.WHITE)
+    accent:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -ACCENT_INSET)
+    accent:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, ACCENT_INSET)
+    accent:SetWidth(ACCENT_WIDTH)
+
     local stack = Layout.Stack(frame, {
         paddingX = Spacing.MEDIUM,
-        paddingY = Spacing.SMALL,
-        spacing = Spacing.SMALL,
+        paddingY = Spacing.TINY,
+        spacing = Spacing.TINY,
     })
     local header = stack:AddRow(TITLE_ROW_HEIGHT)
     local body = stack:AddRow(TEXT_ROW_HEIGHT)
@@ -210,7 +263,9 @@ function StatusHUD.Create(options)
         end
 
         local severity = ResolveSeverity(state.severity)
-        local style = SEVERITIES[severity]
+        local style = ResolveStyle(severity, tone)
+        local headerColor = (tone and tone.header) or Colors.STATUS_HUD_REGION
+        local roleColor = (tone and tone.role) or headerColor
         local detailText = state.detail
         if detailText == "" then
             detailText = nil
@@ -227,6 +282,8 @@ function StatusHUD.Create(options)
         end
 
         title:SetText(state.title)
+        title:SetTextColor(Widgets.UnpackColor(headerColor))
+        detail:SetTextColor(Widgets.UnpackColor(roleColor))
         text:SetText(state.text)
         text:SetTextColor(Widgets.UnpackColor(style.text))
         if detailText then
@@ -238,6 +295,7 @@ function StatusHUD.Create(options)
         end
 
         frame:SetBackdropBorderColor(Widgets.UnpackColor(style.border))
+        accent:SetVertexColor(Widgets.UnpackColor(style.fill))
 
         if maxProgress > 0 then
             progressRow:Show()
@@ -352,6 +410,7 @@ function StatusHUD.Bind(config)
             name = config.name,
             parent = config.parent,
             width = config.width,
+            tone = config.tone,
         })
         LayoutEditor.ApplyPosition(frame, config.getPosition())
         Register(frame)

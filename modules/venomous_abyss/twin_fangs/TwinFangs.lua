@@ -407,10 +407,10 @@ function TwinFangs:CancelCallout() end
 ---Starts the Brood interrupt-status window. Defined by InterruptStatus.lua.
 function TwinFangs:BeginInterruptStatusWindow() end
 
----Hides the interrupt-status window and resets the count. Defined by InterruptStatus.lua.
+---Hides the interrupt-status window and resets the counts. Defined by InterruptStatus.lua.
 function TwinFangs:EndInterruptStatusWindow() end
 
----Counts party-chat interrupt reports during a Brood window. Defined by InterruptStatus.lua.
+---Counts party-chat and backup-whisper reports during a Brood window. Defined by InterruptStatus.lua.
 function TwinFangs:ListenForInterruptStatus() end
 
 ---Panel test mode for the interrupt-status HUD. Defined by InterruptStatus.lua.

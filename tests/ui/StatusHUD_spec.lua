@@ -46,6 +46,9 @@ describe("StatusHUD", function()
             self.width = width
             self.height = height
         end
+        function texture:SetWidth(width)
+            self.width = width
+        end
         function texture:Show()
             self.shown = true
         end
@@ -130,9 +133,19 @@ describe("StatusHUD", function()
             BORDER_WARNING = { r = 0.90, g = 0.70, b = 0.25, a = 0.75 },
             BORDER = { r = 0.18, g = 0.20, b = 0.23 },
             TEXT = { r = 0.90, g = 0.91, b = 0.92 },
+            TEXT_MUTED = { r = 0.55, g = 0.57, b = 0.60 },
             TEXT_GOLD = { r = 0.93, g = 0.82, b = 0.48 },
             ACCENT = { r = 0.31, g = 0.77, b = 0.71 },
             WARNING = { r = 0.95, g = 0.64, b = 0.27 },
+            STATUS_HUD_EMPHASIS_BORDER = { r = 0.31, g = 0.77, b = 0.71, a = 0.72 },
+            STATUS_HUD_REGION = { r = 0.89, g = 0.91, b = 0.94 },
+            STATUS_HUD_EMPHASIS_ROLE = { r = 0.53, g = 0.85, b = 1 },
+            STATUS_HUD_STANDBY_ROLE = { r = 0.77, g = 0.68, b = 0.96 },
+            STATUS_HUD_STANDBY = { r = 0.62, g = 0.50, b = 0.86 },
+            STATUS_HUD_STANDBY_BORDER = { r = 0.62, g = 0.50, b = 0.86, a = 0.40 },
+            STATUS_HUD_STANDBY_TEXT = { r = 0.78, g = 0.80, b = 0.84 },
+            STATUS_HUD_STANDBY_EMPTY = { r = 0.22, g = 0.20, b = 0.28 },
+            STATUS_HUD_STANDBY_BG = { r = 0.07, g = 0.07, b = 0.09, a = 0.48 },
         }
     end
 
@@ -330,6 +343,31 @@ describe("StatusHUD", function()
         assert.equals(ns.Assets.Colors.BORDER_WARNING.r, hud.borderColor.r)
         hud:SetState(SampleState({ severity = "nope" }))
         assert.equals("normal", hud:GetState().severity)
+    end)
+
+    it("keeps the default card look and paints optional emphasis or standby tones", function()
+        local defaultHud = ns.StatusHUD.Create()
+        defaultHud:SetState(SampleState())
+        assert.equals(ns.Assets.Colors.BORDER_SUBTLE.r, defaultHud.borderColor.r)
+        assert.equals(ns.Assets.Colors.ACCENT.r, VisibleSegments()[1].color.r)
+
+        rows = {}
+        local emphasis = ns.StatusHUD.Create({ tone = ns.StatusHUD.TONE_EMPHASIS })
+        emphasis:SetState(SampleState())
+        assert.equals(ns.Assets.Colors.STATUS_HUD_EMPHASIS_BORDER.r, emphasis.borderColor.r)
+        assert.equals(ns.Assets.Colors.ACCENT.r, VisibleSegments()[1].color.r)
+        assert.equals(ns.Assets.Colors.STATUS_HUD_REGION.r, Header().fontStrings[1].color.r)
+        assert.equals(ns.Assets.Colors.STATUS_HUD_EMPHASIS_ROLE.r, Header().fontStrings[2].color.r)
+
+        rows = {}
+        local standby = ns.StatusHUD.Create({ tone = ns.StatusHUD.TONE_STANDBY })
+        standby:SetState(SampleState({ progress = 1, maxProgress = 2 }))
+        assert.equals(ns.Assets.Colors.STATUS_HUD_STANDBY_BORDER.r, standby.borderColor.r)
+        assert.equals(ns.Assets.Colors.STATUS_HUD_STANDBY.r, VisibleSegments()[1].color.r)
+        assert.equals(ns.Assets.Colors.STATUS_HUD_STANDBY_EMPTY.r, VisibleSegments()[2].color.r)
+        assert.equals(ns.Assets.Colors.STATUS_HUD_STANDBY_TEXT.r, Body().fontStrings[1].color.r)
+        assert.equals(ns.Assets.Colors.STATUS_HUD_REGION.r, Header().fontStrings[1].color.r)
+        assert.equals(ns.Assets.Colors.STATUS_HUD_STANDBY_ROLE.r, Header().fontStrings[2].color.r)
     end)
 
     it("reuses segment textures across repeated updates", function()

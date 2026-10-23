@@ -13,6 +13,7 @@ local Chain = Internals.InterruptChain
 -- Macro UI names are capped at 16 characters.
 local MACRO_NAME = "NETTwinFangInt"
 local REPORT_TEXT = L.TWIN_FANGS_INTERRUPT_MACRO_REPORT
+local BACKUP_REPORT_TEXT = L.TWIN_FANGS_INTERRUPT_MACRO_BACKUP_REPORT
 
 local listening = false
 local pending = false
@@ -101,7 +102,7 @@ local function BuildBody()
         if not name then
             return nil, "no_backup"
         end
-        lines[#lines + 1] = "/w " .. WhisperTarget(name) .. " " .. REPORT_TEXT
+        lines[#lines + 1] = "/w " .. WhisperTarget(name) .. " " .. BACKUP_REPORT_TEXT
     end
 
     local body = table.concat(lines, "\n")

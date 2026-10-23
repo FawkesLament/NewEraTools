@@ -77,6 +77,17 @@ Assets.Colors = {
     TEXT_GOLD = { r = 0.93, g = 0.82, b = 0.48 },
     TEXT_ON_ACCENT = { r = 0.071, g = 0.075, b = 0.090 },
     ACCENT = { r = 0.310, g = 0.765, b = 0.710, a = 1 },
+    -- StatusHUD emphasis (primary / cyan) and standby (backup / violet) card edges.
+    STATUS_HUD_EMPHASIS_BORDER = { r = 0.310, g = 0.765, b = 0.710, a = 0.72 },
+    -- Top-row region (#E2E8F0) and role accents: primary #86D9FF, backup #C5ACF5.
+    STATUS_HUD_REGION = { r = 0.886, g = 0.910, b = 0.941 },
+    STATUS_HUD_EMPHASIS_ROLE = { r = 0.525, g = 0.851, b = 1 },
+    STATUS_HUD_STANDBY_ROLE = { r = 0.773, g = 0.675, b = 0.961 },
+    STATUS_HUD_STANDBY = { r = 0.620, g = 0.500, b = 0.860, a = 1 },
+    STATUS_HUD_STANDBY_BORDER = { r = 0.620, g = 0.500, b = 0.860, a = 0.40 },
+    STATUS_HUD_STANDBY_TEXT = { r = 0.780, g = 0.800, b = 0.840 },
+    STATUS_HUD_STANDBY_EMPTY = { r = 0.220, g = 0.200, b = 0.280, a = 1 },
+    STATUS_HUD_STANDBY_BG = { r = 0.071, g = 0.075, b = 0.090, a = 0.48 },
     SUCCESS = { r = 0.35, g = 0.80, b = 0.40 },
     WARNING = { r = 0.945, g = 0.643, b = 0.267, a = 1 },
     ERROR = { r = 0.898, g = 0.282, b = 0.302 },
@@ -158,7 +169,7 @@ Assets.FontStyles = {
     [Assets.Fonts.STATUS_HUD_TITLE] = {
         path = "Fonts\\ARHei.ttf",
         size = 14,
-        color = Assets.Colors.TEXT_MUTED,
+        color = Assets.Colors.STATUS_HUD_REGION,
         flags = "OUTLINE",
     },
     [Assets.Fonts.STATUS_HUD_TEXT] = {
