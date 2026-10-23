@@ -11,7 +11,6 @@ local ADDON_CHECK_MODULE_ID = "TwinFangs"
 -- There is no module-wide enable. Each reminder keeps its own saved settings.
 ---@class TwinFangs: Module
 ---@field db TwinFangsSettings
----@field OnCalloutChanged fun(self: TwinFangs)|nil  Defined by the UI; callout shown or cleared.
 ---@field OnInterruptReminderChanged fun(self: TwinFangs)|nil  Defined by the UI; interrupt test button enabled or blocked.
 ---@field OnNameplateHintChanged fun(self: TwinFangs)|nil  Defined by the UI; nameplate preview button enabled or blocked.
 ---@field OnNameplateHintPreviewChanged fun(self: TwinFangs)|nil  Defined by the UI; nameplate badges shown or hidden.
@@ -129,16 +128,6 @@ function TwinFangs:SetInterruptReminderEnabled(enabled)
     if TwinFangs.OnInterruptReminderChanged then
         TwinFangs:OnInterruptReminderChanged()
     end
-end
-
----@return boolean
-function TwinFangs:IsInterruptVoiceEnabled()
-    return self.db.interruptReminder.voice == true
-end
-
----@param enabled boolean
-function TwinFangs:SetInterruptVoiceEnabled(enabled)
-    self.db.interruptReminder.voice = enabled == true
 end
 
 ---@return boolean
@@ -377,7 +366,7 @@ function TwinFangs:OnInit()
     SanitizeNameplateHint(self.db.nameplateHint)
     local reminder = self.db.interruptReminder
     if type(reminder) ~= "table" then
-        reminder = { enabled = false, voice = false, chain = Schema.NewInterruptChain() }
+        reminder = { enabled = false, chain = Schema.NewInterruptChain() }
         self.db.interruptReminder = reminder
     end
     reminder.chain = Internals.InterruptChain.SanitizeSaved(reminder.chain)
@@ -398,10 +387,10 @@ function TwinFangs:ListenForInterruptMacro() end
 ---Drops a pending or visible soak reminder. Defined with the encounter listener.
 function TwinFangs:CancelSoakCallout() end
 
----Shows a soak or interrupt callout. A later show drops the current message. Defined with the encounter listener.
+---Shows a soak or interrupt callout through CalloutManager. Defined with the encounter listener.
 function TwinFangs:ShowCallout() end
 
----Clears the current callout, or only one kind when `kind` is set. Defined with the encounter listener.
+---Clears this source's callout, or only one kind when `kind` is set. Defined with the encounter listener.
 function TwinFangs:CancelCallout() end
 
 ---Starts the Brood interrupt-status window. Defined by InterruptStatus.lua.

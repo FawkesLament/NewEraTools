@@ -21,7 +21,6 @@ local Internals = ns.Modules.Internals("TwinFangs")
 
 ---@class TwinFangsReminder
 ---@field enabled boolean
----@field voice boolean
 ---@field chain TwinFangsInterruptChainSettings
 
 ---@class TwinFangsNameplateHint
@@ -147,7 +146,6 @@ function Schema.NewSettings()
         },
         interruptReminder = {
             enabled = false,
-            voice = false,
             chain = Schema.NewInterruptChain(),
         },
         nameplateHint = Schema.NewNameplateHint(),

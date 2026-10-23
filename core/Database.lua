@@ -3,7 +3,7 @@ local _, ns = ...
 local Database = {}
 ns.Database = Database
 
-local SCHEMA_VERSION = 8
+local SCHEMA_VERSION = 9
 
 -- migrations[n] upgrades saved data from version n - 1 to version n, in place.
 local migrations = {}
@@ -63,6 +63,16 @@ migrations[8] = function(saved)
     end
     if type(modules.TheLostExplorers) == "table" then
         modules.TheLostExplorers.calloutPosition = nil
+    end
+end
+
+-- Twin Fangs interrupt voice alerts were removed.
+migrations[9] = function(saved)
+    local modules = saved.modules
+    local settings = type(modules) == "table" and modules.TwinFangs or nil
+    local reminder = type(settings) == "table" and settings.interruptReminder or nil
+    if type(reminder) == "table" then
+        reminder.voice = nil
     end
 end
 

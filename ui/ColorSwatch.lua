@@ -8,6 +8,36 @@ local Sizes = Assets.Sizes
 local ColorSwatch = {}
 ns.ColorSwatch = ColorSwatch
 
+-- Above MainPanel (DIALOG), the layout-edit dimmer (FULLSCREEN), and edit chrome
+-- (FULLSCREEN_DIALOG) so the picker stays undimmed and in front of the settings panel.
+local PICKER_STRATA = "TOOLTIP"
+local originalPickerStrata
+local restoreHooked = false
+
+local function RestorePickerStrata()
+    if not originalPickerStrata then
+        return
+    end
+    ColorPickerFrame:SetFrameStrata(originalPickerStrata)
+    originalPickerStrata = nil
+end
+
+local function RaisePicker()
+    if not originalPickerStrata then
+        originalPickerStrata = ColorPickerFrame:GetFrameStrata()
+    end
+    ColorPickerFrame:SetFrameStrata(PICKER_STRATA)
+    ColorPickerFrame:Raise()
+end
+
+local function EnsureRestoreHook()
+    if restoreHooked then
+        return
+    end
+    restoreHooked = true
+    ColorPickerFrame:HookScript("OnHide", RestorePickerStrata)
+end
+
 ---@class ColorRGB
 ---@field r number
 ---@field g number
@@ -52,6 +82,7 @@ function ColorSwatch.Create(parent, color, onColorChanged)
 
     swatch:SetScript("OnClick", function(self)
         local current = self:GetColor()
+        EnsureRestoreHook()
         ColorPickerFrame:SetupColorPickerAndShow({
             r = current.r,
             g = current.g,
@@ -70,6 +101,7 @@ function ColorSwatch.Create(parent, color, onColorChanged)
                 onColorChanged(next)
             end,
         })
+        RaisePicker()
     end)
     return swatch
 end

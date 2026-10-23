@@ -297,6 +297,20 @@ describe("FeatureSection", function()
         assert.equals(32, section:GetHeight())
     end)
 
+    it("can omit the On/Off toggle and stay enabled", function()
+        local section = CreateSection({ toggle = false })
+        local header = section.children[1]
+        local toggle
+        for _, child in ipairs(header.children) do
+            if child.items then
+                toggle = child
+            end
+        end
+        assert.is_nil(toggle)
+        assert.is_true(section:IsEnabled())
+        assert.equals(1, section.content.alpha)
+    end)
+
     it("places a header action to the left of the On/Off toggle", function()
         local section = CreateSection()
         local header = section.children[1]

@@ -279,9 +279,10 @@ function TwinFangs:IsInterruptStatusTestMode()
 end
 
 ---Shows HUDs from the current assignments and counts party chat / backup whispers until stopped.
+---No-op unless the interrupt reminder is on and the player is in a raid.
 ---@param enabled boolean
 function TwinFangs:SetInterruptStatusTestMode(enabled)
-    enabled = enabled == true and self:IsInterruptReminderEnabled()
+    enabled = enabled == true and self:IsInterruptReminderEnabled() and ns.Api.Group.IsInRaid()
     if testMode == enabled then
         return
     end

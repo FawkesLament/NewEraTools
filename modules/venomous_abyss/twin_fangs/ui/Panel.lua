@@ -19,13 +19,13 @@ local Spacing = Assets.Spacing
 
 local TwinFangs = ns.Modules.Get("TwinFangs")
 local Schema = Internals.Schema
-local Callout = Internals.CalloutUI
 local InterruptStatusHud = Internals.InterruptStatusHudUI
 local AddonCheckPanel = ns.AddonCheckPanel
 
 local SCOPE_ID = "twin_fangs"
 local interruptRoleLabel
 local syncInterruptChainEditor
+local syncTestButton
 local addonCheckRow
 local addonCheckButton
 ---@type AddonCheckPanel|nil
@@ -156,7 +156,22 @@ local function BuildContent(content)
         if not TwinFangs:IsInterruptReminderEnabled() then
             return
         end
+        if not TwinFangs:IsInterruptStatusTestMode() and not ns.Api.Group.IsInRaid() then
+            return
+        end
         TwinFangs:SetInterruptStatusTestMode(not TwinFangs:IsInterruptStatusTestMode())
+    end)
+    local rawTestSetEnabled = testButton.SetEnabled
+    function testButton:SetEnabled(enabled)
+        rawTestSetEnabled(
+            self,
+            enabled == true and (ns.Api.Group.IsInRaid() or TwinFangs:IsInterruptStatusTestMode())
+        )
+    end
+    Widgets.AttachTooltip(testButton, "ANCHOR_TOP", function(tooltip)
+        if not ns.Api.Group.IsInRaid() and not TwinFangs:IsInterruptStatusTestMode() then
+            tooltip:SetText(L.TWIN_FANGS_INTERRUPT_NOT_IN_RAID)
+        end
     end)
     local function SyncTestButton()
         testButton:SetEnabled(TwinFangs:IsInterruptReminderEnabled())
@@ -165,6 +180,7 @@ local function BuildContent(content)
                 or L.TWIN_FANGS_TEST_INTERRUPT_STATUS
         )
     end
+    syncTestButton = SyncTestButton
     function TwinFangs:OnInterruptReminderChanged()
         SyncTestButton()
     end
@@ -185,21 +201,6 @@ local function BuildContent(content)
         end
     end)
     viewSwitch:SetPoint("RIGHT", interruptRoleRow, "RIGHT")
-
-    local voiceRow = interruptBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local voiceBox = Widgets.CreateCheckbox(voiceRow)
-    voiceBox:SetChecked(TwinFangs:IsInterruptVoiceEnabled())
-    voiceBox:SetScript("OnClick", function(self)
-        if not TwinFangs:IsInterruptReminderEnabled() then
-            self:SetChecked(TwinFangs:IsInterruptVoiceEnabled())
-            return
-        end
-        TwinFangs:SetInterruptVoiceEnabled(self:GetChecked())
-    end)
-    local voiceLabel = Widgets.CreateLabel(voiceRow, Fonts.BODY, L.TWIN_FANGS_INTERRUPT_VOICE)
-    voiceLabel:SetJustifyH("LEFT")
-    Layout.Row(voiceRow, { voiceBox, voiceLabel }, Spacing.SMALL)
-    voiceBox:SetHitRectInsets(0, -(voiceLabel:GetStringWidth() + Spacing.SMALL), 0, 0)
 
     local chainHost = interruptBody:Add(CreateFrame("Frame", nil, interrupt.content), 1)
     local editorMounted
@@ -535,12 +536,13 @@ function TwinFangs:OnEnable()
         id = SCOPE_ID,
         label = L.TWIN_FANGS_LAYOUT_SCOPE,
         order = 6,
-        elementIds = { Callout.LAYOUT_ID, InterruptStatusHud.LAYOUT_ID },
+        elementIds = { ns.Callout.LAYOUT_ID, InterruptStatusHud.LAYOUT_ID },
         prepare = function()
-            Callout.Ensure()
+            ns.Callout.Ensure()
             InterruptStatusHud.Ensure()
         end,
     })
+    ns.Callout.SetScopePreview(SCOPE_ID, L.TWIN_FANGS_SOAK_ENTER, TwinFangs.HIT1_LEAD)
     ns.MainPanel:RegisterSection({
         title = L.TWIN_FANGS_TITLE,
         group = ns.PanelGroups.VENOMOUS_ABYSS,
@@ -556,14 +558,15 @@ function TwinFangs:OnEnable()
         end
     end
     ns.Api.Group.OnChanged(function()
+        if syncTestButton then
+            syncTestButton()
+        end
         if syncInterruptChainEditor then
             syncInterruptChainEditor()
         end
     end)
     -- TEMP: nameplate-hint casts listen outside the encounter for in-game testing.
     self:ListenForNameplateHint()
-    Callout.Ensure()
-    Callout.Update()
     InterruptStatusHud.Ensure()
     InterruptStatusHud.Update()
 end

@@ -1,5 +1,4 @@
 local _, ns = ...
-local Internals = ns.Modules.Internals("TheLostExplorers")
 local L = ns.L
 local Assets = ns.Assets
 local Combat = ns.Api.Combat
@@ -15,7 +14,6 @@ local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 
 local TheLostExplorers = ns.Modules.Get("TheLostExplorers")
-local Callout = Internals.CalloutUI
 
 local LAYOUT_SCOPE_ID = "the_lost_explorers"
 -- Dropdown sentinel for an empty feed-order slot (distinct from boss id strings).
@@ -187,11 +185,16 @@ function TheLostExplorers:OnEnable()
         id = LAYOUT_SCOPE_ID,
         label = L.THE_LOST_EXPLORERS_LAYOUT_SCOPE,
         order = 3,
-        elementIds = { Callout.LAYOUT_ID },
+        elementIds = { ns.Callout.LAYOUT_ID },
         prepare = function()
-            Callout.Ensure()
+            ns.Callout.Ensure()
         end,
     })
+    ns.Callout.SetScopePreview(
+        LAYOUT_SCOPE_ID,
+        L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT,
+        TheLostExplorers.CALLOUT_DURATION
+    )
     ns.MainPanel:RegisterSection({
         title = L.THE_LOST_EXPLORERS_TITLE,
         headerTitle = L.THE_LOST_EXPLORERS_FEED_FISH,
@@ -206,6 +209,4 @@ function TheLostExplorers:OnEnable()
         build = Build,
     })
     self:ListenForFeedFish()
-    Callout.Ensure()
-    Callout.Update()
 end

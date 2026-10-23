@@ -1,11 +1,13 @@
 local _, ns = ...
 local Internals = ns.Modules.Internals("TwinFangs")
 local L = ns.L
+local CalloutManager = ns.CalloutManager
 local Encounter = ns.Api.Encounter
 local EncounterTimeline = ns.Api.EncounterTimeline
 local Instance = ns.Api.Instance
-local Speech = ns.Api.Speech
 local Timer = ns.Api.Timer
+
+local CALLOUT_SOURCE = "TwinFangs"
 
 local TwinFangs = ns.Modules.Get("TwinFangs")
 local Schema = Internals.Schema
@@ -54,18 +56,17 @@ local unsubscribeInterruptStatus = nil
 local feastCount = 0
 -- ~61s bars seen this pull.
 local cycleCount = 0
-local calloutToken = 0
 local soakScheduleToken = 0
-local speechToken = 0
-local displayedText = nil
-local calloutExpireTime = nil
-local calloutKind = nil
-local calloutAppendTimer = true
+local broodToken = 0
+---@type table<string, CalloutManagerHandle>
+local calloutByKind = {}
 
-local function NotifyCalloutChanged()
-    if TwinFangs.OnCalloutChanged then
-        TwinFangs:OnCalloutChanged()
+local function CurrentCallout()
+    local current = CalloutManager.GetCurrent()
+    if current and current.source == CALLOUT_SOURCE then
+        return current
     end
+    return nil
 end
 
 ---@class TwinFangsCalloutOptions
@@ -78,46 +79,29 @@ end
 ---@param options TwinFangsCalloutOptions|nil
 function TwinFangs:ShowCallout(text, expiresAt, options)
     options = options or {}
-    calloutToken = calloutToken + 1
-    local token = calloutToken
-    displayedText = text
-    calloutExpireTime = expiresAt
-    calloutKind = options.kind
-    calloutAppendTimer = options.appendTimer == true
-    NotifyCalloutChanged()
-    local remaining = expiresAt - Timer.GetTime()
-    if remaining <= 0 then
-        displayedText = nil
-        calloutExpireTime = nil
-        calloutKind = nil
-        NotifyCalloutChanged()
-        return
+    local handle = CalloutManager.Show({
+        source = CALLOUT_SOURCE,
+        text = text,
+        expiresAt = expiresAt,
+        appendTimer = options.appendTimer == true,
+    })
+    if options.kind then
+        calloutByKind[options.kind] = handle
     end
-    Timer.After(remaining, function()
-        if token ~= calloutToken then
-            return
-        end
-        displayedText = nil
-        calloutExpireTime = nil
-        calloutKind = nil
-        NotifyCalloutChanged()
-    end)
 end
 
 ---@param kind string|nil  When set, only clears a callout of that kind.
 function TwinFangs:CancelCallout(kind)
-    if kind ~= nil and calloutKind ~= kind then
+    if kind ~= nil then
+        local handle = calloutByKind[kind]
+        calloutByKind[kind] = nil
+        if handle then
+            handle:Dismiss()
+        end
         return
     end
-    calloutToken = calloutToken + 1
-    calloutExpireTime = nil
-    calloutKind = nil
-    calloutAppendTimer = true
-    if displayedText == nil then
-        return
-    end
-    displayedText = nil
-    NotifyCalloutChanged()
+    calloutByKind = {}
+    CalloutManager.ClearSource(CALLOUT_SOURCE)
 end
 
 function TwinFangs:CancelSoakCallout()
@@ -127,13 +111,14 @@ end
 
 ---@return boolean
 function TwinFangs:GetCalloutAppendTimer()
-    return calloutAppendTimer == true
+    local current = CurrentCallout()
+    return current ~= nil and current.appendTimer == true
 end
 
 local function ResetPull()
     feastCount = 0
     cycleCount = 0
-    speechToken = speechToken + 1
+    broodToken = broodToken + 1
     soakScheduleToken = soakScheduleToken + 1
     TwinFangs:CancelCallout()
     TwinFangs:EndInterruptStatusWindow()
@@ -189,19 +174,15 @@ local function ShowUntil(text, untilTime, token)
     TwinFangs:ShowCallout(text, untilTime, { kind = "soak", appendTimer = true })
 end
 
----Speaks the interrupt warning and opens the interrupt-status window when this bar elapses.
+---Opens the interrupt-status window when this bar elapses.
 ---@param duration number
 local function ScheduleBrood(duration)
-    local token = speechToken
+    local token = broodToken
     Timer.After(duration, function()
-        if token ~= speechToken or not TwinFangs:IsInEncounter() then
+        if token ~= broodToken or not TwinFangs:IsInEncounter() then
             return
         end
         TwinFangs:BeginInterruptStatusWindow()
-        if not TwinFangs:IsInterruptReminderEnabled() or not TwinFangs:IsInterruptVoiceEnabled() then
-            return
-        end
-        Speech.Say(L.TWIN_FANGS_INTERRUPT_PREPARE)
     end)
 end
 
@@ -281,15 +262,14 @@ end
 
 ---@return string|nil
 function TwinFangs:GetDisplayedCallout()
-    return displayedText
+    local current = CurrentCallout()
+    return current and current.text
 end
 
 ---@return number|nil
 function TwinFangs:GetCalloutExpiresAt()
-    if displayedText == nil then
-        return nil
-    end
-    return calloutExpireTime
+    local current = CurrentCallout()
+    return current and current.expiresAt
 end
 
 ---Starts watching for this boss fight. Timeline events and nameplate-hint casts are subscribed only on Mythic.

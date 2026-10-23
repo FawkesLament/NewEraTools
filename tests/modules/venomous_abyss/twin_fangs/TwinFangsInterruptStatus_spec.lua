@@ -163,6 +163,41 @@ describe("TwinFangs interrupt status", function()
             assert.is_false(Module:IsInterruptStatusActive())
         end)
 
+        it("does not open the window for a ~57s feast bar", function()
+            AssignPrimary()
+            StartMythic()
+            EncounterTimeline.FireEventAdded(ActiveEvent(Module.FEAST_DURATION))
+            Timer.Advance(Module.FEAST_DURATION)
+            assert.is_false(Module:IsInterruptStatusActive())
+        end)
+
+        it("does not let a ~57s bar consume a slot in the cycle", function()
+            AssignPrimary()
+            StartMythic()
+            FireCycleBars(Module.BROOD_SLOT - 1)
+            EncounterTimeline.FireEventAdded(ActiveEvent(Module.FEAST_DURATION))
+            Timer.Advance(Module.FEAST_DURATION)
+            assert.is_false(Module:IsInterruptStatusActive())
+
+            EncounterTimeline.FireEventAdded(ActiveEvent(Module.CYCLE_DURATION))
+            Timer.Advance(Module.CYCLE_DURATION)
+            assert.is_true(Module:IsInterruptStatusActive())
+        end)
+
+        it("resets the cycle when the next pull starts", function()
+            AssignPrimary()
+            StartMythic()
+            FireCycleBars(Module.BROOD_SLOT - 1)
+            Encounter.FireEnd(Module.ENCOUNTER_ID, "Twin Fangs", Instance.DIFFICULTY_MYTHIC_RAID, 20, 1)
+            Timer.Advance(Module.CYCLE_DURATION)
+            assert.is_false(Module:IsInterruptStatusActive())
+
+            Encounter.FireStart(Module.ENCOUNTER_ID, "Twin Fangs", Instance.DIFFICULTY_MYTHIC_RAID, 20)
+            FireCycleBars(Module.BROOD_SLOT)
+            Timer.Advance(Module.CYCLE_DURATION)
+            assert.is_true(Module:IsInterruptStatusActive())
+        end)
+
         it("hides immediately when the encounter ends", function()
             AssignPrimary()
             StartMythic()
@@ -332,6 +367,13 @@ describe("TwinFangs interrupt status", function()
     end)
 
     describe("test mode", function()
+        local Group
+
+        before_each(function()
+            Group = ns.Api.Group
+            Group.inRaid = true
+        end)
+
         it("does not start when the interrupt reminder is off", function()
             AssignPrimary()
             Module:SetInterruptStatusTestMode(true)
@@ -342,6 +384,18 @@ describe("TwinFangs interrupt status", function()
             assert.is_true(Module:IsInterruptStatusTestMode())
             Module:SetInterruptReminderEnabled(false)
             assert.is_false(Module:IsInterruptStatusTestMode())
+        end)
+
+        it("does not start when the player is not in a raid", function()
+            AssignPrimary()
+            Module:SetInterruptReminderEnabled(true)
+            Group.inRaid = false
+            Module:SetInterruptStatusTestMode(true)
+            assert.is_false(Module:IsInterruptStatusTestMode())
+
+            Group.inRaid = true
+            Module:SetInterruptStatusTestMode(true)
+            assert.is_true(Module:IsInterruptStatusTestMode())
         end)
 
         it("shows the live assignment without an encounter and counts party chat from 0", function()

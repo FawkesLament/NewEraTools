@@ -13,6 +13,69 @@ local TIMER_FORMAT_TENTHS = " (%.1f)"
 local CalloutMessage = {}
 ns.CalloutMessage = CalloutMessage
 
+---@class CalloutMessageAppearance
+---@field scale number|nil  Frame scale. Defaults to 1.
+---@field fontPath string|nil  Face path. Defaults to the CALLOUT font style.
+---@field fontSize number|nil  Point size. Defaults to the CALLOUT font style.
+---@field fontColor RgbColor|nil  Fill color. Defaults to the CALLOUT font style.
+
+---@type CalloutMessageAppearance
+local appearance = {}
+---@type CalloutMessage[]
+local instances = {}
+
+local function CalloutStyle()
+    local styles = Assets.FontStyles
+    return styles and styles[Assets.Fonts.CALLOUT] or {}
+end
+
+---Resolves unset fields to the existing CALLOUT font style (ARHei, 56, warning, thick outline) and scale 1.
+---@return number
+---@return string
+---@return number
+---@return string
+---@return RgbColor
+local function ResolveAppearance()
+    local style = CalloutStyle()
+    local current = appearance
+    local scale = current.scale
+    if type(scale) ~= "number" then
+        scale = 1
+    end
+    local fontPath = current.fontPath
+    if type(fontPath) ~= "string" or fontPath == "" then
+        fontPath = style.path or STANDARD_TEXT_FONT
+    end
+    local fontSize = current.fontSize
+    if type(fontSize) ~= "number" then
+        fontSize = style.size or 56
+    end
+    local fontColor = current.fontColor
+    if type(fontColor) ~= "table" then
+        fontColor = style.color or { r = 1, g = 1, b = 1 }
+    end
+    return scale, fontPath, fontSize, style.flags or "", fontColor
+end
+
+---Applies shared appearance to every live callout. Nil fields keep the existing CALLOUT look.
+---@param next CalloutMessageAppearance|nil
+function CalloutMessage.SetAppearance(next)
+    if next ~= nil then
+        assert(type(next) == "table", "CalloutMessage.SetAppearance requires a table")
+        appearance = {
+            scale = next.scale,
+            fontPath = next.fontPath,
+            fontSize = next.fontSize,
+            fontColor = next.fontColor,
+        }
+    else
+        appearance = {}
+    end
+    for i = 1, #instances do
+        instances[i]:ApplyAppearance()
+    end
+end
+
 ---@class CalloutMessageOptions
 ---@field name string|nil  Global frame name; must start with the addon name.
 ---@field parent Frame|nil  Defaults to UIParent.
@@ -30,6 +93,7 @@ ns.CalloutMessage = CalloutMessage
 ---@field SetMessage fun(self: CalloutMessage, message: any, options: CalloutMessageShowOptions|nil)
 ---@field ShowPreview fun(self: CalloutMessage, message: any, remainingSeconds: integer, appendTimer: boolean|nil)
 ---@field Clear fun(self: CalloutMessage)
+---@field ApplyAppearance fun(self: CalloutMessage): boolean|nil  Re-applies the current shared appearance. True when scale changed.
 
 ---@class CalloutMessageBindOptions
 ---@field layoutId string
@@ -42,9 +106,10 @@ ns.CalloutMessage = CalloutMessage
 ---@field setPosition fun(position: CalloutAnchor)
 ---@field getDefaultPosition fun(): CalloutAnchor
 ---@field previewText any|fun(): any
----@field previewDuration number|nil
+---@field previewDuration number|fun(): number|nil|nil
 ---@field getAppendTimer fun(): boolean|nil
 ---@field wrap string|nil
+---@field global boolean|nil  When true, participates in the common UI editing scope.
 ---@field width number|nil
 ---@field height number|nil
 ---@field parent Frame|nil
@@ -84,6 +149,39 @@ function CalloutMessage.Create(options)
     label:SetJustifyV("MIDDLE")
     label:SetWordWrap(false)
     label:SetPoint("CENTER")
+
+    -- SetScale keeps the region's origin (bottom-left) fixed; offsets are also in the
+    -- frame's own scale. Re-anchor so the visual center stays put.
+    local function SetScaleAroundCenter(scale)
+        local oldScale = frame:GetScale()
+        if math.abs(oldScale - scale) < 0.001 then
+            return false
+        end
+        local x, y = frame:GetCenter()
+        frame:SetScale(scale)
+        if x then
+            frame:ClearAllPoints()
+            frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x * oldScale / scale, y * oldScale / scale)
+        end
+        return true
+    end
+
+    function frame:ApplyAppearance()
+        local scale, fontPath, fontSize, flags, fontColor = ResolveAppearance()
+        local scaled = SetScaleAroundCenter(scale)
+        label:SetFont(fontPath, fontSize, flags)
+        label:SetTextColor(fontColor.r, fontColor.g, fontColor.b, fontColor.a or 1)
+        -- SetFont can grow the string from its origin; pin it back to the frame center.
+        label:ClearAllPoints()
+        label:SetPoint("CENTER")
+        local text = label:GetText()
+        if text and text ~= "" then
+            label:SetText(text)
+        end
+        return scaled
+    end
+    frame:ApplyAppearance()
+    instances[#instances + 1] = frame
 
     local token = 0
     local activeMessage = nil
@@ -245,7 +343,6 @@ function CalloutMessage.Bind(config)
     assert(type(config.getDefaultPosition) == "function", "CalloutMessage.Bind requires getDefaultPosition")
     assert(config.previewText ~= nil, "CalloutMessage.Bind requires previewText")
 
-    local LayoutEditor = ns.LayoutEditor
     local window
     local registered = false
     local layoutEditing = false
@@ -263,16 +360,24 @@ function CalloutMessage.Bind(config)
         return text
     end
 
+    local function PreviewDuration()
+        local duration = config.previewDuration
+        if type(duration) == "function" then
+            duration = duration()
+        end
+        return duration or DEFAULT_DURATION
+    end
+
     local function Register(frame)
         if registered then
             return
         end
         registered = true
-        LayoutEditor.Register({
+        ns.LayoutEditor.Register({
             id = config.layoutId,
             label = config.label,
             frame = frame,
-            global = false,
+            global = config.global == true,
             isEnabled = config.isEnabled,
             getPosition = config.getPosition,
             setPosition = config.setPosition,
@@ -283,7 +388,7 @@ function CalloutMessage.Bind(config)
                     config.onEditBegin()
                 end
                 local win = binding.Ensure()
-                win:ShowPreview(PreviewMessage(), config.previewDuration or DEFAULT_DURATION, true)
+                win:ShowPreview(PreviewMessage(), PreviewDuration(), true)
             end,
             onEditEnd = function()
                 layoutEditing = false
@@ -303,7 +408,15 @@ function CalloutMessage.Bind(config)
             height = config.height or DEFAULT_HEIGHT,
             wrap = config.wrap,
         })
-        LayoutEditor.ApplyPosition(frame, config.getPosition())
+        ns.LayoutEditor.ApplyPosition(frame, config.getPosition())
+        local rawApply = frame.ApplyAppearance
+        function frame:ApplyAppearance()
+            local scaled = rawApply(self)
+            -- Keep the saved CENTER offset in this scale so leaving edit mode does not jump.
+            if scaled and ns.FloatingWindow and self:GetCenter() then
+                config.setPosition(ns.FloatingWindow.NormalizePosition(self))
+            end
+        end
         Register(frame)
         return frame
     end
@@ -318,7 +431,7 @@ function CalloutMessage.Bind(config)
             return
         end
         window = window or binding.Create()
-        LayoutEditor.ApplyPosition(window, config.getPosition())
+        ns.LayoutEditor.ApplyPosition(window, config.getPosition())
         local text = config.getText()
         local expiresAt = config.getExpiresAt()
         if text == nil or expiresAt == nil then

@@ -1,6 +1,5 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/ https://raw.githubusercontent.com/Gethe/wow-ui-source/live/Interface/AddOns/Blizzard_SharedXML/UI.xsd">
     <Script file="the_lost_explorers\TheLostExplorers.lua"/>
-    <Script file="the_lost_explorers\ui\Callout.lua"/>
     <Script file="the_lost_explorers\TheLostExplorersUI.lua"/>
     <Script file="sszorak\Sszorak.lua"/>
     <Script file="sszorak\Timeline.lua"/>
@@ -14,7 +13,6 @@
     <Script file="sszorak\Macros.lua"/>
     <Script file="sszorak\ui\Map.lua"/>
     <Script file="sszorak\ui\Window.lua"/>
-    <Script file="sszorak\ui\Callout.lua"/>
     <Script file="sszorak\ui\Panel.lua"/>
     <Script file="twin_fangs\Schema.lua"/>
     <Script file="twin_fangs\TwinFangs.lua"/>
@@ -30,7 +28,6 @@
     <Script file="twin_fangs\ui\Hint.lua"/>
     <Script file="twin_fangs\ui\InterruptBadge.lua"/>
     <Script file="twin_fangs\ui\Nameplates.lua"/>
-    <Script file="twin_fangs\ui\Callout.lua"/>
     <Script file="twin_fangs\ui\InterruptStatusHUD.lua"/>
     <Script file="twin_fangs\ui\interrupt_chain\Labels.lua"/>
     <Script file="twin_fangs\ui\interrupt_chain\Editor.lua"/>

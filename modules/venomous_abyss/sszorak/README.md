@@ -17,7 +17,6 @@ communication/         How a commander callout becomes a destination
 Macros.lua             Account macros and combat deferral
 ui/Map.lua             Arena drawing and commander click visuals
 ui/Window.lua          Floating map, preview, and edit position
-ui/Callout.lua         Callout HUD
 ui/Panel.lua           Settings page and module startup
 ```
 
@@ -40,4 +39,4 @@ Secure marker buttons are created when the module enables, before a pull. Do not
 - Marker assignment or its sync: `Markers.lua`.
 - Pull timing: `Timeline.lua`. Who is in the fight, and where the boss and groups stand: `Encounter.lua`.
 - A new callout mode: register it from an external addon with `NewEraToolsAPI` as extension type `sszorak.communication` (see [docs/extensions.md](../../../docs/extensions.md)). `normal` stays in this addon. Mode-specific macro text stays on that mode. Macro create and update stay in `Macros.lua`.
-- Map drawing: `ui/Map.lua`. Window show, hide, and edit position: `ui/Window.lua`. HUD frame: `ui/Callout.lua`. Settings controls: `ui/Panel.lua`.
+- Map drawing: `ui/Map.lua`. Window show, hide, and edit position: `ui/Window.lua`. Shared HUD: `ui/Callout.lua` via `CalloutManager`. Settings controls: `ui/Panel.lua`.

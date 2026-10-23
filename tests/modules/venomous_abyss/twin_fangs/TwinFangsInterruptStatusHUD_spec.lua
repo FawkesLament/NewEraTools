@@ -191,14 +191,10 @@ describe("TwinFangs InterruptStatusHUD", function()
     end
 
     local function LoadPanel()
-        ns.Modules.Internals("TwinFangs").CalloutUI = {
-            LAYOUT_ID = "TwinFangs:callout",
-            Ensure = function()
-                ns.Modules.Internals("TwinFangs").CalloutUI.ensured = true
-            end,
-            Update = function()
-                ns.Modules.Internals("TwinFangs").CalloutUI.updated = true
-            end,
+        ns.Callout = {
+            LAYOUT_ID = "Callout:1",
+            Ensure = function() end,
+            SetScopePreview = function() end,
         }
         ns.ActionRow = { HEIGHT = 30 }
         ns.CollapsibleSection = {}
@@ -288,14 +284,12 @@ describe("TwinFangs InterruptStatusHUD", function()
         assert.is_false(hud.shown)
     end)
 
-    it("registers the interrupt status HUD in the Twin Fangs scope beside the callout", function()
+    it("registers the interrupt status HUD in the Twin Fangs scope", function()
         LoadPanel()
         local scope = scopes.twin_fangs
         local binding = InterruptStatusHud()
         assert.equals(L.TWIN_FANGS_LAYOUT_SCOPE, scope.label)
-        assert.same({ "TwinFangs:callout", binding.LAYOUT_ID }, scope.elementIds)
-        assert.is_true(ns.Modules.Internals("TwinFangs").CalloutUI.ensured)
-        assert.is_true(ns.Modules.Internals("TwinFangs").CalloutUI.updated)
+        assert.same({ ns.Callout.LAYOUT_ID, binding.LAYOUT_ID }, scope.elementIds)
         assert.equals("boolean", type(registered[binding.LAYOUT_ID].global))
         assert.is_false(registered[binding.LAYOUT_ID].global)
     end)
@@ -377,6 +371,7 @@ describe("TwinFangs InterruptStatusHUD", function()
             { name = Player.GetFullName() },
         }
         Module:SetInterruptReminderEnabled(true)
+        ns.Api.Group.inRaid = true
         Module:SetInterruptStatusTestMode(true)
 
         local binding = InterruptStatusHud()
@@ -491,6 +486,7 @@ describe("TwinFangs InterruptStatusHUD", function()
         chain.front_right.players = { { name = "A-TestRealm" } }
         chain.front_right.backup = { name = Player.GetFullName() }
         Module:SetInterruptReminderEnabled(true)
+        ns.Api.Group.inRaid = true
         Module:SetInterruptStatusTestMode(true)
 
         local binding = InterruptStatusHud()

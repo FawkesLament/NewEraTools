@@ -19,6 +19,7 @@ ns.FeatureSection = FeatureSection
 ---@field title string  Shown in the header to the left of the On/Off toggle.
 ---@field tooltip string|nil  Shown when hovering the title.
 ---@field enabled boolean|nil  Whether the feature starts enabled. Defaults to true.
+---@field toggle boolean|nil  When false, the header has no On/Off control. Defaults to true.
 ---@field onEnabledChanged fun(enabled: boolean)|nil  After the enabled state changes via the toggle or SetEnabled.
 ---@field divider boolean|nil  Draw a line under the title row, as a subsection header does.
 ---@field spacingBefore number|nil  Gap above this section in the stack; defaults to the stack's spacing.
@@ -31,7 +32,7 @@ ns.FeatureSection = FeatureSection
 ---@field SetEnabled fun(self: FeatureSection, enabled: boolean)
 ---@field IsEnabled fun(self: FeatureSection): boolean
 ---@field SetParentFeatureEnabled fun(self: FeatureSection, parentEnabled: boolean)  Nested gating; does not change On/Off.
----@field SetHeaderAction fun(self: FeatureSection, frame: Frame)  Places one compact control to the left of the On/Off toggle.
+---@field SetHeaderAction fun(self: FeatureSection, frame: Frame)  Places one compact control to the left of the On/Off toggle, or at the header's right when there is no toggle.
 ---@field SetContentHeight fun(self: FeatureSection, height: number)  Height of `content`.
 ---@field GetHeight fun(self: FeatureSection): number
 ---@field RefreshContentInteractive fun(self: FeatureSection)  Re-applies enable/disable to content after the caller changes controls.
@@ -147,14 +148,16 @@ function FeatureSection.Create(stack, options)
         end)
     end
 
-    toggle = Widgets.CreateSegmentedControl(header, {
-        { value = true, text = L.FEATURE_ON },
-        { value = false, text = L.FEATURE_OFF },
-    }, function(value)
-        section:SetEnabled(value)
-    end)
-    toggle:SetPoint("RIGHT", header, "RIGHT")
-    toggle:SetSelected(enabled)
+    if options.toggle ~= false then
+        toggle = Widgets.CreateSegmentedControl(header, {
+            { value = true, text = L.FEATURE_ON },
+            { value = false, text = L.FEATURE_OFF },
+        }, function(value)
+            section:SetEnabled(value)
+        end)
+        toggle:SetPoint("RIGHT", header, "RIGHT")
+        toggle:SetSelected(enabled)
+    end
 
     if options.divider then
         local divider = header:CreateTexture(nil, "ARTWORK")
@@ -175,15 +178,17 @@ function FeatureSection.Create(stack, options)
             return
         end
         enabled = value
-        toggle:SetSelected(enabled)
+        if toggle then
+            toggle:SetSelected(enabled)
+        end
         ApplyContentInteractive()
         if options.onEnabledChanged then
             options.onEnabledChanged(enabled)
         end
     end
 
-    ---Places `frame` immediately left of the On/Off toggle. One action at a time; a later call replaces the anchor.
-    ---Disabled with the feature content; the toggle stays available.
+    ---Places `frame` immediately left of the On/Off toggle, or at the header's right when there is no toggle.
+    ---One action at a time; a later call replaces the anchor. Disabled with the feature content; the toggle stays available.
     ---@param frame Frame
     function section:SetHeaderAction(frame)
         assert(
@@ -192,7 +197,11 @@ function FeatureSection.Create(stack, options)
         )
         frame:SetParent(header)
         frame:ClearAllPoints()
-        frame:SetPoint("RIGHT", toggle, "LEFT", -Spacing.MEDIUM, 0)
+        if toggle then
+            frame:SetPoint("RIGHT", toggle, "LEFT", -Spacing.MEDIUM, 0)
+        else
+            frame:SetPoint("RIGHT", header, "RIGHT")
+        end
         headerAction = frame
         ApplyContentInteractive()
     end

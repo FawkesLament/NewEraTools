@@ -1,4 +1,6 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/ https://raw.githubusercontent.com/Gethe/wow-ui-source/live/Interface/AddOns/Blizzard_SharedXML/UI.xsd">
+    <Script file="boss_alert\BossAlert.lua"/>
+    <Script file="boss_alert\BossAlertUI.lua"/>
     <Script file="aura_tracker\Media.lua"/>
     <Script file="aura_tracker\Activation.lua"/>
     <Script file="aura_tracker\Schema.lua"/>

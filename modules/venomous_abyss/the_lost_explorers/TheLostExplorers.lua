@@ -1,10 +1,13 @@
 local _, ns = ...
 local L = ns.L
+local CalloutManager = ns.CalloutManager
 local Combat = ns.Api.Combat
 local Encounter = ns.Api.Encounter
 local EncounterTimeline = ns.Api.EncounterTimeline
 local Spell = ns.Api.Spell
 local Timer = ns.Api.Timer
+
+local CALLOUT_SOURCE = "TheLostExplorers"
 
 local ENCOUNTER_ID = 3497 -- The Lost Explorers
 local BOSS_UNIT = "boss2" -- Mor'zahi
@@ -22,7 +25,6 @@ local BOSS_TRADER = "trader"
 local FEED_BOSSES = { BOSS_FIRST_MATE, BOSS_SCROLLAGE, BOSS_TRADER }
 
 ---@class TheLostExplorers: Module
----@field OnCalloutChanged fun(self: TheLostExplorers)|nil  Defined by the UI file; callout shown or cleared.
 local TheLostExplorers = ns.Modules.New("TheLostExplorers", {
     defaults = {
         -- When true, the feed-fish assistant listens during this boss fight.
@@ -52,28 +54,19 @@ local bossChannelGuid = nil
 local matchedTimelineCount = 0
 -- Cancels a pending callout delay without touching an active callout.
 local scheduleToken = 0
--- Cancels an active callout's expire callback.
-local calloutToken = 0
--- Session-only: opaque callout text currently shown (nil when hidden).
-local displayedCallout = nil
-local calloutExpireTime = nil
 ---@type EncounterWhileIn|nil
 local fight = nil
 
-local function NotifyCalloutChanged()
-    if TheLostExplorers.OnCalloutChanged then
-        TheLostExplorers:OnCalloutChanged()
+local function CurrentCallout()
+    local current = CalloutManager.GetCurrent()
+    if current and current.source == CALLOUT_SOURCE then
+        return current
     end
+    return nil
 end
 
 local function ClearActiveCallout()
-    calloutToken = calloutToken + 1
-    calloutExpireTime = nil
-    if displayedCallout == nil then
-        return
-    end
-    displayedCallout = nil
-    NotifyCalloutChanged()
+    CalloutManager.ClearSource(CALLOUT_SOURCE)
 end
 
 local function CancelPendingSchedule()
@@ -162,22 +155,12 @@ end
 
 ---@param feedIndex integer
 local function ShowCallout(feedIndex)
-    calloutToken = calloutToken + 1
-    local token = calloutToken
-    displayedCallout = ResolveCalloutText(feedIndex)
-    calloutExpireTime = Timer.GetTime() + CALLOUT_DURATION
-    NotifyCalloutChanged()
-    Timer.After(CALLOUT_DURATION, function()
-        if token ~= calloutToken then
-            return
-        end
-        calloutExpireTime = nil
-        if displayedCallout == nil then
-            return
-        end
-        displayedCallout = nil
-        NotifyCalloutChanged()
-    end)
+    CalloutManager.Show({
+        source = CALLOUT_SOURCE,
+        text = ResolveCalloutText(feedIndex),
+        duration = CALLOUT_DURATION,
+        appendTimer = true,
+    })
 end
 
 ---@param feedIndex integer
@@ -269,15 +252,14 @@ end
 
 ---@return any|nil
 function TheLostExplorers:GetDisplayedCallout()
-    return displayedCallout
+    local current = CurrentCallout()
+    return current and current.text
 end
 
 ---@return number|nil
 function TheLostExplorers:GetCalloutExpiresAt()
-    if displayedCallout == nil then
-        return nil
-    end
-    return calloutExpireTime
+    local current = CurrentCallout()
+    return current and current.expiresAt
 end
 
 ---@return CalloutAnchor

@@ -1,11 +1,13 @@
 local _, ns = ...
 local L = ns.L
+local CalloutManager = ns.CalloutManager
 local Chat = ns.Api.Chat
 local Encounter = ns.Api.Encounter
-local Timer = ns.Api.Timer
 local Util = ns.Util
 
 local Sszorak = ns.Modules.Get("Sszorak")
+
+local CALLOUT_SOURCE = "Sszorak"
 
 -- How long a matched callout stays on screen (wall-clock), unless a later callout replaces it.
 local CALLOUT_DURATION_ENCOUNTER = 10
@@ -46,12 +48,7 @@ Sszorak.WARNING_ANCHOR_GROUP_SIZE = WARNING_ANCHOR_GROUP_SIZE
 ---@type table<string, SszorakCalloutMode>
 local modes = {}
 
--- Session-only: opaque callout text currently shown on screen (nil when hidden).
-local displayedCallout = nil
-local calloutExpireTime = nil
-local displayedCalloutAppendTimer = false
-local calloutToken = 0
--- Session-only: last resolve payload (for map overlays); cleared with the HUD callout.
+-- Session-only: last resolve payload (for map overlays); cleared with this source's HUD callout.
 ---@type CystGuidance|nil
 local displayedResolve = nil
 -- True after OnEnable has asked the active mode to listen (mode switches rebind while true).
@@ -265,16 +262,30 @@ local function NotifyCalloutChanged()
     end
 end
 
+local function CurrentCallout()
+    local current = CalloutManager.GetCurrent()
+    if current and current.source == CALLOUT_SOURCE then
+        return current
+    end
+    return nil
+end
+
+local function SyncResolveWithManager()
+    if CurrentCallout() == nil then
+        displayedResolve = nil
+    end
+    NotifyCalloutChanged()
+end
+
+CalloutManager.OnChanged(SyncResolveWithManager)
+
 ---Clears the on-screen callout (modes call this when capture ends or messages reset).
 function Sszorak.ClearDisplayedCallout()
-    calloutToken = calloutToken + 1
-    calloutExpireTime = nil
-    displayedCalloutAppendTimer = false
     displayedResolve = nil
-    if displayedCallout == nil then
+    if CurrentCallout() then
+        CalloutManager.ClearSource(CALLOUT_SOURCE)
         return
     end
-    displayedCallout = nil
     NotifyCalloutChanged()
 end
 
@@ -288,23 +299,14 @@ function Sszorak.ShowResolvedCallout(resolve, duration, appendTimer)
         return
     end
     local message = assert(resolve.hudMessage, "CystGuidance requires hudMessage")
-    calloutToken = calloutToken + 1
-    local token = calloutToken
     displayedResolve = resolve
-    displayedCallout = message
-    calloutExpireTime = Timer.GetTime() + duration
-    displayedCalloutAppendTimer = appendTimer == true
-    NotifyCalloutChanged()
-    Timer.After(duration, function()
-        if token ~= calloutToken then
-            return
-        end
-        displayedCallout = nil
-        displayedResolve = nil
-        calloutExpireTime = nil
-        displayedCalloutAppendTimer = false
-        NotifyCalloutChanged()
-    end)
+    CalloutManager.Show({
+        source = CALLOUT_SOURCE,
+        text = message,
+        duration = duration,
+        appendTimer = appendTimer == true,
+        wrap = L.SSZORAK_CALLOUT_WRAP,
+    })
 end
 
 local SIDE_TEXT = {
@@ -442,7 +444,8 @@ end
 ---The on-screen callout text (opaque; may be secret), or nil when nothing is shown.
 ---@return any|nil
 function Sszorak:GetDisplayedCallout()
-    return displayedCallout
+    local current = CurrentCallout()
+    return current and current.text
 end
 
 ---Last resolve payload (for map overlays), or nil when nothing is shown.
@@ -454,16 +457,15 @@ end
 ---Absolute Timer.GetTime() when the current callout hides, or nil when nothing is shown.
 ---@return number|nil
 function Sszorak:GetCalloutExpiresAt()
-    if displayedCallout == nil then
-        return nil
-    end
-    return calloutExpireTime
+    local current = CurrentCallout()
+    return current and current.expiresAt
 end
 
 ---Whether the HUD should append a whole-second countdown to the current callout.
 ---@return boolean
 function Sszorak:GetCalloutAppendTimer()
-    return displayedCalloutAppendTimer
+    local current = CurrentCallout()
+    return current ~= nil and current.appendTimer == true
 end
 
 local function CallActiveMode(methodName, ...)

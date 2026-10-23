@@ -3,6 +3,7 @@ local Internals = ns.Modules.Internals("Sszorak")
 local L = ns.L
 local Util = ns.Util
 local Assets = ns.Assets
+local Chat = ns.Api.Chat
 local Combat = ns.Api.Combat
 local AddonCheckPanel = ns.AddonCheckPanel
 local ActionRow = ns.ActionRow
@@ -20,7 +21,6 @@ local Spacing = Assets.Spacing
 local Sszorak = ns.Modules.Get("Sszorak")
 local Map = Internals.Map
 local Window = Internals.Window
-local Callout = Internals.CalloutUI
 
 -- Distance between opposite edges of the octagon in the panel's marker editor.
 local EDITOR_ARENA_SIZE = 160
@@ -598,12 +598,15 @@ function Sszorak:OnEnable()
         id = SCOPE_ID,
         label = L.SSZORAK_LAYOUT_SCOPE,
         order = 5,
-        elementIds = { Window.LAYOUT_ID, Callout.LAYOUT_ID },
+        elementIds = { Window.LAYOUT_ID, ns.Callout.LAYOUT_ID },
         prepare = function()
             Window.Ensure()
-            Callout.Ensure()
+            ns.Callout.Ensure()
         end,
     })
+    ns.Callout.SetScopePreview(SCOPE_ID, function()
+        return L.SSZORAK_CALLOUT_WRAP:format(Chat.ReplaceIconAndGroupExpressions(L.SSZORAK_CALLOUT_PREVIEW))
+    end, Sszorak.CALLOUT_DURATION_ENCOUNTER)
     ns.MainPanel:RegisterSection({
         title = L.SSZORAK_TITLE,
         headerTitle = L.SSZORAK_DROP_BALL,
@@ -632,7 +635,6 @@ function Sszorak:OnEnable()
     -- Secure marker buttons must be created out of combat; OnEnable runs before pulls.
     -- Show now when a raid pull could start, because Show is blocked once combat lockdown begins.
     Window.Ensure()
-    Callout.Ensure()
     Window.Update()
     -- Window markers are created with macro bindings; strip them for members.
     Window.UpdateMacroClicks()
@@ -659,7 +661,6 @@ function Sszorak:OnEncounterChanged()
     -- Animation start/stop is handled in Encounter.lua so a pull resets a running preview timer.
     Window.DismissPreview()
     Window.Update()
-    Callout.Update()
 end
 
 function Sszorak:OnPositionsChanged()
@@ -679,7 +680,6 @@ function Sszorak:OnMapAnimationStopped()
 end
 
 function Sszorak:OnCalloutChanged()
-    Callout.Update()
     local resolve = Sszorak:GetDisplayedCalloutResolve()
     Map.SetPathArrow(resolve and resolve.targetEdge or nil)
 end

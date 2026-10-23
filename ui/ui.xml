@@ -24,6 +24,7 @@
     <Script file="CollapsiblePanel.lua"/>
     <Script file="LayoutCoordinateInspector.lua"/>
     <Script file="LayoutEditor.lua"/>
+    <Script file="Callout.lua"/>
     <Script file="MainPanel.lua"/>
     <Script file="MinimapButton.lua"/>
 </Ui>

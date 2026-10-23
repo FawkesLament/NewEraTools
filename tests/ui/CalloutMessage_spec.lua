@@ -20,6 +20,27 @@ describe("CalloutMessage", function()
         function frame:SetScript(name, handler)
             self.scripts[name] = handler
         end
+        function frame:SetScale(scale)
+            self.scale = scale
+        end
+        function frame:GetScale()
+            return self.scale or 1
+        end
+        function frame:GetCenter()
+            return self.centerX, self.centerY
+        end
+        function frame:ClearAllPoints()
+            self.anchor = nil
+        end
+        function frame:SetPoint(point, relativeTo, relativePoint, x, y)
+            self.anchor = {
+                point = point,
+                relativeTo = relativeTo,
+                relativePoint = relativePoint,
+                x = x,
+                y = y,
+            }
+        end
         return frame
     end
 
@@ -28,9 +49,19 @@ describe("CalloutMessage", function()
         function label:SetJustifyH() end
         function label:SetJustifyV() end
         function label:SetWordWrap() end
+        function label:ClearAllPoints() end
         function label:SetPoint() end
         function label:SetText(text)
             self.text = text
+        end
+        function label:GetText()
+            return self.text
+        end
+        function label:SetFont(path, size, flags)
+            self.font = { path = path, size = size, flags = flags }
+        end
+        function label:SetTextColor(r, g, b, a)
+            self.color = { r = r, g = g, b = b, a = a }
         end
         return label
     end
@@ -40,7 +71,17 @@ describe("CalloutMessage", function()
         Timer = dofile("tests/helpers/fakes/Timer.lua")()
         lastLabel = nil
         ns = {
-            Assets = { Fonts = { CALLOUT = "Callout" } },
+            Assets = {
+                Fonts = { CALLOUT = "Callout" },
+                FontStyles = {
+                    Callout = {
+                        path = "Fonts\\ARHei.ttf",
+                        size = 56,
+                        color = { r = 0.945, g = 0.643, b = 0.267, a = 1 },
+                        flags = "THICKOUTLINE",
+                    },
+                },
+            },
             Api = { Timer = Timer },
             Widgets = {
                 CreateLabel = function()
@@ -219,6 +260,48 @@ describe("CalloutMessage", function()
         assert.is_false(pcall(ns.CalloutMessage.Bind, { layoutId = "x" }))
     end)
 
+    it("Bind can run before LayoutEditor exists and still register on Ensure", function()
+        ns.LayoutEditor = nil
+        local bound = ns.CalloutMessage.Bind(BindConfig())
+        local registered
+        ns.LayoutEditor = {
+            Register = function(def)
+                registered = def
+            end,
+            ApplyPosition = function() end,
+        }
+        bound.Ensure()
+        assert.equals("Feature:callout", registered.id)
+    end)
+
+    it("Bind preview can come from functions", function()
+        local registered
+        ns.LayoutEditor.Register = function(def)
+            registered = def
+        end
+        ns.CalloutMessage.Bind(BindConfig({
+            previewText = function()
+                return "Boss"
+            end,
+            previewDuration = function()
+                return 7
+            end,
+        })).Ensure()
+        registered.onEditBegin()
+        assert.equals("Boss (7.0)", lastLabel.text)
+    end)
+
+    it("Bind registers as common-scope only when global is true", function()
+        local registered
+        ns.LayoutEditor.Register = function(def)
+            registered = def
+        end
+        ns.CalloutMessage.Bind(BindConfig()):Ensure()
+        assert.is_false(registered.global)
+        ns.CalloutMessage.Bind(BindConfig({ global = true, name = "NewEraToolsCalloutGlobal" })):Ensure()
+        assert.is_true(registered.global)
+    end)
+
     it("Bind paints from the logic expiry time", function()
         Timer.Advance(10)
         local bound = ns.CalloutMessage.Bind(BindConfig({
@@ -234,6 +317,73 @@ describe("CalloutMessage", function()
 
         Timer.Advance(4.3)
         assert.is_false(bound.Ensure().shown)
+    end)
+
+    it("uses the existing CALLOUT look when appearance is unset", function()
+        local frame = NewCallout()
+        assert.equals(1, frame:GetScale())
+        assert.equals("Fonts\\ARHei.ttf", lastLabel.font.path)
+        assert.equals(56, lastLabel.font.size)
+        assert.equals("THICKOUTLINE", lastLabel.font.flags)
+        assert.equals(0.945, lastLabel.color.r)
+        assert.equals(0.643, lastLabel.color.g)
+        assert.equals(0.267, lastLabel.color.b)
+    end)
+
+    it("SetAppearance updates live callouts and later creates", function()
+        local first = NewCallout()
+        ns.CalloutMessage.SetAppearance({
+            scale = 1.2,
+            fontPath = "Fonts\\FRIZQT__.TTF",
+            fontSize = 40,
+            fontColor = { r = 0, g = 1, b = 0 },
+        })
+        assert.equals(1.2, first.scale)
+        assert.equals("Fonts\\FRIZQT__.TTF", lastLabel.font.path)
+        assert.equals(40, lastLabel.font.size)
+        assert.equals(0, lastLabel.color.r)
+        assert.equals(1, lastLabel.color.g)
+
+        local second = NewCallout()
+        assert.equals(1.2, second.scale)
+        assert.equals("Fonts\\FRIZQT__.TTF", lastLabel.font.path)
+        assert.equals(40, lastLabel.font.size)
+    end)
+
+    it("keeps the visual center fixed when scale changes", function()
+        local parent = FakeFrame()
+        local frame = ns.CalloutMessage.Create({ parent = parent })
+        frame.centerX, frame.centerY = 800, 400
+        ns.CalloutMessage.SetAppearance({ scale = 2 })
+        assert.equals(2, frame.scale)
+        assert.equals("CENTER", frame.anchor.point)
+        assert.equals("BOTTOMLEFT", frame.anchor.relativePoint)
+        assert.equals(400, frame.anchor.x)
+        assert.equals(200, frame.anchor.y)
+    end)
+
+    it("Bind saves the re-centered point after a scale change", function()
+        local saved
+        ns.FloatingWindow = {
+            NormalizePosition = function(frame)
+                return {
+                    point = "CENTER",
+                    relativePoint = "CENTER",
+                    x = frame.anchor.x,
+                    y = frame.anchor.y,
+                }
+            end,
+        }
+        local bound = ns.CalloutMessage.Bind(BindConfig({
+            setPosition = function(position)
+                saved = position
+            end,
+        }))
+        local frame = bound.Ensure()
+        frame.centerX, frame.centerY = 800, 400
+        ns.CalloutMessage.SetAppearance({ scale = 2 })
+        assert.equals(400, saved.x)
+        assert.equals(200, saved.y)
     end)
 
     it("Bind clears when logic has no callout", function()

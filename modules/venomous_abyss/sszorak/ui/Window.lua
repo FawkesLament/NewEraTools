@@ -78,7 +78,6 @@ function Window.EndLayoutEdit()
     layoutEditCount = math.max(0, layoutEditCount - 1)
     if layoutEditCount == 0 then
         Window.Update()
-        Internals.CalloutUI.Update()
     end
 end
 

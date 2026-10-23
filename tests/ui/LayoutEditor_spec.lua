@@ -586,6 +586,27 @@ describe("LayoutEditor", function()
         assert.equals(0, disabledCalls.ending)
     end)
 
+    it("can edit a global element from a module scope that lists it", function()
+        local _, _, globalCalls = RegisterElement("Callout:1", { global = true, enabled = true })
+        local _, _, mapCalls = RegisterElement("Sszorak:map", { global = false, enabled = true })
+        LayoutEditor.RegisterScope({
+            id = "sszorak",
+            label = "Sszorak · Boss UI",
+            elementIds = { "Sszorak:map", "Callout:1" },
+        })
+
+        assert.is_true(LayoutEditor.BeginScope("sszorak"))
+        assert.equals(1, globalCalls.begin)
+        assert.equals(1, mapCalls.begin)
+        LayoutEditor.End()
+        assert.equals(1, globalCalls.ending)
+
+        assert.is_true(LayoutEditor.BeginGlobal())
+        assert.equals(2, globalCalls.begin)
+        assert.equals(1, mapCalls.begin)
+        LayoutEditor.End()
+    end)
+
     it("lists the common scope first, then module scopes by order", function()
         LayoutEditor.RegisterScope({ id = "sszorak", label = "Sszorak", order = 5, elementIds = { "Sszorak:map" } })
         LayoutEditor.RegisterScope({
