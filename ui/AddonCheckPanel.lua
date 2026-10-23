@@ -30,7 +30,6 @@ local SortColumn = AddonCheckPanel.SortColumn
 
 local LIST_ROW_HEIGHT = 22
 local LIST_VISIBLE_ROWS = 8
-local LIST_HEIGHT = LIST_ROW_HEIGHT * LIST_VISIBLE_ROWS
 -- Inset from the window chrome on every side.
 local POPUP_PADDING = Spacing.XLARGE
 -- Title bar: taller than the close control, with matching horizontal inset.
@@ -62,18 +61,21 @@ end
 ---@field columns AddonCheckPanelColumn[]
 ---@field title string|nil  Popup title; defaults to L.ADDONCHECK_TITLE.
 ---@field name string|nil  Optional global frame name for the popup (must be NewEraTools-prefixed).
+---@field rowHeight number|nil  Member-row height; defaults to 22.
+---@field listRows integer|nil  Visible row count; defaults to 8.
 ---@field isConfigMismatch fun(config: any, localConfig: any): boolean|nil  Optional; true → attention.
 ---@field validator fun(config: any, localConfig: any): string[]|nil  Optional; nil/empty = ok, else column `key`s to highlight.
 
 ---@param parent Frame
 ---@param font string
+---@param wrap boolean|nil
 ---@return FontString
-local function CreateCell(parent, font)
+local function CreateCell(parent, font, wrap)
     local label = Widgets.CreateLabel(parent, font)
     label:SetJustifyH("LEFT")
     label:SetJustifyV("MIDDLE")
     if label.SetWordWrap then
-        label:SetWordWrap(false)
+        label:SetWordWrap(wrap == true)
     end
     return label
 end
@@ -200,6 +202,8 @@ function AddonCheckPanel.Create(options)
 
     local moduleId = options.moduleId
     local columns = options.columns
+    local rowHeight = options.rowHeight or LIST_ROW_HEIGHT
+    local listHeight = (options.listRows or LIST_VISIBLE_ROWS) * rowHeight
     local unsubscribe = nil
     local unsubscribeScale = nil
     local listening = false
@@ -304,7 +308,7 @@ function AddonCheckPanel.Create(options)
         LayoutFullWidthRow(headerRow, headerCells, Spacing.SMALL, SCROLL_GUTTER)
     end)
 
-    local listHost = body:Add(CreateFrame("Frame", nil, content), LIST_HEIGHT)
+    local listHost = body:Add(CreateFrame("Frame", nil, content), listHeight)
     local scrollFrame = CreateFrame("ScrollFrame", nil, listHost)
     scrollFrame:SetPoint("TOPLEFT", listHost, "TOPLEFT")
     scrollFrame:SetPoint("BOTTOMRIGHT", listHost, "BOTTOMRIGHT", -SCROLL_GUTTER, 0)
@@ -325,7 +329,7 @@ function AddonCheckPanel.Create(options)
             return row
         end
         row = CreateFrame("Frame", nil, scrollChild)
-        row:SetHeight(LIST_ROW_HEIGHT)
+        row:SetHeight(rowHeight)
         row.party = CreateCell(row, Fonts.BODY)
         row.party:SetJustifyH("CENTER")
         row.name = CreateCell(row, Fonts.BODY)
@@ -420,13 +424,17 @@ function AddonCheckPanel.Create(options)
             if data then
                 frame:Show()
                 frame:ClearAllPoints()
-                frame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -(i - 1) * LIST_ROW_HEIGHT)
-                frame:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", 0, -(i - 1) * LIST_ROW_HEIGHT)
+                frame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -(i - 1) * rowHeight)
+                frame:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", 0, -(i - 1) * rowHeight)
                 frame.party:SetText(data.party)
                 frame.name:SetText(data.playerName)
                 frame.version:SetText(data.version)
                 for c = 1, #columns do
-                    frame.config[c]:SetText(data.configValues[c] or L.ADDONCHECK_EM_DASH)
+                    local text = data.configValues[c] or L.ADDONCHECK_EM_DASH
+                    frame.config[c]:SetText(text)
+                    if frame.config[c].SetWordWrap then
+                        frame.config[c]:SetWordWrap(text:find("\n", 1, true) ~= nil)
+                    end
                 end
                 ApplyStatusIcon(frame.status, data)
                 ApplyNameColor(frame.name, data.classFile)
@@ -441,7 +449,10 @@ function AddonCheckPanel.Create(options)
                     ApplyRowColor(frame.version, data.category)
                 end
                 for c = 1, #columns do
-                    if invalidSet[columns[c].key] then
+                    local formatColor = data.configColors and data.configColors[c]
+                    if formatColor then
+                        frame.config[c]:SetTextColor(Widgets.UnpackColor(formatColor))
+                    elseif invalidSet[columns[c].key] then
                         frame.config[c]:SetTextColor(Widgets.UnpackColor(Colors.WARNING))
                     elseif hasInvalidColumns then
                         frame.config[c]:SetTextColor(Widgets.UnpackColor(Colors.TEXT))
@@ -454,7 +465,7 @@ function AddonCheckPanel.Create(options)
                 frame:Hide()
             end
         end
-        scrollChild:SetHeight(math.max(visibleCount * LIST_ROW_HEIGHT, 1))
+        scrollChild:SetHeight(math.max(visibleCount * rowHeight, 1))
         local listWidth = listHost:GetWidth()
         if listWidth and listWidth > 0 then
             local childWidth = math.max(listWidth - SCROLL_GUTTER, 1)

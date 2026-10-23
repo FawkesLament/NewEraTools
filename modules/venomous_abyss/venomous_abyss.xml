@@ -23,6 +23,7 @@
     <Script file="twin_fangs\interrupt_chain\Assign.lua"/>
     <Script file="twin_fangs\interrupt_chain\Sync.lua"/>
     <Script file="twin_fangs\interrupt_chain\Macros.lua"/>
+    <Script file="twin_fangs\AddonCheck.lua"/>
     <Script file="twin_fangs\Encounter.lua"/>
     <Script file="twin_fangs\NameplateHint.lua"/>
     <Script file="twin_fangs\ui\Hint.lua"/>

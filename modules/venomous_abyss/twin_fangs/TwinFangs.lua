@@ -4,6 +4,9 @@ local Color = ns.Color
 local Util = ns.Util
 local Schema = Internals.Schema
 
+-- Stable AddonCheck provider id; version is owned by AddonCheck, not this snapshot.
+local ADDON_CHECK_MODULE_ID = "TwinFangs"
+
 -- The Twin Fangs, the sixth boss of The Venomous Abyss.
 -- There is no module-wide enable. Each reminder keeps its own saved settings.
 ---@class TwinFangs: Module
@@ -19,6 +22,7 @@ local TwinFangs = ns.Modules.New("TwinFangs", {
     defaults = Schema.NewSettings(),
 })
 
+TwinFangs.ADDON_CHECK_MODULE_ID = ADDON_CHECK_MODULE_ID
 -- Raid leader is commander for interrupt reminder; everyone else is a member.
 ns.RaidRole.Attach(TwinFangs)
 
@@ -338,6 +342,10 @@ function TwinFangs:OnInit()
         self.db.interruptReminder = reminder
     end
     reminder.chain = Internals.InterruptChain.SanitizeSaved(reminder.chain)
+    -- Raid members must answer config checks; register regardless of UI, role, or encounter.
+    ns.AddonCheck.Register(ADDON_CHECK_MODULE_ID, function()
+        return TwinFangs:GetAddonCheckConfig()
+    end)
 end
 
 ---Adopts interrupt-chain publications from the raid. Called from OnEnable.

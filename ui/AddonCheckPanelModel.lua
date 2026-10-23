@@ -47,7 +47,7 @@ local SortColumn = Model.SortColumn
 ---@class AddonCheckPanelColumn
 ---@field key string  Config snapshot field key.
 ---@field title string  Column header text.
----@field format fun(value: any): string|nil  Human-readable value; nil/empty → em dash.
+---@field format fun(value: any): string|nil, table|nil  Human-readable value; nil/empty → em dash. Optional color.
 
 ---@class AddonCheckPanelMemberRow
 ---@field key string
@@ -57,6 +57,7 @@ local SortColumn = Model.SortColumn
 ---@field classFile string|nil
 ---@field version string
 ---@field configValues string[]  Parallel to columns; display strings.
+---@field configColors (table|nil)[]  Parallel to columns; optional per-cell color.
 ---@field invalidColumns string[]  Column keys flagged by `validator` (may be empty).
 ---@field statusLabel string  Tooltip / accessible detail for the status icon.
 ---@field statusIcon string  Texture path for the status column.
@@ -217,8 +218,10 @@ end
 ---@param columns AddonCheckPanelColumn[]
 ---@param config any
 ---@return string[]
+---@return (table|nil)[]
 local function FormatConfigValues(columns, config)
     local values = {}
+    local colors = {}
     for i = 1, #columns do
         local column = columns[i]
         -- Do not use `and`/`or` for lookup: false config values must not become nil.
@@ -226,14 +229,18 @@ local function FormatConfigValues(columns, config)
         if type(config) == "table" then
             raw = config[column.key]
         end
-        local formatted = column.format and column.format(raw) or nil
+        local formatted, color = nil, nil
+        if column.format then
+            formatted, color = column.format(raw)
+        end
         if formatted == nil or formatted == "" then
             values[i] = L.ADDONCHECK_EM_DASH
         else
             values[i] = formatted
         end
+        colors[i] = type(color) == "table" and color or nil
     end
-    return values
+    return values, colors
 end
 
 ---@param session AddonCheckSession
@@ -302,6 +309,7 @@ function Model.BuildViewModel(session, options)
         local playerName = DisplayPlayerName(result.playerName or (member and member.fullName), member and member.name)
         local subgroup = member and member.subgroup
         local party = (type(subgroup) == "number") and tostring(subgroup) or L.ADDONCHECK_EM_DASH
+        local configValues, configColors = FormatConfigValues(columns, config)
         local row = {
             key = key,
             party = party,
@@ -309,7 +317,8 @@ function Model.BuildViewModel(session, options)
             playerName = playerName,
             classFile = member and member.classFile,
             version = EmDashIfEmpty(result.version),
-            configValues = FormatConfigValues(columns, config),
+            configValues = configValues,
+            configColors = configColors,
             invalidColumns = invalidColumns,
             statusLabel = statusLabel,
             statusIcon = statusIcon,

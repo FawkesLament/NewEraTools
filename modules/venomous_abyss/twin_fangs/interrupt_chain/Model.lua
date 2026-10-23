@@ -1,6 +1,8 @@
 local _, ns = ...
 local Internals = ns.Modules.Internals("TwinFangs")
 local Schema = Internals.Schema
+local Group = ns.Api.Group
+local Player = ns.Api.Player
 local Unit = ns.Api.Unit
 
 local FRONT_LEFT = "front_left"
@@ -348,6 +350,55 @@ local function CopyAssignment(regionId, region)
         players = CopyStoredPlayers(region.players),
         backup = CopyStoredPlayer(region.backup),
     }
+end
+
+---Current character's persisted Name-Realm, resolved from the live GUID when in a raid.
+---Does not mutate saved assignments. Falls back to `Player.GetFullName` when the GUID is unknown.
+---@return string|nil
+function InterruptChain.ResolveLocalPlayerName()
+    local guid = Player.GetGUID()
+    if type(guid) == "string" and guid ~= "" then
+        for _, member in ipairs(Group.GetRaidMembers()) do
+            if member.guid == guid then
+                local name = InterruptChain.PlayerName(member.fullName or member.name)
+                if name then
+                    return name
+                end
+            end
+        end
+    end
+    return Player.GetFullName()
+end
+
+---This player's primary region/index and backup region from a persisted chain.
+---Matches stored names only; does not mutate `chain`.
+---@param chain TwinFangsInterruptChainSettings|nil
+---@param identity string|nil
+---@return TwinFangsInterruptResponsibilities
+function InterruptChain.GetPlayerResponsibilities(chain, identity)
+    ---@class TwinFangsInterruptResponsibilities
+    ---@field region string|nil
+    ---@field index number|nil
+    ---@field backup string|nil
+    local responsibilities = {}
+    local view = InterruptChain.GetMemberView(chain, identity)
+    local name = InterruptChain.PlayerName(identity)
+    if view.primary then
+        responsibilities.region = view.primary.regionId
+        if name then
+            for index, player in ipairs(view.primary.players) do
+                if InterruptChain.PlayerName(player) == name then
+                    responsibilities.index = index
+                    break
+                end
+            end
+        end
+    end
+    local firstBackup = view.backups[1]
+    if firstBackup then
+        responsibilities.backup = firstBackup.regionId
+    end
+    return responsibilities
 end
 
 ---Read-only assignments for one player. Matches stored names only; does not mutate `chain`.

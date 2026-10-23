@@ -27,8 +27,13 @@ end
 
 ---@return TwinFangsInterruptMemberAssignment|nil
 local function PrimaryAssignment()
-    return Chain.GetMemberView(SavedChain(), Player.GetFullName()).primary
+    return Chain.GetMemberView(SavedChain(), Chain.ResolveLocalPlayerName()).primary
 end
+
+TwinFangs.ADDON_CHECK_MACRO_READY = "ready"
+TwinFangs.ADDON_CHECK_MACRO_NOT_READY = "not_ready"
+TwinFangs.ADDON_CHECK_MACRO_NA = "na"
+TwinFangs.ADDON_CHECK_MACRO_UNKNOWN = "unknown"
 
 ---Same-realm whispers omit the realm; cross-realm keeps the cached suffix.
 ---@param name string
@@ -193,6 +198,27 @@ end
 ---@return string|nil reason
 function TwinFangs:GetInterruptMacroBody()
     return BuildBody()
+end
+
+---Read-only AddonCheck status. Does not create, edit, or repair the managed macro.
+---@return "ready"|"not_ready"|"na"|"unknown"
+function TwinFangs:InspectInterruptMacroReadiness()
+    if not PrimaryAssignment() then
+        return TwinFangs.ADDON_CHECK_MACRO_NA
+    end
+    local body = BuildBody()
+    if not body then
+        return TwinFangs.ADDON_CHECK_MACRO_UNKNOWN
+    end
+    local index = FindManagedIndex()
+    if index == 0 then
+        return TwinFangs.ADDON_CHECK_MACRO_NOT_READY
+    end
+    local _, _, current = Macro.GetInfo(index)
+    if current == body then
+        return TwinFangs.ADDON_CHECK_MACRO_READY
+    end
+    return TwinFangs.ADDON_CHECK_MACRO_NOT_READY
 end
 
 ---@return boolean

@@ -20,10 +20,44 @@ local Spacing = Assets.Spacing
 local TwinFangs = ns.Modules.Get("TwinFangs")
 local Schema = Internals.Schema
 local Callout = Internals.CalloutUI
+local AddonCheckPanel = ns.AddonCheckPanel
 
 local SCOPE_ID = "twin_fangs"
 local interruptRoleLabel
 local syncInterruptChainEditor
+local addonCheckRow
+local addonCheckButton
+---@type AddonCheckPanel|nil
+local addonCheckPanel
+
+local function HideAddonCheckPanel()
+    if addonCheckPanel then
+        addonCheckPanel:Hide()
+    end
+end
+
+local function EnsureAddonCheckPanel()
+    if addonCheckPanel then
+        return addonCheckPanel
+    end
+    addonCheckPanel = AddonCheckPanel.Create({
+        moduleId = TwinFangs.ADDON_CHECK_MODULE_ID,
+        name = "NewEraToolsTwinFangsAddonCheck",
+        title = L.ADDONCHECK_TITLE,
+        columns = TwinFangs.AddonCheckColumns(),
+        validator = TwinFangs.ValidateAddonCheckConfig,
+        rowHeight = 32,
+        listRows = 7,
+    })
+    return addonCheckPanel
+end
+
+local function ShowAddonCheckPanel()
+    if not TwinFangs:IsRaidCommander() then
+        return
+    end
+    EnsureAddonCheckPanel():Show()
+end
 
 local function BeginEditPosition()
     LayoutEditor.BeginScope(SCOPE_ID)
@@ -80,6 +114,18 @@ local function BuildContent(content)
         SyncPreviewButton()
     end
     SyncPreviewButton()
+
+    addonCheckRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    addonCheckButton = Widgets.CreateButton(addonCheckRow, L.ADDONCHECK_BUTTON, function()
+        if not TwinFangs:IsRaidCommander() then
+            return
+        end
+        ShowAddonCheckPanel()
+    end, "primary")
+    Widgets.AttachTooltip(addonCheckButton, "ANCHOR_TOP", function(tooltip)
+        tooltip:SetText(L.ADDONCHECK_BUTTON_TOOLTIP)
+    end)
+    addonCheckButton:SetPoint("LEFT", addonCheckRow, "LEFT")
 
     content:HookScript("OnShow", function()
         if syncInterruptChainEditor then
@@ -193,6 +239,13 @@ local function BuildContent(content)
             ns.RaidRoleModeLabel.Update(interruptRoleLabel)
         end
         local canEdit = Internals.InterruptChain.CanEdit()
+        local isCommander = TwinFangs:IsRaidCommander()
+        if addonCheckButton then
+            addonCheckButton:SetEnabled(isCommander)
+        end
+        if not isCommander then
+            HideAddonCheckPanel()
+        end
         local showEditor
         showEditor, preferMemberView = Internals.InterruptChain.ResolveSettingsView(canEdit, preferMemberView)
         viewSwitch:SetShown(canEdit)
@@ -217,6 +270,9 @@ local function BuildContent(content)
             EnsureMemberView()
             Internals.InterruptChainMemberView.SetShown(true)
         end
+        interrupt:SetContentHeight(interruptBody:GetHeight())
+        content:SetContentHeight(body:GetHeight())
+        interrupt:RefreshContentInteractive()
     end
 
     syncInterruptChainEditor()
