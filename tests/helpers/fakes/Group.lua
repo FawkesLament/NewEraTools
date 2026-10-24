@@ -8,6 +8,9 @@ return function()
         isLeaderOrAssistant = false,
         raidLeaderFullName = nil,
         changeCallbacks = {},
+        readyChecks = 0,
+        countdowns = {},
+        cancels = 0,
     }
 
     function Group.IsInRaid()
@@ -47,6 +50,25 @@ return function()
 
     function Group.OnChanged(callback)
         table.insert(Group.changeCallbacks, callback)
+    end
+
+    function Group.FireChanged()
+        for _, callback in ipairs(Group.changeCallbacks) do
+            callback()
+        end
+    end
+
+    function Group.DoReadyCheck()
+        Group.readyChecks = Group.readyChecks + 1
+    end
+
+    function Group.DoCountdown(seconds)
+        table.insert(Group.countdowns, seconds)
+        return true
+    end
+
+    function Group.CancelCountdown()
+        Group.cancels = Group.cancels + 1
     end
 
     return Group

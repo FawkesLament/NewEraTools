@@ -28,6 +28,7 @@ local GAME_API = {
     "C_EncounterTimeline",
     "C_InstanceEncounter",
     "C_NamePlate",
+    "C_PartyInfo",
     "C_PetBattles",
     "C_PlayerInfo",
     "C_SpecializationInfo",

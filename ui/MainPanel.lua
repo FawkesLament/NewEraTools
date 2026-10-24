@@ -144,6 +144,8 @@ local function CreateSection(frame, def)
     local section = CreateFrame("Frame", nil, frame.content)
     section:SetPoint("TOPLEFT")
     section:SetPoint("TOPRIGHT")
+    -- Header-only pages never run `build`; a 0-tall parent inside the scroll frame culls the header.
+    section:SetHeight(PAGE_HEADER_HEIGHT)
     section:Hide()
 
     local header = CreateFrame("Frame", nil, section)
@@ -269,9 +271,10 @@ local function EnsureSectionBuilt(frame, section)
     section.built = true
     local body = section.body
     local height = section.def.build and section.def.build(body)
-    if type(height) == "number" then
-        SetSectionBodyHeight(frame, section, height)
+    if type(height) ~= "number" then
+        height = 0
     end
+    SetSectionBodyHeight(frame, section, height)
     if body.RefreshContentInteractive then
         body:RefreshContentInteractive()
     end

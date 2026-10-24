@@ -134,3 +134,20 @@ function Group.OnChanged(callback)
         end)
     end
 end
+
+---Starts a ready check. Only the group leader can succeed; otherwise this is a no-op.
+---@type fun()
+Group.DoReadyCheck = C_PartyInfo.DoReadyCheck
+
+---Starts a pull countdown for `seconds`. Only the group leader can succeed.
+---@type fun(seconds: number): boolean|nil
+Group.DoCountdown = C_PartyInfo.DoCountdown
+
+---Stops an active pull countdown. Falls back to a zero-second countdown on older clients.
+if C_PartyInfo.CancelCountdown then
+    Group.CancelCountdown = C_PartyInfo.CancelCountdown
+else
+    function Group.CancelCountdown()
+        return C_PartyInfo.DoCountdown(0)
+    end
+end
