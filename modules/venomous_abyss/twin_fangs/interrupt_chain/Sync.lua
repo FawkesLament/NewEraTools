@@ -519,9 +519,6 @@ local function OnPublicationMessage(msg)
 
     InterruptChain.ReplaceChain(chain, regions)
     local TwinFangs = ns.Modules.Get("TwinFangs")
-    if TwinFangs and TwinFangs.MaintainInterruptMacro then
-        TwinFangs:MaintainInterruptMacro()
-    end
     if TwinFangs and TwinFangs.OnInterruptChainChanged then
         TwinFangs:OnInterruptChainChanged()
     end

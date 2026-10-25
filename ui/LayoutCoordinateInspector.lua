@@ -172,15 +172,15 @@ local function EnsureWindow()
     titleLabel = Widgets.CreateLabel(window.header, Fonts.BODY)
     titleLabel:SetJustifyH("LEFT")
     titleLabel:SetWordWrap(false)
-    titleLabel:SetPoint("LEFT", Spacing.SMALL, 0)
+    titleLabel:SetPoint("LEFT", Sizes.FLOATING_HEADER_PAD, 0)
     if window.closeButton then
-        titleLabel:SetPoint("RIGHT", window.closeButton, "LEFT", -Spacing.SMALL, 0)
+        titleLabel:SetPoint("RIGHT", window.closeButton, "LEFT", -Sizes.FLOATING_HEADER_PAD, 0)
     else
-        titleLabel:SetPoint("RIGHT", -Spacing.SMALL, 0)
+        titleLabel:SetPoint("RIGHT", -Sizes.FLOATING_HEADER_PAD, 0)
     end
 
     local body = CreateFrame("Frame", nil, window)
-    body:SetPoint("TOPLEFT", Sizes.BORDER, -(Sizes.CLOSE_BUTTON + Spacing.SMALL))
+    body:SetPoint("TOPLEFT", Sizes.BORDER, -(Sizes.FLOATING_HEADER_HEIGHT + Spacing.SMALL))
     body:SetPoint("BOTTOMRIGHT", -Sizes.BORDER, Sizes.BORDER)
 
     local stack = Layout.Stack(body, {
@@ -214,7 +214,7 @@ local function EnsureWindow()
 
     window:SetSize(
         Sizes.LAYOUT_INSPECTOR_WIDTH,
-        Sizes.CLOSE_BUTTON + stack:GetHeight() + Spacing.SMALL + 2 * Sizes.BORDER
+        Sizes.FLOATING_HEADER_HEIGHT + stack:GetHeight() + Spacing.SMALL + 2 * Sizes.BORDER
     )
     return window
 end

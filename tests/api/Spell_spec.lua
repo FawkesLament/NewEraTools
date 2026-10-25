@@ -15,10 +15,13 @@ describe("Spell production", function()
         return ns.Api.Spell
     end
 
-    local function Player(classFile)
+    local function Player(classFile, specializationId)
         return {
             GetClassFile = function()
                 return classFile
+            end,
+            GetSpecializationId = function()
+                return specializationId
             end,
         }
     end
@@ -61,78 +64,35 @@ describe("Spell production", function()
     end)
 
     describe("GetInterruptName", function()
-        it("returns the first known class interrupt name", function()
-            C_SpellBook = {
-                IsSpellKnown = function(spellId)
-                    return spellId == 6552
-                end,
-            }
-            C_Spell = {
+        local function Names(map)
+            return {
                 GetSpellName = function(spellId)
-                    if spellId == 6552 then
-                        return "Pummel"
-                    end
+                    return map[spellId]
                 end,
             }
+        end
 
+        it("returns the class interrupt name", function()
+            C_Spell = Names({ [6552] = "Pummel" })
             assert.equals("Pummel", Load(Player("WARRIOR")).GetInterruptName())
         end)
 
-        it("prefers earlier class candidates, including a pet-known Spell Lock", function()
-            C_SpellBook = {
-                IsSpellKnown = function()
-                    return true
-                end,
-            }
-            Enum = { SpellBookSpellBank = { Pet = 2 } }
-            C_Spell = {
-                GetSpellName = function(spellId)
-                    if spellId == 147362 then
-                        return "Counter Shot"
-                    end
-                    if spellId == 187707 then
-                        return "Muzzle"
-                    end
-                    if spellId == 119914 then
-                        return "Command Demon"
-                    end
-                    if spellId == 19647 then
-                        return "Spell Lock"
-                    end
-                end,
-            }
-
+        it("prefers the spec interrupt over the class interrupt", function()
+            C_Spell = Names({
+                [147362] = "Counter Shot",
+                [187707] = "Muzzle",
+            })
+            assert.equals("Muzzle", Load(Player(nil, 255)).GetInterruptName())
             assert.equals("Counter Shot", Load(Player("HUNTER")).GetInterruptName())
-            assert.equals("Command Demon", Load(Player("WARLOCK")).GetInterruptName())
-
-            C_SpellBook.IsSpellKnown = function(spellId, bank)
-                return (spellId == 187707 and bank == nil) or (spellId == 19647 and bank == 2)
-            end
-            assert.equals("Muzzle", Load(Player("HUNTER")).GetInterruptName())
-            assert.equals("Spell Lock", Load(Player("WARLOCK")).GetInterruptName())
+            assert.equals("Counter Shot", Load(Player("HUNTER", 253)).GetInterruptName())
         end)
 
-        it("returns nil when the class, known spell, or name is missing", function()
-            C_SpellBook = {
-                IsSpellKnown = function()
-                    return false
-                end,
-            }
-            C_Spell = {
-                GetSpellName = function()
-                    return "Pummel"
-                end,
-            }
-
+        it("returns nil when the class, spec, or name is missing", function()
+            C_Spell = Names({ [6552] = "Pummel" })
             assert.is_nil(Load(Player(nil)).GetInterruptName())
-            assert.is_nil(Load(Player("WARRIOR")).GetInterruptName())
+            assert.is_nil(Load(Player("UNKNOWN")).GetInterruptName())
 
-            C_SpellBook.IsSpellKnown = function()
-                return true
-            end
-            C_Spell.GetSpellName = function()
-                return ""
-            end
+            C_Spell = Names({ [6552] = "" })
             assert.is_nil(Load(Player("WARRIOR")).GetInterruptName())
         end)
     end)

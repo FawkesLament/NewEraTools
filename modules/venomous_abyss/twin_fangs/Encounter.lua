@@ -20,6 +20,9 @@ local CYCLE_DURATION = 61
 -- Every 8th ~61s bar is also a Ravenous Feast begin cast. The 5th bar in that cycle is Rouse the Brood.
 local CYCLE_LENGTH = 8
 local BROOD_SLOT = 5
+-- The 2nd ~33s bar is also Rouse the Brood. This count does not wrap.
+local BROOD_DURATION = 33
+local BROOD_DURATION_INDEX = 2
 -- Begin cast until the first hit, then the gaps between the three consecutive hits.
 local CAST_SECONDS = 4.25
 local HIT2_GAP = 2
@@ -33,6 +36,8 @@ TwinFangs.FEAST_DURATION = FEAST_DURATION
 TwinFangs.CYCLE_DURATION = CYCLE_DURATION
 TwinFangs.CYCLE_LENGTH = CYCLE_LENGTH
 TwinFangs.BROOD_SLOT = BROOD_SLOT
+TwinFangs.BROOD_DURATION = BROOD_DURATION
+TwinFangs.BROOD_DURATION_INDEX = BROOD_DURATION_INDEX
 TwinFangs.CAST_SECONDS = CAST_SECONDS
 TwinFangs.HIT2_GAP = HIT2_GAP
 TwinFangs.HIT3_GAP = HIT3_GAP
@@ -56,6 +61,8 @@ local unsubscribeInterruptStatus = nil
 local feastCount = 0
 -- ~61s bars seen this pull.
 local cycleCount = 0
+-- ~33s bars seen this pull. Does not wrap; only the 2nd is Brood.
+local broodDurationCount = 0
 local soakScheduleToken = 0
 local broodToken = 0
 ---@type table<string, CalloutManagerHandle>
@@ -118,6 +125,7 @@ end
 local function ResetPull()
     feastCount = 0
     cycleCount = 0
+    broodDurationCount = 0
     broodToken = broodToken + 1
     soakScheduleToken = soakScheduleToken + 1
     TwinFangs:CancelCallout()
@@ -222,6 +230,13 @@ local function OnTimelineEventAdded(eventInfo)
     local rounded = RoundedDuration(eventInfo.duration)
     if rounded == FEAST_DURATION then
         ScheduleFeast(eventInfo.duration)
+        return
+    end
+    if rounded == BROOD_DURATION then
+        broodDurationCount = broodDurationCount + 1
+        if broodDurationCount == BROOD_DURATION_INDEX then
+            ScheduleBrood(eventInfo.duration)
+        end
         return
     end
     if rounded ~= CYCLE_DURATION then

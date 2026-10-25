@@ -381,9 +381,6 @@ function TwinFangs:ListenForInterruptChain()
     Internals.InterruptChain.Listen()
 end
 
----Keeps the character interrupt macro in sync. Defined by interrupt_chain/Macros.lua.
-function TwinFangs:ListenForInterruptMacro() end
-
 ---Drops a pending or visible soak reminder. Defined with the encounter listener.
 function TwinFangs:CancelSoakCallout() end
 

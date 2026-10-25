@@ -1,7 +1,6 @@
 local _, ns = ...
 local Internals = ns.Modules.Internals("TwinFangs")
 local L = ns.L
-local Colors = ns.Assets.Colors
 
 local TwinFangs = ns.Modules.Get("TwinFangs")
 local Schema = Internals.Schema
@@ -47,7 +46,6 @@ end
 
 ---@class TwinFangsAddonCheckConfig
 ---@field assignment TwinFangsAddonCheckAssignment
----@field macro "ready"|"not_ready"|"na"|"unknown"
 ---@field soak false|"left"|"middle"|"right"
 
 ---@return TwinFangsAddonCheckAssignment
@@ -91,7 +89,6 @@ end
 function TwinFangs:GetAddonCheckConfig()
     return {
         assignment = SnapshotAssignment(),
-        macro = self:InspectInterruptMacroReadiness(),
         soak = SnapshotSoak(),
     }
 end
@@ -102,15 +99,11 @@ end
 ---@return string[]|nil
 function TwinFangs.ValidateAddonCheckConfig(config)
     if type(config) ~= "table" then
-        return { "assignment", "macro", "soak" }
+        return { "assignment", "soak" }
     end
     local flagged = {}
     if type(config.assignment) ~= "table" then
         flagged[#flagged + 1] = "assignment"
-    end
-    local macro = config.macro
-    if macro ~= TwinFangs.ADDON_CHECK_MACRO_READY and macro ~= TwinFangs.ADDON_CHECK_MACRO_NA then
-        flagged[#flagged + 1] = "macro"
     end
     if config.soak ~= false and not Schema.GROUPS[config.soak] then
         flagged[#flagged + 1] = "soak"
@@ -149,24 +142,6 @@ end
 
 ---@param value any
 ---@return string|nil
----@return table|nil
-function TwinFangs.FormatAddonCheckMacro(value)
-    if value == TwinFangs.ADDON_CHECK_MACRO_READY then
-        return L.TWIN_FANGS_ADDONCHECK_MACRO_READY, Colors.SUCCESS
-    end
-    if value == TwinFangs.ADDON_CHECK_MACRO_NOT_READY then
-        return L.TWIN_FANGS_ADDONCHECK_MACRO_NOT_READY, Colors.ERROR
-    end
-    if value == TwinFangs.ADDON_CHECK_MACRO_NA then
-        return L.TWIN_FANGS_ADDONCHECK_MACRO_NA, Colors.TEXT_MUTED
-    end
-    if value == TwinFangs.ADDON_CHECK_MACRO_UNKNOWN then
-        return L.TWIN_FANGS_ADDONCHECK_MACRO_UNKNOWN, Colors.WARNING
-    end
-end
-
----@param value any
----@return string|nil
 function TwinFangs.FormatAddonCheckSoak(value)
     if value == false then
         return L.TWIN_FANGS_ADDONCHECK_SOAK_DISABLED
@@ -189,11 +164,6 @@ function TwinFangs.AddonCheckColumns()
             key = "assignment",
             title = L.TWIN_FANGS_ADDONCHECK_COL_ASSIGNMENT,
             format = TwinFangs.FormatAddonCheckAssignment,
-        },
-        {
-            key = "macro",
-            title = L.TWIN_FANGS_ADDONCHECK_COL_MACRO,
-            format = TwinFangs.FormatAddonCheckMacro,
         },
         {
             key = "soak",

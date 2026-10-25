@@ -7,10 +7,7 @@ describe("TwinFangs AddonCheck", function()
     local Chain
     local Player
     local Group
-    local Macro
-    local Spell
     local L
-    local Colors
 
     local function InspectConfig()
         return AddonCheck.GetConfig(TwinFangs.ADDON_CHECK_MODULE_ID)
@@ -49,11 +46,7 @@ describe("TwinFangs AddonCheck", function()
         Chain = ns.Modules.Internals("TwinFangs").InterruptChain
         Player = ns.Api.Player
         Group = ns.Api.Group
-        Macro = ns.Api.Macro
-        Spell = ns.Api.Spell
         L = ns.L
-        Colors = ns.Assets.Colors
-        Spell.SetInterruptNameForTests("反制")
     end)
 
     it("registers on module init without opening the settings UI", function()
@@ -78,7 +71,7 @@ describe("TwinFangs AddonCheck", function()
         it("reports an unassigned player", function()
             local config = InspectConfig()
             assert.same({}, config.assignment)
-            assert.equals(TwinFangs.ADDON_CHECK_MACRO_NA, config.macro)
+            assert.is_nil(config.macro)
         end)
 
         it("reports a primary region and 1-based sequence", function()
@@ -95,7 +88,7 @@ describe("TwinFangs AddonCheck", function()
             assert.is_nil(config.assignment.region)
             assert.is_nil(config.assignment.index)
             assert.equals(Chain.BACK_LEFT, config.assignment.backup)
-            assert.equals(TwinFangs.ADDON_CHECK_MACRO_NA, config.macro)
+            assert.is_nil(config.macro)
         end)
 
         it("reports primary and backup together", function()
@@ -137,62 +130,6 @@ describe("TwinFangs AddonCheck", function()
             snapshot.assignment.region = "mutated"
             assert.equals(before, TwinFangs.db.interruptReminder.chain.front_left.players[1].name)
             assert.equals(Chain.FRONT_LEFT, InspectConfig().assignment.region)
-        end)
-    end)
-
-    describe("interrupt macro readiness", function()
-        local function Body()
-            return table.concat({ "#showtooltip", "/cast 反制", "/p 已打断" }, "\n")
-        end
-
-        it("is not applicable without a primary assignment", function()
-            AssignBackup(Player.GetFullName())
-            assert.equals(TwinFangs.ADDON_CHECK_MACRO_NA, TwinFangs:InspectInterruptMacroReadiness())
-            assert.equals(0, Macro.createCount)
-            assert.equals(0, Macro.editCount)
-        end)
-
-        it("is not ready when the managed macro is missing", function()
-            AssignPrimary(Player.GetFullName())
-            assert.equals(TwinFangs.ADDON_CHECK_MACRO_NOT_READY, TwinFangs:InspectInterruptMacroReadiness())
-            assert.equals(0, Macro.createCount)
-        end)
-
-        it("is ready only when the existing body matches the expected content", function()
-            AssignPrimary(Player.GetFullName())
-            TwinFangs:CreateInterruptMacro()
-            local creates = Macro.createCount
-            local edits = Macro.editCount
-            assert.equals(TwinFangs.ADDON_CHECK_MACRO_READY, TwinFangs:InspectInterruptMacroReadiness())
-            local stored = Macro.Get(TwinFangs:GetInterruptMacroName())
-            assert.equals(Body(), stored.body)
-            assert.equals(creates, Macro.createCount)
-            assert.equals(edits, Macro.editCount)
-        end)
-
-        it("is not ready when the existing body is stale", function()
-            AssignPrimary(Player.GetFullName())
-            TwinFangs:CreateInterruptMacro()
-            local index = Macro.GetIndexByName(TwinFangs:GetInterruptMacroName())
-            Macro.slots[index].body = "/say stale"
-            local edits = Macro.editCount
-            assert.equals(TwinFangs.ADDON_CHECK_MACRO_NOT_READY, TwinFangs:InspectInterruptMacroReadiness())
-            assert.equals("/say stale", Macro.slots[index].body)
-            assert.equals(edits, Macro.editCount)
-        end)
-
-        it("is unknown when the expected body cannot be computed", function()
-            AssignPrimary(Player.GetFullName())
-            Spell.SetInterruptNameForTests(nil)
-            assert.equals(TwinFangs.ADDON_CHECK_MACRO_UNKNOWN, TwinFangs:InspectInterruptMacroReadiness())
-            assert.equals(0, Macro.createCount)
-        end)
-
-        it("does not create or edit macros while collecting AddonCheck config", function()
-            AssignPrimary(Player.GetFullName())
-            InspectConfig()
-            assert.equals(0, Macro.createCount)
-            assert.equals(0, Macro.editCount)
         end)
     end)
 
@@ -279,7 +216,7 @@ describe("TwinFangs AddonCheck", function()
             local config = assert(ns.AddonCheckCodec.DecodeValue(response.body, 1))
             assert.equals(Chain.FRONT_LEFT, config.assignment.region)
             assert.equals(1, config.assignment.index)
-            assert.equals(TwinFangs.ADDON_CHECK_MACRO_NOT_READY, config.macro)
+            assert.is_nil(config.macro)
             assert.equals("left", config.soak)
         end)
     end)
@@ -380,19 +317,7 @@ describe("TwinFangs AddonCheck", function()
             )
         end)
 
-        it("colors macro readiness and distinguishes disabled soak from a missing field", function()
-            local ready, readyColor = TwinFangs.FormatAddonCheckMacro(TwinFangs.ADDON_CHECK_MACRO_READY)
-            assert.equals(L.TWIN_FANGS_ADDONCHECK_MACRO_READY, ready)
-            assert.equals(Colors.SUCCESS, readyColor)
-            local notReady, notReadyColor = TwinFangs.FormatAddonCheckMacro(TwinFangs.ADDON_CHECK_MACRO_NOT_READY)
-            assert.equals(L.TWIN_FANGS_ADDONCHECK_MACRO_NOT_READY, notReady)
-            assert.equals(Colors.ERROR, notReadyColor)
-            local na, naColor = TwinFangs.FormatAddonCheckMacro(TwinFangs.ADDON_CHECK_MACRO_NA)
-            assert.equals(L.TWIN_FANGS_ADDONCHECK_MACRO_NA, na)
-            assert.equals(Colors.TEXT_MUTED, naColor)
-            local unknown, unknownColor = TwinFangs.FormatAddonCheckMacro(TwinFangs.ADDON_CHECK_MACRO_UNKNOWN)
-            assert.equals(L.TWIN_FANGS_ADDONCHECK_MACRO_UNKNOWN, unknown)
-            assert.equals(Colors.WARNING, unknownColor)
+        it("distinguishes disabled soak from a missing field", function()
             assert.equals(L.TWIN_FANGS_ADDONCHECK_SOAK_DISABLED, TwinFangs.FormatAddonCheckSoak(false))
             assert.equals(L.TWIN_FANGS_SOAK_GROUP_LEFT, TwinFangs.FormatAddonCheckSoak("left"))
             assert.is_nil(TwinFangs.FormatAddonCheckSoak(nil))
@@ -440,7 +365,6 @@ describe("TwinFangs AddonCheck", function()
                         configs = {
                             [moduleId] = {
                                 assignment = { region = Chain.FRONT_LEFT, index = 2 },
-                                macro = TwinFangs.ADDON_CHECK_MACRO_READY,
                                 soak = "left",
                             },
                         },
@@ -452,7 +376,6 @@ describe("TwinFangs AddonCheck", function()
                         configs = {
                             [moduleId] = {
                                 assignment = { backup = Chain.BACK_RIGHT },
-                                macro = TwinFangs.ADDON_CHECK_MACRO_UNKNOWN,
                             },
                         },
                     }),
@@ -474,9 +397,7 @@ describe("TwinFangs AddonCheck", function()
                 string.format(L.TWIN_FANGS_ADDONCHECK_PRIMARY, L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT, 2),
                 byKey.ok.configValues[1]
             )
-            assert.equals(L.TWIN_FANGS_ADDONCHECK_MACRO_READY, byKey.ok.configValues[2])
-            assert.equals(L.TWIN_FANGS_SOAK_GROUP_LEFT, byKey.ok.configValues[3])
-            assert.equals(Colors.SUCCESS, byKey.ok.configColors[2])
+            assert.equals(L.TWIN_FANGS_SOAK_GROUP_LEFT, byKey.ok.configValues[2])
 
             assert.equals(AddonCheckPanel.Category.NO_RESPONSE, byKey.missing.category)
             assert.equals(L.ADDONCHECK_EM_DASH, byKey.missing.configValues[1])
@@ -487,9 +408,8 @@ describe("TwinFangs AddonCheck", function()
                 string.format(L.TWIN_FANGS_ADDONCHECK_BACKUP, L.TWIN_FANGS_INTERRUPT_REGION_BACK_RIGHT),
                 byKey.partial.configValues[1]
             )
-            assert.equals(L.TWIN_FANGS_ADDONCHECK_MACRO_UNKNOWN, byKey.partial.configValues[2])
-            assert.equals(L.ADDONCHECK_EM_DASH, byKey.partial.configValues[3])
-            assert.same({ "macro", "soak" }, byKey.partial.invalidColumns)
+            assert.equals(L.ADDONCHECK_EM_DASH, byKey.partial.configValues[2])
+            assert.same({ "soak" }, byKey.partial.invalidColumns)
 
             assert.equals(AddonCheckPanel.Category.ATTENTION, byKey.old.category)
             assert.equals(L.ADDONCHECK_STATUS_UNSUPPORTED, byKey.old.statusLabel)
@@ -498,15 +418,13 @@ describe("TwinFangs AddonCheck", function()
         it("does not flag informational assignment or disabled soak against the commander", function()
             assert.is_nil(TwinFangs.ValidateAddonCheckConfig({
                 assignment = { region = Chain.FRONT_RIGHT, index = 4 },
-                macro = TwinFangs.ADDON_CHECK_MACRO_NA,
                 soak = false,
             }))
             assert.same(
-                { "macro" },
+                { "soak" },
                 TwinFangs.ValidateAddonCheckConfig({
                     assignment = {},
-                    macro = TwinFangs.ADDON_CHECK_MACRO_NOT_READY,
-                    soak = "middle",
+                    soak = "center",
                 })
             )
         end)

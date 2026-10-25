@@ -277,6 +277,8 @@ describe("LayoutCoordinateInspector", function()
             Sizes = {
                 BORDER = 1,
                 CLOSE_BUTTON = 18,
+                FLOATING_HEADER_PAD = 8,
+                FLOATING_HEADER_HEIGHT = 34,
                 CONTROL_HEIGHT = 22,
                 CONTROL_ROW_HEIGHT = 30,
                 INPUT_HEIGHT = 24,

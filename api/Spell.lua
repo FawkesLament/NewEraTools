@@ -112,20 +112,27 @@ function Spell.GetTexture(spellId)
     return nil
 end
 
+-- Class default interrupt. Specs whose interrupt differs live in INTERRUPT_SPELLS_BY_SPEC.
 local INTERRUPT_SPELLS = {
-    DEATHKNIGHT = { 47528 },
-    DEMONHUNTER = { 183752 },
-    DRUID = { 106839, 78675 },
-    EVOKER = { 351338 },
-    HUNTER = { 147362, 187707 },
-    MAGE = { 2139 },
-    MONK = { 116705 },
-    PALADIN = { 96231 },
-    PRIEST = { 15487 },
-    ROGUE = { 1766 },
-    SHAMAN = { 57994 },
-    WARLOCK = { 119914, 19647 },
-    WARRIOR = { 6552 },
+    DEATHKNIGHT = 47528,
+    DEMONHUNTER = 183752,
+    DRUID = 106839,
+    EVOKER = 351338,
+    HUNTER = 147362,
+    MAGE = 2139,
+    MONK = 116705,
+    PALADIN = 96231,
+    PRIEST = 15487,
+    ROGUE = 1766,
+    SHAMAN = 57994,
+    WARLOCK = 119914,
+    WARRIOR = 6552,
+}
+
+local INTERRUPT_SPELLS_BY_SPEC = {
+    [102] = 78675, -- Balance Druid: Solar Beam
+    [255] = 187707, -- Survival Hunter: Muzzle
+    [266] = 19647, -- Demon Warlock: Spell Lock
 }
 
 ---@param spellId integer
@@ -143,26 +150,17 @@ function Spell.IsKnownByPlayerOrPet(spellId)
     return petBank and isKnown(spellId, petBank)
 end
 
----Localized name of the player's interrupt spell, or nil when none is known.
+---Localized name of the player's interrupt spell, or nil when none is mapped.
 ---@return string|nil
 function Spell.GetInterruptName()
-    local classFile = ns.Api.Player.GetClassFile()
-    if not classFile then
+    local specId = ns.Api.Player.GetSpecializationId()
+    local spellId = specId and INTERRUPT_SPELLS_BY_SPEC[specId]
+    if not spellId then
+        local classFile = ns.Api.Player.GetClassFile()
+        spellId = classFile and INTERRUPT_SPELLS[classFile]
+    end
+    if not spellId then
         return nil
     end
-
-    local candidates = INTERRUPT_SPELLS[classFile]
-    if not candidates then
-        return nil
-    end
-    for i = 1, #candidates do
-        local spellId = candidates[i]
-        if Spell.IsKnownByPlayerOrPet(spellId) then
-            local name = Spell.GetName(spellId)
-            if name then
-                return name
-            end
-        end
-    end
-    return nil
+    return Spell.GetName(spellId)
 end

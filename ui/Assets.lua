@@ -125,6 +125,8 @@ Assets.Fonts = {
     HEADER = FONT_PREFIX .. "Header",
     NAV_GROUP = FONT_PREFIX .. "NavGroup",
     BODY = FONT_PREFIX .. "Body",
+    -- Larger body face for copyable generated text (e.g. interrupt macros).
+    PAYLOAD = FONT_PREFIX .. "Payload",
     -- Slightly larger with an outline; for short emphasized spans (e.g. marker names).
     EMPHASIS = FONT_PREFIX .. "Emphasis",
     -- Large outlined readout for floating overlays (e.g. timers).
@@ -157,6 +159,7 @@ Assets.FontStyles = {
     [Assets.Fonts.HEADER] = { size = 13, color = Assets.Colors.TEXT_MUTED },
     [Assets.Fonts.NAV_GROUP] = { size = 12, color = Assets.Colors.ACCENT },
     [Assets.Fonts.BODY] = { size = 12, color = Assets.Colors.TEXT },
+    [Assets.Fonts.PAYLOAD] = { size = 16, color = Assets.Colors.TEXT },
     [Assets.Fonts.EMPHASIS] = { size = 14, color = Assets.Colors.TEXT, flags = "OUTLINE" },
     [Assets.Fonts.DISPLAY] = { size = 32, color = Assets.Colors.TEXT_GOLD, flags = "OUTLINE" },
     -- Amber + thick outline, ARHei for CJK raid-warning style callouts.
@@ -208,6 +211,8 @@ Assets.Sizes = {
     HEADER_HEIGHT = 48,
     HEADER_LOGO = 32,
     CLOSE_BUTTON = 22,
+    -- Inset around title and close control on FloatingWindow headers.
+    FLOATING_HEADER_PAD = 12,
     -- Compact title bar when a settings panel is collapsed (outer frame height).
     COLLAPSED_PANEL_HEIGHT = 40,
     -- Fits logo + title + Edit Layout (with its move icon) + collapse/close without the scale chrome.
@@ -264,6 +269,9 @@ Assets.Sizes = {
     -- Visible rows before the popup scrolls on its own (keeps LSM lists usable).
     DROPDOWN_MAX_VISIBLE = 8,
 }
+
+-- Close control plus vertical padding on FloatingWindow headers.
+Assets.Sizes.FLOATING_HEADER_HEIGHT = Assets.Sizes.CLOSE_BUTTON + 2 * Assets.Sizes.FLOATING_HEADER_PAD
 
 -- World markers share their icons with raid target icons.
 Assets.WORLD_MARKER_ICONS = {

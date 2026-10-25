@@ -275,26 +275,21 @@ local function NotifyHeight()
     ui.onHeightChanged(height)
 end
 
----Sizes the create/regenerate button to its current label, then paints the adjacent status.
----Sszorak writes this row immediately after a create; do not wait for a later full refresh.
-local function ApplyMacroStatus()
+---Shows the generate-macro button only for a raid member with a primary assignment.
+---@param show boolean
+local function ApplyMacroButton(show)
     if not ui or not ui.macroRow then
         return
     end
-    local TwinFangs = ns.Modules.Get("TwinFangs")
-    local status = TwinFangs and TwinFangs.GetInterruptMacroStatus and TwinFangs:GetInterruptMacroStatus()
-    local show = status and status.shown
     ui.macroRow:SetShown(show == true)
     if not show then
         ui.stack:SetEntryHeight(ui.macroRow, 1)
+        Internals.InterruptChainMacroPopup.Hide()
         return
     end
     ui.stack:SetEntryHeight(ui.macroRow, Sizes.CONTROL_ROW_HEIGHT)
-    ui.macroButton:SetText(status.buttonText)
     local width = math.max(ui.macroButton:GetTextWidth() + Sizes.BUTTON_TEXT_PADDING, Sizes.BUTTON_MIN_WIDTH)
     ui.macroButton:SetSize(width, Sizes.CONTROL_HEIGHT)
-    ui.macroStatus:SetText(status.message)
-    ui.macroStatus:SetTextColor(Widgets.UnpackColor(status.color))
 end
 
 local function Refresh()
@@ -323,7 +318,15 @@ local function Refresh()
         ui.stack:SetEntryHeight(ui.empty, EMPTY_HEIGHT)
     end
 
-    ApplyMacroStatus()
+    local showMacro = inRaid and hasPrimary
+    ApplyMacroButton(showMacro)
+    if showMacro then
+        local TwinFangs = ns.Modules.Get("TwinFangs")
+        local body = TwinFangs and TwinFangs.GetInterruptMacroBody and TwinFangs:GetInterruptMacroBody()
+        if body then
+            Internals.InterruptChainMacroPopup.RefreshIfShown(body)
+        end
+    end
 
     if extraBackup and mainAssignment then
         RefreshAssignmentCard(ui.primary, mainAssignment, playerName, roster)
@@ -390,32 +393,14 @@ function MemberView.Mount(host, onHeightChanged)
     ui.macroRow = stack:AddRow(1)
     ui.macroButton = Widgets.CreateButton(ui.macroRow, L.TWIN_FANGS_INTERRUPT_MACRO_CREATE, function()
         local TwinFangs = ns.Modules.Get("TwinFangs")
-        if not TwinFangs or not TwinFangs.CreateInterruptMacro then
+        local body = TwinFangs and TwinFangs.GetInterruptMacroBody and TwinFangs:GetInterruptMacroBody()
+        if not body then
             return
         end
-        TwinFangs:CreateInterruptMacro()
-        lastNotifiedHeight = nil
-        ApplyMacroStatus()
-        NotifyHeight()
+        Internals.InterruptChainMacroPopup.Show(body)
     end, "primary")
-    ui.macroStatus = Widgets.CreateLabel(ui.macroRow, Fonts.SMALL_MUTED)
-    ui.macroStatus:SetJustifyH("LEFT")
     ui.macroButton:SetPoint("LEFT", ui.macroRow, "LEFT")
-    ui.macroStatus:SetPoint("LEFT", ui.macroButton, "RIGHT", Spacing.MEDIUM, 0)
-    ui.macroStatus:SetPoint("RIGHT", ui.macroRow, "RIGHT")
     ui.macroRow:Hide()
-
-    local TwinFangs = ns.Modules.Get("TwinFangs")
-    if TwinFangs then
-        TwinFangs.OnInterruptMacroChanged = function()
-            if not ui then
-                return
-            end
-            lastNotifiedHeight = nil
-            ApplyMacroStatus()
-            NotifyHeight()
-        end
-    end
 
     panel:HookScript("OnShow", function()
         lastNotifiedHeight = nil

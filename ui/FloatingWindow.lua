@@ -27,7 +27,7 @@ ns.FloatingWindow = FloatingWindow
 ---@field onClose fun()|nil  Called when the close button is clicked.
 
 ---@class FloatingWindow: Frame
----@field header Frame  Drag strip along the top edge; overlays content like the Sszorak map window.
+---@field header Frame  Padded drag strip along the top edge; overlays content like the Sszorak map window.
 ---@field closeButton Button|nil
 ---@field SetWindowPosition fun(self: FloatingWindow, position: FloatingWindowPosition)
 ---@field GetWindowPosition fun(self: FloatingWindow): FloatingWindowPosition
@@ -229,7 +229,7 @@ function FloatingWindow.Create(options)
     local header = CreateFrame("Frame", nil, frame)
     header:SetPoint("TOPLEFT", Sizes.BORDER, -Sizes.BORDER)
     header:SetPoint("TOPRIGHT", -Sizes.BORDER, -Sizes.BORDER)
-    header:SetHeight(Sizes.CLOSE_BUTTON)
+    header:SetHeight(Sizes.FLOATING_HEADER_HEIGHT)
     header:SetFrameLevel(frame:GetFrameLevel() + 2)
     header:RegisterForDrag("LeftButton")
     header:SetScript("OnDragStart", BeginDrag)
@@ -268,7 +268,7 @@ function FloatingWindow.Create(options)
                 options.onClose()
             end
         end)
-        closeButton:SetPoint("RIGHT")
+        closeButton:SetPoint("RIGHT", -Sizes.FLOATING_HEADER_PAD, 0)
         frame.closeButton = closeButton
     end
 

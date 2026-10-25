@@ -729,10 +729,6 @@ function Refresh()
     end
     RefreshHeader()
     LayoutShownView()
-    local TwinFangs = ns.Modules.Get("TwinFangs")
-    if TwinFangs and TwinFangs.MaintainInterruptMacro then
-        TwinFangs:MaintainInterruptMacro()
-    end
     if shownView ~= view then
         shownView = view
         -- A newly shown frame can report width 0 until the next layout pass.

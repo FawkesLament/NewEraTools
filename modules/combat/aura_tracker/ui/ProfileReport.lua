@@ -86,15 +86,15 @@ local function Ensure()
 
     local title = Widgets.CreateLabel(window.header, Fonts.TITLE, L.AURA_TRACKER_PROFILE_WINDOW)
     title:SetJustifyH("LEFT")
-    title:SetPoint("LEFT", window.header, "LEFT", Spacing.MEDIUM, 0)
+    title:SetPoint("LEFT", window.header, "LEFT", Sizes.FLOATING_HEADER_PAD, 0)
     if window.closeButton then
-        title:SetPoint("RIGHT", window.closeButton, "LEFT", -Spacing.SMALL, 0)
+        title:SetPoint("RIGHT", window.closeButton, "LEFT", -Sizes.FLOATING_HEADER_PAD, 0)
     else
-        title:SetPoint("RIGHT", window.header, "RIGHT", -Spacing.MEDIUM, 0)
+        title:SetPoint("RIGHT", window.header, "RIGHT", -Sizes.FLOATING_HEADER_PAD, 0)
     end
 
     local body = CreateFrame("Frame", nil, window)
-    body:SetPoint("TOPLEFT", Spacing.LARGE, -(Sizes.CLOSE_BUTTON + Spacing.MEDIUM))
+    body:SetPoint("TOPLEFT", Spacing.LARGE, -(Sizes.FLOATING_HEADER_HEIGHT + Spacing.MEDIUM))
     body:SetPoint("BOTTOMRIGHT", -Spacing.LARGE, Spacing.LARGE)
 
     scroll = CreateFrame("ScrollFrame", nil, body)

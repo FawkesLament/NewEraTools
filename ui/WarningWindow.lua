@@ -81,7 +81,7 @@ function WarningWindow.Create(options)
     })
 
     -- Close button sits in the FloatingWindow header over the top-right; keep title clear of it.
-    local closeInset = options.closable == true and (Sizes.CLOSE_BUTTON + Spacing.SMALL) or 0
+    local closeInset = options.closable == true and (Sizes.CLOSE_BUTTON + Sizes.FLOATING_HEADER_PAD) or 0
 
     local titleRow = stack:AddRow(TITLE_ROW_HEIGHT)
     local icon = titleRow:CreateTexture(nil, "ARTWORK")

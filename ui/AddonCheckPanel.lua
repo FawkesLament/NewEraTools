@@ -32,9 +32,6 @@ local LIST_ROW_HEIGHT = 22
 local LIST_VISIBLE_ROWS = 8
 -- Inset from the window chrome on every side.
 local POPUP_PADDING = Spacing.XLARGE
--- Title bar: taller than the close control, with matching horizontal inset.
-local HEADER_BAR_PADDING = Spacing.MEDIUM
-local HEADER_BAR_HEIGHT = Sizes.CLOSE_BUTTON + 2 * HEADER_BAR_PADDING
 -- Fixed table columns after party: player, version, status (module columns are extra).
 local FIXED_TABLE_COLUMNS = 3
 local COLUMN_SLOT_WIDTH = 80
@@ -239,24 +236,18 @@ function AddonCheckPanel.Create(options)
     window:SetSize(popupWidth, 200)
     window:SetFrameStrata("DIALOG")
 
-    window.header:SetHeight(HEADER_BAR_HEIGHT)
-    if window.closeButton then
-        window.closeButton:ClearAllPoints()
-        window.closeButton:SetPoint("RIGHT", window.header, "RIGHT", -HEADER_BAR_PADDING, 0)
-    end
-
     local titleLabel = Widgets.CreateLabel(window.header, Fonts.TITLE, options.title or L.ADDONCHECK_TITLE)
     titleLabel:SetJustifyH("LEFT")
-    titleLabel:SetPoint("LEFT", window.header, "LEFT", HEADER_BAR_PADDING, 0)
+    titleLabel:SetPoint("LEFT", window.header, "LEFT", Sizes.FLOATING_HEADER_PAD, 0)
     if window.closeButton then
-        titleLabel:SetPoint("RIGHT", window.closeButton, "LEFT", -HEADER_BAR_PADDING, 0)
+        titleLabel:SetPoint("RIGHT", window.closeButton, "LEFT", -Sizes.FLOATING_HEADER_PAD, 0)
     else
-        titleLabel:SetPoint("RIGHT", window.header, "RIGHT", -HEADER_BAR_PADDING, 0)
+        titleLabel:SetPoint("RIGHT", window.header, "RIGHT", -Sizes.FLOATING_HEADER_PAD, 0)
     end
 
     local content = CreateFrame("Frame", nil, window)
-    content:SetPoint("TOPLEFT", POPUP_PADDING, -(HEADER_BAR_HEIGHT + POPUP_PADDING))
-    content:SetPoint("TOPRIGHT", -POPUP_PADDING, -(HEADER_BAR_HEIGHT + POPUP_PADDING))
+    content:SetPoint("TOPLEFT", POPUP_PADDING, -(Sizes.FLOATING_HEADER_HEIGHT + POPUP_PADDING))
+    content:SetPoint("TOPRIGHT", -POPUP_PADDING, -(Sizes.FLOATING_HEADER_HEIGHT + POPUP_PADDING))
 
     local body = Layout.Stack(content, { spacing = Spacing.SMALL })
 
@@ -388,7 +379,7 @@ function AddonCheckPanel.Create(options)
     local function SyncWindowSize()
         local bodyHeight = body:GetHeight()
         content:SetHeight(math.max(bodyHeight, 1))
-        local height = HEADER_BAR_HEIGHT + POPUP_PADDING + bodyHeight + POPUP_PADDING + 2 * Sizes.BORDER
+        local height = Sizes.FLOATING_HEADER_HEIGHT + POPUP_PADDING + bodyHeight + POPUP_PADDING + 2 * Sizes.BORDER
         window:SetSize(popupWidth, height)
         LayoutFullWidthRow(headerRow, headerCells, Spacing.SMALL, SCROLL_GUTTER)
     end
