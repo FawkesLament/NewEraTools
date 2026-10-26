@@ -19,6 +19,7 @@ describe("Instance production", function()
 
     local function SaveGlobals()
         saved.GetInstanceInfo = GetInstanceInfo
+        saved.GetSubZoneText = GetSubZoneText
         saved.EJ_GetNumTiers = EJ_GetNumTiers
         saved.EJ_GetCurrentTier = EJ_GetCurrentTier
         saved.EJ_SelectTier = EJ_SelectTier
@@ -31,6 +32,9 @@ describe("Instance production", function()
         queries = 0
         raidMap = CURRENT_RAID
         GetInstanceInfo = function()
+            return nil
+        end
+        GetSubZoneText = function()
             return nil
         end
         EJ_GetNumTiers = function()
@@ -78,6 +82,7 @@ describe("Instance production", function()
 
     after_each(function()
         GetInstanceInfo = saved.GetInstanceInfo
+        GetSubZoneText = saved.GetSubZoneText
         EJ_GetNumTiers = saved.EJ_GetNumTiers
         EJ_GetCurrentTier = saved.EJ_GetCurrentTier
         EJ_SelectTier = saved.EJ_SelectTier
@@ -101,6 +106,12 @@ describe("Instance production", function()
         assert.equals("raid", present.instanceType)
         assert.equals(16, present.difficultyID)
         assert.equals(CURRENT_RAID, present.instanceID)
+
+        assert.equals("", Instance.GetSubZoneText())
+        GetSubZoneText = function()
+            return "Altar of the Six Winds"
+        end
+        assert.equals("Altar of the Six Winds", Instance.GetSubZoneText())
     end)
 
     it("recognizes only the last Encounter Journal tier and restores the previous tier", function()

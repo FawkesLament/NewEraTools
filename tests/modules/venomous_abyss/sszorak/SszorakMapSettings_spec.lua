@@ -133,7 +133,7 @@ describe("Sszorak", function()
     end)
 
     describe("map window position", function()
-        it("starts at the screen center", function()
+        it("starts at the unset factory default", function()
             assert.same({ point = "CENTER", relativePoint = "CENTER", x = 0, y = 0 }, Sszorak:GetMapPosition())
         end)
 

@@ -1,10 +1,12 @@
 local Harness = require("helpers.sszorak")
 
-describe("Sszorak map window during combat lockdown", function()
+local ALTAR_INSTANCE_ID = 3004
+local ALTAR_SUBZONE_EN = "Altar of the Six Winds"
+local ALTAR_SUBZONE_ZH = "六风祭坛"
+
+describe("Sszorak map window visibility", function()
     local ns, Sszorak, Window, Combat, Instance
     local frames
-    local shields
-    local originalCreateFrame
 
     local function MakeWindow()
         local frame = {
@@ -37,13 +39,13 @@ describe("Sszorak map window during combat lockdown", function()
             self.raises = self.raises + 1
         end
         function frame:SetSize() end
-        function frame:SetAlpha(alpha)
-            self.alpha = alpha
+        function frame:GetWidth()
+            return 10
         end
+        function frame:SetWindowPosition() end
         function frame:GetFrameLevel()
             return 1
         end
-        frame.alpha = 1
         frame.closeButton = {
             SetShown = function() end,
         }
@@ -51,27 +53,21 @@ describe("Sszorak map window during combat lockdown", function()
         return frame
     end
 
+    local function EnterAltar(subZone)
+        Instance.info.instanceID = ALTAR_INSTANCE_ID
+        Instance.info.instanceType = "raid"
+        Instance.subZoneText = subZone or ALTAR_SUBZONE_EN
+    end
+
+    local function LeaveAltar()
+        Instance.subZoneText = "The Venomous Abyss"
+    end
+
     before_each(function()
         frames = {}
-        shields = {}
         ns, Sszorak = Harness.Start()
         Combat = ns.Api.Combat
         Instance = ns.Api.Instance
-        originalCreateFrame = CreateFrame
-        CreateFrame = function()
-            local shield = { shown = false }
-            function shield:SetAllPoints() end
-            function shield:EnableMouse() end
-            function shield:SetFrameLevel() end
-            function shield:Hide()
-                self.shown = false
-            end
-            function shield:SetShown(shown)
-                self.shown = shown and true or false
-            end
-            table.insert(shields, shield)
-            return shield
-        end
         ns.FloatingWindow = {
             Create = function()
                 return MakeWindow()
@@ -109,44 +105,76 @@ describe("Sszorak map window during combat lockdown", function()
         Window = ns.Modules.Internals("Sszorak").Window
         Sszorak:ListenForEncounter()
         Sszorak.OnEncounterChanged = function()
+            Window.DismissPreview()
             Window.Update()
         end
         Window.ListenForCombatDeferral()
-        -- The window is armed only while the map feature is on.
         Sszorak:SetMapEnabled(true)
     end)
 
-    after_each(function()
-        CreateFrame = originalCreateFrame
-    end)
-
-    it("fades the map in when the pull starts and out when the pull ends", function()
-        Instance.info.instanceType = "raid"
+    it("shows the map at the English or Chinese altar and hides it elsewhere", function()
+        EnterAltar(ALTAR_SUBZONE_EN)
         Window.Update()
         assert.is_true(frames[1]:IsShown())
-        assert.equals(0, frames[1].alpha)
-        assert.is_true(shields[1].shown)
 
-        Combat.inCombat = true
-        ns.Api.Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
+        LeaveAltar()
+        Instance.FireZoneChangedIndoors()
+        assert.is_false(frames[1]:IsShown())
+
+        EnterAltar(ALTAR_SUBZONE_ZH)
+        Instance.FireZoneChangedIndoors()
         assert.is_true(frames[1]:IsShown())
-        assert.equals(1, frames[1].alpha)
-        assert.is_false(shields[1].shown)
-        assert.equals(0, frames[1].raises)
 
-        ns.Api.Encounter.FireEnd(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20, 1)
-        assert.equals(0, frames[1].alpha)
-        assert.is_true(shields[1].shown)
+        Instance.info.instanceID = 0
+        Window.Update()
+        assert.is_false(frames[1]:IsShown())
     end)
 
-    it("defers Show until combat ends when the pull starts with the map still closed", function()
+    it("stays hidden at the altar when the feature is off, unless preview is open", function()
+        Sszorak:SetMapEnabled(false)
+        EnterAltar()
+        Window.Update()
+        assert.equals(0, #frames)
+
+        Window.StartPreview()
+        assert.is_true(frames[1]:IsShown())
+    end)
+
+    it("defers Show until combat ends when the altar is entered during lockdown", function()
         Combat.inCombat = true
-        ns.Api.Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
+        EnterAltar()
+        Instance.FireZoneChangedIndoors()
         assert.equals(0, #frames)
 
         Combat.FireLeave()
         assert.equals(1, #frames)
         assert.is_true(frames[1]:IsShown())
-        assert.equals(1, frames[1].alpha)
+    end)
+
+    it("defers Hide until combat ends when the altar is left during lockdown", function()
+        EnterAltar()
+        Window.Update()
+        assert.is_true(frames[1]:IsShown())
+
+        Combat.inCombat = true
+        LeaveAltar()
+        Instance.FireZoneChangedIndoors()
+        assert.is_true(frames[1]:IsShown())
+
+        Combat.FireLeave()
+        assert.is_false(frames[1]:IsShown())
+    end)
+
+    it("does not change visibility when the pull starts or ends at the altar", function()
+        EnterAltar()
+        Window.Update()
+        assert.is_true(frames[1]:IsShown())
+
+        Combat.inCombat = true
+        ns.Api.Encounter.FireStart(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20)
+        assert.is_true(frames[1]:IsShown())
+
+        ns.Api.Encounter.FireEnd(Sszorak.ENCOUNTER_ID, "Sszorak", 16, 20, 1)
+        assert.is_true(frames[1]:IsShown())
     end)
 end)

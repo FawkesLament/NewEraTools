@@ -31,7 +31,7 @@ function Sszorak:RepairMapSettings()
     self.db.mapRotation = Util.Snap(self.db.mapRotation, MAP_ROTATION_MIN, MAP_ROTATION_MAX, MAP_ROTATION_STEP)
 end
 
----@return boolean  Whether the map opens automatically during this boss fight.
+---@return boolean  Whether the map opens automatically at the Sszorak altar.
 function Sszorak:IsMapEnabled()
     return self.db.mapEnabled == true
 end

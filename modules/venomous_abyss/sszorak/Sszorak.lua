@@ -33,7 +33,7 @@ local Sszorak = ns.Modules.New("Sszorak", {
             [7] = "MOON",
             [8] = "SQUARE",
         },
-        -- When true, the map window opens automatically for this boss fight.
+        -- When true, the map window opens automatically at the Sszorak altar.
         mapEnabled = false,
         -- Player's side of the room: "left" (group A) or "right" (group B). Independent of map rotation.
         playerSide = "left",
@@ -41,6 +41,7 @@ local Sszorak = ns.Modules.New("Sszorak", {
         mapRotation = 0,
         -- Scale of the floating arena map window.
         mapScale = 1,
+        -- Unset factory default (center). The window places this at 80% of max X, y = 0.
         ---@type MapPosition
         mapPosition = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 0 },
         -- Shows RL markers as-is, or jailbreak decrypt/retarget (see CALLOUT_MODE_*).

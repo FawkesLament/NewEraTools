@@ -15,6 +15,8 @@ local Map = Internals.Map
 
 -- Distance between opposite edges of the drawn octagon in the floating map.
 local ARENA_SIZE = 220
+-- Factory default: 80% of the max on-screen CENTER X (right of center); Y stays centered.
+local DEFAULT_MAP_X_RATIO = 0.8
 
 local LAYOUT_ID = "Sszorak:map"
 
@@ -35,35 +37,50 @@ local previewVisible = false
 local macroClicksDirty = false
 -- True when Show/Hide was skipped because the protected window cannot change during lockdown.
 local visibilityDirty = false
--- Unprotected overlay. Shown while the map is armed but invisible, so alpha 0 does not eat clicks.
-local clickShield
 
-local function IsInRaid()
-    return Instance.GetInfo().instanceType == "raid"
-end
+-- Venomous Abyss. GetInstanceInfo instanceID.
+local ALTAR_INSTANCE_ID = 3004
+-- Exact GetSubZoneText values for the Sszorak room (enUS / zhCN).
+local ALTAR_SUBZONES = {
+    ["Altar of the Six Winds"] = true,
+    ["六风祭坛"] = true,
+}
 
 local function CanConfigure(frame)
     return not Combat.IsLockedDown() or not frame.IsProtected or not frame:IsProtected()
 end
 
----What the player should see. Encounter reveal uses alpha; Show itself is illegal once the pull starts.
+local function IsAtAltar()
+    return Instance.GetInfo().instanceID == ALTAR_INSTANCE_ID and ALTAR_SUBZONES[Instance.GetSubZoneText()] == true
+end
+
+---@param frame Frame
+---@return MapPosition
+local function DefaultMapPosition(frame)
+    local parentWidth = (UIParent and UIParent.GetWidth and UIParent:GetWidth()) or 0
+    local frameWidth = (frame.GetWidth and frame:GetWidth()) or 0
+    local maxX = math.max((parentWidth - frameWidth) / 2, 0)
+    return {
+        point = "CENTER",
+        relativePoint = "CENTER",
+        x = maxX * DEFAULT_MAP_X_RATIO,
+        y = 0,
+    }
+end
+
+local function IsFactoryMapPosition(position)
+    return position.point == "CENTER"
+        and position.relativePoint == "CENTER"
+        and position.x == 0
+        and position.y == 0
+end
+
+---What the player should see. Preview always shows; otherwise only at the altar when the feature is on.
 local function IsMapVisible()
-    if Sszorak:IsInEncounter() then
-        return Sszorak:IsMapEnabled()
+    if previewVisible then
+        return true
     end
-    return previewVisible
-end
-
----The protected window must already be shown before combat so the encounter can fade it in.
-local function ShouldKeepShown()
-    return IsMapVisible() or (Sszorak:IsMapEnabled() and IsInRaid())
-end
-
-local function SetWindowRevealed(revealed)
-    window:SetAlpha(revealed and 1 or 0)
-    if clickShield then
-        clickShield:SetShown(not revealed)
-    end
+    return Sszorak:IsMapEnabled() and IsAtAltar()
 end
 
 function Window.IsLayoutEditing()
@@ -97,8 +114,7 @@ function Window.Update()
         return
     end
     local visible = IsMapVisible()
-    local keepShown = ShouldKeepShown()
-    if not keepShown and not window then
+    if not visible and not window then
         return
     end
     if not window then
@@ -112,24 +128,16 @@ function Window.Update()
         windowCloseButton:SetShown(previewVisible and not Sszorak:IsInEncounter())
     end
     if not CanConfigure(window) then
-        if window:IsShown() then
-            -- Already open from before the pull. Alpha is not protected, so the map can still appear.
-            SetWindowRevealed(visible)
-        end
-        visibilityDirty = keepShown ~= window:IsShown()
+        visibilityDirty = visible ~= window:IsShown()
         return
     end
     visibilityDirty = false
-    if keepShown then
+    if visible then
         if not window:IsShown() then
             window:Show()
         end
-        SetWindowRevealed(visible)
-        if visible then
-            window:Raise()
-        end
+        window:Raise()
     elseif window:IsShown() then
-        SetWindowRevealed(true)
         window:Hide()
     end
 end
@@ -195,7 +203,7 @@ local function RegisterMapLayoutElement(frame)
             Sszorak:SetMapPosition(position)
         end,
         getDefaultPosition = function()
-            return { point = "CENTER", relativePoint = "CENTER", x = 0, y = 0 }
+            return DefaultMapPosition(frame)
         end,
         onEditBegin = function()
             Window.BeginLayoutEdit()
@@ -204,10 +212,6 @@ local function RegisterMapLayoutElement(frame)
                 windowCloseButton:Hide()
             end
             win:Show()
-            win:SetAlpha(1)
-            if clickShield then
-                clickShield:Hide()
-            end
             win:Raise()
         end,
         onEditEnd = function()
@@ -251,12 +255,11 @@ function Window.Create()
     Window.UpdateMacroClicks()
 
     frame:SetSize(arena.width + 2 * Spacing.LARGE, stack:GetHeight())
-    -- Above the secure markers. Showing and hiding this frame stays legal during lockdown.
-    clickShield = CreateFrame("Frame", nil, frame)
-    clickShield:SetAllPoints()
-    clickShield:EnableMouse(true)
-    clickShield:SetFrameLevel(frame:GetFrameLevel() + 20)
-    clickShield:Hide()
+    if IsFactoryMapPosition(Sszorak:GetMapPosition()) then
+        local position = DefaultMapPosition(frame)
+        Sszorak:SetMapPosition(position)
+        frame:SetWindowPosition(position)
+    end
     RegisterMapLayoutElement(frame)
     return frame
 end
@@ -296,6 +299,9 @@ function Window.ListenForCombatDeferral()
     end)
     -- Zoning into the raid is out of combat, which is the last chance to Show the protected map.
     Instance.OnEnteringWorld(function()
+        Window.Update()
+    end)
+    Instance.OnZoneChangedIndoors(function()
         Window.Update()
     end)
 end

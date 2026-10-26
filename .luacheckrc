@@ -53,6 +53,7 @@ local GAME_API = {
     "EJ_SelectTier",
     "Enum",
     "GetInstanceInfo",
+    "GetSubZoneText",
     "GetLocale",
     "GetNormalizedRealmName",
     "GetNumGroupMembers",

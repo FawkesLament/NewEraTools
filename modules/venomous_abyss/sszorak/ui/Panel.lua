@@ -619,7 +619,7 @@ function Sszorak:OnEnable()
             end
             UpdateResetButton()
             UpdateCommanderControls()
-            -- Enabling or disabling never opens or closes a preview; during a fight it shows or hides the map.
+            -- Enabling or disabling never opens or closes a preview; at the altar it shows or hides the map.
             Window.Update()
             if LayoutEditor.IsEditing() then
                 LayoutEditor.Refresh()
@@ -633,7 +633,6 @@ function Sszorak:OnEnable()
     self:ListenForMacroSync()
     -- Register layout elements before the map is first shown.
     -- Secure marker buttons must be created out of combat; OnEnable runs before pulls.
-    -- Show now when a raid pull could start, because Show is blocked once combat lockdown begins.
     Window.Ensure()
     Window.Update()
     -- Window markers are created with macro bindings; strip them for members.

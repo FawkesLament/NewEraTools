@@ -16,9 +16,11 @@ return function()
         seasonalMythicIds = {},
         seasonalMythicNames = {},
         enteringWorldCallbacks = {},
+        zoneChangedIndoorsCallbacks = {},
         challengeModeStartCallbacks = {},
         challengeModeCompletedCallbacks = {},
         challengeModeResetCallbacks = {},
+        subZoneText = "",
     }
 
     function Instance.GetInfo()
@@ -28,6 +30,10 @@ return function()
             difficultyID = Instance.info.difficultyID,
             instanceID = Instance.info.instanceID,
         }
+    end
+
+    function Instance.GetSubZoneText()
+        return Instance.subZoneText or ""
     end
 
     function Instance.IsChallengeModeActive()
@@ -59,6 +65,10 @@ return function()
         table.insert(Instance.enteringWorldCallbacks, callback)
     end
 
+    function Instance.OnZoneChangedIndoors(callback)
+        table.insert(Instance.zoneChangedIndoorsCallbacks, callback)
+    end
+
     function Instance.OnChallengeModeStart(callback)
         table.insert(Instance.challengeModeStartCallbacks, callback)
     end
@@ -73,6 +83,12 @@ return function()
 
     function Instance.FireEnteringWorld()
         for _, callback in ipairs(Instance.enteringWorldCallbacks) do
+            callback()
+        end
+    end
+
+    function Instance.FireZoneChangedIndoors()
+        for _, callback in ipairs(Instance.zoneChangedIndoorsCallbacks) do
             callback()
         end
     end

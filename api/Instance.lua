@@ -165,6 +165,16 @@ function Instance.GetInfo()
     }
 end
 
+---Localized subzone name for the player's current indoor area, or "" if none.
+---@return string
+function Instance.GetSubZoneText()
+    local text = GetSubZoneText()
+    if type(text) ~= "string" then
+        return ""
+    end
+    return text
+end
+
 ---Whether a Mythic+ run timer is active in the current instance.
 ---@return boolean
 function Instance.IsChallengeModeActive()
@@ -221,6 +231,12 @@ end
 ---@param callback fun()
 function Instance.OnEnteringWorld(callback)
     ns.Api.GameEvents.Listen("PLAYER_ENTERING_WORLD", callback)
+end
+
+---Calls `callback` when the indoor subzone changes.
+---@param callback fun()
+function Instance.OnZoneChangedIndoors(callback)
+    ns.Api.GameEvents.Listen("ZONE_CHANGED_INDOORS", callback)
 end
 
 ---Calls `callback` when a Mythic+ run starts.
