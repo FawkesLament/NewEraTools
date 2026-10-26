@@ -564,8 +564,6 @@ function TwinFangs:OnEnable()
             syncInterruptChainEditor()
         end
     end)
-    -- TEMP: nameplate-hint casts listen outside the encounter for in-game testing.
-    self:ListenForNameplateHint()
     InterruptStatusHud.Ensure()
     InterruptStatusHud.Update()
 end
