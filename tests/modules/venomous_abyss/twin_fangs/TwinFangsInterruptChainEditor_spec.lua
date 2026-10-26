@@ -43,7 +43,11 @@ describe("TwinFangs interrupt chain editor", function()
         assert.equals("MAGE", Chain.GetMember(state, "Player-1-ARIC").classFile)
     end)
 
-    it("starts each region with no party and an empty chain", function()
+    local function EnableBackup(regionId, channel)
+        assert.is_true(Chain.SetChannel(state, regionId, channel or Schema.CHANNEL_SAY))
+    end
+
+    it("starts each region with no party, party chat, and an empty chain", function()
         assert.is_nil(Chain.GetRegion(state, Chain.FRONT_LEFT).group)
         assert.is_nil(Chain.GetRegion(state, Chain.FRONT_RIGHT).group)
         assert.is_nil(Chain.GetRegion(state, Chain.BACK_LEFT).group)
@@ -51,6 +55,8 @@ describe("TwinFangs interrupt chain editor", function()
         assert.equals(ns.L.TWIN_FANGS_INTERRUPT_RAID_GROUP_NONE, Labels.GroupLabel(nil))
         assert.equals(0, #Chain.GetRegion(state, Chain.FRONT_LEFT).players)
         assert.is_nil(Chain.GetRegion(state, Chain.FRONT_LEFT).backup)
+        assert.equals(Schema.CHANNEL_PARTY, Chain.GetRegion(state, Chain.FRONT_LEFT).channel)
+        assert.equals(Schema.CHANNEL_PARTY, Chain.GetRegion(state, Chain.FRONT_RIGHT).channel)
         assert.is_true(state.dirty)
     end)
 
@@ -111,9 +117,11 @@ describe("TwinFangs interrupt chain editor", function()
     it("swaps party assignments when the selected party belongs to another region", function()
         Chain.SetGroup(state, Chain.FRONT_LEFT, 1)
         Chain.AddPlayer(state, Chain.FRONT_LEFT, Guid("清风"))
+        EnableBackup(Chain.FRONT_LEFT, Schema.CHANNEL_SAY)
         Chain.SetBackup(state, Chain.FRONT_LEFT, Guid("南枝"))
         Chain.SetGroup(state, Chain.FRONT_RIGHT, 2)
         Chain.AddPlayer(state, Chain.FRONT_RIGHT, Guid("流火"))
+        EnableBackup(Chain.FRONT_RIGHT, Schema.CHANNEL_YELL)
         Chain.SetBackup(state, Chain.FRONT_RIGHT, Guid("余烬"))
 
         assert.is_true(Chain.SetGroup(state, Chain.FRONT_LEFT, 2))
@@ -148,6 +156,7 @@ describe("TwinFangs interrupt chain editor", function()
     it("drops leftover primaries and same-group backups when the raid group changes", function()
         Chain.SetGroup(state, Chain.FRONT_LEFT, 1)
         Chain.AddPlayer(state, Chain.FRONT_LEFT, Guid("清风"))
+        EnableBackup(Chain.FRONT_LEFT)
         Chain.SetBackup(state, Chain.FRONT_LEFT, Guid("流火"))
         assert.is_true(Chain.SetGroup(state, Chain.FRONT_LEFT, 2))
         local region = Chain.GetRegion(state, Chain.FRONT_LEFT)
@@ -187,6 +196,7 @@ describe("TwinFangs interrupt chain editor", function()
         end
         assert.same({ "流火", "霜华", "远山" }, names)
 
+        EnableBackup(Chain.BACK_LEFT)
         Chain.SetBackup(state, Chain.BACK_LEFT, Guid("流火"))
         names = {}
         for _, member in ipairs(Chain.GetBackupPlayers(state, Chain.FRONT_LEFT, 2)) do
@@ -198,6 +208,7 @@ describe("TwinFangs interrupt chain editor", function()
     end)
 
     it("initializes the backup picker from a committed assignment", function()
+        EnableBackup(Chain.FRONT_LEFT)
         Chain.SetBackup(state, Chain.FRONT_LEFT, Guid("余烬"))
         local picker = Chain.SyncBackupPicker(state, Chain.FRONT_LEFT, nil)
         assert.equals(5, picker.group)
@@ -206,6 +217,7 @@ describe("TwinFangs interrupt chain editor", function()
     end)
 
     it("keeps the committed backup when only the picker group changes", function()
+        EnableBackup(Chain.FRONT_LEFT)
         Chain.SetBackup(state, Chain.FRONT_LEFT, Guid("流火"))
         local picker = Chain.SyncBackupPicker(state, Chain.FRONT_LEFT, nil)
         Chain.PickBackupGroup(picker, 5)
@@ -220,6 +232,7 @@ describe("TwinFangs interrupt chain editor", function()
     end)
 
     it("reinitializes the backup picker when the region's group makes the backup ineligible", function()
+        EnableBackup(Chain.FRONT_LEFT)
         Chain.SetBackup(state, Chain.FRONT_LEFT, Guid("流火"))
         local picker = Chain.SyncBackupPicker(state, Chain.FRONT_LEFT, nil)
         Chain.SetGroup(state, Chain.FRONT_LEFT, 2)
@@ -232,6 +245,8 @@ describe("TwinFangs interrupt chain editor", function()
 
     it("rejects a backup from the same group or already used by another region", function()
         Chain.SetGroup(state, Chain.FRONT_LEFT, 1)
+        EnableBackup(Chain.FRONT_LEFT)
+        EnableBackup(Chain.FRONT_RIGHT, Schema.CHANNEL_YELL)
         assert.is_false(Chain.SetBackup(state, Chain.FRONT_LEFT, Guid("清风")))
         assert.is_true(Chain.SetBackup(state, Chain.FRONT_LEFT, Guid("流火")))
         assert.is_false(Chain.SetBackup(state, Chain.FRONT_RIGHT, Guid("流火")))
@@ -274,7 +289,9 @@ describe("TwinFangs interrupt chain editor", function()
 
     it("reports a shared or same-group backup as an error", function()
         state.regions[Chain.FRONT_LEFT].group = 1
+        state.regions[Chain.FRONT_LEFT].channel = Schema.CHANNEL_SAY
         state.regions[Chain.FRONT_LEFT].backup = Player("清风")
+        state.regions[Chain.FRONT_RIGHT].channel = Schema.CHANNEL_YELL
         state.regions[Chain.FRONT_RIGHT].backup = Player("清风")
         local issues = Chain.Validate(state)
         local codes = {}
@@ -300,7 +317,14 @@ describe("TwinFangs interrupt chain editor", function()
             [Chain.BACK_LEFT] = 3,
             [Chain.BACK_RIGHT] = 4,
         }
+        local channels = {
+            [Chain.FRONT_LEFT] = Schema.CHANNEL_SAY,
+            [Chain.FRONT_RIGHT] = Schema.CHANNEL_YELL,
+            [Chain.BACK_LEFT] = Schema.CHANNEL_EMOTE,
+            [Chain.BACK_RIGHT] = Schema.CHANNEL_NOD,
+        }
         for regionId, pair in pairs(assignments) do
+            Chain.SetChannel(state, regionId, channels[regionId])
             Chain.SetGroup(state, regionId, groups[regionId])
             Chain.AddPlayer(state, regionId, pair[1])
             Chain.SetBackup(state, regionId, pair[2])
@@ -320,6 +344,7 @@ describe("TwinFangs interrupt chain editor", function()
                 group = region.group,
                 players = region.players,
                 backup = region.backup,
+                channel = region.channel,
             }
         end
         return copy
@@ -391,9 +416,11 @@ describe("TwinFangs interrupt chain editor", function()
     it("replaces every previous assignment and backup", function()
         Chain.SetGroup(state, Chain.FRONT_LEFT, 2)
         Chain.AddPlayer(state, Chain.FRONT_LEFT, Guid("流火"))
+        EnableBackup(Chain.FRONT_LEFT)
         Chain.SetBackup(state, Chain.FRONT_LEFT, Guid("南枝"))
         Chain.SetGroup(state, Chain.BACK_RIGHT, 4)
         Chain.AddPlayer(state, Chain.BACK_RIGHT, Guid("朔风"))
+        EnableBackup(Chain.BACK_RIGHT, Schema.CHANNEL_YELL)
         Chain.SetBackup(state, Chain.BACK_RIGHT, Guid("余烬"))
         assert.is_true(Chain.AutoAssign(state, InterruptChainHelper.MockRoster(), true, true))
         assert.equals(1, Chain.GetRegion(state, Chain.FRONT_LEFT).group)
@@ -426,6 +453,7 @@ describe("TwinFangs interrupt chain editor", function()
     it("leaves the configuration unchanged when auto-assign is blocked", function()
         Chain.SetGroup(state, Chain.FRONT_LEFT, 1)
         Chain.AddPlayer(state, Chain.FRONT_LEFT, Guid("清风"))
+        EnableBackup(Chain.FRONT_LEFT)
         Chain.SetBackup(state, Chain.FRONT_LEFT, Guid("流火"))
         local before = SnapshotRegions(state)
 
@@ -512,8 +540,11 @@ describe("TwinFangs interrupt chain editor", function()
         assert.equals(ns.Api.Unit.GetFullName("清风"), chain.front_left.players[1].name)
         assert.is_nil(chain.front_left.players[2].guid)
         assert.equals(ns.Api.Unit.GetFullName("夜雨"), chain.front_left.players[2].name)
+        assert.equals(Schema.CHANNEL_PARTY, chain.front_left.channel)
+        assert.equals(Schema.CHANNEL_PARTY, chain.front_right.channel)
         assert.equals(0, #chain.front_right.players)
         assert.is_nil(chain.back_left.group)
+        assert.equals(Schema.CHANNEL_PARTY, chain.back_left.channel)
         assert.equals(0, #chain.back_right.players)
     end)
 
@@ -525,6 +556,7 @@ describe("TwinFangs interrupt chain editor", function()
         Chain.SetGroup(bound, Chain.FRONT_LEFT, 1)
         Chain.AddPlayer(bound, Chain.FRONT_LEFT, Guid("清风"))
         Chain.AddPlayer(bound, Chain.FRONT_LEFT, Guid("夜雨"))
+        assert.is_true(Chain.SetChannel(bound, Chain.FRONT_LEFT, Schema.CHANNEL_SAY))
         Chain.SetBackup(bound, Chain.FRONT_LEFT, Guid("流火"))
         assert.is_true(Chain.AutoAssign(bound, InterruptChainHelper.MockRoster(), true, true))
         local saved = ns.Util.DeepCopy(module.db)
@@ -536,8 +568,10 @@ describe("TwinFangs interrupt chain editor", function()
         local chain = restored.db.interruptReminder.chain
         assert.same({ Player("清风"), Player("夜雨"), Player("石川") }, chain.front_left.players)
         assert.equals(1, chain.front_left.group)
+        assert.equals(Schema.CHANNEL_SAY, chain.front_left.channel)
         assert.is_nil(chain.front_left.backup)
         assert.equals(2, chain.front_right.group)
+        assert.equals(Schema.CHANNEL_PARTY, chain.front_right.channel)
         assert.same(Player("流火"), chain.front_right.players[1])
 
         local reloaded = Chain.NewState(chain)
@@ -551,5 +585,163 @@ describe("TwinFangs interrupt chain editor", function()
         first.interruptReminder.chain.front_left.players[1] = Player("清风")
         assert.equals(0, #second.interruptReminder.chain.front_left.players)
         assert.is_false(first.interruptReminder.chain == second.interruptReminder.chain)
+    end)
+
+    describe("communication channels", function()
+        local function IssueCodes(issues)
+            local codes = {}
+            for _, issue in ipairs(issues) do
+                codes[issue.code] = (codes[issue.code] or 0) + 1
+            end
+            return codes
+        end
+
+        it("defaults missing and invalid persisted channels to party and drops party backups", function()
+            local chain = Chain.SanitizeSaved({
+                front_left = { group = 1, channel = "nope", backup = Player("流火") },
+                front_right = { channel = Schema.CHANNEL_NOD, backup = Player("霜华") },
+                back_left = { channel = Schema.CHANNEL_PARTY, backup = Player("栖梧") },
+            })
+            assert.equals(Schema.CHANNEL_PARTY, chain.front_left.channel)
+            assert.is_nil(chain.front_left.backup)
+            assert.equals(Schema.CHANNEL_NOD, chain.front_right.channel)
+            assert.same(Player("霜华"), chain.front_right.backup)
+            assert.equals(Schema.CHANNEL_PARTY, chain.back_left.channel)
+            assert.is_nil(chain.back_left.backup)
+            assert.equals(Schema.CHANNEL_PARTY, Schema.NewInterruptRegion().channel)
+        end)
+
+        it("rejects a backup on party while applying a complete snapshot", function()
+            Chain.SetGroup(state, Chain.FRONT_LEFT, 1)
+            Chain.AddPlayer(state, Chain.FRONT_LEFT, Guid("清风"))
+            state.regions[Chain.FRONT_LEFT].backup = Player("流火")
+            local codes = IssueCodes(Chain.Validate(state))
+            assert.equals(1, codes.backup_channel)
+            assert.equals("error", Chain.GetStatus(state).level)
+            assert.same(Player("流火"), Chain.GetRegion(state, Chain.FRONT_LEFT).backup)
+        end)
+
+        it("persists a chosen channel across a simulated reload", function()
+            ns.Modules.Start(ns.Database.Load(nil))
+            local module = ns.Modules.Get("TwinFangs")
+            local bound = Chain.NewState(module.db.interruptReminder.chain)
+            assert.is_true(Chain.SetChannel(bound, Chain.FRONT_LEFT, Schema.CHANNEL_YELL))
+            assert.is_true(Chain.SetChannel(bound, Chain.BACK_RIGHT, Schema.CHANNEL_MARKER))
+            local saved = ns.Util.DeepCopy(module.db)
+
+            ns = Loader.Load()
+            Chain = ns.Modules.Internals("TwinFangs").InterruptChain
+            Schema = ns.Modules.Internals("TwinFangs").Schema
+            ns.Modules.Start(ns.Database.Load({ modules = { TwinFangs = saved } }))
+            local chain = ns.Modules.Get("TwinFangs").db.interruptReminder.chain
+            assert.equals(Schema.CHANNEL_YELL, chain.front_left.channel)
+            assert.equals(Schema.CHANNEL_PARTY, chain.front_right.channel)
+            assert.equals(Schema.CHANNEL_MARKER, chain.back_right.channel)
+        end)
+
+        it("marks the working configuration dirty when the channel changes", function()
+            state.dirty = false
+            assert.is_false(Chain.SetChannel(state, Chain.FRONT_LEFT, Schema.CHANNEL_PARTY))
+            assert.is_false(state.dirty)
+            assert.is_false(Chain.SetChannel(state, Chain.FRONT_LEFT, "nope"))
+            assert.is_true(Chain.SetChannel(state, Chain.FRONT_LEFT, Schema.CHANNEL_SAY))
+            assert.is_true(state.dirty)
+            assert.equals(Schema.CHANNEL_SAY, Chain.GetRegion(state, Chain.FRONT_LEFT).channel)
+            state.dirty = false
+            assert.is_false(Chain.SetChannel(state, Chain.FRONT_LEFT, Schema.CHANNEL_SAY))
+            assert.is_false(state.dirty)
+        end)
+
+        it("clears a backup when switching to party and does not restore it later", function()
+            Chain.SetGroup(state, Chain.FRONT_LEFT, 1)
+            Chain.AddPlayer(state, Chain.FRONT_LEFT, Guid("清风"))
+            EnableBackup(Chain.FRONT_LEFT)
+            assert.is_true(Chain.SetBackup(state, Chain.FRONT_LEFT, Guid("流火")))
+            assert.is_true(Chain.SetChannel(state, Chain.FRONT_LEFT, Schema.CHANNEL_PARTY))
+            local region = Chain.GetRegion(state, Chain.FRONT_LEFT)
+            assert.equals(Schema.CHANNEL_PARTY, region.channel)
+            assert.is_nil(region.backup)
+            assert.same({ Player("清风") }, region.players)
+            assert.is_true(Chain.SetChannel(state, Chain.FRONT_LEFT, Schema.CHANNEL_YELL))
+            assert.is_nil(Chain.GetRegion(state, Chain.FRONT_LEFT).backup)
+            assert.same({ Player("清风") }, Chain.GetRegion(state, Chain.FRONT_LEFT).players)
+        end)
+
+        it("rejects a new backup on party and allows one on other channels", function()
+            Chain.SetGroup(state, Chain.FRONT_LEFT, 1)
+            assert.is_false(Chain.SetBackup(state, Chain.FRONT_LEFT, Guid("流火")))
+            assert.is_nil(Chain.GetRegion(state, Chain.FRONT_LEFT).backup)
+            EnableBackup(Chain.FRONT_LEFT)
+            assert.is_true(Chain.SetBackup(state, Chain.FRONT_LEFT, Guid("流火")))
+            assert.same(Player("流火"), Chain.GetRegion(state, Chain.FRONT_LEFT).backup)
+        end)
+
+        it("drops a backup that lands on party during a group swap", function()
+            EnableBackup(Chain.FRONT_LEFT, Schema.CHANNEL_SAY)
+            Chain.SetGroup(state, Chain.FRONT_LEFT, 1)
+            Chain.AddPlayer(state, Chain.FRONT_LEFT, Guid("清风"))
+            Chain.SetBackup(state, Chain.FRONT_LEFT, Guid("流火"))
+            Chain.SetGroup(state, Chain.FRONT_RIGHT, 2)
+            Chain.AddPlayer(state, Chain.FRONT_RIGHT, Guid("霜华"))
+            assert.is_true(Chain.SetGroup(state, Chain.FRONT_RIGHT, 1))
+            local left = Chain.GetRegion(state, Chain.FRONT_LEFT)
+            local right = Chain.GetRegion(state, Chain.FRONT_RIGHT)
+            assert.equals(2, left.group)
+            assert.same({ Player("霜华") }, left.players)
+            assert.equals(Schema.CHANNEL_SAY, left.channel)
+            assert.is_nil(left.backup)
+            assert.equals(1, right.group)
+            assert.same({ Player("清风") }, right.players)
+            assert.equals(Schema.CHANNEL_PARTY, right.channel)
+            assert.is_nil(right.backup)
+        end)
+
+        it("lets Auto Assign keep existing channels while clearing backups", function()
+            EnableBackup(Chain.FRONT_LEFT, Schema.CHANNEL_NOD)
+            EnableBackup(Chain.BACK_RIGHT, Schema.CHANNEL_MARKER)
+            Chain.SetBackup(state, Chain.FRONT_LEFT, Guid("流火"))
+            assert.is_true(Chain.AutoAssign(state, InterruptChainHelper.MockRoster(), true, true))
+            assert.equals(Schema.CHANNEL_NOD, Chain.GetRegion(state, Chain.FRONT_LEFT).channel)
+            assert.equals(Schema.CHANNEL_MARKER, Chain.GetRegion(state, Chain.BACK_RIGHT).channel)
+            assert.equals(Schema.CHANNEL_PARTY, Chain.GetRegion(state, Chain.FRONT_RIGHT).channel)
+            assert.is_nil(Chain.GetRegion(state, Chain.FRONT_LEFT).backup)
+        end)
+
+        it("allows every region to use party and treats nod and marker as exclusive", function()
+            local codes = IssueCodes(Chain.Validate(state))
+            assert.is_nil(codes.channel_conflict)
+
+            Chain.SetChannel(state, Chain.FRONT_LEFT, Schema.CHANNEL_NOD)
+            Chain.SetChannel(state, Chain.FRONT_RIGHT, Schema.CHANNEL_NOD)
+            codes = IssueCodes(Chain.Validate(state))
+            assert.equals(2, codes.channel_conflict)
+            assert.equals("error", Chain.GetStatus(state).level)
+
+            Chain.SetChannel(state, Chain.FRONT_RIGHT, Schema.CHANNEL_MARKER)
+            Chain.SetChannel(state, Chain.BACK_LEFT, Schema.CHANNEL_MARKER)
+            codes = IssueCodes(Chain.Validate(state))
+            assert.equals(2, codes.channel_conflict)
+        end)
+
+        it("flags two regions that share say, but not mixed spoken channels", function()
+            Chain.SetChannel(state, Chain.FRONT_LEFT, Schema.CHANNEL_SAY)
+            Chain.SetChannel(state, Chain.FRONT_RIGHT, Schema.CHANNEL_SAY)
+            local codes = IssueCodes(Chain.Validate(state))
+            assert.equals(2, codes.channel_conflict)
+
+            Chain.SetChannel(state, Chain.FRONT_RIGHT, Schema.CHANNEL_YELL)
+            Chain.SetChannel(state, Chain.BACK_LEFT, Schema.CHANNEL_EMOTE)
+            codes = IssueCodes(Chain.Validate(state))
+            assert.is_nil(codes.channel_conflict)
+        end)
+
+        it("exposes slash-command labels from the shared channel list", function()
+            assert.equals(ns.L.TWIN_FANGS_INTERRUPT_CHANNEL_PARTY, Labels.ChannelLabel(Schema.CHANNEL_PARTY))
+            assert.equals(ns.L.TWIN_FANGS_INTERRUPT_CHANNEL_PARTY, Labels.ChannelLabel("nope"))
+            local items = Labels.ChannelItems()
+            assert.equals(#Schema.CHANNEL_IDS, #items)
+            assert.equals(Schema.CHANNEL_PARTY, items[1].value)
+            assert.equals(ns.L.TWIN_FANGS_INTERRUPT_CHANNEL_PARTY, items[1].text)
+        end)
     end)
 end)

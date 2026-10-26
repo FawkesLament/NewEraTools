@@ -137,6 +137,10 @@ local function SanitizeRegion(region)
         end
     end
     sanitized.backup = CoercePlayer(region.backup)
+    sanitized.channel = Schema.CoerceChannel(region.channel)
+    if sanitized.backup and not Schema.ChannelAllowsBackup(sanitized.channel) then
+        sanitized.backup = nil
+    end
     return sanitized
 end
 
@@ -236,6 +240,7 @@ function InterruptChain.GetRegion(state, regionId)
         group = region.group,
         players = InterruptChain.CopyPlayers(region.players),
         backup = InterruptChain.CopyPlayer(region.backup),
+        channel = Schema.CoerceChannel(region.channel),
     }
 end
 
@@ -339,16 +344,18 @@ end
 ---@param region table
 ---@return TwinFangsInterruptMemberAssignment
 local function CopyAssignment(regionId, region)
-    ---@class TwinFangsInterruptMemberAssignment
-    ---@field regionId string
-    ---@field group number|nil
-    ---@field players TwinFangsInterruptPlayer[]
-    ---@field backup TwinFangsInterruptPlayer|nil
+---@class TwinFangsInterruptMemberAssignment
+---@field regionId string
+---@field group number|nil
+---@field players TwinFangsInterruptPlayer[]
+---@field backup TwinFangsInterruptPlayer|nil
+---@field channel TwinFangsInterruptChannel
     return {
         regionId = regionId,
         group = InterruptChain.IsRaidGroup(region.group) and region.group or nil,
         players = CopyStoredPlayers(region.players),
         backup = CopyStoredPlayer(region.backup),
+        channel = Schema.CoerceChannel(region.channel),
     }
 end
 

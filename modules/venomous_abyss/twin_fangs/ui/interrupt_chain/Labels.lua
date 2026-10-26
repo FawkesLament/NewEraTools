@@ -1,6 +1,7 @@
 local _, ns = ...
 local Internals = ns.Modules.Internals("TwinFangs")
 local L = ns.L
+local Schema = Internals.Schema
 local Chain = Internals.InterruptChain
 
 local Labels = {}
@@ -24,6 +25,35 @@ function Labels.RegionLabel(regionId)
         return L.TWIN_FANGS_INTERRUPT_REGION_BACK_RIGHT
     end
     return regionId
+end
+
+---@param channel any
+---@return string
+function Labels.ChannelLabel(channel)
+    local key = Schema.CHANNEL_LABELS[Schema.CoerceChannel(channel)]
+    return L[key]
+end
+
+---@return DropdownItem[]
+function Labels.ChannelItems()
+    local items = {}
+    for _, channel in ipairs(Schema.CHANNEL_IDS) do
+        items[#items + 1] = { value = channel, text = Labels.ChannelLabel(channel) }
+    end
+    return items
+end
+
+---@param regionId string
+---@param group number|nil
+---@param channel any
+---@return string
+function Labels.AssignmentTitle(regionId, group, channel)
+    return string.format(
+        "%s  ·  %s  ·  %s",
+        Labels.RegionLabel(regionId),
+        Labels.GroupLabel(group),
+        Labels.ChannelLabel(channel)
+    )
 end
 
 ---@param group number|nil

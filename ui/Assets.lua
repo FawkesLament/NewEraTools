@@ -159,7 +159,6 @@ Assets.FontStyles = {
     [Assets.Fonts.HEADER] = { size = 13, color = Assets.Colors.TEXT_MUTED },
     [Assets.Fonts.NAV_GROUP] = { size = 12, color = Assets.Colors.ACCENT },
     [Assets.Fonts.BODY] = { size = 12, color = Assets.Colors.TEXT },
-    [Assets.Fonts.PAYLOAD] = { size = 16, color = Assets.Colors.TEXT },
     [Assets.Fonts.EMPHASIS] = { size = 14, color = Assets.Colors.TEXT, flags = "OUTLINE" },
     [Assets.Fonts.DISPLAY] = { size = 32, color = Assets.Colors.TEXT_GOLD, flags = "OUTLINE" },
     -- Amber + thick outline, ARHei for CJK raid-warning style callouts.

@@ -1,5 +1,6 @@
 local _, ns = ...
 local Internals = ns.Modules.Internals("TwinFangs")
+local Schema = Internals.Schema
 local InterruptChain = Internals.InterruptChain
 
 ---Only the raid leader can edit the chain; everyone else is member-view only.
@@ -49,6 +50,32 @@ local function SwapRegions(left, right)
     left.group, right.group = right.group, left.group
     left.players, right.players = right.players, left.players
     left.backup, right.backup = right.backup, left.backup
+    -- Channel stays with the zone. A backup that lands on party is dropped.
+    if not Schema.ChannelAllowsBackup(left.channel) then
+        left.backup = nil
+    end
+    if not Schema.ChannelAllowsBackup(right.channel) then
+        right.backup = nil
+    end
+end
+
+---Sets this zone's communication channel. Switching to party clears its backup.
+---@param state TwinFangsInterruptChainState
+---@param regionId string
+---@param channel any
+---@return boolean
+function InterruptChain.SetChannel(state, regionId, channel)
+    local region = state.regions[regionId]
+    assert(region, "Unknown interrupt region")
+    if not Schema.IsChannel(channel) or region.channel == channel then
+        return false
+    end
+    region.channel = channel
+    if not Schema.ChannelAllowsBackup(channel) then
+        region.backup = nil
+    end
+    state.dirty = true
+    return true
 end
 
 ---@param state TwinFangsInterruptChainState
@@ -336,6 +363,9 @@ function InterruptChain.SetBackup(state, regionId, guid)
         region.backup = nil
         state.dirty = true
         return true
+    end
+    if not Schema.ChannelAllowsBackup(region.channel) then
+        return false
     end
     if type(guid) ~= "string" then
         return false

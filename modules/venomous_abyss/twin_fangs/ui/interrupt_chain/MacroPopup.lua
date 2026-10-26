@@ -38,6 +38,38 @@ local measure
 local payloadText = ""
 ---@type number
 local appliedWidth = -1
+local scaleListening = false
+
+---@return number
+local function MainPanelScale()
+    local mainPanel = ns.MainPanel
+    if mainPanel and mainPanel.GetScale then
+        return mainPanel.GetScale()
+    end
+    return 1
+end
+
+local function SyncScale()
+    if window then
+        window:SetWindowScale(MainPanelScale())
+    end
+end
+
+local function ListenForScale()
+    if scaleListening then
+        return
+    end
+    local mainPanel = ns.MainPanel
+    if not mainPanel or not mainPanel.OnScaleChanged then
+        return
+    end
+    scaleListening = true
+    mainPanel.OnScaleChanged(function(scale)
+        if window then
+            window:SetWindowScale(scale)
+        end
+    end)
+end
 
 ---@param text string
 ---@return integer
@@ -68,7 +100,7 @@ local function ApplyText(text)
     local textHeight = measure:GetStringHeight()
     if not textHeight or textHeight < 1 then
         local _, fontSize = box:GetFont()
-        textHeight = LineCount(payloadText) * (fontSize or Assets.FontStyles[Fonts.PAYLOAD].size)
+        textHeight = LineCount(payloadText) * (fontSize or Assets.FontStyles[Fonts.BODY].size)
     end
     box:SetHeight(math.max(textHeight + TEXT_INSET * 2, scroll:GetHeight()))
     box:SetText(payloadText)
@@ -83,11 +115,13 @@ local function Ensure()
     window = FloatingWindow.Create({
         name = ns.ADDON_NAME .. "TwinFangsMacro",
         fill = Colors.BG,
+        scale = MainPanelScale(),
         closable = true,
         onClose = function()
             window:Hide()
         end,
     })
+    ListenForScale()
     window:SetSize(WINDOW_WIDTH, WINDOW_HEIGHT)
     window:SetFrameStrata("DIALOG")
     table.insert(UISpecialFrames, window:GetName())
@@ -128,13 +162,13 @@ local function Ensure()
     box = CreateFrame("EditBox", nil, scroll)
     box:SetMultiLine(true)
     box:SetAutoFocus(false)
-    box:SetFontObject(Fonts.PAYLOAD)
+    box:SetFontObject(Fonts.BODY)
     box:SetTextColor(Widgets.UnpackColor(Colors.TEXT))
     box:SetTextInsets(TEXT_INSET, TEXT_INSET, TEXT_INSET, TEXT_INSET)
     box:SetMaxLetters(0)
     scroll:SetScrollChild(box)
 
-    measure = window:CreateFontString(nil, "ARTWORK", Fonts.PAYLOAD)
+    measure = window:CreateFontString(nil, "ARTWORK", Fonts.BODY)
     measure:Hide()
     measure:SetWordWrap(true)
     measure:SetNonSpaceWrap(true)
@@ -178,6 +212,7 @@ end
 ---@param text string
 function MacroPopup.Show(text)
     local frame = Ensure()
+    SyncScale()
     frame:Show()
     ApplyText(text)
     box:SetFocus()

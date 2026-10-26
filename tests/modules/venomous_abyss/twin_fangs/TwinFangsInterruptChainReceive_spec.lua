@@ -3,7 +3,8 @@ local Loader = require("helpers.loader")
 describe("TwinFangs interrupt chain receive", function()
     local ns, Chain, Group, AddonMessage, MessageProtocol, MessageProtocolComm, printed
     local LEADER = "Leader-TestRealm"
-    local EXAMPLE = "1|1:15324:52|2:31425:|3:12345:61|4:25134:"
+    local EXAMPLE = "1|1:15324:52:s|2:31425::p|3:12345:61:y|4:25134::p"
+    local LEGACY_EXAMPLE = "1|1:15324:52|2:31425:|3:12345:61|4:25134:"
 
     local function Member(guid, subgroup, index)
         return {
@@ -100,9 +101,12 @@ describe("TwinFangs interrupt chain receive", function()
                 regions.front_left.players[5].name,
             })
             assert.equals("B52-TestRealm", regions.front_left.backup.name)
+            assert.equals("say", regions.front_left.channel)
+            assert.equals("party", regions.front_right.channel)
             assert.is_nil(regions.front_left.players[2].guid)
             assert.is_nil(regions.front_right.backup)
             assert.equals("B61-TestRealm", regions.back_left.backup.name)
+            assert.equals("yell", regions.back_left.channel)
             assert.same({
                 "RB2-TestRealm",
                 "RB5-TestRealm",
@@ -148,6 +152,39 @@ describe("TwinFangs interrupt chain receive", function()
         it("rejects same-group and shared backups after resolution", function()
             assert.is_nil(Chain.ResolvePublication("1|1:1:12|::|::|::", ExampleRoster()))
             assert.is_nil(Chain.ResolvePublication("1|1:1:51|2:1:51|::|::", ExampleRoster()))
+        end)
+
+        it("decodes a legacy party-plus-backup payload and rejects it on resolve", function()
+            local regions = assert(Chain.DecodePublication(LEGACY_EXAMPLE, ExampleRoster()))
+            assert.equals("party", regions.front_left.channel)
+            assert.equals("B52-TestRealm", regions.front_left.backup.name)
+            assert.equals("party", regions.back_left.channel)
+            assert.equals("B61-TestRealm", regions.back_left.backup.name)
+            local resolved, reason = Chain.ResolvePublication(LEGACY_EXAMPLE, ExampleRoster())
+            assert.is_nil(resolved)
+            assert.equals("backup_channel", reason)
+        end)
+
+        it("decodes all six channel codes and defaults a missing code to party", function()
+            local Schema = ns.Modules.Internals("TwinFangs").Schema
+            local payload = "1|1:15324:52:s|2:31425::y|3:12345:61:e|4:25134::n"
+            local regions = assert(Chain.DecodePublication(payload, ExampleRoster()))
+            assert.equals(Schema.CHANNEL_SAY, regions.front_left.channel)
+            assert.equals(Schema.CHANNEL_YELL, regions.front_right.channel)
+            assert.equals(Schema.CHANNEL_EMOTE, regions.back_left.channel)
+            assert.equals(Schema.CHANNEL_NOD, regions.back_right.channel)
+            regions = assert(Chain.DecodePublication("1|1:1::m|::|::|::", ExampleRoster()))
+            assert.equals(Schema.CHANNEL_MARKER, regions.front_left.channel)
+            assert.equals(Schema.CHANNEL_PARTY, regions.front_right.channel)
+            regions = assert(Chain.DecodePublication("1|:::p|:::p|4:::p|:::p", { Member("solo", 4, 1) }))
+            assert.equals(Schema.CHANNEL_PARTY, regions.back_left.channel)
+        end)
+
+        it("rejects an unknown channel code and exclusive-channel conflicts", function()
+            assert.is_nil(Chain.DecodePublication("1|1:1::x|::|::|::", ExampleRoster()))
+            assert.equals("invalid_channel", select(2, Chain.DecodePublication("1|1:1::x|::|::|::", ExampleRoster())))
+            assert.is_nil(Chain.ResolvePublication("1|1:1::n|2:1::n|::|::", ExampleRoster()))
+            assert.equals("channel_conflict", select(2, Chain.ResolvePublication("1|1:1::n|2:1::n|::|::", ExampleRoster())))
         end)
     end)
 
@@ -243,6 +280,27 @@ describe("TwinFangs interrupt chain receive", function()
             assert.equals(state.regions, chain)
         end)
 
+        it("applies a channeled snapshot atomically and leaves state unchanged on conflict", function()
+            local Schema = ns.Modules.Internals("TwinFangs").Schema
+            Deliver("1|1:15324:52:s|2:31425::y|3:12345:61:e|4:25134::n")
+            local chain = module.db.interruptReminder.chain
+            assert.equals(Schema.CHANNEL_SAY, chain.front_left.channel)
+            assert.equals(Schema.CHANNEL_YELL, chain.front_right.channel)
+            assert.equals(Schema.CHANNEL_EMOTE, chain.back_left.channel)
+            assert.equals(Schema.CHANNEL_NOD, chain.back_right.channel)
+            local before = Snapshot(chain)
+            printed = {}
+            Deliver("1|1:15324:52:n|2:31425::n|3:12345:61:p|4:25134::p")
+            assert.same(before, Snapshot(module.db.interruptReminder.chain))
+            assert.equals(1, #printed)
+            Deliver("1|1:15324:52:z|2:31425::p|3:12345:61:p|4:25134::p")
+            assert.same(before, Snapshot(module.db.interruptReminder.chain))
+            assert.equals(2, #printed)
+            Deliver(LEGACY_EXAMPLE)
+            assert.same(before, Snapshot(module.db.interruptReminder.chain))
+            assert.equals(3, #printed)
+        end)
+
         it("survives a simulated reload", function()
             Deliver(EXAMPLE)
             local savedChain = Snapshot(module.db.interruptReminder.chain)
@@ -259,6 +317,30 @@ describe("TwinFangs interrupt chain receive", function()
             local loaded = reloaded.Modules.Get("TwinFangs").db.interruptReminder.chain
             assert.equals("LF5-TestRealm", loaded.front_left.players[2].name)
             assert.equals("B52-TestRealm", loaded.front_left.backup.name)
+            assert.equals("say", loaded.front_left.channel)
+            local ReloadedChain = reloaded.Modules.Internals("TwinFangs").InterruptChain
+            assert.equals(ReloadedChain.FRONT_LEFT, ReloadedChain.GetMemberView(loaded, "LF1").primary.regionId)
+        end)
+
+        it("keeps synchronized channels after a simulated reload", function()
+            local Schema = ns.Modules.Internals("TwinFangs").Schema
+            Deliver("1|1:15324:52:s|2:31425::y|3:12345:61:e|4:25134::n")
+            local savedChain = Snapshot(module.db.interruptReminder.chain)
+            local reloaded = Loader.Load()
+            reloaded.Modules.Start(reloaded.Database.Load({
+                modules = {
+                    TwinFangs = {
+                        interruptReminder = {
+                            chain = savedChain,
+                        },
+                    },
+                },
+            }))
+            local loaded = reloaded.Modules.Get("TwinFangs").db.interruptReminder.chain
+            assert.equals(Schema.CHANNEL_SAY, loaded.front_left.channel)
+            assert.equals(Schema.CHANNEL_YELL, loaded.front_right.channel)
+            assert.equals(Schema.CHANNEL_EMOTE, loaded.back_left.channel)
+            assert.equals(Schema.CHANNEL_NOD, loaded.back_right.channel)
             local ReloadedChain = reloaded.Modules.Internals("TwinFangs").InterruptChain
             assert.equals(ReloadedChain.FRONT_LEFT, ReloadedChain.GetMemberView(loaded, "LF1").primary.regionId)
         end)

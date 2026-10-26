@@ -74,8 +74,27 @@ describe("TwinFangs interrupt chain member view", function()
             assert.equals(FullName("夜雨"), view.primary.players[2].name)
             assert.equals(FullName("石川"), view.primary.players[3].name)
             assert.equals(FullName("余烬"), view.primary.backup.name)
+            assert.equals(Schema.CHANNEL_PARTY, view.primary.channel)
             assert.equals(0, #view.backups)
             assert.equals("夜雨", Labels.DisplayName({}, view.primary.players[2]))
+        end)
+
+        it("exposes each assignment's communication channel in the title", function()
+            chain.front_left.channel = Schema.CHANNEL_YELL
+            chain.front_right.channel = Schema.CHANNEL_NOD
+            local primary = Chain.GetMemberView(chain, FullName("夜雨")).primary
+            local backup = Chain.GetMemberView(chain, FullName("栖梧")).backups[1]
+            assert.equals(Schema.CHANNEL_YELL, primary.channel)
+            assert.equals(Schema.CHANNEL_NOD, backup.channel)
+            assert.equals(
+                Labels.AssignmentTitle(Chain.FRONT_LEFT, 1, Schema.CHANNEL_YELL),
+                string.format(
+                    "%s  ·  %s  ·  %s",
+                    Labels.RegionLabel(Chain.FRONT_LEFT),
+                    Labels.GroupLabel(1),
+                    Labels.ChannelLabel(Schema.CHANNEL_YELL)
+                )
+            )
         end)
 
         it("returns a backup-only assignment without inventing a primary", function()

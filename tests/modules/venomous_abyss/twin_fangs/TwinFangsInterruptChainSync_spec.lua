@@ -62,6 +62,7 @@ describe("TwinFangs interrupt chain sync", function()
             group = 1,
             players = { Player("LF1"), Player("LF5"), Player("LF3"), Player("LF2"), Player("LF4") },
             backup = Player("B52"),
+            channel = "say",
         }
         state.regions[Chain.FRONT_RIGHT] = {
             group = 2,
@@ -72,6 +73,7 @@ describe("TwinFangs interrupt chain sync", function()
             group = 3,
             players = { Player("LB1"), Player("LB2"), Player("LB3"), Player("LB4"), Player("LB5") },
             backup = Player("B61"),
+            channel = "yell",
         }
         state.regions[Chain.BACK_RIGHT] = {
             group = 4,
@@ -127,22 +129,23 @@ describe("TwinFangs interrupt chain sync", function()
         state.regions[Chain.FRONT_LEFT].group = 8
         state.regions[Chain.FRONT_LEFT].players = { Player(vehicle) }
         state.regions[Chain.FRONT_LEFT].backup = Player(player)
-        assert.equals("1|8:1:71|::|::|::", Chain.EncodePublication(state))
+        state.regions[Chain.FRONT_LEFT].channel = "say"
+        assert.equals("1|8:1:71:s|:::p|:::p|:::p", Chain.EncodePublication(state))
         assert.is_true(Chain.Publish(state))
-        assert.equals("1|8:1:71|::|::|::", MessageProtocol.Decode(AddonMessage.sent[1].message).payload)
+        assert.equals("1|8:1:71:s|:::p|:::p|:::p", MessageProtocol.Decode(AddonMessage.sent[1].message).payload)
     end)
 
     it("encodes LF/RF/LB/RB, interrupt order, backups, and empty fields", function()
         local state = Chain.NewState()
         FillExample(state)
-        assert.equals("1|1:15324:52|2:31425:|3:12345:61|4:25134:", Chain.EncodePublication(state))
+        assert.equals("1|1:15324:52:s|2:31425::p|3:12345:61:y|4:25134::p", Chain.EncodePublication(state))
     end)
 
     it("encodes empty chains, missing backups, and unassigned regions", function()
         local state = Chain.NewState()
         Chain.SetRoster(state, { Member("solo", 4, 1) })
         state.regions[Chain.BACK_LEFT].group = 4
-        assert.equals("1|::|::|4::|::", Chain.EncodePublication(state))
+        assert.equals("1|:::p|:::p|4:::p|:::p", Chain.EncodePublication(state))
     end)
 
     it("sends one CONTROL event with the encoded payload", function()
@@ -157,7 +160,7 @@ describe("TwinFangs interrupt chain sync", function()
         assert.equals(MessageProtocol.TYPE_EVENT, decoded.type)
         assert.equals(Chain.SYNC_TOPIC, decoded.topic)
         assert.equals(MessageProtocol.EVENT_CORRELATION_ID, decoded.correlationId)
-        assert.equals("1|1:15324:52|2:31425:|3:12345:61|4:25134:", decoded.payload)
+        assert.equals("1|1:15324:52:s|2:31425::p|3:12345:61:y|4:25134::p", decoded.payload)
         assert.equals(string.format(ns.L.TWIN_FANGS_INTERRUPT_SYNC_SENT, ns.L.TWIN_FANGS_TITLE), printed[1])
         assert.equals(1, #printed)
         assert.is_false(state.dirty)
@@ -195,6 +198,22 @@ describe("TwinFangs interrupt chain sync", function()
         state.regions[Chain.FRONT_LEFT].players = { Player("gone") }
         assert.is_false(Chain.Publish(state))
         assert.equals(0, #AddonMessage.sent)
+    end)
+
+    it("does not send a party-channel backup", function()
+        local state = Chain.NewState()
+        Chain.SetRoster(state, {
+            Member("A", 1, 1),
+            Member("B", 2, 2),
+        })
+        state.regions[Chain.FRONT_LEFT].group = 1
+        state.regions[Chain.FRONT_LEFT].players = { Player("A") }
+        state.regions[Chain.FRONT_LEFT].backup = Player("B")
+        local before = Snapshot(state)
+        assert.is_false(Chain.Publish(state))
+        assert.equals(0, #AddonMessage.sent)
+        assert.same(before, Snapshot(state))
+        assert.is_true(state.dirty)
     end)
 
     it("does not send a same-group or shared backup", function()
@@ -284,6 +303,40 @@ describe("TwinFangs interrupt chain sync", function()
         assert.is_true(Chain.Publish(state))
         assert.same(before, Snapshot(state))
         assert.same(before[Chain.FRONT_LEFT].players, module.db.interruptReminder.chain.front_left.players)
+    end)
+
+    it("encodes all six communication channels on the four regions", function()
+        local Schema = ns.Modules.Internals("TwinFangs").Schema
+        local state = Chain.NewState()
+        FillExample(state)
+        local channels = {
+            [Chain.FRONT_LEFT] = Schema.CHANNEL_SAY,
+            [Chain.FRONT_RIGHT] = Schema.CHANNEL_YELL,
+            [Chain.BACK_LEFT] = Schema.CHANNEL_EMOTE,
+            [Chain.BACK_RIGHT] = Schema.CHANNEL_NOD,
+        }
+        for regionId, channel in pairs(channels) do
+            state.regions[regionId].channel = channel
+        end
+        assert.equals("1|1:15324:52:s|2:31425::y|3:12345:61:e|4:25134::n", Chain.EncodePublication(state))
+        state.regions[Chain.FRONT_LEFT].channel = Schema.CHANNEL_PARTY
+        state.regions[Chain.FRONT_RIGHT].channel = Schema.CHANNEL_MARKER
+        state.regions[Chain.BACK_LEFT].channel = Schema.CHANNEL_PARTY
+        state.regions[Chain.BACK_RIGHT].channel = Schema.CHANNEL_PARTY
+        assert.equals("1|1:15324:52:p|2:31425::m|3:12345:61:p|4:25134::p", Chain.EncodePublication(state))
+    end)
+
+    it("does not send conflicting exclusive channels", function()
+        local Schema = ns.Modules.Internals("TwinFangs").Schema
+        local state = Chain.NewState()
+        FillExample(state)
+        state.regions[Chain.FRONT_LEFT].channel = Schema.CHANNEL_NOD
+        state.regions[Chain.FRONT_RIGHT].channel = Schema.CHANNEL_NOD
+        local before = Snapshot(state)
+        assert.is_false(Chain.Publish(state))
+        assert.equals(0, #AddonMessage.sent)
+        assert.same(before, Snapshot(state))
+        assert.is_true(state.dirty)
     end)
 
     it("registers no inbound handler for the topic", function()

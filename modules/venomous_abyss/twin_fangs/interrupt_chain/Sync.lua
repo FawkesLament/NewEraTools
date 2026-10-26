@@ -127,7 +127,14 @@ local function EncodeRegion(region, positions)
         backupText = tostring(slot.group) .. tostring(slot.position)
     end
 
-    return groupText .. ":" .. table.concat(order) .. ":" .. backupText
+    local channel = region.channel
+    if channel == nil then
+        channel = Schema.CHANNEL_DEFAULT
+    elseif not Schema.IsChannel(channel) then
+        return nil, "invalid_channel"
+    end
+
+    return groupText .. ":" .. table.concat(order) .. ":" .. backupText .. ":" .. Schema.EncodeChannelWire(channel)
 end
 
 ---Encodes the four regions into one payload. Does not send and does not mutate `state`.
@@ -329,8 +336,13 @@ local function DecodeRegion(text, slotsByGroup)
     if type(text) ~= "string" then
         return nil, "malformed"
     end
-    local groupText, orderText, backupText = text:match("^([^:]*):([^:]*):([^:]*)$")
-    if not groupText then
+    local fields = SplitExact(text, ":")
+    local groupText, orderText, backupText, channelText
+    if #fields == 3 then
+        groupText, orderText, backupText = fields[1], fields[2], fields[3]
+    elseif #fields == 4 then
+        groupText, orderText, backupText, channelText = fields[1], fields[2], fields[3], fields[4]
+    else
         return nil, "malformed"
     end
 
@@ -377,10 +389,21 @@ local function DecodeRegion(text, slotsByGroup)
         backup = player
     end
 
+    local channel
+    if channelText == nil or channelText == "" then
+        channel = Schema.CHANNEL_DEFAULT
+    else
+        channel = Schema.DecodeChannelWire(channelText)
+        if not channel then
+            return nil, "invalid_channel"
+        end
+    end
+
     return {
         group = group,
         players = players,
         backup = backup,
+        channel = channel,
     }
 end
 
@@ -460,6 +483,9 @@ local function ReceiveFailureText(reason, detail)
         or reason == "invalid_group"
         or reason == "invalid_position"
         or reason == "duplicate_position"
+        or reason == "invalid_channel"
+        or reason == "channel_conflict"
+        or reason == "backup_channel"
     then
         return L.TWIN_FANGS_INTERRUPT_SYNC_RECEIVE_MALFORMED
     end

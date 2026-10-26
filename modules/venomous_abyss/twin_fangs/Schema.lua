@@ -12,6 +12,7 @@ local Internals = ns.Modules.Internals("TwinFangs")
 ---@field group number|nil
 ---@field players TwinFangsInterruptPlayer[]
 ---@field backup TwinFangsInterruptPlayer|nil
+---@field channel TwinFangsInterruptChannel
 
 ---@class TwinFangsInterruptChainSettings
 ---@field front_left TwinFangsInterruptChainRegion
@@ -48,6 +49,15 @@ local SIDE_LEFT = "left"
 local SIDE_RIGHT = "right"
 local SIDE_TOP = "top"
 local SIDE_BOTTOM = "bottom"
+
+local CHANNEL_PARTY = "party"
+local CHANNEL_SAY = "say"
+local CHANNEL_YELL = "yell"
+local CHANNEL_EMOTE = "emote"
+local CHANNEL_NOD = "nod"
+local CHANNEL_MARKER = "marker"
+
+---@alias TwinFangsInterruptChannel "party"|"say"|"yell"|"emote"|"nod"|"marker"
 
 ---Saved-settings vocabulary, defaults, and clamps shared by the module and the settings UI.
 local Schema = {
@@ -89,8 +99,146 @@ local Schema = {
     FONT_SIZE_STEP = 1,
     -- Ice-blue number fill (#7DD6FF).
     FONT_COLOR_DEFAULT = { r = 125 / 255, g = 214 / 255, b = 1 },
+
+    CHANNEL_PARTY = CHANNEL_PARTY,
+    CHANNEL_SAY = CHANNEL_SAY,
+    CHANNEL_YELL = CHANNEL_YELL,
+    CHANNEL_EMOTE = CHANNEL_EMOTE,
+    CHANNEL_NOD = CHANNEL_NOD,
+    CHANNEL_MARKER = CHANNEL_MARKER,
+    CHANNEL_DEFAULT = CHANNEL_PARTY,
+    CHANNEL_IDS = { CHANNEL_PARTY, CHANNEL_SAY, CHANNEL_YELL, CHANNEL_EMOTE, CHANNEL_NOD, CHANNEL_MARKER },
+    CHANNELS = {
+        [CHANNEL_PARTY] = true,
+        [CHANNEL_SAY] = true,
+        [CHANNEL_YELL] = true,
+        [CHANNEL_EMOTE] = true,
+        [CHANNEL_NOD] = true,
+        [CHANNEL_MARKER] = true,
+    },
+    CHANNEL_ALLOWS_BACKUP = {
+        [CHANNEL_PARTY] = false,
+        [CHANNEL_SAY] = true,
+        [CHANNEL_YELL] = true,
+        [CHANNEL_EMOTE] = true,
+        [CHANNEL_NOD] = true,
+        [CHANNEL_MARKER] = true,
+    },
+    -- Channels that share a group cannot be used by two regions. party is omitted
+    -- (reusable). say/yell/emote each have their own group so two regions cannot
+    -- share the same spoken channel; mixing them is allowed until in-game tests
+    -- prove they cannot be distinguished. Assign the same group id to merge them.
+    CHANNEL_CONFLICT_GROUP = {
+        [CHANNEL_SAY] = "say",
+        [CHANNEL_YELL] = "yell",
+        [CHANNEL_EMOTE] = "emote",
+        [CHANNEL_NOD] = "nod",
+        [CHANNEL_MARKER] = "marker",
+    },
+    CHANNEL_LABELS = {
+        [CHANNEL_PARTY] = "TWIN_FANGS_INTERRUPT_CHANNEL_PARTY",
+        [CHANNEL_SAY] = "TWIN_FANGS_INTERRUPT_CHANNEL_SAY",
+        [CHANNEL_YELL] = "TWIN_FANGS_INTERRUPT_CHANNEL_YELL",
+        [CHANNEL_EMOTE] = "TWIN_FANGS_INTERRUPT_CHANNEL_EMOTE",
+        [CHANNEL_NOD] = "TWIN_FANGS_INTERRUPT_CHANNEL_NOD",
+        [CHANNEL_MARKER] = "TWIN_FANGS_INTERRUPT_CHANNEL_MARKER",
+    },
+    -- One-letter sync / AddonCheck codes. Keep stable; legacy payloads omit them.
+    CHANNEL_WIRE = {
+        [CHANNEL_PARTY] = "p",
+        [CHANNEL_SAY] = "s",
+        [CHANNEL_YELL] = "y",
+        [CHANNEL_EMOTE] = "e",
+        [CHANNEL_NOD] = "n",
+        [CHANNEL_MARKER] = "m",
+    },
+    CHANNEL_FROM_WIRE = {
+        p = CHANNEL_PARTY,
+        s = CHANNEL_SAY,
+        y = CHANNEL_YELL,
+        e = CHANNEL_EMOTE,
+        n = CHANNEL_NOD,
+        m = CHANNEL_MARKER,
+    },
+    -- Interrupt-macro communication line. appendReport adds the localized "已打断" text.
+    CHANNEL_MACRO = {
+        [CHANNEL_PARTY] = { command = "/p", appendReport = true },
+        [CHANNEL_SAY] = { command = "/s", appendReport = true },
+        [CHANNEL_YELL] = { command = "/y", appendReport = true },
+        [CHANNEL_EMOTE] = { command = "/e", appendReport = true },
+        [CHANNEL_NOD] = { command = "/nod", appendReport = false },
+        -- /tm 8 toggles skull. Each successful toggle is one RAID_TARGET_UPDATE.
+        [CHANNEL_MARKER] = { command = "/tm [@player] 8", appendReport = false },
+    },
 }
 Internals.Schema = Schema
+
+---@param channel any
+---@return boolean
+function Schema.IsChannel(channel)
+    return Schema.CHANNELS[channel] == true
+end
+
+---Missing or unknown values become the default party channel.
+---@param channel any
+---@return TwinFangsInterruptChannel
+function Schema.CoerceChannel(channel)
+    if Schema.IsChannel(channel) then
+        return channel
+    end
+    return Schema.CHANNEL_DEFAULT
+end
+
+---@param channel any
+---@return boolean
+function Schema.ChannelAllowsBackup(channel)
+    return Schema.CHANNEL_ALLOWS_BACKUP[Schema.CoerceChannel(channel)] == true
+end
+
+---Shared conflict key, or nil when the channel may be reused across regions.
+---@param channel any
+---@return string|nil
+function Schema.ChannelConflictGroup(channel)
+    return Schema.CHANNEL_CONFLICT_GROUP[Schema.CoerceChannel(channel)]
+end
+
+---@param channel any
+---@return string
+function Schema.EncodeChannelWire(channel)
+    return Schema.CHANNEL_WIRE[Schema.CoerceChannel(channel)]
+end
+
+---One-letter wire code to a channel id, or nil when the code is unknown.
+---@param code any
+---@return TwinFangsInterruptChannel|nil
+function Schema.DecodeChannelWire(code)
+    if type(code) ~= "string" then
+        return nil
+    end
+    return Schema.CHANNEL_FROM_WIRE[code]
+end
+
+---Leading slash token for compact UI (`/y`), or nil when the value is not a channel.
+---@param channel any
+---@return string|nil
+function Schema.ChannelSlash(channel)
+    if not Schema.IsChannel(channel) then
+        return nil
+    end
+    return Schema.CHANNEL_MACRO[channel].command:match("^(%S+)")
+end
+
+---Communication line for the interrupt macro. `reportText` is appended only for chat channels.
+---@param channel any
+---@param reportText string
+---@return string
+function Schema.ChannelMacroLine(channel, reportText)
+    local spec = Schema.CHANNEL_MACRO[Schema.CoerceChannel(channel)]
+    if spec.appendReport then
+        return spec.command .. " " .. reportText
+    end
+    return spec.command
+end
 
 ---A fresh region assignment. Nested player lists are new tables on every call.
 ---@return TwinFangsInterruptChainRegion
@@ -99,6 +247,7 @@ function Schema.NewInterruptRegion()
         group = nil,
         players = {},
         backup = nil,
+        channel = Schema.CHANNEL_DEFAULT,
     }
 end
 

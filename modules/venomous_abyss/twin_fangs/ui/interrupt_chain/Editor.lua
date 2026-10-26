@@ -14,6 +14,7 @@ local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 local Unit = ns.Api.Unit
 
+local Schema = Internals.Schema
 local Chain = Internals.InterruptChain
 local Labels = Internals.InterruptChainLabels
 
@@ -138,7 +139,7 @@ end
 local function RefreshCard(card, regionId)
     local region = Chain.GetRegion(session, regionId)
     local issues = Chain.IssuesFor(Chain.Validate(session), regionId)
-    card.title:SetText(string.format("%s  ·  %s", Labels.RegionLabel(regionId), Labels.GroupLabel(region.group)))
+    card.title:SetText(Labels.AssignmentTitle(regionId, region.group, region.channel))
     if #region.players == 0 then
         card.players:SetText(L.TWIN_FANGS_INTERRUPT_CHAIN_EMPTY_ASSIGNED)
         card.players:SetTextColor(Widgets.UnpackColor(Colors.TEXT_MUTED))
@@ -259,9 +260,27 @@ local function BuildEditor(parent)
         pendingAdd = nil
         Refresh()
     end)
-    Layout.Row(headingRow, { heading, groupDropdown }, Spacing.LARGE)
+    local channelDropdown
+    channelDropdown = Dropdown.Create(headingRow, {}, function(channel)
+        Chain.SetChannel(session, selectedRegion, channel)
+        pendingAdd = nil
+        backupPicker = nil
+        Refresh()
+    end)
+    Layout.Row(headingRow, { heading, groupDropdown, channelDropdown }, Spacing.LARGE)
     editor.heading = heading
     editor.groupDropdown = groupDropdown
+    editor.channelDropdown = channelDropdown
+
+    local channelHintRow = stack:AddRow(1)
+    local channelHint = Widgets.CreateLabel(channelHintRow, Fonts.SMALL_MUTED)
+    channelHint:SetJustifyH("LEFT")
+    channelHint:SetJustifyV("TOP")
+    channelHint:SetWordWrap(true)
+    channelHint:SetPoint("TOPLEFT")
+    channelHint:SetPoint("TOPRIGHT")
+    editor.channelHintRow = channelHintRow
+    editor.channelHint = channelHint
 
     local chainHeader = stack:AddRow(Sizes.CONTENT_SECTION_HEADER)
     Widgets.LayoutSectionHeader(chainHeader, L.TWIN_FANGS_INTERRUPT_CHAIN_SECTION)
@@ -361,9 +380,23 @@ local function BuildEditor(parent)
             self:SetAlpha(1)
         end
     end
+    local backupSelectorsEnabled = true
+    local rawBackupGroupSetEnabled = backupGroupDropdown.SetEnabled
+    function backupGroupDropdown:SetEnabled(enabled)
+        rawBackupGroupSetEnabled(self, enabled == true and backupSelectorsEnabled)
+    end
+    local rawBackupPlayerSetEnabled = backupPlayerDropdown.SetEnabled
+    function backupPlayerDropdown:SetEnabled(enabled)
+        rawBackupPlayerSetEnabled(self, enabled == true and backupSelectorsEnabled)
+    end
     editor.backupGroupDropdown = backupGroupDropdown
     editor.backupPlayerDropdown = backupPlayerDropdown
     editor.backupClear = backupClear
+    editor.SetBackupSelectorsEnabled = function(enabled)
+        backupSelectorsEnabled = enabled == true
+        backupGroupDropdown:SetEnabled(true)
+        backupPlayerDropdown:SetEnabled(true)
+    end
 
     local hintRow = stack:AddRow(28)
     local hint = Widgets.CreateLabel(hintRow, Fonts.TINY_MUTED, L.TWIN_FANGS_INTERRUPT_BACKUP_HINT)
@@ -508,6 +541,18 @@ local function RefreshEditor(editor)
     editor.groupDropdown:SetItems(groupItems)
     editor.groupDropdown:SetSelected(region.group)
 
+    editor.channelDropdown:SetItems(Labels.ChannelItems())
+    editor.channelDropdown:SetSelected(region.channel)
+    if region.channel == Schema.CHANNEL_MARKER then
+        editor.channelHint:SetText(L.TWIN_FANGS_INTERRUPT_CHANNEL_MARKER_HINT)
+        editor.channelHint:SetTextColor(Widgets.UnpackColor(Colors.WARNING))
+        editor.channelHint:SetWidth(math.max(editor:GetWidth() or 0, 1))
+        editor.stack:SetEntryHeight(editor.channelHintRow, math.max(editor.channelHint:GetStringHeight() or 0, 18))
+    else
+        editor.channelHint:SetText("")
+        editor.stack:SetEntryHeight(editor.channelHintRow, 1)
+    end
+
     RefreshPlayerRows(editor, region)
 
     local addable = Chain.GetAddablePlayers(session, regionId)
@@ -529,33 +574,45 @@ local function RefreshEditor(editor)
         editor.empty:SetText(L.TWIN_FANGS_INTERRUPT_CHAIN_EMPTY)
     end
 
-    backupPicker = Chain.SyncBackupPicker(session, regionId, backupPicker)
-    local backupGroupItems = {}
-    for _, group in ipairs(Chain.GetBackupGroups(session, regionId)) do
-        backupGroupItems[#backupGroupItems + 1] = {
-            value = group,
-            text = string.format(L.TWIN_FANGS_INTERRUPT_RAID_GROUP, group),
-        }
-    end
-    editor.backupGroupDropdown:SetItems(backupGroupItems)
-    editor.backupGroupDropdown:SetSelected(backupPicker.group)
-
-    local backupPlayerItems = { { value = Chain.BACKUP_NONE, text = L.TWIN_FANGS_INTERRUPT_ADD_PLAYER } }
-    local playerValid
-    for _, member in ipairs(Chain.GetBackupPlayers(session, regionId, backupPicker.group)) do
-        backupPlayerItems[#backupPlayerItems + 1] = {
-            value = member.guid,
-            text = ColorizeName(member.name, member.classFile),
-        }
-        if backupPicker.player == member.guid then
-            playerValid = true
+    local allowsBackup = Schema.ChannelAllowsBackup(region.channel)
+    editor.SetBackupSelectorsEnabled(allowsBackup)
+    if allowsBackup then
+        editor.hint:SetText(L.TWIN_FANGS_INTERRUPT_BACKUP_HINT)
+        backupPicker = Chain.SyncBackupPicker(session, regionId, backupPicker)
+        local backupGroupItems = {}
+        for _, group in ipairs(Chain.GetBackupGroups(session, regionId)) do
+            backupGroupItems[#backupGroupItems + 1] = {
+                value = group,
+                text = string.format(L.TWIN_FANGS_INTERRUPT_RAID_GROUP, group),
+            }
         end
+        editor.backupGroupDropdown:SetItems(backupGroupItems)
+        editor.backupGroupDropdown:SetSelected(backupPicker.group)
+
+        local backupPlayerItems = { { value = Chain.BACKUP_NONE, text = L.TWIN_FANGS_INTERRUPT_ADD_PLAYER } }
+        local playerValid
+        for _, member in ipairs(Chain.GetBackupPlayers(session, regionId, backupPicker.group)) do
+            backupPlayerItems[#backupPlayerItems + 1] = {
+                value = member.guid,
+                text = ColorizeName(member.name, member.classFile),
+            }
+            if backupPicker.player == member.guid then
+                playerValid = true
+            end
+        end
+        if not playerValid then
+            backupPicker.player = Chain.BACKUP_NONE
+        end
+        editor.backupPlayerDropdown:SetItems(backupPlayerItems)
+        editor.backupPlayerDropdown:SetSelected(backupPicker.player)
+    else
+        backupPicker = nil
+        editor.hint:SetText(L.TWIN_FANGS_INTERRUPT_BACKUP_PARTY_HINT)
+        editor.backupGroupDropdown:SetItems({})
+        editor.backupGroupDropdown:SetSelected(nil)
+        editor.backupPlayerDropdown:SetItems({ { value = Chain.BACKUP_NONE, text = L.TWIN_FANGS_INTERRUPT_ADD_PLAYER } })
+        editor.backupPlayerDropdown:SetSelected(Chain.BACKUP_NONE)
     end
-    if not playerValid then
-        backupPicker.player = Chain.BACKUP_NONE
-    end
-    editor.backupPlayerDropdown:SetItems(backupPlayerItems)
-    editor.backupPlayerDropdown:SetSelected(backupPicker.player)
     editor.backupClear:SetEnabled(true)
 
     local issues = Chain.IssuesFor(Chain.Validate(session), regionId)

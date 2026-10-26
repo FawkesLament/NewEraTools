@@ -80,6 +80,8 @@ describe("TwinFangs AddonCheck", function()
             assert.equals(Chain.FRONT_RIGHT, config.assignment.region)
             assert.equals(2, config.assignment.index)
             assert.is_nil(config.assignment.backup)
+            assert.equals("party", config.assignment.channel)
+            assert.equals("pppp", config.channels)
         end)
 
         it("reports a backup-only assignment", function()
@@ -98,6 +100,21 @@ describe("TwinFangs AddonCheck", function()
             assert.equals(Chain.FRONT_LEFT, config.assignment.region)
             assert.equals(1, config.assignment.index)
             assert.equals(Chain.BACK_RIGHT, config.assignment.backup)
+            assert.equals("party", config.assignment.channel)
+            assert.equals("party", config.assignment.backupChannel)
+        end)
+
+        it("reports the four-zone channel snapshot and per-role channels", function()
+            local Schema = ns.Modules.Internals("TwinFangs").Schema
+            AssignPrimary(Player.GetFullName(), Chain.FRONT_LEFT, 1)
+            AssignBackup(Player.GetFullName(), Chain.BACK_RIGHT)
+            TwinFangs.db.interruptReminder.chain.front_left.channel = Schema.CHANNEL_SAY
+            TwinFangs.db.interruptReminder.chain.back_right.channel = Schema.CHANNEL_YELL
+            local config = InspectConfig()
+            assert.equals("s", config.channels:sub(1, 1))
+            assert.equals("y", config.channels:sub(4, 4))
+            assert.equals(Schema.CHANNEL_SAY, config.assignment.channel)
+            assert.equals(Schema.CHANNEL_YELL, config.assignment.backupChannel)
         end)
 
         it("resolves the local player by raid GUID, not the client full name", function()
@@ -426,6 +443,60 @@ describe("TwinFangs AddonCheck", function()
                     assignment = {},
                     soak = "center",
                 })
+            )
+        end)
+
+        it("appends slash commands to primary and backup lines", function()
+            local Schema = ns.Modules.Internals("TwinFangs").Schema
+            assert.equals(
+                string.format(L.TWIN_FANGS_ADDONCHECK_PRIMARY, L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT, 2) .. " · /s",
+                TwinFangs.FormatAddonCheckAssignment({
+                    region = Chain.FRONT_LEFT,
+                    index = 2,
+                    channel = Schema.CHANNEL_SAY,
+                })
+            )
+            assert.equals(
+                string.format(L.TWIN_FANGS_ADDONCHECK_BACKUP, L.TWIN_FANGS_INTERRUPT_REGION_BACK_RIGHT) .. " · /y",
+                TwinFangs.FormatAddonCheckAssignment({
+                    backup = Chain.BACK_RIGHT,
+                    backupChannel = Schema.CHANNEL_YELL,
+                })
+            )
+        end)
+
+        it("flags a channel snapshot that differs from the commander", function()
+            local commander = {
+                assignment = { region = Chain.FRONT_LEFT, index = 1 },
+                channels = "sypy",
+                soak = false,
+            }
+            assert.same(
+                { "assignment" },
+                TwinFangs.ValidateAddonCheckConfig({
+                    assignment = { region = Chain.FRONT_LEFT, index = 1 },
+                    channels = "pppp",
+                    soak = false,
+                }, commander)
+            )
+            assert.is_nil(TwinFangs.ValidateAddonCheckConfig({
+                assignment = { region = Chain.FRONT_LEFT, index = 1 },
+                channels = "sypy",
+                soak = false,
+            }, commander))
+            assert.is_nil(TwinFangs.ValidateAddonCheckConfig({
+                assignment = { region = Chain.FRONT_LEFT, index = 1 },
+                soak = false,
+            }, {
+                assignment = { region = Chain.FRONT_LEFT, index = 1 },
+                soak = false,
+            }))
+            assert.same(
+                { "assignment" },
+                TwinFangs.ValidateAddonCheckConfig({
+                    assignment = { region = Chain.FRONT_LEFT, index = 1 },
+                    soak = false,
+                }, commander)
             )
         end)
     end)

@@ -43,10 +43,56 @@ end
 ---@field region string|nil
 ---@field index number|nil
 ---@field backup string|nil
+---@field channel TwinFangsInterruptChannel|nil
+---@field backupChannel TwinFangsInterruptChannel|nil
 
 ---@class TwinFangsAddonCheckConfig
 ---@field assignment TwinFangsAddonCheckAssignment
+---@field channels string
 ---@field soak false|"left"|"middle"|"right"
+
+---@param chain TwinFangsInterruptChainSettings|nil
+---@param regionId string|nil
+---@return TwinFangsInterruptChannel|nil
+local function RegionChannel(chain, regionId)
+    if not regionId or type(chain) ~= "table" then
+        return nil
+    end
+    local region = chain[regionId]
+    if type(region) ~= "table" then
+        return nil
+    end
+    return Schema.CoerceChannel(region.channel)
+end
+
+---Four-region wire snapshot, in InterruptChain.REGION_IDS order. Missing regions are party.
+---@param chain TwinFangsInterruptChainSettings|nil
+---@return string
+local function SnapshotChannels(chain)
+    local codes = {}
+    for _, regionId in ipairs(Chain.REGION_IDS) do
+        codes[#codes + 1] = Schema.EncodeChannelWire(RegionChannel(chain, regionId))
+    end
+    return table.concat(codes)
+end
+
+---Legacy clients omit channels; treat that as all-party. Invalid values stay distinguishable.
+---@param value any
+---@return string|false
+local function NormalizeChannels(value)
+    if value == nil or value == "" then
+        return "pppp"
+    end
+    if type(value) ~= "string" or #value ~= 4 then
+        return false
+    end
+    for index = 1, 4 do
+        if not Schema.DecodeChannelWire(value:sub(index, index)) then
+            return false
+        end
+    end
+    return value
+end
 
 ---@return TwinFangsAddonCheckAssignment
 local function SnapshotAssignment()
@@ -63,6 +109,8 @@ local function SnapshotAssignment()
         assignment.index = found.index
     end
     assignment.backup = KnownRegion(found.backup)
+    assignment.channel = RegionChannel(chain, assignment.region)
+    assignment.backupChannel = RegionChannel(chain, assignment.backup)
     return assignment
 end
 
@@ -87,23 +135,33 @@ end
 ---Live AddonCheck snapshot. Reads current settings; does not mutate them.
 ---@return TwinFangsAddonCheckConfig
 function TwinFangs:GetAddonCheckConfig()
+    local chain = TwinFangs.db and TwinFangs.db.interruptReminder and TwinFangs.db.interruptReminder.chain
     return {
         assignment = SnapshotAssignment(),
+        channels = SnapshotChannels(chain),
         soak = SnapshotSoak(),
     }
 end
 
 ---AddonCheck panel validator: column keys to highlight, or nil when ok.
----Does not compare a peer's assignments or soak group against the commander.
+---Does not compare a peer's primary/backup slots or soak group against the commander.
+---Flags assignment when the four-zone channel snapshot differs from the commander.
 ---@param config any
+---@param localConfig any
 ---@return string[]|nil
-function TwinFangs.ValidateAddonCheckConfig(config)
+function TwinFangs.ValidateAddonCheckConfig(config, localConfig)
     if type(config) ~= "table" then
         return { "assignment", "soak" }
     end
     local flagged = {}
     if type(config.assignment) ~= "table" then
         flagged[#flagged + 1] = "assignment"
+    elseif type(localConfig) == "table" then
+        local localChannels = NormalizeChannels(localConfig.channels)
+        local peerChannels = NormalizeChannels(config.channels)
+        if localChannels == false or peerChannels == false or peerChannels ~= localChannels then
+            flagged[#flagged + 1] = "assignment"
+        end
     end
     if config.soak ~= false and not Schema.GROUPS[config.soak] then
         flagged[#flagged + 1] = "soak"
@@ -126,16 +184,26 @@ function TwinFangs.FormatAddonCheckAssignment(value)
         return L.TWIN_FANGS_ADDONCHECK_UNASSIGNED
     end
     local lines = {}
+    local function WithChannel(line, channel)
+        local slash = Schema.ChannelSlash(channel)
+        if not slash then
+            return line
+        end
+        return line .. " · " .. slash
+    end
     if region then
         local label = RegionLabel(region)
+        local line
         if type(value.index) == "number" then
-            lines[#lines + 1] = string.format(L.TWIN_FANGS_ADDONCHECK_PRIMARY, label, value.index)
+            line = string.format(L.TWIN_FANGS_ADDONCHECK_PRIMARY, label, value.index)
         else
-            lines[#lines + 1] = label
+            line = label
         end
+        lines[#lines + 1] = WithChannel(line, value.channel)
     end
     if backup then
-        lines[#lines + 1] = string.format(L.TWIN_FANGS_ADDONCHECK_BACKUP, RegionLabel(backup))
+        lines[#lines + 1] =
+            WithChannel(string.format(L.TWIN_FANGS_ADDONCHECK_BACKUP, RegionLabel(backup)), value.backupChannel)
     end
     return table.concat(lines, "\n")
 end
@@ -164,6 +232,7 @@ function TwinFangs.AddonCheckColumns()
             key = "assignment",
             title = L.TWIN_FANGS_ADDONCHECK_COL_ASSIGNMENT,
             format = TwinFangs.FormatAddonCheckAssignment,
+            flex = 2,
         },
         {
             key = "soak",

@@ -212,9 +212,7 @@ end
 local function RefreshAssignmentCard(card, assignment, playerName, roster)
     local accent = REGION_ACCENTS[assignment.regionId] or Colors.ACCENT
     card.accent:SetColorTexture(accent.r, accent.g, accent.b, 0.9)
-    card.title:SetText(
-        string.format("%s  ·  %s", Labels.RegionLabel(assignment.regionId), Labels.GroupLabel(assignment.group))
-    )
+    card.title:SetText(Labels.AssignmentTitle(assignment.regionId, assignment.group, assignment.channel))
 
     local players = assignment.players
     local count = #players

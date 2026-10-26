@@ -1,6 +1,7 @@
 local _, ns = ...
 local Internals = ns.Modules.Internals("TwinFangs")
 local L = ns.L
+local Schema = Internals.Schema
 local InterruptChain = Internals.InterruptChain
 
 ---@param name string
@@ -160,6 +161,39 @@ function InterruptChain.Validate(state)
                     region = regionId,
                     player = name,
                     text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_BACKUP_SHARED, display),
+                }
+            end
+            if not Schema.ChannelAllowsBackup(region.channel) then
+                issues[#issues + 1] = {
+                    code = "backup_channel",
+                    severity = "error",
+                    region = regionId,
+                    text = L.TWIN_FANGS_INTERRUPT_ERR_BACKUP_CHANNEL,
+                }
+            end
+        end
+    end
+
+    local conflictGroups = {}
+    for _, regionId in ipairs(InterruptChain.REGION_IDS) do
+        local group = Schema.ChannelConflictGroup(state.regions[regionId].channel)
+        if group then
+            local owners = conflictGroups[group]
+            if not owners then
+                owners = {}
+                conflictGroups[group] = owners
+            end
+            owners[#owners + 1] = regionId
+        end
+    end
+    for _, owners in pairs(conflictGroups) do
+        if #owners > 1 then
+            for _, regionId in ipairs(owners) do
+                issues[#issues + 1] = {
+                    code = "channel_conflict",
+                    severity = "error",
+                    region = regionId,
+                    text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_CHANNEL_CONFLICT, IssueRegionLabel(regionId)),
                 }
             end
         end

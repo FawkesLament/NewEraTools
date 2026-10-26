@@ -423,6 +423,7 @@ describe("TwinFangs InterruptStatusHUD", function()
         local chain = Module.db.interruptReminder.chain
         chain.front_right.players = { { name = "A-TestRealm" }, { name = "B-TestRealm" } }
         chain.front_right.backup = { name = Player.GetFullName() }
+        chain.front_right.channel = "say"
         Module:SetInterruptReminderEnabled(true)
         Module:ListenForEncounter()
         ns.Api.Encounter.FireStart(Module.ENCOUNTER_ID, "Twin Fangs", ns.Api.Instance.DIFFICULTY_MYTHIC_RAID, 20)
@@ -441,7 +442,7 @@ describe("TwinFangs InterruptStatusHUD", function()
         assert.equals(1, backup:GetState().progress)
         assert.equals(2, backup:GetState().maxProgress)
 
-        ns.Api.GameEvents.Fire("CHAT_MSG_WHISPER", L.TWIN_FANGS_INTERRUPT_MACRO_BACKUP_REPORT)
+        ns.Api.GameEvents.Fire("CHAT_MSG_SAY", L.TWIN_FANGS_INTERRUPT_MACRO_BACKUP_REPORT)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), backup:GetState().text)
         assert.equals(2, backup:GetState().progress)
         assert.equals(1, Module:GetBackupInterruptCount())
@@ -453,6 +454,7 @@ describe("TwinFangs InterruptStatusHUD", function()
         chain.front_left.players = { { name = Player.GetFullName() } }
         chain.front_right.players = { { name = "A-TestRealm" } }
         chain.front_right.backup = { name = Player.GetFullName() }
+        chain.front_right.channel = "say"
         Module:SetInterruptReminderEnabled(true)
         Module:ListenForEncounter()
         ns.Api.Encounter.FireStart(Module.ENCOUNTER_ID, "Twin Fangs", ns.Api.Instance.DIFFICULTY_MYTHIC_RAID, 20)
@@ -475,16 +477,17 @@ describe("TwinFangs InterruptStatusHUD", function()
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), hud:GetState().text)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1), backup:GetState().text)
 
-        ns.Api.GameEvents.Fire("CHAT_MSG_WHISPER", L.TWIN_FANGS_INTERRUPT_MACRO_BACKUP_REPORT)
+        ns.Api.GameEvents.Fire("CHAT_MSG_SAY", L.TWIN_FANGS_INTERRUPT_MACRO_BACKUP_REPORT)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), hud:GetState().text)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), backup:GetState().text)
     end)
 
-    it("paints backup progress in test mode from matching whispers", function()
+    it("paints backup progress in test mode from the backup zone channel", function()
         local Player = ns.Api.Player
         local chain = Module.db.interruptReminder.chain
         chain.front_right.players = { { name = "A-TestRealm" } }
         chain.front_right.backup = { name = Player.GetFullName() }
+        chain.front_right.channel = "say"
         Module:SetInterruptReminderEnabled(true)
         ns.Api.Group.inRaid = true
         Module:SetInterruptStatusTestMode(true)
@@ -495,7 +498,7 @@ describe("TwinFangs InterruptStatusHUD", function()
         assert.is_true(backup.shown)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1), backup:GetState().text)
 
-        ns.Api.GameEvents.Fire("CHAT_MSG_WHISPER", L.TWIN_FANGS_INTERRUPT_MACRO_BACKUP_REPORT)
+        ns.Api.GameEvents.Fire("CHAT_MSG_SAY", L.TWIN_FANGS_INTERRUPT_MACRO_BACKUP_REPORT)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), backup:GetState().text)
         assert.equals(1, backup:GetState().progress)
         assert.equals(1, backup:GetState().maxProgress)

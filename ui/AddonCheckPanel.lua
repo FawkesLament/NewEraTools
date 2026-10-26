@@ -41,14 +41,28 @@ local POPUP_MIN_WIDTH = 360
 -- Match list rows: header must leave the same space as the scrollbar gutter.
 local SCROLL_GUTTER = Sizes.SCROLL_BAR_WIDTH + Spacing.SMALL
 
----Window width from module column count so the table stays readable.
----@param moduleColumnCount integer
+---@param column AddonCheckPanelColumn|nil
 ---@return number
-local function ComputePopupWidth(moduleColumnCount)
-    local flexibleColumns = FIXED_TABLE_COLUMNS + math.max(moduleColumnCount, 0)
-    local cellCount = flexibleColumns + 1
+local function ColumnFlex(column)
+    local flex = column and column.flex
+    if type(flex) == "number" and flex > 0 then
+        return flex
+    end
+    return 1
+end
+
+---Window width from module columns so the table stays readable.
+---@param columns AddonCheckPanelColumn[]
+---@return number
+local function ComputePopupWidth(columns)
+    local moduleFlex = 0
+    for i = 1, #columns do
+        moduleFlex = moduleFlex + ColumnFlex(columns[i])
+    end
+    local flexibleSlots = FIXED_TABLE_COLUMNS + moduleFlex
+    local cellCount = #columns + FIXED_TABLE_COLUMNS + 1
     local gaps = Spacing.SMALL * math.max(cellCount - 1, 0)
-    local tableWidth = PARTY_COLUMN_WIDTH + flexibleColumns * COLUMN_SLOT_WIDTH + gaps + SCROLL_GUTTER
+    local tableWidth = PARTY_COLUMN_WIDTH + flexibleSlots * COLUMN_SLOT_WIDTH + gaps + SCROLL_GUTTER
     local width = tableWidth + 2 * POPUP_PADDING + 2 * Sizes.BORDER
     return math.max(POPUP_MIN_WIDTH, width)
 end
@@ -145,13 +159,14 @@ local function CreateStatusCell(parent)
 end
 
 ---Lays out `cells` across `row` (minus optional `rightInset`, e.g. scrollbar gutter).
----First cell is a fixed narrow party column; remaining cells share the leftover width evenly.
+---First cell is a fixed narrow party column; remaining cells share leftover width by flex weight.
 ---Pins TOPLEFT and height so Frame cells (status icons) are not left at 0×N and culled.
 ---@param row Frame
 ---@param cells Region[]
 ---@param spacing number
 ---@param rightInset number|nil
-local function LayoutFullWidthRow(row, cells, spacing, rightInset)
+---@param flexWeights number[]|nil  Per-cell weights; index 1 is ignored (party is fixed).
+local function LayoutFullWidthRow(row, cells, spacing, rightInset, flexWeights)
     local count = #cells
     if count == 0 then
         return
@@ -166,19 +181,27 @@ local function LayoutFullWidthRow(row, cells, spacing, rightInset)
     end
 
     local partyWidth = math.min(PARTY_COLUMN_WIDTH, width)
-    local flexibleCount = count - 1
-    local flexibleWidth = 0
-    if flexibleCount > 0 then
-        local remaining = width - partyWidth - spacing * (count - 1)
-        if remaining < flexibleCount then
-            return
+    local totalFlex = 0
+    local weights = {}
+    for i = 2, count do
+        local weight = flexWeights and flexWeights[i] or 1
+        if type(weight) ~= "number" or weight <= 0 then
+            weight = 1
         end
-        flexibleWidth = remaining / flexibleCount
+        weights[i] = weight
+        totalFlex = totalFlex + weight
+    end
+    local remaining = width - partyWidth - spacing * (count - 1)
+    if remaining < (count - 1) then
+        return
     end
 
     for i = 1, count do
         local cell = cells[i]
-        local cellWidth = (i == 1) and partyWidth or flexibleWidth
+        local cellWidth = partyWidth
+        if i > 1 then
+            cellWidth = remaining * weights[i] / totalFlex
+        end
         cell:ClearAllPoints()
         cell:SetSize(cellWidth, rowHeight)
         if i == 1 then
@@ -232,7 +255,13 @@ function AddonCheckPanel.Create(options)
         end,
     })
     Widgets.ApplyBackdrop(window, Colors.BG, Colors.BORDER)
-    local popupWidth = ComputePopupWidth(#columns)
+    local cellFlexWeights = { 0, 1, 1 }
+    for i = 1, #columns do
+        cellFlexWeights[#cellFlexWeights + 1] = ColumnFlex(columns[i])
+    end
+    cellFlexWeights[#cellFlexWeights + 1] = 1
+
+    local popupWidth = ComputePopupWidth(columns)
     window:SetSize(popupWidth, 200)
     window:SetFrameStrata("DIALOG")
 
@@ -296,7 +325,7 @@ function AddonCheckPanel.Create(options)
     end
 
     headerRow:HookScript("OnSizeChanged", function()
-        LayoutFullWidthRow(headerRow, headerCells, Spacing.SMALL, SCROLL_GUTTER)
+        LayoutFullWidthRow(headerRow, headerCells, Spacing.SMALL, SCROLL_GUTTER, cellFlexWeights)
     end)
 
     local listHost = body:Add(CreateFrame("Frame", nil, content), listHeight)
@@ -337,7 +366,7 @@ function AddonCheckPanel.Create(options)
         cells[#cells + 1] = row.status
         row.cells = cells
         row:HookScript("OnSizeChanged", function()
-            LayoutFullWidthRow(row, row.cells, Spacing.SMALL)
+            LayoutFullWidthRow(row, row.cells, Spacing.SMALL, nil, cellFlexWeights)
         end)
         rowFrames[index] = row
         return row
@@ -381,7 +410,7 @@ function AddonCheckPanel.Create(options)
         content:SetHeight(math.max(bodyHeight, 1))
         local height = Sizes.FLOATING_HEADER_HEIGHT + POPUP_PADDING + bodyHeight + POPUP_PADDING + 2 * Sizes.BORDER
         window:SetSize(popupWidth, height)
-        LayoutFullWidthRow(headerRow, headerCells, Spacing.SMALL, SCROLL_GUTTER)
+        LayoutFullWidthRow(headerRow, headerCells, Spacing.SMALL, SCROLL_GUTTER, cellFlexWeights)
     end
 
     local function ResolveSession()
@@ -451,7 +480,7 @@ function AddonCheckPanel.Create(options)
                         ApplyRowColor(frame.config[c], data.category)
                     end
                 end
-                LayoutFullWidthRow(frame, frame.cells, Spacing.SMALL)
+                LayoutFullWidthRow(frame, frame.cells, Spacing.SMALL, nil, cellFlexWeights)
             else
                 frame:Hide()
             end
@@ -461,9 +490,9 @@ function AddonCheckPanel.Create(options)
         if listWidth and listWidth > 0 then
             local childWidth = math.max(listWidth - SCROLL_GUTTER, 1)
             scrollChild:SetWidth(childWidth)
-            LayoutFullWidthRow(headerRow, headerCells, Spacing.SMALL, SCROLL_GUTTER)
+            LayoutFullWidthRow(headerRow, headerCells, Spacing.SMALL, SCROLL_GUTTER, cellFlexWeights)
             for i = 1, visibleCount do
-                LayoutFullWidthRow(rowFrames[i], rowFrames[i].cells, Spacing.SMALL)
+                LayoutFullWidthRow(rowFrames[i], rowFrames[i].cells, Spacing.SMALL, nil, cellFlexWeights)
             end
         end
 

@@ -48,6 +48,7 @@ local SortColumn = Model.SortColumn
 ---@field key string  Config snapshot field key.
 ---@field title string  Column header text.
 ---@field format fun(value: any): string|nil, table|nil  Human-readable value; nil/empty → em dash. Optional color.
+---@field flex number|nil  Relative width among flexible columns; defaults to 1.
 
 ---@class AddonCheckPanelMemberRow
 ---@field key string
