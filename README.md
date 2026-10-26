@@ -6,8 +6,12 @@ A World of Warcraft (retail) toolbox addon.
 
 General helpers:
 - **Aura Tracker**: Tracks player buff with a status bar.
-- **Auto combat log**: Automatically enables combat logging in current-expansion raids or mythic dungeons.
 - **Combat timer**: Floating timer for the current fight.
+- **Auto combat log**: Automatically enables combat logging in current-expansion raids or mythic dungeons.
+- **Interrupt Claim**: Modifier-click a nameplate to set focus, and optionally mark and announce the interrupt.
+
+RL helpers:
+- **RL Toolbar**: A toolbar for ready-check & countdowns.
 - **Raid lottery**: Randomly picks raid members and announces them in raid chat.
 
 Encounter-specific:

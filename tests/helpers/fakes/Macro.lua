@@ -158,6 +158,19 @@ return function()
         return entry
     end
 
+    ---Test helper: fill every account-wide slot with placeholders.
+    function Macro.FillAccountSlotsForTests()
+        for index = 1, ACCOUNT_SLOTS do
+            if not Macro.slots[index] then
+                Macro.slots[index] = {
+                    name = "Fill" .. index,
+                    icon = 1,
+                    body = "/say fill",
+                }
+            end
+        end
+    end
+
     ---Test helper: fill every character-specific slot with placeholders.
     function Macro.FillCharacterSlotsForTests()
         for index = ACCOUNT_SLOTS + 1, ACCOUNT_SLOTS + CHARACTER_SLOTS do

@@ -128,6 +128,39 @@ describe("Nameplate production", function()
         assert.same({ "nameplate3" }, seen)
     end)
 
+    it("resolves GetFrame for secret nameplate tokens without comparing them", function()
+        local savedIsSecret = issecretvalue
+        local SECRET = {}
+        local plate = { namePlateUnitToken = SECRET }
+        issecretvalue = function(value)
+            return value == SECRET
+        end
+        framesByUnit[SECRET] = plate
+        assert.equals(plate, Nameplate.GetFrame(SECRET))
+        assert.equals(SECRET, Nameplate.GetUnit(plate))
+        issecretvalue = savedIsSecret
+    end)
+
+    it("walks every visible plate even when the unit token is secret or missing", function()
+        local savedIsSecret = issecretvalue
+        local SECRET = {}
+        issecretvalue = function(value)
+            return value == SECRET
+        end
+        local plateA = { namePlateUnitToken = SECRET }
+        local plateB = { namePlateUnitToken = "nameplate2" }
+        visiblePlates[1] = plateA
+        visiblePlates[2] = plateB
+        visiblePlates[3] = { namePlateUnitToken = "" }
+        local seen = {}
+        Nameplate.ForEachPlate(function(frame)
+            seen[#seen + 1] = frame
+        end)
+        assert.equals(3, #seen)
+        assert.equals(plateA, seen[1])
+        issecretvalue = savedIsSecret
+    end)
+
     it("walks currently visible Blizzard nameplates by namePlateUnitToken", function()
         local plateA = { namePlateUnitToken = "nameplate1" }
         local plateB = { namePlateUnitToken = "nameplate2" }

@@ -28,4 +28,8 @@
     <Script file="combat_timer\CombatTimerUI.lua"/>
     <Script file="combat_log\CombatLog.lua"/>
     <Script file="combat_log\CombatLogUI.lua"/>
+    <Script file="interrupt_claim\InterruptClaim.lua"/>
+    <Script file="interrupt_claim\ui\NameplateClicks.lua"/>
+    <Script file="interrupt_claim\ui\TargetFrameClicks.lua"/>
+    <Script file="interrupt_claim\InterruptClaimUI.lua"/>
 </Ui>
