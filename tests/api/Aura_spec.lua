@@ -13,6 +13,7 @@ describe("Aura production options", function()
     before_each(function()
         saved.Enum = Enum
         saved.C_AddOns = C_AddOns
+        saved.C_StringUtil = C_StringUtil
         saved.AuraContainerSortMethod = AuraContainerSortMethod
         saved.AuraContainerSortDirection = AuraContainerSortDirection
     end)
@@ -20,6 +21,7 @@ describe("Aura production options", function()
     after_each(function()
         Enum = saved.Enum
         C_AddOns = saved.C_AddOns
+        C_StringUtil = saved.C_StringUtil
         AuraContainerSortMethod = saved.AuraContainerSortMethod
         AuraContainerSortDirection = saved.AuraContainerSortDirection
     end)
@@ -55,5 +57,24 @@ describe("Aura production options", function()
     it("builds application bar options with maxApplications", function()
         local options = Load().GetApplicationBarOptions(12)
         assert.equals(12, options.maxApplications)
+    end)
+
+    it("clamps application count display so a single stack is 1, not 0", function()
+        local breakpoints
+        C_StringUtil = {
+            CreateNumericRuleFormatter = function()
+                return {
+                    SetBreakpoints = function(_, points)
+                        breakpoints = points
+                    end,
+                }
+            end,
+        }
+        local options = Load().GetApplicationCountOptions()
+        assert(options.formatter)
+        assert.equals(0, breakpoints[1].threshold)
+        assert.equals("%d", breakpoints[1].format)
+        -- auraData.applications is 0 at one stack; min raises that to 1.
+        assert.equals(1, breakpoints[1].min)
     end)
 end)

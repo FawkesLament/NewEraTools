@@ -226,6 +226,8 @@ function Aura.GetDurationTextOptions()
 end
 
 ---Always-show integer formatter so stack count 1 is visible (native default hides ≤1).
+---`auraData.applications` is 0 for a single stack (and for non-stacking auras). An unclamped
+---`%d` formatter therefore prints "0"; `min` raises that to 1 without changing 2+.
 ---@return table|nil
 local function BuildApplicationCountFormatter()
     if not (C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then
@@ -233,7 +235,7 @@ local function BuildApplicationCountFormatter()
     end
     local formatter = C_StringUtil.CreateNumericRuleFormatter()
     local ok = pcall(formatter.SetBreakpoints, formatter, {
-        { threshold = 0, format = "%d", step = 1 },
+        { threshold = 0, format = "%d", step = 1, min = 1 },
     })
     if not ok then
         return nil
