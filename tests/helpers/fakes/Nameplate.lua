@@ -45,59 +45,6 @@ return function()
         return type(unit) == "string" and unit:match("^nameplate%d+$") ~= nil
     end
 
-    function Nameplate.IsForbidden(frame)
-        if type(frame) ~= "table" then
-            return true
-        end
-        if frame.forbidden == true then
-            return true
-        end
-        return frame.UnitFrame and frame.UnitFrame.forbidden == true
-    end
-
-    function Nameplate.GetHost(frame)
-        if type(frame) ~= "table" then
-            return nil
-        end
-        local platerUnitFrame = frame.unitFrame
-        if type(platerUnitFrame) == "table" and (frame.Plater or platerUnitFrame.Plater) then
-            return platerUnitFrame.hitTestFrame or platerUnitFrame
-        end
-        return frame.UnitFrame or frame
-    end
-
-    function Nameplate.GetUnit(frame)
-        if type(frame) ~= "table" then
-            return nil
-        end
-        if frame.namePlateUnitToken ~= nil then
-            return frame.namePlateUnitToken
-        end
-        for i = 1, #Nameplate.visible do
-            local entry = Nameplate.visible[i]
-            if entry.frame == frame then
-                return entry.unit
-            end
-        end
-        return nil
-    end
-
-    function Nameplate.UnitCanAttack(frame)
-        if type(frame) ~= "table" then
-            return false
-        end
-        if frame.canAttack ~= nil then
-            return frame.canAttack == true
-        end
-        return false
-    end
-
-    function Nameplate.ForEachPlate(handler)
-        for i = 1, #Nameplate.visible do
-            handler(Nameplate.visible[i].frame)
-        end
-    end
-
     function Nameplate.OnAdded(handler)
         return AddHandler(Nameplate.added, handler)
     end
@@ -118,12 +65,6 @@ return function()
     ---@param frame Frame
     function Nameplate.FireAdded(unit, frame)
         Nameplate.frames[unit] = frame
-        if frame.namePlateUnitToken == nil then
-            frame.namePlateUnitToken = unit
-        end
-        if frame.canAttack == nil then
-            frame.canAttack = true
-        end
         local index = VisibleIndex(unit)
         if index then
             Nameplate.visible[index].frame = frame

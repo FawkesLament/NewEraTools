@@ -128,62 +128,6 @@ describe("Nameplate production", function()
         assert.same({ "nameplate3" }, seen)
     end)
 
-    it("resolves GetFrame for secret nameplate tokens without comparing them", function()
-        local savedIsSecret = issecretvalue
-        local SECRET = {}
-        local plate = { namePlateUnitToken = SECRET }
-        issecretvalue = function(value)
-            return value == SECRET
-        end
-        framesByUnit[SECRET] = plate
-        assert.equals(plate, Nameplate.GetFrame(SECRET))
-        assert.equals(SECRET, Nameplate.GetUnit(plate))
-        issecretvalue = savedIsSecret
-    end)
-
-    it("walks every visible plate even when the unit token is secret or missing", function()
-        local savedIsSecret = issecretvalue
-        local SECRET = {}
-        issecretvalue = function(value)
-            return value == SECRET
-        end
-        local plateA = { namePlateUnitToken = SECRET }
-        local plateB = { namePlateUnitToken = "nameplate2" }
-        visiblePlates[1] = plateA
-        visiblePlates[2] = plateB
-        visiblePlates[3] = { namePlateUnitToken = "" }
-        local seen = {}
-        Nameplate.ForEachPlate(function(frame)
-            seen[#seen + 1] = frame
-        end)
-        assert.equals(3, #seen)
-        assert.equals(plateA, seen[1])
-        issecretvalue = savedIsSecret
-    end)
-
-    it("uses Blizzard UnitFrame as the click host when Plater is not present", function()
-        local unitFrame = {}
-        local plate = { UnitFrame = unitFrame }
-        local bare = { namePlateUnitToken = "nameplate1" }
-        assert.equals(unitFrame, Nameplate.GetHost(plate))
-        assert.equals(bare, Nameplate.GetHost(bare))
-        assert.is_nil(Nameplate.GetHost(nil))
-    end)
-
-    it("uses Plater's hit-test frame as the click host instead of the hidden Blizzard UnitFrame", function()
-        local blizzardUnitFrame = {}
-        local hitTest = {}
-        local platerUnitFrame = { Plater = true, hitTestFrame = hitTest }
-        local plate = {
-            Plater = true,
-            UnitFrame = blizzardUnitFrame,
-            unitFrame = platerUnitFrame,
-        }
-        assert.equals(hitTest, Nameplate.GetHost(plate))
-        platerUnitFrame.hitTestFrame = nil
-        assert.equals(platerUnitFrame, Nameplate.GetHost(plate))
-    end)
-
     it("walks currently visible Blizzard nameplates by namePlateUnitToken", function()
         local plateA = { namePlateUnitToken = "nameplate1" }
         local plateB = { namePlateUnitToken = "nameplate2" }

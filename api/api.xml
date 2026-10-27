@@ -18,8 +18,6 @@
     <Script file="Speech.lua"/>
     <Script file="RaidTarget.lua"/>
     <Script file="Nameplate.lua"/>
-    <Script file="TargetFrame.lua"/>
-    <Script file="WorldFrame.lua"/>
     <Script file="Macro.lua"/>
     <Script file="AddonMessage.lua"/>
     <Script file="MessageProtocolComm.lua"/>

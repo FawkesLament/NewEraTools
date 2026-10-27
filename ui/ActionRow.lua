@@ -3,7 +3,6 @@ local Assets = ns.Assets
 local Layout = ns.Layout
 local Widgets = ns.Widgets
 
-local Colors = Assets.Colors
 local Fonts = Assets.Fonts
 local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
@@ -83,14 +82,6 @@ function ActionRow.Apply(row, options)
 
     PlaceText()
     row:HookScript("OnSizeChanged", PlaceText)
-
-    ---@param text string
-    ---@param color table|nil  Assets color; defaults to TEXT_MUTED.
-    function row:SetDescription(text, color)
-        description:SetText(text or "")
-        description:SetTextColor(Widgets.UnpackColor(color or Colors.TEXT_MUTED))
-        PlaceText()
-    end
 
     ---@type Button[]
     local buttons = {}

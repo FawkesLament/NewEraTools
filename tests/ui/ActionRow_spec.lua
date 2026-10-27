@@ -16,14 +16,6 @@ describe("ActionRow", function()
         function region:SetHeight(height)
             self.height = height
         end
-        function region:SetText(text)
-            self.text = text
-        end
-
-        function region:SetTextColor(r, g, b, a)
-            self.color = { r = r, g = g, b = b, a = a }
-        end
-
         function region:GetStringHeight()
             return self.stringHeight
         end
@@ -51,16 +43,8 @@ describe("ActionRow", function()
                 FontStyles = { Body = { size = 12 }, SmallMuted = { size = 11 } },
                 Sizes = { CONTROL_HEIGHT = 22 },
                 Spacing = { TINY = 2, SMALL = 4, MEDIUM = 8, XLARGE = 16 },
-                Colors = {
-                    TEXT_MUTED = { r = 0.5, g = 0.5, b = 0.5 },
-                    SUCCESS = { r = 0.35, g = 0.80, b = 0.40 },
-                },
             },
-            Widgets = {
-                UnpackColor = function(color)
-                    return color.r, color.g, color.b, color.a
-                end,
-            },
+            Widgets = {},
         }
         CreateFrame = function(_, _, parent)
             return Track(parent, FakeRegion())
@@ -185,19 +169,5 @@ describe("ActionRow", function()
 
         -- (44 - (12 + 2 + 11)) / 2 = 9.5
         assert.equals(-9.5, title.points.TOPLEFT.y)
-    end)
-
-    it("updates the description text", function()
-        local row = FakeRegion()
-        local _, textCell = Apply(row, {
-            title = "Focus Macro NETFocus",
-            description = "Not created",
-            buttons = {
-                { text = "Create", onClick = function() end },
-            },
-        })
-        row:SetDescription("Created · auto-sync", { r = 0.35, g = 0.80, b = 0.40 })
-        assert.equals("Created · auto-sync", textCell.children[2].text)
-        assert.same({ r = 0.35, g = 0.80, b = 0.40 }, textCell.children[2].color)
     end)
 end)
