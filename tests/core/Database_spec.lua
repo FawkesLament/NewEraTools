@@ -82,4 +82,30 @@ describe("Database", function()
             assert.is_true(saved.modules.TheLostExplorers.enabled)
         end)
     end)
+
+    describe("Interrupt Claim unlaunch", function()
+        it("drops InterruptClaim settings and keeps other modules", function()
+            local saved = Database.Load({
+                schemaVersion = 9,
+                modules = {
+                    InterruptClaim = { enabled = true, modifier = "ctrl" },
+                    CombatTimer = { enabled = true },
+                },
+            })
+
+            assert.equals(10, saved.schemaVersion)
+            assert.is_nil(saved.modules.InterruptClaim)
+            assert.is_true(saved.modules.CombatTimer.enabled)
+        end)
+
+        it("leaves saved data intact when InterruptClaim was never stored", function()
+            local saved = Database.Load({
+                schemaVersion = 9,
+                modules = { CombatTimer = { enabled = false } },
+            })
+
+            assert.is_nil(saved.modules.InterruptClaim)
+            assert.is_false(saved.modules.CombatTimer.enabled)
+        end)
+    end)
 end)
