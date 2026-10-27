@@ -291,6 +291,12 @@ local function BuildClaimSection()
     announceControl:SetSelected(InterruptClaim:GetAnnounce())
     Layout.Row(announceRow, { announceLabel, announceControl }, Spacing.LARGE)
 
+    local clearEmptyRow = claimBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local clearEmptyBox = AddCheckbox(clearEmptyRow, L.INTERRUPT_CLAIM_CLEAR_FOCUS_ON_EMPTY, function(checked)
+        InterruptClaim:SetClearFocusOnEmpty(checked)
+    end)
+    clearEmptyBox:SetChecked(InterruptClaim:ShouldClearFocusOnEmpty())
+
     claimSection:SetContentHeight(claimBody:GetHeight())
 end
 
@@ -362,6 +368,7 @@ end
 function InterruptClaim:OnEnable()
     ns.MainPanel:RegisterSection({
         title = L.INTERRUPT_CLAIM_TITLE,
+        tooltip = L.INTERRUPT_CLAIM_HINT,
         group = ns.PanelGroups.COMBAT,
         enabled = InterruptClaim:IsEnabled(),
         onEnabledChanged = function(enabled)
@@ -373,6 +380,7 @@ function InterruptClaim:OnEnable()
     self:SyncFocusMacro()
     ns.Modules.Internals("InterruptClaim").NameplateClicks.Start()
     ns.Modules.Internals("InterruptClaim").TargetFrameClicks.Start()
+    ns.Modules.Internals("InterruptClaim").WorldClicks.Start()
 end
 
 function InterruptClaim:OnMacrosChanged()

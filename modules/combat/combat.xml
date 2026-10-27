@@ -31,5 +31,6 @@
     <Script file="interrupt_claim\InterruptClaim.lua"/>
     <Script file="interrupt_claim\ui\NameplateClicks.lua"/>
     <Script file="interrupt_claim\ui\TargetFrameClicks.lua"/>
+    <Script file="interrupt_claim\ui\WorldClicks.lua"/>
     <Script file="interrupt_claim\InterruptClaimUI.lua"/>
 </Ui>

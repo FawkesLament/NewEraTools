@@ -73,13 +73,23 @@ function Nameplate.IsForbidden(frame)
     return FrameIsForbidden(frame.UnitFrame)
 end
 
----Click host for a Blizzard nameplate: the unit frame when present, otherwise the plate.
----Midnight hit-testing lives on a C++ child of this host; overlays should cover it.
+---Click host for a nameplate overlay. Blizzard's `UnitFrame` owns Midnight's C++
+---HitTestFrame. Plater hides that frame and remaps hit-testing onto
+---`unitFrame.hitTestFrame` (often LOW / UIParent), so overlays must cover Plater's
+---host or they sit on a hidden WORLD frame and never receive clicks.
 ---@param frame any
 ---@return Frame|nil
 function Nameplate.GetHost(frame)
     if type(frame) ~= "table" then
         return nil
+    end
+    local platerUnitFrame = frame.unitFrame
+    if type(platerUnitFrame) == "table" and (frame.Plater or platerUnitFrame.Plater) then
+        local hitTest = platerUnitFrame.hitTestFrame
+        if type(hitTest) == "table" then
+            return hitTest
+        end
+        return platerUnitFrame
     end
     local unitFrame = frame.UnitFrame
     if type(unitFrame) == "table" then

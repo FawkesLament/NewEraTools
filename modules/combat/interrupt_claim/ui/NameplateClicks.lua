@@ -6,9 +6,14 @@ local Internals = ns.Modules.Internals("InterruptClaim")
 local InterruptClaim = ns.Modules.Get("InterruptClaim")
 
 -- Midnight routes default nameplate targeting through a C++ HitTestFrame on the unit frame.
--- A plate-local SecureActionButton over that host intercepts the configured modifier+button only.
+-- A plate-local SecureActionButton over Nameplate.GetHost intercepts the configured
+-- modifier+button only. Plater hides Blizzard's UnitFrame and remaps hit-testing onto
+-- its own host; GetHost already selects that frame.
+-- The named NETFocus macro uses [@mouseover]: type=macro ignores the button `unit`,
+-- and `/focus` would otherwise focus the current target. Mouse motion and clicks
+-- propagate so the C++ hit-test still owns mouseover under Plater's non-unit host.
 -- A global modifier override would also fire off nameplates and is not used.
--- Other mouse buttons pass through so unrelated clicks stay on Blizzard's host.
+-- Other mouse buttons pass through so unrelated clicks stay on the underlying host.
 
 local UNIT_ATTR = "unit"
 
@@ -90,6 +95,12 @@ local function CreateOverlay()
     local button = CreateFrame("Button", nil, holder, Assets.Templates.SECURE_ACTION_BUTTON)
     -- Down only: an up click would run the named macro a second time.
     button:EnableMouse(true)
+    if button.SetPropagateMouseClicks then
+        button:SetPropagateMouseClicks(true)
+    end
+    if button.SetPropagateMouseMotion then
+        button:SetPropagateMouseMotion(true)
+    end
     button:Hide()
     return button
 end

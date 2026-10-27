@@ -88,6 +88,7 @@ local GAME_API = {
     "UnitIsGroupAssistant",
     "UnitIsGroupLeader",
     "UnitName",
+    "WorldFrame",
     "issecret",
     "issecretvalue",
     "issecure",

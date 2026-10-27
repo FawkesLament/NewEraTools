@@ -59,6 +59,10 @@ return function()
         if type(frame) ~= "table" then
             return nil
         end
+        local platerUnitFrame = frame.unitFrame
+        if type(platerUnitFrame) == "table" and (frame.Plater or platerUnitFrame.Plater) then
+            return platerUnitFrame.hitTestFrame or platerUnitFrame
+        end
         return frame.UnitFrame or frame
     end
 

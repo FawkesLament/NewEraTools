@@ -28,6 +28,7 @@ local MACRO_STATUS_CONFLICT = "conflict"
 ---@field ApplyNameplateAdded fun(self: InterruptClaim, frame: Frame)|nil  Defined by the UI file; binds one newly shown plate.
 ---@field ApplyNameplateRemoved fun(self: InterruptClaim)|nil  Defined by the UI file; drops overlays for hidden plates.
 ---@field ApplyTargetFrameClicks fun(self: InterruptClaim)|nil  Defined by the UI file; binds or restores Target Frame clicks.
+---@field ApplyWorldClicks fun(self: InterruptClaim)|nil  Defined by the UI file; binds or clears the empty-world overlay.
 local InterruptClaim = ns.Modules.New("InterruptClaim", {
     defaults = {
         enabled = false,
@@ -39,6 +40,7 @@ local InterruptClaim = ns.Modules.New("InterruptClaim", {
         marker = 8,
         -- "off" / "party" / "say" / "emote". Legacy boolean + announceChannel is still read.
         announce = ANNOUNCE_OFF,
+        clearFocusOnEmpty = false,
     },
 })
 
@@ -153,20 +155,42 @@ local function AnnounceText(marker)
     return string.format(L.INTERRUPT_CLAIM_ANNOUNCE_TEXT, marker)
 end
 
+-- Named macros ignore the button's `unit` attribute. `/focus` without a unit
+-- therefore focuses the current target. `[@mouseover]` is the plate under the
+-- cursor once the overlay propagates mouse input to Midnight's C++ hit-test.
+local MACRO_FOCUS = "/focus [@mouseover,exists]"
+local MACRO_FOCUS_LEGACY = "/focus"
+
+local MACRO_CLEAR = "/clearfocus [@mouseover,noexists]"
+
 ---@param setMarker boolean
 ---@param marker integer
 ---@param announce boolean
 ---@param channel string
+---@param mouseover boolean|nil  false keeps pre-mouseover bodies for migration.
+---@param clearEmpty boolean|nil
 ---@return string
-local function BuildMacroBody(setMarker, marker, announce, channel)
-    if not setMarker then
-        return "/focus"
+local function BuildMacroBody(setMarker, marker, announce, channel, mouseover, clearEmpty)
+    local useMouseover = mouseover ~= false
+    local useClearEmpty = clearEmpty == true
+    local focusLine = useMouseover and MACRO_FOCUS or MACRO_FOCUS_LEGACY
+    local lines = { focusLine }
+    if useClearEmpty then
+        lines[#lines + 1] = MACRO_CLEAR
     end
-    local lines = {
-        "/focus",
-        "/stopmacro [group:raid]",
-        "/tm " .. marker,
-    }
+    if not setMarker then
+        if #lines == 1 then
+            return focusLine
+        end
+        return table.concat(lines, "\n")
+    end
+    local tmLine = useMouseover and ("/tm [@mouseover] " .. marker) or ("/tm " .. marker)
+    if useClearEmpty then
+        lines[#lines + 1] = "/stopmacro [@mouseover,noexists][group:raid]"
+    else
+        lines[#lines + 1] = "/stopmacro [group:raid]"
+    end
+    lines[#lines + 1] = tmLine
     if announce then
         lines[#lines + 1] = CHANNEL_SLASH[channel] .. " " .. AnnounceText(marker)
     end
@@ -190,16 +214,20 @@ local function IsManagedMacroBody(body)
     if not body then
         return false
     end
-    if body == "/focus" then
-        return true
-    end
-    for marker = InterruptClaim.MARKER_MIN, InterruptClaim.MARKER_MAX do
-        if body == BuildMacroBody(true, marker, false, CHANNEL_PARTY) then
-            return true
-        end
-        for _, channel in ipairs(InterruptClaim.ANNOUNCE_CHANNELS) do
-            if body == BuildMacroBody(true, marker, true, channel) then
+    for _, mouseover in ipairs({ true, false }) do
+        for _, clearEmpty in ipairs({ false, true }) do
+            if body == BuildMacroBody(false, InterruptClaim.MARKER_MAX, false, CHANNEL_PARTY, mouseover, clearEmpty) then
                 return true
+            end
+            for marker = InterruptClaim.MARKER_MIN, InterruptClaim.MARKER_MAX do
+                if body == BuildMacroBody(true, marker, false, CHANNEL_PARTY, mouseover, clearEmpty) then
+                    return true
+                end
+                for _, channel in ipairs(InterruptClaim.ANNOUNCE_CHANNELS) do
+                    if body == BuildMacroBody(true, marker, true, channel, mouseover, clearEmpty) then
+                        return true
+                    end
+                end
             end
         end
     end
@@ -291,7 +319,9 @@ function InterruptClaim.GetFocusMacroBody()
         InterruptClaim:ShouldSetMarker(),
         InterruptClaim:GetMarker(),
         announce ~= ANNOUNCE_OFF,
-        announce
+        announce,
+        true,
+        InterruptClaim:ShouldClearFocusOnEmpty()
     )
 end
 
@@ -444,6 +474,23 @@ function InterruptClaim:SetAnnounce(announce)
     NotifySettingsChanged()
 end
 
+---@return boolean
+function InterruptClaim:ShouldClearFocusOnEmpty()
+    return self.db.clearFocusOnEmpty == true
+end
+
+---@param enabled boolean
+function InterruptClaim:SetClearFocusOnEmpty(enabled)
+    enabled = enabled == true
+    if self.db.clearFocusOnEmpty == enabled then
+        return
+    end
+    self.db.clearFocusOnEmpty = enabled
+    self:SyncFocusMacro()
+    self:SyncNameplateClicks()
+    NotifySettingsChanged()
+end
+
 ---@class InterruptClaimClickBinding
 ---@field modifier string
 ---@field mouseButton string
@@ -486,6 +533,12 @@ function InterruptClaim:ShouldBindTargetFrameClicks()
     return self:ShouldBindNameplateClicks() and self:IsTargetFrameBound()
 end
 
+---True when nameplate clicks bind and empty-world clicks should clear focus.
+---@return boolean
+function InterruptClaim:ShouldBindWorldClicks()
+    return self:ShouldBindNameplateClicks() and self:ShouldClearFocusOnEmpty()
+end
+
 ---Applies or clears nameplate overlays and optional Target Frame clicks. Defers during combat lockdown.
 ---@return boolean ok
 ---@return "combat"|nil reason
@@ -501,6 +554,9 @@ function InterruptClaim:SyncNameplateClicks()
     end
     if self.ApplyTargetFrameClicks then
         self:ApplyTargetFrameClicks()
+    end
+    if self.ApplyWorldClicks then
+        self:ApplyWorldClicks()
     end
     if deferred then
         NotifySettingsChanged()

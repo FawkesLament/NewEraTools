@@ -37,6 +37,14 @@ local function FakeFrame(parent)
         self.mouseEnabled = enabled == true
     end
 
+    function frame:SetPropagateMouseClicks(enabled)
+        self.propagateClicks = enabled == true
+    end
+
+    function frame:SetPropagateMouseMotion(enabled)
+        self.propagateMotion = enabled == true
+    end
+
     function frame:SetParent(parentFrame)
         self.parent = parentFrame
     end
@@ -241,6 +249,19 @@ describe("InterruptClaim nameplate clicks", function()
             return plate
         end
 
+        local function MakePlaterPlate()
+            local plate = MakePlate()
+            plate.Plater = true
+            local hitTest = FakeFrame(plate)
+            hitTest.frameLevel = 142
+            local platerUnitFrame = FakeFrame(plate)
+            platerUnitFrame.Plater = true
+            platerUnitFrame.frameLevel = 141
+            platerUnitFrame.hitTestFrame = hitTest
+            plate.unitFrame = platerUnitFrame
+            return plate
+        end
+
         local function SetEnemy(unit, enemy)
             if enemy then
                 Unit.SetForTests(unit, {
@@ -302,6 +323,21 @@ describe("InterruptClaim nameplate clicks", function()
                 end
             end
             assert.is_true(passedRight)
+            assert.is_true(overlay.propagateClicks)
+            assert.is_true(overlay.propagateMotion)
+        end)
+
+        it("covers Plater's hit-test frame instead of the hidden Blizzard UnitFrame", function()
+            Module:CreateFocusMacro()
+            Module:SetEnabled(true)
+            SetEnemy("nameplate1", true)
+            local plate = MakePlaterPlate()
+            Nameplate.FireAdded("nameplate1", plate)
+            local overlays = VisibleOverlays()
+            assert.equals(1, #overlays)
+            local overlay = overlays[1]
+            assert.is_true(overlay.parent == plate.unitFrame.hitTestFrame)
+            assert.is_true(overlay.allPoints == plate.unitFrame.hitTestFrame)
         end)
 
         it("does not place an overlay when the focus macro is missing", function()

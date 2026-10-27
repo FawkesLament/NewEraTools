@@ -161,6 +161,29 @@ describe("Nameplate production", function()
         issecretvalue = savedIsSecret
     end)
 
+    it("uses Blizzard UnitFrame as the click host when Plater is not present", function()
+        local unitFrame = {}
+        local plate = { UnitFrame = unitFrame }
+        local bare = { namePlateUnitToken = "nameplate1" }
+        assert.equals(unitFrame, Nameplate.GetHost(plate))
+        assert.equals(bare, Nameplate.GetHost(bare))
+        assert.is_nil(Nameplate.GetHost(nil))
+    end)
+
+    it("uses Plater's hit-test frame as the click host instead of the hidden Blizzard UnitFrame", function()
+        local blizzardUnitFrame = {}
+        local hitTest = {}
+        local platerUnitFrame = { Plater = true, hitTestFrame = hitTest }
+        local plate = {
+            Plater = true,
+            UnitFrame = blizzardUnitFrame,
+            unitFrame = platerUnitFrame,
+        }
+        assert.equals(hitTest, Nameplate.GetHost(plate))
+        platerUnitFrame.hitTestFrame = nil
+        assert.equals(platerUnitFrame, Nameplate.GetHost(plate))
+    end)
+
     it("walks currently visible Blizzard nameplates by namePlateUnitToken", function()
         local plateA = { namePlateUnitToken = "nameplate1" }
         local plateB = { namePlateUnitToken = "nameplate2" }
