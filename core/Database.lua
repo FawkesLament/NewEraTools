@@ -3,7 +3,7 @@ local _, ns = ...
 local Database = {}
 ns.Database = Database
 
-local SCHEMA_VERSION = 9
+local SCHEMA_VERSION = 10
 
 -- migrations[n] upgrades saved data from version n - 1 to version n, in place.
 local migrations = {}
@@ -73,6 +73,14 @@ migrations[9] = function(saved)
     local reminder = type(settings) == "table" and settings.interruptReminder or nil
     if type(reminder) == "table" then
         reminder.voice = nil
+    end
+end
+
+-- Interrupt Claim was unlaunched; drop leftover user settings.
+migrations[10] = function(saved)
+    local modules = saved.modules
+    if type(modules) == "table" then
+        modules.InterruptClaim = nil
     end
 end
 
