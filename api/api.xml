@@ -10,6 +10,7 @@
     <Script file="Encounter.lua"/>
     <Script file="EncounterTimeline.lua"/>
     <Script file="Combat.lua"/>
+    <Script file="Binding.lua"/>
     <Script file="CombatLog.lua"/>
     <Script file="Aura.lua"/>
     <Script file="Spell.lua"/>
@@ -18,6 +19,7 @@
     <Script file="Speech.lua"/>
     <Script file="RaidTarget.lua"/>
     <Script file="Nameplate.lua"/>
+    <Script file="UnitFrame.lua"/>
     <Script file="Macro.lua"/>
     <Script file="AddonMessage.lua"/>
     <Script file="MessageProtocolComm.lua"/>
