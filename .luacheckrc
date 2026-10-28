@@ -39,6 +39,7 @@ local GAME_API = {
     "C_Secrets",
     "C_StringUtil",
     "C_Timer",
+    "debugstack",
     "InCinematic",
     "IsInCinematicScene",
     "GetNumSpecializations",

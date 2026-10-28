@@ -48,6 +48,11 @@ return function()
         return ticker
     end
 
+    ---One-shot timer matching C_Timer.NewTimer.
+    function Timer.NewTimer(seconds, callback)
+        return Timer.NewTicker(seconds, callback, 1)
+    end
+
     ---Fires every callback that is due at or before `Timer.now`, including ones they queue.
     local function FireDue()
         local guard = 0

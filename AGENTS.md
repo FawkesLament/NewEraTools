@@ -1,85 +1,98 @@
-# NewEraTools: project rules
+# NewEraTools: Project Rules
 
-A World of Warcraft (retail) addon written in Lua 5.1. These rules apply to people and AI agents alike.
+A World of Warcraft (retail) addon written in Lua 5.1. These rules apply to both developers and AI agents.
 
-## Layout
+## Project Layout
 
 ```
-NewEraTools.toc   Loads one XML manifest per layer, then Main.lua.
-<folder>.xml      Each folder's manifest: lists its .lua files and sub-folder manifests, in load order.
-Main.lua          Entry point: loads saved variables and starts modules.
-core/             Basic utilities and pure logic: namespace, util, locale table, database, module registry, extension registry, MessageProtocol.
-api/              The only code that calls Blizzard game functions or listens to game events.
-locales/          Translations. zhCN.lua is the base locale and defines every key.
-services/         Shared non-UI services used by modules (and optionally ui/), e.g. AddonCheck.
-ui/               Shared, module-independent UI: assets, widgets, layout, floating windows, layout editor, main panel.
-modules/<group>/  One folder per sidebar group, named after its PanelGroups key (raid_leader/).
-modules/<group>/<name>/  One folder per feature: <Name>.lua (logic). UI is <Name>UI.lua, or a local ui/ folder for a larger feature. A larger feature may group related files in sub-folders (twin_fangs/interrupt_chain/, ui/interrupt_chain/).
-modules/*.lua     The only files directly in modules/: content shared by features (PanelGroups.lua).
-media/            Textures.
-tests/            Unit tests run outside the game. WoW never loads them.
+NewEraTools.toc       Loads layer manifests, then Main.lua.
+<folder>.xml          Lists Lua files and sub-folder manifests in load order.
+Main.lua              Initializes saved variables and starts modules.
+core/                 Namespace, utilities, database, module registry, extensions, protocols.
+api/                  Blizzard API adapters and game event subscriptions.
+locales/              Translations; zhCN.lua defines all keys.
+services/             Shared non-UI services.
+ui/                   Shared UI components, layout, editor, main panel.
+modules/<group>/      Feature groups matching PanelGroups keys.
+modules/<group>/<name>/
+                      Feature logic and feature-specific UI.
+modules/PanelGroups.lua
+                      Shared group metadata.
+media/                Textures and assets.
+tests/                Out-of-game Lua tests; never loaded by WoW.
 ```
 
 ## Architecture
 
-1. Layers load in this order: `core` → `api` → `locales` → `services` → `ui` → `modules` → `Main.lua`. A file may use only layers loaded before it. `services` may use `core`/`api`/`locales` but never `ui` or `modules`. `ui` may use `services` (and earlier layers) but never `modules`. Every folder with Lua files or sub-folders has a manifest named after the folder (`raid_leader/raid_leader.xml`) using `<Script file="..."/>` for its files and `<Include file="..."/>` for sub-folders; paths are relative to the manifest. The exception is feature folders, including any sub-folder inside them (`ui/`, `interrupt_chain/`, ...): they have no manifest, and their group's manifest lists their files directly (`<Script file="raid_lottery\RaidLottery.lua"/>`). Manifests only list files; UI is built in Lua, not XML.
-2. Only `api/` touches game state: Blizzard functions, constants and events. It returns plain tables and offers callbacks (e.g. `Group.OnChanged`) instead of raw events. API version differences are handled inside `api/`, once, at load time. Keep wrappers thin: if a game function's signature already fits, assign it directly (`Timer.After = C_Timer.After`), and don't allocate tables per call in anything that may run often.
-3. Direct frame and widget calls (`CreateFrame`, `GameTooltip`, ...) belong only in a `ui/` directory (shared or inside a feature) or in a `*UI.lua` file. Other files may build UI only through those components. Template, texture, atlas and font names, plus shared spacing, sizes and colors, live in `ui/Assets.lua`. Place widgets with `ui/Layout.lua` (stacks, rows, grids) instead of fixed offsets from the container's top, and let buttons size to their text.
-4. Logic files (`core/`, `services/`, module `<Name>.lua`, shared files in `modules/`) use only plain Lua and `ns`. They do not call `CreateFrame`; they may ask a UI component to build frames, and they stay independent of a concrete UI. `services/` holds cross-feature non-UI behavior that may call `api/`; keep `core/` limited to basics and pure helpers.
-5. Every feature is a module: `ns.Modules.New(name, { defaults = ... })`. `self.db` holds its saved settings. `OnInit` runs for all modules, then `OnEnable` for all modules. Shared UI that owns saved settings or needs `OnEnable` (`ui/MainPanel.lua`, `ui/MinimapButton.lua`) is also a module, but not a feature: it lives in `ui/` and never names a feature. Feature modules never reference each other; they may use UI services such as `ns.MainPanel`, shared services such as `ns.AddonCheck`, and shared content such as `ns.PanelGroups`. Shared content in `modules/` is data, not a module, and is loaded by `modules/modules.xml` before any feature. Feature UI may use shared `ui/` and its own module's public interface. Shared `ui/` never names a feature or a group. Extract a shared component only when the abstraction is genuinely reusable.
-6. Loading a file only defines things. Frames, events and slash commands are set up in `OnEnable`.
-7. All shared state lives in the `ns` table. Feature files never add keys to `ns`: a feature's private parts (schemas, helpers, UI pieces) go on `local Internals = ns.Modules.Internals("<ModuleName>")`, which only that feature's folder may use. Each key is defined once, by the file that owns it; reading a key before its file has loaded raises. Globals are limited to `NewEraToolsDB`, the `NewEraToolsAPI` registration table, slash commands and named frames, all prefixed `NewEraTools`. Do not put `ns` or feature modules on `NewEraToolsAPI`. See [docs/extensions/](docs/extensions/).
-8. No user-visible string literals in code: use `L.KEY`, defined in `locales/zhCN.lua`.
-9. To change the shape of saved data, bump `SCHEMA_VERSION` in `core/Database.lua` and add a migration.
+1. **Layering:** Load order is `core → api → locales → services → ui → modules → Main.lua`. Files may depend only on earlier layers. `services/` must not depend on `ui/` or `modules/`; shared `ui/` must not depend on `modules/`. Extract shared components only when genuinely reusable.
+
+2. **Manifests:** Each ordinary folder containing Lua files or sub-folders has a matching XML manifest (`raid_leader/raid_leader.xml`), using `<Script>` and `<Include>` with relative paths. Feature folders and their descendants are exceptions: they have no manifests; the group's manifest lists their Lua files directly. XML controls loading only; UI is built in Lua.
+
+3. **Game APIs:** Only `api/` calls Blizzard game functions, accesses game state, or subscribes to game events. Expose thin adapters, plain data, and callbacks rather than raw events. Handle API version differences in `api/` at load time. Avoid unnecessary allocations in frequently called wrappers.
+
+4. **UI boundaries:** Direct frame/widget APIs (`CreateFrame`, `GameTooltip`, etc.) belong only in shared or feature-local `ui/` directories or `*UI.lua` files. Logic files use plain Lua and `ns`; they may invoke UI components but must not manipulate frames directly. Shared visual constants belong in `ui/Assets.lua`. Prefer `ui/Layout.lua` over fixed positioning; let buttons size to their text.
+
+5. **Modules:** Every feature uses `ns.Modules.New(name, { defaults = ... })`, with saved settings in `self.db`. `OnInit` runs for all modules before `OnEnable` runs for all modules. Shared UI requiring initialization, settings, or enable hooks may also be a module, but is not a feature. Feature modules must not reference one another; communicate through shared services or public UI interfaces. Shared content such as `PanelGroups` is data, not a module.
+
+6. **Initialization:** Loading a file only defines functions, tables, and registrations. Runtime initialization—including frames, event subscriptions, and slash commands—happens in `OnEnable`. Register persistent resources once; avoid repeated initialization.
+
+7. **State ownership:** Cross-component shared state is exposed through `ns`; private runtime state remains local to its owner. Feature files must not add keys directly to `ns`. Feature-private components use `local Internals = ns.Modules.Internals("<ModuleName>")`, accessible only within that feature's folder. Each key has a single defining file; premature access raises. Globals are restricted to `NewEraToolsDB`, the `NewEraToolsAPI` registration table, slash commands, and named frames, all using the `NewEraTools` prefix. Never expose `ns` or feature modules through `NewEraToolsAPI`. See [docs/extensions/](docs/extensions/).
+
+8. **Resource lifecycle:** Every temporary subscription, timer, ticker, or other active resource must have a clear owner and cleanup path. Register low-frequency global listeners once for the addon lifetime; avoid unnecessary subscribe/unsubscribe cycles. Clean up encounter-specific and other temporary resources when their owner becomes inactive. Cancel pending timers or guard against stale callbacks. Reuse UI frames rather than repeatedly creating them; hiding a frame does not automatically unregister its events. Avoid unnecessary `OnUpdate` handlers and polling. Do not introduce complex lifecycle abstractions without a concrete need.
+
+9. **Localization:** No user-visible string literals in code. Define strings in `locales/zhCN.lua` and reference them through `L.KEY`.
+
+10. **Persistence:** When changing saved-data structure, increment `SCHEMA_VERSION` in `core/Database.lua` and add a migration. Renaming modules or saved variables requires migration to preserve settings.
 
 ## Extensions
 
-External addons register optional feature extensions on `NewEraToolsAPI`. The host runs fully with none installed. Feature modules read them through `ns.Extensions` and define the provider contract for their own extension type. Contracts are not a shared provider interface. See [docs/extensions/](docs/extensions/).
+External addons register optional feature extensions through `NewEraToolsAPI`. The host must work without extensions. Feature modules consume providers through `ns.Extensions` and own their specific provider contracts; do not invent a universal provider interface. See [docs/extensions/](docs/extensions/).
 
-## Adding a feature
+## Adding Features
 
-1. Logic in `modules/<group>/<snake_name>/<Name>.lua`, where `<group>` is the lowercased `ns.PanelGroups` key of the feature's sidebar group. UI goes in `<Name>UI.lua`, or in that feature's `ui/` folder when one file is not enough, and calls `ns.MainPanel:RegisterSection` from `OnEnable` with that `group`. A new group goes into `modules/PanelGroups.lua` with a unique `order`, gets a `modules/<group>/<group>.xml` manifest, and is included from `modules/modules.xml`.
-2. List the logic file, then its UI files, in `modules/<group>/<group>.xml` (`<snake_name>\<Name>.lua`, then `<Name>UI.lua` or `<snake_name>\ui\...`).
-3. Add strings to `locales/zhCN.lua` (and other locales).
-4. A new game API call goes into an `api/` function, gets a fake in `tests/helpers/fakes/`, and is listed in `.luacheckrc`. New `api/` files are added to `api/api.xml`.
-5. Add tests under tests/modules/<group>/<snake_name>/, grouped by behavior rather than production filename. Small features may use a single <Name>_spec.lua; split complex features into focused specs. Follow the testing rules below.
+1. Create feature logic in `modules/<group>/<snake_name>/<Name>.lua`. Put UI in `<Name>UI.lua` or a feature-local `ui/` folder. Larger features may organize related files into sub-folders.
+2. List feature files in load order in `modules/<group>/<group>.xml` (logic before UI). New groups need a unique `order` in `modules/PanelGroups.lua`, a group manifest, and an include in `modules/modules.xml`.
+3. Register UI sections through `ns.MainPanel:RegisterSection` from `OnEnable`, using the feature's `PanelGroups` group.
+4. Add localization keys. New Blizzard APIs belong in `api/`, with corresponding test fakes, `.luacheckrc` entries, and manifest updates.
+5. Add or update tests only when warranted by the Testing rules.
 
-## Adding a floating UI element
+## Floating UI
 
-Positioning is shared; appearance and visibility stay in the module.
+- **Positioning:** Prefer `ui/FloatingWindow.lua`, or a plain layout host for protected/secret-sensitive content such as `AuraContainer`. Use `MEDIUM` strata so Blizzard menus remain on top. Persist `{ point, relativePoint, x, y }` in module defaults and reuse the existing drag/save infrastructure.
+- **Layout editing:** Register elements through `ns.LayoutEditor.Register` with stable IDs (`Feature:instance`). Use `global = true` for common UI. Boss-specific elements use `global = false` and a dedicated `LayoutEditor.RegisterScope` (`id`, `label`, `elementIds`, optional `prepare`), entered through `LayoutEditor.BeginScope(id)`. Do not create separate editing systems.
+- **Preview:** Implement `onEditBegin` / `onEditEnd` to show preview content independently of normal activation, then restore visibility and mouse behavior. Stop any preview animation or timer when editing ends. The editor controls position only; appearance and dimensions remain feature-owned.
+- **Interaction and combat:** Floating chrome must not intercept normal clicks outside edit mode. Keep intentional interactive controls functional. Never reanchor or otherwise perform prohibited changes to protected frames during combat. Layout editing is out-of-combat only and exits when combat begins.
+- **Lifetime:** Create persistent UI elements once and reuse them. Separate frame existence from feature activation and visibility; clean up temporary handlers, timers, and interaction state when appropriate.
 
-1. Prefer `ui/FloatingWindow.lua` for overlays, or a plain outer layout host when the real content is protected/secret-sensitive (e.g. AuraContainer). Use `MEDIUM` frame strata (not `DIALOG`/`HIGH`) so Blizzard menus stay on top; layout edit mode raises frames temporarily. Persist `{ point, relativePoint, x, y }` in the module's `defaults` and expose get/set helpers. Do not invent a second drag/save path.
-2. Register with `ns.LayoutEditor.Register` from the module UI (`OnEnable` / first frame create). Use a stable id `Feature:instance` (e.g. `AuraTracker:1`) so multiple instances can be added later. Set `global = true` for general-purpose UI (the common UI scope). Set `global = false` for boss- or encounter-specific UI, register one scope with `LayoutEditor.RegisterScope` (`id`, `label`, `elementIds`, optional `prepare`), and call `LayoutEditor.BeginScope(id)` from that module's layout button. The main panel's **编辑布局** button enters the same editor in the common scope. There is one editing session; the toolbar switches scopes.
-3. Implement `onEditBegin` / `onEditEnd` to show a preview without requiring the feature's normal activation conditions, then restore normal show/hide and mouse behavior. A module may optionally run a lightweight preview animation while editing (start in `onEditBegin`, stop in `onEditEnd`); keep it local to the module. The editor only moves position; width, height, scale, and look stay on the module's own settings.
-4. Outside edit mode, floating chrome must not steal clicks for dragging. Keep intentional clicks (e.g. "enable combat logging") if the feature needs them. Never reanchor protected frames during combat; editing is out-of-combat only and exits automatically when combat starts.
+## Code Style
 
-## Code style
-
-- Follow existing naming and file organization conventions. Use `stylua .` for formatting and respect `.stylua.toml`.
+- Follow existing naming and file organization conventions. Format with `stylua .` and respect `.stylua.toml`.
 - Library tables (`Util`, `Api.*`) use dot functions; modules use colon methods.
-- Add LuaLS annotations (`---@param`, `---@return`, `---@class`) for public APIs and non-obvious data shapes.
-- Comments explain intent, constraints, or non-obvious behavior rather than narrating the code.
+- Add LuaLS annotations for public APIs and non-obvious data shapes.
+- Comments explain intent, constraints, and surprising behavior, not what the code already states.
+- Prefer simple, local solutions over speculative abstractions. Avoid duplicating existing infrastructure.
 
 ## Testing
 
-- **Run tests:** Use `luajit tests/run.lua` from the addon folder (Lua 5.1; in-repo busted-compatible subset). Run the full suite after changes; all tests must pass.
-- **Test selectively:** Tests protect observable behavioral contracts, not implementation details, static data, or test counts. **Default to NOT adding tests.** Add or update tests only for meaningful logic, state transitions, edge cases, or regression risks. Do not add tests solely for changes to constants, configuration defaults, mappings, labels, styling, layout, or straightforward refactoring. Run existing tests as appropriate even when no new tests are needed.
-- **Test quality:** Verify actual outcomes and meaningful failure paths. Never weaken assertions just to pass tests. For significant bug fixes, prefer a regression test that fails before the fix. For high-risk logic, consider reversible mutation testing. Do not duplicate coverage or assert hardcoded implementation values.
-- **Organization:** Group specs by behavior, not production file. Keep them focused without excessive fragmentation or shared fixtures. Prefer extending existing specs over creating new files. Remove obsolete or redundant tests when appropriate, but preserve meaningful assertions during test-only refactoring.
-- **Isolation and mocks:** Each test must have isolated state; use `before_each`/`after_each` and restore overridden globals reliably. Avoid test-order dependencies and hidden defaults. Mocks must reflect documented API contracts without being overly permissive. Do not derive expected results solely from the implementation. Avoid caching globals such as `math.random` at production load time when tests need to stub them.
-- **WoW limitations:** The test loader fakes most `api/` adapters; `Aura`, `Encounter`, and `MessageProtocolComm` use production implementations. Fake-based tests cannot validate actual Blizzard API behavior. Complex adapters may use contract specs with stubbed WoW globals. The loader skips `ui/`, `*UI.lua`, and `Main.lua`; UI specs may load selected files with frame stubs. Meta tests cover TOC/manifest completeness, locale keys, and architecture boundaries (frames only in UI files, no feature keys on `ns`, internals used only by their own feature). Secret values, combat restrictions, protected UI, and UI changes require in-game validation (`/reload`, `/netools`, and relevant raid scenarios).
-- **Reporting:** Summarize test results, relevant behavior verified, and remaining in-game validation needs. Explicitly state when no tests were added and why, without treating that as a deficiency.
+- **Execution:** Run `luajit tests/run.lua` from the addon folder (Lua 5.1; in-repo busted-compatible subset). Run the full suite after changes; all tests must pass.
+- **Coverage:** Test observable contracts, meaningful logic, state transitions, edge cases, and regressions—not implementation details or test counts. Default to not adding tests for constants, mappings, defaults, labels, styling, layout, or straightforward refactoring.
+- **Quality:** Assert actual outcomes and failure behavior. Never weaken assertions merely to make tests pass. Prefer a regression test that fails before significant bug fixes. For high-risk logic, consider reversible mutation testing. Do not derive expected results solely from production implementation.
+- **Lifecycle:** For lifecycle-sensitive code, test repeated activation/deactivation, cleanup, and prevention of stale callbacks where applicable. Verify that subscriptions and timers do not accumulate across repeated sessions.
+- **Organization:** Group specs by observable behavior, not production files. Keep them focused, prefer extending existing specs, and avoid excessive fixtures or fragmentation. Remove redundant tests without losing meaningful coverage.
+- **Isolation:** Reset state between tests and reliably restore mocked globals. Avoid test-order dependencies and hidden defaults. Mocks must reflect documented API contracts without being overly permissive.
+- **WoW limitations:** Most `api/` adapters are replaced with fakes; `Aura`, `Encounter`, and `MessageProtocolComm` use production implementations. Adapter contract specs may stub WoW globals. The loader skips `ui/`, `*UI.lua`, and `Main.lua`; UI specs may load selected files with frame stubs. Meta tests check manifests, locale keys, and architectural boundaries. Fakes cannot establish real WoW API behavior.
+- **In-game validation:** Secret values, combat lockdown, protected UI, and visual changes require in-game testing (`/reload`, `/netools`, and relevant encounter scenarios).
+- **Reporting:** Summarize tests run, behaviors verified, and remaining in-game validation. If no tests were added, briefly explain why without treating that as a deficiency.
 
-## WoW constraints
+## WoW Constraints
 
-- Addon code runs in Lua 5.1 with no `require`, `io` or `os`. Files share state only through `ns`.
-- Update `## Interface` in the TOC after major game patches.
+- Lua 5.1 only; no `require`, `io`, or `os`. Files share cross-component state through `ns`.
+- Respect secret values, combat restrictions, and protected UI boundaries. Do not assume data readable outside combat remains readable during encounters.
 - Never hardcode `Interface\AddOns\...` paths; use `ns.Assets`.
-- Renaming the saved variable or a module discards its saved settings unless a migration carries them over.
 
-## Inter-addon messaging
+## Inter-Addon Messaging
 
-- `api/AddonMessage` is the only transport wrapper for Blizzard addon messages (prefixes, send/receive, throttle results).
-- `core/MessageProtocol` owns the v1 envelope and topic routing; `api/MessageProtocolComm` is the one-way adapter that listens/sends on `NET_RT` / `NET_CTL`. See [docs/message_protocol.md](docs/message_protocol.md).
-- Feature modules own payload bytes, topics, authorization, request lifecycles, and traffic class (`REALTIME` vs `CONTROL`). Do not put business schemas in the generic protocol layer.
-- Prefer MessageProtocol + MessageProtocolComm for new cross-client features; do not add new per-feature addon-message prefixes.
+- `api/AddonMessage` is the only Blizzard addon-message transport wrapper (prefixes, send/receive, throttle results).
+- `core/MessageProtocol` owns the v1 envelope and topic routing. `api/MessageProtocolComm` bridges the protocol to `NET_RT` / `NET_CTL`. See [docs/message_protocol.md](docs/message_protocol.md).
+- Features own payload formats, topics, authorization, request lifecycles, and traffic class (`REALTIME` / `CONTROL`). Keep business schemas out of the generic protocol.
+- Prefer `MessageProtocol` + `MessageProtocolComm` for new cross-client features. Do not create new per-feature addon-message prefixes.

@@ -33,17 +33,32 @@ function Encounter.OnWarning(callback)
     return ns.Api.GameEvents.Listen("ENCOUNTER_WARNING", callback)
 end
 
+---xpcall handler: runs before the stack unwinds, so the trace still shows where `setup` failed.
+---@param err any
+---@return any
+local function AttachTraceback(err)
+    if type(err) ~= "string" then
+        return err
+    end
+    if debugstack then
+        return err .. "\n" .. debugstack(2)
+    end
+    return debug.traceback(err, 2)
+end
+
 ---@class EncounterWhileIn
 ---@field SetEnabled fun(self: EncounterWhileIn, enabled: boolean)  Feature gate; inactive when false.
 ---@field IsEnabled fun(self: EncounterWhileIn): boolean
 ---@field IsInside fun(self: EncounterWhileIn): boolean  True between matching ENCOUNTER_START and END.
----@field IsActive fun(self: EncounterWhileIn): boolean  True while `setup`'s cleanup has not run yet.
+---@field IsActive fun(self: EncounterWhileIn): boolean  True from the moment this activation's scope is installed until that scope is disposed.
 
----Runs `setup` while inside `encounterID` (and while enabled). `setup` must return a cleanup function;
----that cleanup always runs when the fight ends or when disabled — so subscriptions cannot outlive the pull.
+---Runs `setup` while inside `encounterID` (and while enabled). `setup` receives a `ResourceScope`
+---and may also return a cleanup function; both are disposed when the fight ends or when disabled.
 ---`setup` receives the `difficultyID` from the matching ENCOUNTER_START (and again if re-enabled mid-fight).
+---`IsActive` is true as soon as the activation scope is installed, including while `setup` is running,
+---and false after that scope is disposed. A failed or superseded `setup` is not left active.
 ---@param encounterID number
----@param setup fun(difficultyID: number): (fun()|nil)
+---@param setup fun(difficultyID: number, scope: ResourceScope): (fun()|nil)
 ---@return EncounterWhileIn
 function Encounter.WhileIn(encounterID, setup)
     assert(type(encounterID) == "number", "Encounter.WhileIn requires encounterID")
@@ -52,24 +67,53 @@ function Encounter.WhileIn(encounterID, setup)
     local enabled = true
     local inside = false
     local difficultyID = 0
-    ---@type fun()|nil
-    local cleanup = nil
+    ---@type ResourceScope|nil
+    local activeScope = nil
+
+    local function DisposeActive()
+        local scope = activeScope
+        if not scope then
+            return
+        end
+        activeScope = nil
+        scope:Dispose()
+    end
+
+    local function Activate()
+        local scope = ns.ResourceScope.New()
+        activeScope = scope
+
+        local ok, result = xpcall(function()
+            return setup(difficultyID, scope)
+        end, AttachTraceback)
+        if not ok then
+            if activeScope == scope then
+                activeScope = nil
+            end
+            scope:Dispose()
+            -- Level 0: the message already carries the original location and trace.
+            error(result, 0)
+        end
+
+        if type(result) == "function" then
+            scope:Add(result)
+        end
+
+        if activeScope ~= scope then
+            scope:Dispose()
+        end
+    end
 
     local function Sync()
         local want = enabled and inside
         if want then
-            if cleanup then
+            if activeScope then
                 return
             end
-            cleanup = setup(difficultyID) or function() end
+            Activate()
             return
         end
-        if not cleanup then
-            return
-        end
-        local leave = cleanup
-        cleanup = nil
-        leave()
+        DisposeActive()
     end
 
     Encounter.OnStart(function(id, _, startDifficultyID)
@@ -105,7 +149,7 @@ function Encounter.WhileIn(encounterID, setup)
     end
 
     function handle:IsActive()
-        return cleanup ~= nil
+        return activeScope ~= nil
     end
 
     return handle

@@ -8,6 +8,15 @@ describe("TheLostExplorers", function()
         Encounter.FireStart(Module.ENCOUNTER_ID, "The Lost Explorers", 16, 20)
     end
 
+    local function EndFight()
+        Encounter.FireEnd(Module.ENCOUNTER_ID, "The Lost Explorers", 16, 20, 1)
+    end
+
+    -- Final Ascension channel ending is the in-fight path that clears the active warning.
+    local function FinishChannel()
+        Spell.FireChannelStop(Module.BOSS_UNIT, nil, nil)
+    end
+
     local function MatchingTimelineEvent(overrides)
         local eventInfo = {
             id = 1001,
@@ -57,6 +66,11 @@ describe("TheLostExplorers", function()
     end)
 
     describe("encounter", function()
+        local function TimelineListenerCount()
+            local list = ns.Api.GameEvents.handlers["ENCOUNTER_TIMELINE_EVENT_ADDED"]
+            return list and #list or 0
+        end
+
         it("tracks only encounter 3497", function()
             Module:SetEnabled(true)
             Encounter.FireStart(1, "Other", 16, 20)
@@ -69,22 +83,20 @@ describe("TheLostExplorers", function()
 
         it("starts fight listeners only while enabled inside the encounter", function()
             assert.is_false(Module:IsListeningForFight())
-            assert.is_false(EncounterTimeline.HasEventAddedListener())
-            assert.is_false(Spell.HasChannelStartListener(Module.BOSS_UNIT))
+            assert.equals(0, TimelineListenerCount())
+            assert.is_false(Spell.HasChannelStopListener(Module.BOSS_UNIT))
 
             Module:SetEnabled(true)
             assert.is_false(Module:IsListeningForFight())
 
             Encounter.FireStart(Module.ENCOUNTER_ID, "The Lost Explorers", 16, 20)
             assert.is_true(Module:IsListeningForFight())
-            assert.is_true(EncounterTimeline.HasEventAddedListener())
-            assert.is_true(Spell.HasChannelStartListener(Module.BOSS_UNIT))
+            assert.equals(1, TimelineListenerCount())
             assert.is_true(Spell.HasChannelStopListener(Module.BOSS_UNIT))
 
             Encounter.FireEnd(Module.ENCOUNTER_ID, "The Lost Explorers", 16, 20, 1)
             assert.is_false(Module:IsListeningForFight())
-            assert.is_false(EncounterTimeline.HasEventAddedListener())
-            assert.is_false(Spell.HasChannelStartListener(Module.BOSS_UNIT))
+            assert.equals(0, TimelineListenerCount())
             assert.is_false(Spell.HasChannelStopListener(Module.BOSS_UNIT))
         end)
 
@@ -93,7 +105,7 @@ describe("TheLostExplorers", function()
             assert.is_true(Module:IsListeningForFight())
             Module:SetEnabled(false)
             assert.is_false(Module:IsListeningForFight())
-            assert.is_false(EncounterTimeline.HasEventAddedListener())
+            assert.equals(0, TimelineListenerCount())
         end)
 
         it("restarts fight listeners when the feature is turned back on mid-fight", function()
@@ -102,8 +114,19 @@ describe("TheLostExplorers", function()
             Module:SetEnabled(true)
             assert.is_true(Module:IsInEncounter())
             assert.is_true(Module:IsListeningForFight())
-            assert.is_true(EncounterTimeline.HasEventAddedListener())
-            assert.is_true(Spell.HasChannelStartListener(Module.BOSS_UNIT))
+            assert.equals(1, TimelineListenerCount())
+            assert.is_true(Spell.HasChannelStopListener(Module.BOSS_UNIT))
+        end)
+
+        it("does not accumulate timeline listeners across pulls", function()
+            StartFight()
+            assert.equals(1, TimelineListenerCount())
+            Encounter.FireEnd(Module.ENCOUNTER_ID, "The Lost Explorers", 16, 20, 1)
+            assert.equals(0, TimelineListenerCount())
+            Encounter.FireStart(Module.ENCOUNTER_ID, "The Lost Explorers", 16, 20)
+            assert.equals(1, TimelineListenerCount())
+            Encounter.FireEnd(Module.ENCOUNTER_ID, "The Lost Explorers", 16, 20, 1)
+            assert.equals(0, TimelineListenerCount())
         end)
     end)
 
@@ -161,41 +184,83 @@ describe("TheLostExplorers", function()
             assert.equals(nil, Module:GetDisplayedCallout())
         end)
 
-        it("cancels a pending callout when boss2's tracked channel stops", function()
+        -- In encounters boss2's channel events carry a nil castGUID and a secret spellID.
+        it("cancels a pending callout when boss2's channel stops", function()
             StartFight()
             EncounterTimeline.FireEventAdded(MatchingTimelineEvent())
-            Spell.FireChannelStart(Module.BOSS_UNIT, "Cast-1", 123)
-            Spell.FireChannelStop(Module.BOSS_UNIT, "Cast-1", 123)
+            Spell.FireChannelStop(Module.BOSS_UNIT, nil, nil)
             Timer.Advance(Module.CALLOUT_DELAY)
             assert.equals(nil, Module:GetDisplayedCallout())
         end)
 
-        it("clears an active callout when boss2's tracked channel stops", function()
+        it("clears an active callout when boss2's channel stops without a seen start", function()
             StartFight()
             EncounterTimeline.FireEventAdded(MatchingTimelineEvent())
-            Spell.FireChannelStart(Module.BOSS_UNIT, "Cast-2", 123)
             Timer.Advance(Module.CALLOUT_DELAY)
             assert.equals(ns.L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT, Module:GetDisplayedCallout())
-            Spell.FireChannelStop(Module.BOSS_UNIT, "Cast-2", 123)
+            Spell.FireChannelStop(Module.BOSS_UNIT, nil, nil)
             assert.equals(nil, Module:GetDisplayedCallout())
         end)
 
-        it("ignores channel stop for a different castGUID", function()
+        it("does not let an earlier channel stop cancel a later warning", function()
             StartFight()
+            Spell.FireChannelStop(Module.BOSS_UNIT, nil, nil)
+            Spell.FireChannelStart(Module.BOSS_UNIT, nil, nil)
             EncounterTimeline.FireEventAdded(MatchingTimelineEvent())
-            Spell.FireChannelStart(Module.BOSS_UNIT, "Cast-A", 123)
             Timer.Advance(Module.CALLOUT_DELAY)
-            Spell.FireChannelStop(Module.BOSS_UNIT, "Cast-B", 123)
             assert.equals(ns.L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT, Module:GetDisplayedCallout())
         end)
 
-        it("clears an active callout when combat ends", function()
+        it("clears an active callout when the encounter ends", function()
             StartFight()
             EncounterTimeline.FireEventAdded(MatchingTimelineEvent())
+            Timer.Advance(Module.CALLOUT_DELAY)
+            assert.equals(ns.L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT, Module:GetDisplayedCallout())
+            EndFight()
+            assert.equals(nil, Module:GetDisplayedCallout())
+        end)
+
+        it("cancels a pending callout when the encounter ends", function()
+            StartFight()
+            EncounterTimeline.FireEventAdded(MatchingTimelineEvent())
+            Timer.Advance(Module.CALLOUT_DELAY / 2)
+            EndFight()
+            Timer.Advance(Module.CALLOUT_DELAY)
+            assert.equals(nil, Module:GetDisplayedCallout())
+        end)
+
+        it("does not carry a pending callout into the next pull", function()
+            StartFight()
+            EncounterTimeline.FireEventAdded(MatchingTimelineEvent({ id = 6001 }))
+            Timer.Advance(Module.CALLOUT_DELAY / 3)
+            EndFight()
+            Encounter.FireStart(Module.ENCOUNTER_ID, "The Lost Explorers", 16, 20)
+            Timer.Advance(Module.CALLOUT_DELAY)
+            assert.equals(nil, Module:GetDisplayedCallout())
+
+            -- The new pull still schedules its own first warning normally.
+            EncounterTimeline.FireEventAdded(MatchingTimelineEvent({ id = 6002 }))
+            Timer.Advance(Module.CALLOUT_DELAY)
+            assert.equals(ns.L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT, Module:GetDisplayedCallout())
+            EndFight()
+            assert.equals(nil, Module:GetDisplayedCallout())
+        end)
+
+        it("keeps the callout when the player leaves combat mid-pull", function()
+            StartFight()
+            EncounterTimeline.FireEventAdded(MatchingTimelineEvent({ id = 6101 }))
+            Combat.FireLeave()
             Timer.Advance(Module.CALLOUT_DELAY)
             assert.equals(ns.L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT, Module:GetDisplayedCallout())
             Combat.FireLeave()
-            assert.equals(nil, Module:GetDisplayedCallout())
+            assert.equals(ns.L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT, Module:GetDisplayedCallout())
+        end)
+
+        it("leaves other sources' callouts alone when the encounter ends", function()
+            StartFight()
+            ns.CalloutManager.Show({ source = "OtherFeature", text = "other", duration = 60 })
+            EndFight()
+            assert.equals("other", ns.CalloutManager.GetCurrent().text)
         end)
 
         it("cancels pending work when the feature is turned off", function()
@@ -204,6 +269,46 @@ describe("TheLostExplorers", function()
             Module:SetEnabled(false)
             Timer.Advance(Module.CALLOUT_DELAY)
             assert.equals(nil, Module:GetDisplayedCallout())
+        end)
+
+        it("does not revive a cancelled callout when re-enabled mid-fight", function()
+            StartFight()
+            EncounterTimeline.FireEventAdded(MatchingTimelineEvent())
+            Module:SetEnabled(false)
+            Module:SetEnabled(true)
+            Timer.Advance(Module.CALLOUT_DELAY)
+            assert.equals(nil, Module:GetDisplayedCallout())
+        end)
+
+        it("clears an active callout when the feature is turned off mid-fight", function()
+            StartFight()
+            EncounterTimeline.FireEventAdded(MatchingTimelineEvent())
+            Timer.Advance(Module.CALLOUT_DELAY)
+            assert.equals(ns.L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT, Module:GetDisplayedCallout())
+            Module:SetEnabled(false)
+            assert.equals(nil, Module:GetDisplayedCallout())
+        end)
+
+        it("lets the latest schedule win within a pull", function()
+            Module:SetFeedOrderSlot(1, Module.BOSS_TRADER)
+            Module:SetFeedOrderSlot(2, Module.BOSS_FIRST_MATE)
+            StartFight()
+            EncounterTimeline.FireEventAdded(MatchingTimelineEvent({ id = 6201 }))
+            Timer.Advance(10)
+            EncounterTimeline.FireEventAdded(MatchingTimelineEvent({ id = 6202 }))
+            EncounterTimeline.FireEventAdded(MatchingTimelineEvent({ id = 6203 }))
+
+            Timer.Advance(Module.CALLOUT_DELAY - 10)
+            assert.equals(nil, Module:GetDisplayedCallout())
+
+            Timer.Advance(10)
+            assert.equals(
+                string.format(
+                    ns.L.THE_LOST_EXPLORERS_FEED_FISH_CALLOUT_ORDERED,
+                    ns.L.THE_LOST_EXPLORERS_BOSS_FIRST_MATE
+                ),
+                Module:GetDisplayedCallout()
+            )
         end)
 
         it("accepts durations that round to 60", function()
@@ -223,7 +328,7 @@ describe("TheLostExplorers", function()
                 if index == 1 or index == 3 or index == 5 then
                     assert.is_true(shown)
                     scheduled = scheduled + 1
-                    Combat.FireLeave()
+                    FinishChannel()
                     assert.equals(nil, Module:GetDisplayedCallout())
                 else
                     assert.is_false(shown)
@@ -295,7 +400,7 @@ describe("TheLostExplorers", function()
                 if index == 1 or index == 3 or index == 5 then
                     calloutIndex = calloutIndex + 1
                     assert.equals(expected[calloutIndex], Module:GetDisplayedCallout())
-                    Combat.FireLeave()
+                    FinishChannel()
                     assert.equals(nil, Module:GetDisplayedCallout())
                 else
                     assert.equals(nil, Module:GetDisplayedCallout())

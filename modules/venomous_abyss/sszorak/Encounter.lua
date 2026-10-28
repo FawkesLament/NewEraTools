@@ -191,17 +191,20 @@ end
 ---Starts watching for this boss fight. Called from OnEnable.
 ---Map test mode (`StartMapTest`) is separate and does not use this scope.
 function Sszorak:ListenForEncounter()
-    fight = Encounter.WhileIn(ENCOUNTER_ID, function(difficultyID)
+    fight = Encounter.WhileIn(ENCOUNTER_ID, function(difficultyID, scope)
         -- Always restart from pull, even if preview was already animating.
+        -- Teardown is registered before the matching start so a later setup error still disposes it.
+        scope:Add(NotifyEncounterChanged)
         SetActiveSchedule(difficultyID)
+        scope:Add(function()
+            Sszorak:EndCalloutCapture()
+        end)
         Sszorak:BeginCalloutCapture()
+        scope:Add(function()
+            Sszorak:StopMapAnimation()
+        end)
         Sszorak:StartMapAnimation()
         NotifyEncounterChanged()
-        return function()
-            Sszorak:StopMapAnimation()
-            Sszorak:EndCalloutCapture()
-            NotifyEncounterChanged()
-        end
     end)
 end
 

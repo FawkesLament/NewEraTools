@@ -51,12 +51,9 @@ local ORDER_LEFT_FIRST = { Schema.GROUP_LEFT, Schema.GROUP_RIGHT, Schema.GROUP_M
 
 ---@type EncounterWhileIn|nil
 local fight = nil
----@type fun()|nil
-local unsubscribeTimeline = nil
----@type fun()|nil
-local unsubscribeNameplateHint = nil
----@type fun()|nil
-local unsubscribeInterruptStatus = nil
+-- The active Mythic pull's scope; owns its listeners and scheduled reminders.
+---@type ResourceScope|nil
+local mythicScope = nil
 -- Identified Ravenous Feast begin casts this pull.
 local feastCount = 0
 -- ~61s bars seen this pull.
@@ -182,11 +179,19 @@ local function ShowUntil(text, untilTime, token)
     TwinFangs:ShowCallout(text, untilTime, { kind = "soak", appendTimer = true })
 end
 
+---@param delay number
+---@param callback fun()
+local function PullAfter(delay, callback)
+    if mythicScope then
+        mythicScope:After(delay, callback)
+    end
+end
+
 ---Opens the interrupt-status window when this bar elapses.
 ---@param duration number
 local function ScheduleBrood(duration)
     local token = broodToken
-    Timer.After(duration, function()
+    PullAfter(duration, function()
         if token ~= broodToken or not TwinFangs:IsInEncounter() then
             return
         end
@@ -211,16 +216,16 @@ local function ScheduleFeast(duration)
         beginAt + CAST_SECONDS + HIT2_GAP + HIT3_GAP,
     }
     if hitIndex == 1 then
-        Timer.After(hitAt[1] - HIT1_LEAD - now, function()
+        PullAfter(hitAt[1] - HIT1_LEAD - now, function()
             ShowUntil(L.TWIN_FANGS_SOAK_ENTER, hitAt[1], token)
         end)
         return
     end
     local preceding = hitAt[hitIndex - 1]
-    Timer.After(preceding - PREPARE_LEAD - now, function()
+    PullAfter(preceding - PREPARE_LEAD - now, function()
         ShowUntil(L.TWIN_FANGS_SOAK_PREPARE, preceding, token)
     end)
-    Timer.After(preceding - now, function()
+    PullAfter(preceding - now, function()
         ShowUntil(L.TWIN_FANGS_SOAK_NOW, hitAt[hitIndex], token)
     end)
 end
@@ -250,14 +255,6 @@ local function OnTimelineEventAdded(eventInfo)
     end
 end
 
-local function StopListener(unsubscribe)
-    if not unsubscribe then
-        return nil
-    end
-    unsubscribe()
-    return nil
-end
-
 ---@return boolean
 function TwinFangs:IsInEncounter()
     return fight ~= nil and fight:IsInside()
@@ -266,13 +263,13 @@ end
 ---Whether this pull is subscribed to encounter timeline events.
 ---@return boolean
 function TwinFangs:IsListeningForTimeline()
-    return unsubscribeTimeline ~= nil
+    return mythicScope ~= nil
 end
 
 ---Whether this pull is subscribed to nameplate-hint cast events.
 ---@return boolean
 function TwinFangs:IsListeningForNameplateHint()
-    return unsubscribeNameplateHint ~= nil
+    return mythicScope ~= nil
 end
 
 ---@return string|nil
@@ -290,19 +287,23 @@ end
 ---Starts watching for this boss fight. Timeline events and nameplate-hint casts are subscribed only on Mythic.
 ---Called from OnEnable.
 function TwinFangs:ListenForEncounter()
-    fight = Encounter.WhileIn(ENCOUNTER_ID, function(difficultyID)
+    fight = Encounter.WhileIn(ENCOUNTER_ID, function(difficultyID, scope)
+        -- A real Twin Fangs pull on any difficulty replaces the panel's interrupt-status test.
+        TwinFangs:SetInterruptStatusTestMode(false)
         if difficultyID ~= Instance.DIFFICULTY_MYTHIC_RAID then
             return
         end
-        ResetPull()
-        unsubscribeTimeline = EncounterTimeline.OnEventAdded(OnTimelineEventAdded)
-        unsubscribeNameplateHint = TwinFangs:ListenForNameplateHint()
-        unsubscribeInterruptStatus = TwinFangs:ListenForInterruptStatus()
-        return function()
-            unsubscribeTimeline = StopListener(unsubscribeTimeline)
-            unsubscribeNameplateHint = StopListener(unsubscribeNameplateHint)
-            unsubscribeInterruptStatus = StopListener(unsubscribeInterruptStatus)
+        mythicScope = scope
+        -- Added first so it runs last on dispose: listeners and timers are gone before state and UI reset.
+        scope:Add(function()
+            -- A reentrant re-activation may already have installed a newer scope.
+            if mythicScope == scope then
+                mythicScope = nil
+            end
             ResetPull()
-        end
+        end)
+        scope:Subscribe(EncounterTimeline.OnEventAdded, OnTimelineEventAdded)
+        scope:Add(TwinFangs:ListenForNameplateHint())
+        scope:Add(TwinFangs:ListenForInterruptStatus())
     end)
 end

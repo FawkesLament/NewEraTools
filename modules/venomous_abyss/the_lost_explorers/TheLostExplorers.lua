@@ -1,11 +1,9 @@
 local _, ns = ...
 local L = ns.L
 local CalloutManager = ns.CalloutManager
-local Combat = ns.Api.Combat
 local Encounter = ns.Api.Encounter
 local EncounterTimeline = ns.Api.EncounterTimeline
 local Spell = ns.Api.Spell
-local Timer = ns.Api.Timer
 
 local CALLOUT_SOURCE = "TheLostExplorers"
 
@@ -47,15 +45,15 @@ TheLostExplorers.BOSS_SCROLLAGE = BOSS_SCROLLAGE
 TheLostExplorers.BOSS_TRADER = BOSS_TRADER
 TheLostExplorers.FEED_BOSSES = FEED_BOSSES
 
--- Session-only: castGUID of Mor'zahi's (boss2)'s channeling of Final Ascension.
--- The feed-fish callout is cancelled when this channeling ends.
-local bossChannelGuid = nil
 -- Session-only: matching ~60s timeline bars seen this pull; resets on each new encounter.
 local matchedTimelineCount = 0
 -- Cancels a pending callout delay without touching an active callout.
 local scheduleToken = 0
 ---@type EncounterWhileIn|nil
 local fight = nil
+-- The active pull's scope; owns scheduled warnings so they die with the encounter.
+---@type ResourceScope|nil
+local encounterScope = nil
 
 local function CurrentCallout()
     local current = CalloutManager.GetCurrent()
@@ -73,11 +71,10 @@ local function CancelPendingSchedule()
     scheduleToken = scheduleToken + 1
 end
 
----Drops pending and active feed-fish callouts and clears the tracked channel.
+---Drops pending and active feed-fish callouts.
 local function ResetFeedFishState()
     CancelPendingSchedule()
     ClearActiveCallout()
-    bossChannelGuid = nil
 end
 
 ---@param bossId string|nil
@@ -167,7 +164,10 @@ end
 local function ScheduleCallout(feedIndex)
     scheduleToken = scheduleToken + 1
     local token = scheduleToken
-    Timer.After(CALLOUT_DELAY, function()
+    if not encounterScope then
+        return
+    end
+    encounterScope:After(CALLOUT_DELAY, function()
         if token ~= scheduleToken then
             return
         end
@@ -202,20 +202,9 @@ local function OnTimelineEventAdded(eventInfo)
     end
 end
 
--- boss2 channel start/stop are scoped to Mor'zahi; Final Ascension ending clears the feed-fish warn.
----@param _unitTarget string
----@param castGUID string
-local function OnBossChannelStart(_unitTarget, castGUID)
-    bossChannelGuid = castGUID
-end
-
----@param _unitTarget string
----@param castGUID string
-local function OnBossChannelStop(_unitTarget, castGUID)
-    if bossChannelGuid == nil or castGUID ~= bossChannelGuid then
-        return
-    end
-    bossChannelGuid = nil
+-- Any Mor'zahi (boss2) channel stop counts as Final Ascension ending: in encounters castGUID is nil
+-- and spellID is secret, so the channel cannot be identified more precisely.
+local function OnBossChannelStop()
     CancelPendingSchedule()
     ClearActiveCallout()
 end
@@ -356,26 +345,21 @@ function TheLostExplorers:ListenForFeedFish()
         end
     end)
 
-    fight = Encounter.WhileIn(ENCOUNTER_ID, function()
-        local unsubTimeline = EncounterTimeline.OnEventAdded(OnTimelineEventAdded)
+    fight = Encounter.WhileIn(ENCOUNTER_ID, function(_, scope)
+        encounterScope = scope
+        -- Added first so it runs last on dispose: listeners and timers are gone before state and UI reset.
+        scope:Add(function()
+            -- A reentrant re-activation may already have installed a newer scope.
+            if encounterScope == scope then
+                encounterScope = nil
+            end
+            ResetFeedFishState()
+        end)
         -- Mor'zahi (boss2) Final Ascension channel: cancel the feed-fish warn when it ends.
-        local unsubChannelStart = Spell.OnUnitChannelStart(BOSS_UNIT, OnBossChannelStart)
-        local unsubChannelStop = Spell.OnUnitChannelStop(BOSS_UNIT, OnBossChannelStop)
-        return function()
-            unsubTimeline()
-            unsubChannelStart()
-            unsubChannelStop()
-            -- Pending work is encounter-scoped; an on-screen callout clears when combat ends.
-            CancelPendingSchedule()
-            bossChannelGuid = nil
-        end
+        scope:Add(Spell.OnUnitChannelStop(BOSS_UNIT, OnBossChannelStop))
+        scope:Add(EncounterTimeline.OnEventAdded(OnTimelineEventAdded))
     end)
     fight:SetEnabled(self:IsEnabled())
-
-    Combat.OnLeave(function()
-        CancelPendingSchedule()
-        ClearActiveCallout()
-    end)
 end
 
 function TheLostExplorers:OnInit()
