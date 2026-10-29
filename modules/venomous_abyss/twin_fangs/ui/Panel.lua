@@ -163,10 +163,7 @@ local function BuildContent(content)
     end)
     local rawTestSetEnabled = testButton.SetEnabled
     function testButton:SetEnabled(enabled)
-        rawTestSetEnabled(
-            self,
-            enabled == true and (ns.Api.Group.IsInRaid() or TwinFangs:IsInterruptStatusTestMode())
-        )
+        rawTestSetEnabled(self, enabled == true and (ns.Api.Group.IsInRaid() or TwinFangs:IsInterruptStatusTestMode()))
     end
     Widgets.AttachTooltip(testButton, "ANCHOR_TOP", function(tooltip)
         if not ns.Api.Group.IsInRaid() and not TwinFangs:IsInterruptStatusTestMode() then
@@ -447,13 +444,8 @@ local function BuildContent(content)
     local advancedBody = Layout.Stack(advanced.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
     local opacityRow = advancedBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local opacityLabel = Widgets.CreateLabel(opacityRow, Fonts.BODY, L.TWIN_FANGS_NAMEPLATE_HINT_OPACITY)
-    local opacitySlider = Slider.Create(
-        opacityRow,
-        Schema.OPACITY_MIN,
-        Schema.OPACITY_MAX,
-        Schema.OPACITY_STEP,
-        { percentage = true }
-    )
+    local opacitySlider =
+        Slider.Create(opacityRow, Schema.OPACITY_MIN, Schema.OPACITY_MAX, Schema.OPACITY_STEP, { percentage = true })
     opacitySlider:SetValue(TwinFangs:GetNameplateHintOpacity())
     opacitySlider:SetScript("OnValueChanged", function(_, rawValue)
         if not TwinFangs:IsNameplateHintEnabled() then
@@ -546,7 +538,6 @@ function TwinFangs:OnEnable()
     ns.MainPanel:RegisterSection({
         title = L.TWIN_FANGS_TITLE,
         group = ns.PanelGroups.VENOMOUS_ABYSS,
-        tooltip = L.TWIN_FANGS_HINT,
         build = BuildContent,
     })
     self:ListenForEncounter()

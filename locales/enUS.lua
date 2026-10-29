@@ -150,7 +150,6 @@ L.SSZORAK_DEPTH_FAR = "far"
 L.SSZORAK_RELATIVE_POSITION = "%s %s"
 
 L.TWIN_FANGS_TITLE = "Twin Fangs (M6)"
-L.TWIN_FANGS_HINT = "Experimental feature, still in development"
 L.TWIN_FANGS_SOAK_REMINDER = "Soak Reminder"
 L.TWIN_FANGS_SOAK_GROUP = "My Group"
 L.TWIN_FANGS_SOAK_GROUP_LEFT = "Left"
