@@ -18,6 +18,7 @@ describe("InterruptClaim", function()
         assert.equals("SHIFT-BUTTON1", InterruptClaim:GetBindingKey())
         assert.equals("shift-type1", InterruptClaim:GetUnitFrameTypeAttribute())
         assert.equals("shift-macrotext1", InterruptClaim:GetUnitFrameMacroAttribute())
+        assert.is_true(InterruptClaim:IsClearFocusEnabled())
         assert.is_false(InterruptClaim:IsMarkEnabled())
         assert.equals(1, InterruptClaim:GetMarkIndex())
         assert.is_false(InterruptClaim:IsPreventOverwrite())
@@ -25,12 +26,9 @@ describe("InterruptClaim", function()
         assert.is_false(InterruptClaim:IsAnnounceEnabled())
         assert.is_nil(InterruptClaim:GetAnnounceSlash())
         assert.equals(ns.L.INTERRUPT_CLAIM_ANNOUNCE_DEFAULT, InterruptClaim:GetAnnounceMessage())
-        assert.equals("我断 {marker}", InterruptClaim:GetAnnounceMessage())
+        assert.equals("我断{marker}%f", InterruptClaim:GetAnnounceMessage())
         assert.is_nil(InterruptClaim:GetAnnounceLine())
-        assert.equals(
-            "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]",
-            InterruptClaim:GetMacroText()
-        )
+        assert.equals("/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]", InterruptClaim:GetMacroText())
     end)
 
     it("toggles and notifies the UI hook", function()
@@ -90,6 +88,23 @@ describe("InterruptClaim", function()
         assert.equals(1, InterruptClaim:GetMarkIndex())
     end)
 
+    it("omits /clearfocus from the macro when that option is off", function()
+        local seen = {}
+        function InterruptClaim:OnClickChanged()
+            table.insert(seen, InterruptClaim:GetMacroText())
+        end
+        InterruptClaim:SetClearFocusEnabled(false)
+        InterruptClaim:SetClearFocusEnabled(false)
+        assert.same({ "/focus [@mouseover,exists]" }, seen)
+        InterruptClaim:SetMarkEnabled(true)
+        assert.equals("/focus [@mouseover,exists]\n/tm [@focus]1", InterruptClaim:GetMacroText())
+        InterruptClaim:SetClearFocusEnabled(true)
+        assert.equals(
+            "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]\n/tm [@focus]1",
+            InterruptClaim:GetMacroText()
+        )
+    end)
+
     it("appends the raid-target macro when marking is on", function()
         local focus = "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]"
         local seen = {}
@@ -106,11 +121,11 @@ describe("InterruptClaim", function()
         InterruptClaim:SetPreventOverwrite(false)
         InterruptClaim:SetMarkEnabled(false)
         assert.same({
-            focus .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]1",
-            focus .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]8",
-            focus .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]~8",
-            focus .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]~1",
-            focus .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]1",
+            focus .. "\n/tm [@focus]1",
+            focus .. "\n/tm [@focus]8",
+            focus .. "\n/tm [@focus]~8",
+            focus .. "\n/tm [@focus]~1",
+            focus .. "\n/tm [@focus]1",
             focus,
         }, seen)
     end)
@@ -129,31 +144,31 @@ describe("InterruptClaim", function()
         }))
         InterruptClaim = ns.Modules.Get("InterruptClaim")
         assert.equals(InterruptClaim.ANNOUNCE_OFF, InterruptClaim:GetAnnounceChannel())
-        assert.equals("我断 {marker}", InterruptClaim:GetAnnounceMessage())
+        assert.equals("我断{marker}%f", InterruptClaim:GetAnnounceMessage())
         assert.is_nil(InterruptClaim:GetAnnounceLine())
         assert.equals(
-            "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]"
-                .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]~3",
+            "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]\n/tm [@focus]~3",
             InterruptClaim:GetMacroText()
         )
     end)
 
     it("appends the announcement on party, emote, and say", function()
-        local mark = "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]"
-            .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]1"
+        local mark = "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]\n/tm [@focus]1"
+        local partyStop = "\n/stopmacro [nogroup:party][@focus,noexists]\n"
         InterruptClaim:SetMarkEnabled(true)
         InterruptClaim:SetAnnounceChannel(InterruptClaim.CHANNEL_PARTY)
         InterruptClaim:SetAnnounceMessage("我断{marker}")
-        assert.equals(mark .. "\n/p 我断{rt1}", InterruptClaim:GetMacroText())
+        assert.equals(mark .. partyStop .. "/p 我断{rt1}", InterruptClaim:GetMacroText())
         InterruptClaim:SetAnnounceChannel(InterruptClaim.CHANNEL_EMOTE)
         assert.equals("/e", InterruptClaim:GetAnnounceSlash())
-        assert.equals(mark .. "\n/e 我断{rt1}", InterruptClaim:GetMacroText())
+        assert.equals(mark .. partyStop .. "/e 我断{rt1}", InterruptClaim:GetMacroText())
         InterruptClaim:SetAnnounceChannel(InterruptClaim.CHANNEL_SAY)
-        assert.equals(mark .. "\n/s 我断{rt1}", InterruptClaim:GetMacroText())
+        assert.equals(mark .. partyStop .. "/s 我断{rt1}", InterruptClaim:GetMacroText())
         InterruptClaim:SetMarkIndex(8)
         assert.equals(
-            "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]"
-                .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]8\n/s 我断{rt8}",
+            "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]\n/tm [@focus]8"
+                .. partyStop
+                .. "/s 我断{rt8}",
             InterruptClaim:GetMacroText()
         )
     end)
@@ -163,8 +178,8 @@ describe("InterruptClaim", function()
         InterruptClaim:SetAnnounceChannel(InterruptClaim.CHANNEL_PARTY)
         InterruptClaim:SetAnnounceMessage("我来打断")
         assert.equals(
-            "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]"
-                .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]1\n/p 我来打断",
+            "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]\n/tm [@focus]1"
+                .. "\n/stopmacro [nogroup:party][@focus,noexists]\n/p 我来打断",
             InterruptClaim:GetMacroText()
         )
     end)
@@ -177,8 +192,7 @@ describe("InterruptClaim", function()
         InterruptClaim:SetAnnounceMessage("   ")
         assert.is_nil(InterruptClaim:GetAnnounceLine())
         assert.equals(
-            "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]"
-                .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]1",
+            "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]\n/tm [@focus]1",
             InterruptClaim:GetMacroText()
         )
     end)
@@ -200,8 +214,8 @@ describe("InterruptClaim", function()
         InterruptClaim:SetAnnounceMessage("认领\n/cast 寒冰箭")
         assert.equals("认领/cast 寒冰箭", InterruptClaim:GetAnnounceMessage())
         assert.equals(
-            "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]"
-                .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]1\n/p 认领/cast 寒冰箭",
+            "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]\n/tm [@focus]1"
+                .. "\n/stopmacro [nogroup:party][@focus,noexists]\n/p 认领/cast 寒冰箭",
             InterruptClaim:GetMacroText()
         )
         InterruptClaim:SetAnnounceMessage("认领|n/script JumpOrAscendStart()")
@@ -226,8 +240,8 @@ describe("InterruptClaim", function()
         assert.is_nil(InterruptClaim:GetAnnounceLine())
         InterruptClaim:SetAnnounceChannel(InterruptClaim.CHANNEL_PARTY)
         assert.equals(
-            "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]"
-                .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]1\n/p 我断 {rt1}",
+            "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]\n/tm [@focus]1"
+                .. "\n/stopmacro [nogroup:party][@focus,noexists]\n/p 我断{rt1}%f",
             InterruptClaim:GetMacroText()
         )
     end)

@@ -69,9 +69,11 @@ local function EnsureButton()
         return button
     end
     -- Named so SetOverrideBindingClick can target it. Hidden; clicks arrive via the override.
-    -- Down only: `/tm` toggles, so an up click would apply the mark and then clear it.
+    -- Execute on down regardless of ActionButtonUseKeyDown. `/tm` toggles, so an up-edge
+    -- action would apply the mark and then clear it.
     button = CreateFrame("Button", BUTTON_NAME, nil, "SecureActionButtonTemplate")
-    button:RegisterForClicks("AnyDown")
+    button:SetAttribute("useOnKeyDown", true)
+    button:RegisterForClicks("AnyDown", "AnyUp")
     button:SetAttribute("type", "macro")
     button:SetAttribute("macrotext", InterruptClaim:GetMacroText())
     button:EnableMouse(false)
@@ -364,6 +366,7 @@ local function AnnouncePreviewText()
     local marker = InterruptClaim.MARKERS[InterruptClaim:GetMarkIndex()]
     local icon = "|T" .. Assets.WORLD_MARKER_ICONS[marker] .. ":12|t"
     local body = message:gsub(InterruptClaim.ANNOUNCE_PLACEHOLDER, icon)
+    body = body:gsub("%%f", L.INTERRUPT_CLAIM_ANNOUNCE_PREVIEW_FOCUS)
     return slash .. " " .. body
 end
 
@@ -521,9 +524,24 @@ local function BuildContent(content)
         InterruptClaim:SetMouseButton(mouseButton)
     end)
 
+    local clearFocusRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local clearFocusBox = Widgets.CreateCheckbox(clearFocusRow)
+    clearFocusBox:SetChecked(InterruptClaim:IsClearFocusEnabled())
+    clearFocusBox:SetScript("OnClick", function(self)
+        if not InterruptClaim:IsEnabled() then
+            return
+        end
+        InterruptClaim:SetClearFocusEnabled(self:GetChecked())
+        self:SetChecked(InterruptClaim:IsClearFocusEnabled())
+    end)
+    local clearFocusLabel = Widgets.CreateLabel(clearFocusRow, Fonts.BODY, L.INTERRUPT_CLAIM_CLEAR_FOCUS)
+    clearFocusLabel:SetJustifyH("LEFT")
+    clearFocusLabel:SetWordWrap(false)
+    Layout.Row(clearFocusRow, { clearFocusBox, clearFocusLabel }, Spacing.SMALL)
+    clearFocusBox:SetHitRectInsets(0, -(clearFocusLabel:GetStringWidth() + Spacing.SMALL), 0, 0)
+
     local mark = FeatureSection.Create(body, {
         title = L.INTERRUPT_CLAIM_MARK,
-        tooltip = L.INTERRUPT_CLAIM_MARK_HINT,
         divider = true,
         enabled = InterruptClaim:IsMarkEnabled(),
         onEnabledChanged = function(enabled)
@@ -556,6 +574,7 @@ local function BuildContent(content)
 
     local announce = FeatureSection.Create(markBody, {
         title = L.INTERRUPT_CLAIM_ANNOUNCE,
+        tooltip = L.INTERRUPT_CLAIM_ANNOUNCE_TITLE_HINT,
         divider = true,
         toggle = false,
         onStackHeightChanged = function()

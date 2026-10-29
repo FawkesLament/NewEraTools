@@ -35,9 +35,10 @@ local MOUSE_ATTRIBUTE_SUFFIXES = {
     [MOUSE_BACK] = "4",
 }
 
-local FOCUS_MACRO = "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]"
--- @mouseover is required: the override click never targets, so bare `/tm` would mark the old target.
-local MARK_MACRO = "/stopmacro [nogroup:party]\n/tm [@mouseover]%s%d"
+local CLEAR_FOCUS_LINE = "/clearfocus [@mouseover,noexists]"
+local SET_FOCUS_LINE = "/focus [@mouseover,exists]"
+-- After the focus lines, mark the new focus. Bare `/tm` would mark the old target; the override click never targets.
+local MARK_MACRO = "/tm [@focus]%s%d"
 
 local ANNOUNCE_OFF = "off"
 local CHANNEL_PARTY = "party"
@@ -70,6 +71,8 @@ local InterruptClaim = ns.Modules.New("InterruptClaim", {
         modifier = MODIFIER_SHIFT,
         ---@type InterruptClaimMouseButton
         mouseButton = MOUSE_LEFT,
+        -- When true, the macro clears focus if nothing is under the mouse.
+        clearFocus = true,
         -- When true, the click also applies the chosen raid target.
         markEnabled = false,
         -- Raid target index 1–8 ({rt1} star through {rt8} skull).
@@ -210,6 +213,15 @@ local function NotifyMarkChanged()
     end
 end
 
+---@param clearFocus boolean
+---@return string
+local function FocusMacroText(clearFocus)
+    if clearFocus then
+        return CLEAR_FOCUS_LINE .. "\n" .. SET_FOCUS_LINE
+    end
+    return SET_FOCUS_LINE
+end
+
 ---@param index any
 ---@return boolean
 local function IsKnownMarkIndex(index)
@@ -281,6 +293,22 @@ end
 ---@return string
 function InterruptClaim:GetUnitFrameMacroAttribute()
     return self:GetModifier() .. "-macrotext" .. MOUSE_ATTRIBUTE_SUFFIXES[self:GetMouseButton()]
+end
+
+---When true, the macro includes `/clearfocus` for an empty mouseover.
+---@return boolean
+function InterruptClaim:IsClearFocusEnabled()
+    return self.db.clearFocus ~= false
+end
+
+---@param enabled boolean
+function InterruptClaim:SetClearFocusEnabled(enabled)
+    enabled = enabled == true
+    if self:IsClearFocusEnabled() == enabled then
+        return
+    end
+    self.db.clearFocus = enabled
+    NotifyClickChanged()
 end
 
 ---@return boolean
@@ -392,14 +420,15 @@ end
 ---Secure-button macro: focus the mouseover unit, and optionally mark it.
 ---@return string
 function InterruptClaim:GetMacroText()
+    local focus = FocusMacroText(self:IsClearFocusEnabled())
     if not self:IsMarkEnabled() then
-        return FOCUS_MACRO
+        return focus
     end
     local prefix = self:IsPreventOverwrite() and "~" or ""
-    local text = FOCUS_MACRO .. "\n" .. string.format(MARK_MACRO, prefix, self:GetMarkIndex())
+    local text = focus .. "\n" .. string.format(MARK_MACRO, prefix, self:GetMarkIndex())
     local announce = self:GetAnnounceLine()
     if announce then
-        local withAnnounce = text .. "\n" .. announce
+        local withAnnounce = text .. "\n/stopmacro [nogroup:party][@focus,noexists]\n" .. announce
         if #withAnnounce <= MACRO_MAX_BODY_LENGTH then
             return withAnnounce
         end
@@ -410,6 +439,7 @@ end
 function InterruptClaim:OnInit()
     self.db.modifier = self:GetModifier()
     self.db.mouseButton = self:GetMouseButton()
+    self.db.clearFocus = self:IsClearFocusEnabled()
     self.db.markIndex = self:GetMarkIndex()
     self.db.announceChannel = self:GetAnnounceChannel()
     self.db.announceMessage = self:GetAnnounceMessage()

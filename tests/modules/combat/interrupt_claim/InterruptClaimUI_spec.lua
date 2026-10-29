@@ -97,7 +97,8 @@ describe("InterruptClaim UI", function()
         assert.equals("Button", created.frameType)
         assert.equals("SecureActionButtonTemplate", created.template)
         assert.equals(Loader.ADDON_NAME .. "InterruptClaim", created.name)
-        assert.same({ "AnyDown" }, created.clicks)
+        assert.same({ "AnyDown", "AnyUp" }, created.clicks)
+        assert.is_true(created.attributes.useOnKeyDown)
         assert.equals("macro", created.attributes.type)
         assert.equals(MACRO, created.attributes.macrotext)
         assert.is_false(created.mouseEnabled)
@@ -159,31 +160,41 @@ describe("InterruptClaim UI", function()
         assert.equals("SHIFT-BUTTON5", Binding.overrides[created][1].key)
     end)
 
+    it("rewrites the macro when clear-focus is turned off", function()
+        InterruptClaim:SetEnabled(true)
+        InterruptClaim:SetClearFocusEnabled(false)
+        assert.equals("/focus [@mouseover,exists]", created.attributes.macrotext)
+        InterruptClaim:SetMarkEnabled(true)
+        assert.equals("/focus [@mouseover,exists]\n/tm [@focus]1", created.attributes.macrotext)
+        InterruptClaim:SetClearFocusEnabled(true)
+        assert.equals(MACRO .. "\n/tm [@focus]1", created.attributes.macrotext)
+    end)
+
     it("rewrites the macro when marking is turned on", function()
         InterruptClaim:SetEnabled(true)
         InterruptClaim:SetMarkEnabled(true)
-        assert.equals(MACRO .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]1", created.attributes.macrotext)
+        assert.equals(MACRO .. "\n/tm [@focus]1", created.attributes.macrotext)
         InterruptClaim:SetMarkIndex(3)
-        assert.equals(MACRO .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]3", created.attributes.macrotext)
+        assert.equals(MACRO .. "\n/tm [@focus]3", created.attributes.macrotext)
         InterruptClaim:SetPreventOverwrite(true)
-        assert.equals(MACRO .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]~3", created.attributes.macrotext)
+        assert.equals(MACRO .. "\n/tm [@focus]~3", created.attributes.macrotext)
         InterruptClaim:SetAnnounceChannel(InterruptClaim.CHANNEL_PARTY)
         assert.equals(
-            MACRO .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]~3\n/p 我断 {rt3}",
+            MACRO .. "\n/tm [@focus]~3\n/stopmacro [nogroup:party][@focus,noexists]\n/p 我断{rt3}%f",
             created.attributes.macrotext
         )
         InterruptClaim:SetAnnounceMessage("我断{marker}")
         assert.equals(
-            MACRO .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]~3\n/p 我断{rt3}",
+            MACRO .. "\n/tm [@focus]~3\n/stopmacro [nogroup:party][@focus,noexists]\n/p 我断{rt3}",
             created.attributes.macrotext
         )
         InterruptClaim:SetAnnounceChannel(InterruptClaim.CHANNEL_SAY)
         assert.equals(
-            MACRO .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]~3\n/s 我断{rt3}",
+            MACRO .. "\n/tm [@focus]~3\n/stopmacro [nogroup:party][@focus,noexists]\n/s 我断{rt3}",
             created.attributes.macrotext
         )
         InterruptClaim:SetAnnounceMessage("")
-        assert.equals(MACRO .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]~3", created.attributes.macrotext)
+        assert.equals(MACRO .. "\n/tm [@focus]~3", created.attributes.macrotext)
         assert.equals(1, #Binding.overrides[created])
     end)
 
@@ -193,7 +204,7 @@ describe("InterruptClaim UI", function()
         InterruptClaim:SetMarkEnabled(true)
         assert.equals(MACRO, created.attributes.macrotext)
         Combat.FireLeave()
-        assert.equals(MACRO .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]1", created.attributes.macrotext)
+        assert.equals(MACRO .. "\n/tm [@focus]1", created.attributes.macrotext)
     end)
 
     local function UnitButton(name)
@@ -344,7 +355,7 @@ describe("InterruptClaim UI", function()
         BlankModifierClicks(target)
         target:SetAttribute("shift-macrotext1", nil)
         assert.equals("macro", target.attributes["shift-type1"])
-        assert.equals(MACRO .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]1", target.attributes["shift-macrotext1"])
+        assert.equals(MACRO .. "\n/tm [@focus]1", target.attributes["shift-macrotext1"])
     end)
 
     it("yields to a real binding another addon writes later and does not reclaim it", function()
@@ -386,6 +397,6 @@ describe("InterruptClaim UI", function()
         InterruptClaim:SetEnabled(true)
         InterruptClaim:SetMarkEnabled(true)
         assert.equals("macro", player.attributes["shift-type1"])
-        assert.equals(MACRO .. "\n/stopmacro [nogroup:party]\n/tm [@mouseover]1", player.attributes["shift-macrotext1"])
+        assert.equals(MACRO .. "\n/tm [@focus]1", player.attributes["shift-macrotext1"])
     end)
 end)
