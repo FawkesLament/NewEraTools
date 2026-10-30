@@ -3,7 +3,9 @@ local _, ns = ...
 local UnitFrame = {}
 ns.Api.UnitFrame = UnitFrame
 
-local SINGLETON_NAMES = {
+-- Global names of Blizzard unit buttons, built once so walks do no string work.
+---@type string[]
+local FRAME_NAMES = {
     "PlayerFrame",
     "PetFrame",
     "TargetFrame",
@@ -11,6 +13,29 @@ local SINGLETON_NAMES = {
     "FocusFrame",
     "FocusFrameToT",
 }
+
+---@param prefix string
+---@param count integer
+local function AddIndexedNames(prefix, count)
+    for index = 1, count do
+        FRAME_NAMES[#FRAME_NAMES + 1] = prefix .. index
+    end
+end
+
+AddIndexedNames("PartyMemberFrame", 4)
+for index = 1, 8 do
+    FRAME_NAMES[#FRAME_NAMES + 1] = "Boss" .. index .. "TargetFrame"
+end
+AddIndexedNames("ArenaEnemyMatchFrame", 5)
+AddIndexedNames("ArenaEnemyFrame", 5)
+AddIndexedNames("CompactPartyFrameMember", 5)
+AddIndexedNames("CompactArenaFrameMember", 5)
+AddIndexedNames("CompactRaidFrame", 80)
+for group = 1, 8 do
+    for member = 1, 5 do
+        FRAME_NAMES[#FRAME_NAMES + 1] = "CompactRaidGroup" .. group .. "Member" .. member
+    end
+end
 
 local compactHooked = false
 ---@type fun(frame: Frame)[]
@@ -41,13 +66,13 @@ local function FrameName(frame)
     return name
 end
 
----True when `frame` is a usable secure unit button. Nameplates and forbidden frames are excluded.
----@param frame any
+-- Methods, protection, forbidden state, and name are fixed for a frame's lifetime.
+---@type table<Frame, boolean>
+local configurableCache = setmetatable({}, { __mode = "k" })
+
+---@param frame table|userdata
 ---@return boolean
-function UnitFrame.IsConfigurable(frame)
-    if type(frame) ~= "table" and type(frame) ~= "userdata" then
-        return false
-    end
+local function CheckConfigurable(frame)
     if type(frame.GetAttribute) ~= "function" or type(frame.SetAttribute) ~= "function" then
         return false
     end
@@ -57,7 +82,9 @@ function UnitFrame.IsConfigurable(frame)
             return false
         end
     end
-    if frame.namePlateUnitToken ~= nil then
+    -- Nameplate unit frames are unnamed pooled buttons (NamePlateUnitFrameMixin) that Blizzard passes
+    -- through CompactUnitFrame_SetUpFrame each time a plate gets a unit.
+    if frame.GetNamePlateFrame ~= nil then
         return false
     end
     local name = FrameName(frame)
@@ -73,26 +100,30 @@ function UnitFrame.IsConfigurable(frame)
     return true
 end
 
+---True when `frame` is a usable secure unit button. Nameplates and forbidden frames are excluded.
+---@param frame any
+---@return boolean
+function UnitFrame.IsConfigurable(frame)
+    if type(frame) ~= "table" and type(frame) ~= "userdata" then
+        return false
+    end
+    -- Assigned after a nameplate's unit frame is set up, so it is checked on every call.
+    if frame.namePlateUnitToken ~= nil then
+        return false
+    end
+    local cached = configurableCache[frame]
+    if cached == nil then
+        cached = CheckConfigurable(frame)
+        configurableCache[frame] = cached
+    end
+    return cached
+end
+
 ---@param handler fun(frame: Frame)
 ---@param frame any
 local function Emit(handler, frame)
     if UnitFrame.IsConfigurable(frame) then
         handler(frame)
-    end
-end
-
----@param handler fun(frame: Frame)
----@param name string
-local function EmitNamed(handler, name)
-    Emit(handler, _G[name])
-end
-
----@param handler fun(frame: Frame)
----@param prefix string
----@param count integer
-local function EmitIndexed(handler, prefix, count)
-    for index = 1, count do
-        EmitNamed(handler, prefix .. index)
     end
 end
 
@@ -169,21 +200,10 @@ end
 ---@param handler fun(frame: Frame)
 function UnitFrame.ForEach(handler)
     WatchClickCastFrames()
-    for i = 1, #SINGLETON_NAMES do
-        EmitNamed(handler, SINGLETON_NAMES[i])
-    end
-    EmitIndexed(handler, "PartyMemberFrame", 4)
-    for index = 1, 8 do
-        EmitNamed(handler, "Boss" .. index .. "TargetFrame")
-    end
-    EmitIndexed(handler, "ArenaEnemyMatchFrame", 5)
-    EmitIndexed(handler, "ArenaEnemyFrame", 5)
-    EmitIndexed(handler, "CompactPartyFrameMember", 5)
-    EmitIndexed(handler, "CompactArenaFrameMember", 5)
-    EmitIndexed(handler, "CompactRaidFrame", 80)
-    for group = 1, 8 do
-        for member = 1, 5 do
-            EmitNamed(handler, "CompactRaidGroup" .. group .. "Member" .. member)
+    for i = 1, #FRAME_NAMES do
+        local frame = _G[FRAME_NAMES[i]]
+        if frame ~= nil then
+            Emit(handler, frame)
         end
     end
 

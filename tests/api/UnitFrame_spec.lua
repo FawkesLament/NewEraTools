@@ -102,6 +102,32 @@ describe("UnitFrame production", function()
         assert.is_false(UnitFrame.IsConfigurable(Button("PlayerFrame", { protected = false })))
     end)
 
+    it("rejects unnamed nameplate unit frames passed through compact setup", function()
+        local seen = {}
+        UnitFrame.OnCreated(function(frame)
+            seen[#seen + 1] = frame
+        end)
+        local plateUnit = Button(nil)
+        function plateUnit:GetNamePlateFrame()
+            return nil
+        end
+        assert.is_false(UnitFrame.IsConfigurable(plateUnit))
+        _G.CompactUnitFrame_SetUpFrame(plateUnit)
+        assert.same({}, seen)
+        local walked = {}
+        UnitFrame.ForEach(function(frame)
+            walked[#walked + 1] = frame
+        end)
+        assert.same({}, walked)
+    end)
+
+    it("rejects a frame once it is assigned a nameplate unit, even after an earlier accept", function()
+        local frame = Button("SomeUnitFrame")
+        assert.is_true(UnitFrame.IsConfigurable(frame))
+        frame.namePlateUnitToken = "nameplate5"
+        assert.is_false(UnitFrame.IsConfigurable(frame))
+    end)
+
     it("walks named Blizzard frames, party members, and ClickCastFrames", function()
         local player = Button("PlayerFrame")
         local target = Button("TargetFrame")

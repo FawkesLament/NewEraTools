@@ -154,7 +154,7 @@ describe("InterruptClaim", function()
 
     it("appends the announcement on party, emote, and say", function()
         local mark = "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]\n/tm [@focus]1"
-        local partyStop = "\n/stopmacro [nogroup:party][@focus,noexists]\n"
+        local partyStop = "\n/stopmacro [nogroup:party][@focus,noexists][group:raid]\n"
         InterruptClaim:SetMarkEnabled(true)
         InterruptClaim:SetAnnounceChannel(InterruptClaim.CHANNEL_PARTY)
         InterruptClaim:SetAnnounceMessage("我断{marker}")
@@ -179,7 +179,7 @@ describe("InterruptClaim", function()
         InterruptClaim:SetAnnounceMessage("我来打断")
         assert.equals(
             "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]\n/tm [@focus]1"
-                .. "\n/stopmacro [nogroup:party][@focus,noexists]\n/p 我来打断",
+                .. "\n/stopmacro [nogroup:party][@focus,noexists][group:raid]\n/p 我来打断",
             InterruptClaim:GetMacroText()
         )
     end)
@@ -215,7 +215,7 @@ describe("InterruptClaim", function()
         assert.equals("认领/cast 寒冰箭", InterruptClaim:GetAnnounceMessage())
         assert.equals(
             "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]\n/tm [@focus]1"
-                .. "\n/stopmacro [nogroup:party][@focus,noexists]\n/p 认领/cast 寒冰箭",
+                .. "\n/stopmacro [nogroup:party][@focus,noexists][group:raid]\n/p 认领/cast 寒冰箭",
             InterruptClaim:GetMacroText()
         )
         InterruptClaim:SetAnnounceMessage("认领|n/script JumpOrAscendStart()")
@@ -241,7 +241,7 @@ describe("InterruptClaim", function()
         InterruptClaim:SetAnnounceChannel(InterruptClaim.CHANNEL_PARTY)
         assert.equals(
             "/clearfocus [@mouseover,noexists]\n/focus [@mouseover,exists]\n/tm [@focus]1"
-                .. "\n/stopmacro [nogroup:party][@focus,noexists]\n/p 我断{rt1}%f",
+                .. "\n/stopmacro [nogroup:party][@focus,noexists][group:raid]\n/p 我断{rt1}%f",
             InterruptClaim:GetMacroText()
         )
     end)

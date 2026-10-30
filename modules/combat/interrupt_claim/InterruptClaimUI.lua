@@ -3,6 +3,7 @@ local L = ns.L
 local Assets = ns.Assets
 local Binding = ns.Api.Binding
 local Combat = ns.Api.Combat
+local Encounter = ns.Api.Encounter
 local GameEvents = ns.Api.GameEvents
 local Group = ns.Api.Group
 local Timer = ns.Api.Timer
@@ -133,13 +134,29 @@ local function MacroKeyFromTypeKey(typeKey)
     return (typeKey:gsub("type", "macrotext", 1))
 end
 
----Values this feature writes for the current settings: type, then macrotext.
----@return string, string|nil
-local function DesiredAttributes()
-    if InterruptClaim:IsMarkEnabled() then
-        return "macro", InterruptClaim:GetMacroText()
+---@class InterruptClaimFrameSpec
+---@field typeKey string
+---@field macroKey string
+---@field typeValue string
+---@field macroValue string|nil
+
+-- What this feature writes for the current settings. Rebuilt only after a settings change, so
+-- frame walks and the attribute hook only compare. Also stored per frame as what was written.
+---@type InterruptClaimFrameSpec|nil
+local desired
+
+---@return InterruptClaimFrameSpec
+local function Desired()
+    if not desired then
+        local mark = InterruptClaim:IsMarkEnabled()
+        desired = {
+            typeKey = InterruptClaim:GetUnitFrameTypeAttribute(),
+            macroKey = InterruptClaim:GetUnitFrameMacroAttribute(),
+            typeValue = mark and "macro" or "focus",
+            macroValue = mark and InterruptClaim:GetMacroText() or nil,
+        }
     end
-    return "focus", nil
+    return desired
 end
 
 ---@param frame Frame
@@ -174,55 +191,66 @@ local function YieldFrame(frame)
     pending[frame] = nil
 end
 
+-- Set when a sync was skipped or a frame was queued, so the next safe point does one pass.
+local unitFramesDirty = false
+
+-- Click-casting addons (DandersFrames) blank every modifier click on frames they manage, at
+-- registration, on later rescans, and on each hover of Blizzard frames. A blank found on a frame
+-- this feature owns is restored, and that frame is then watched so later blanks are undone at
+-- once. Only such frames are hooked, keeping the hook off busy raid frames that are never blanked.
+-- A real binding written by another addon always wins.
 ---@param frame Frame
 local function ApplyFrame(frame)
     if Combat.IsLockedDown() then
         pending[frame] = true
+        unitFramesDirty = true
         return
     end
     if not InterruptClaim:IsEnabled() then
         ReleaseFrame(frame)
         return
     end
-    if not UnitFrame.IsConfigurable(frame) then
-        pending[frame] = nil
-        return
-    end
-    if frame.GetName and frame:GetName() == BUTTON_NAME then
-        pending[frame] = nil
+    pending[frame] = nil
+    if frame == button or not UnitFrame.IsConfigurable(frame) then
         return
     end
 
-    local typeKey = InterruptClaim:GetUnitFrameTypeAttribute()
-    local macroKey = InterruptClaim:GetUnitFrameMacroAttribute()
+    local spec = Desired()
+    local typeKey = spec.typeKey
     local owner = frame:GetAttribute(OWNER_ATTRIBUTE)
-    if owner ~= typeKey then
+    local current = frame:GetAttribute(typeKey)
+    if owner == typeKey then
+        local written = applied[frame]
+        if current == spec.typeValue then
+            if frame:GetAttribute(spec.macroKey) == spec.macroValue then
+                applied[frame] = spec
+                return
+            end
+        elseif current == nil or current == "" then
+            UnitFrame.WatchAttributes(frame)
+        elseif not (written and current == written.typeValue) then
+            YieldFrame(frame)
+            return
+        end
+    else
         if owner ~= nil then
             ReleaseFrame(frame)
+            current = frame:GetAttribute(typeKey)
         end
-        -- Never take over a click another addon already bound on this frame.
-        local existing = frame:GetAttribute(typeKey)
-        if existing ~= nil and existing ~= "" then
-            pending[frame] = nil
+        if current ~= nil and current ~= "" then
             return
         end
     end
 
-    local typeValue, macroValue = DesiredAttributes()
     local wasWriting = writing
     writing = true
-    frame:SetAttribute(typeKey, typeValue)
-    frame:SetAttribute(macroKey, macroValue)
+    frame:SetAttribute(typeKey, spec.typeValue)
+    frame:SetAttribute(spec.macroKey, spec.macroValue)
     frame:SetAttribute(OWNER_ATTRIBUTE, typeKey)
     writing = wasWriting
-    applied[frame] = { typeKey = typeKey, macroKey = macroKey }
-    pending[frame] = nil
-    UnitFrame.WatchAttributes(frame)
+    applied[frame] = spec
 end
 
--- Click-casting addons (DandersFrames) blank every modifier click on frames they manage, at
--- registration, on later rescans, and on each hover of Blizzard frames. Restore ours when blanked;
--- a real binding written by another addon still wins, as at first apply.
 ---@param frame Frame
 ---@param key string
 ---@param value any
@@ -231,11 +259,18 @@ local function OnUnitFrameAttributeSet(frame, key, value)
         return
     end
     local spec = applied[frame]
-    if not spec or (key ~= spec.typeKey and key ~= spec.macroKey) then
+    if not spec then
         return
     end
-    local typeValue, macroValue = DesiredAttributes()
-    if value == (key == spec.typeKey and typeValue or macroValue) then
+    local expected
+    if key == spec.typeKey then
+        expected = spec.typeValue
+    elseif key == spec.macroKey then
+        expected = spec.macroValue
+    else
+        return
+    end
+    if value == expected then
         return
     end
     if value ~= nil and value ~= "" then
@@ -245,66 +280,124 @@ local function OnUnitFrameAttributeSet(frame, key, value)
     ApplyFrame(frame)
 end
 
-local function SyncUnitFrames()
-    if Combat.IsLockedDown() then
+-- Scratch storage reused by every sync pass.
+---@type table<Frame, boolean>
+local seenScratch = {}
+---@type Frame[]
+local listScratch = {}
+
+---@param frame Frame
+local function VisitForApply(frame)
+    seenScratch[frame] = true
+    ApplyFrame(frame)
+end
+
+---@param frame Frame
+local function CollectForRelease(frame)
+    listScratch[#listScratch + 1] = frame
+end
+
+local function ReleaseCollected()
+    for i = 1, #listScratch do
+        ReleaseFrame(listScratch[i])
+        listScratch[i] = nil
+    end
+end
+
+-- Encounters are deferred too: a dead player is out of combat lockdown while roster events keep
+-- firing, and nothing here needs to change before the pull ends.
+---@param ignoreEncounter boolean|nil  True right after ENCOUNTER_END, before the flag may clear.
+local function SyncUnitFrames(ignoreEncounter)
+    if Combat.IsLockedDown() or (not ignoreEncounter and Encounter.IsInProgress()) then
+        unitFramesDirty = true
         return
     end
+    unitFramesDirty = false
     if not InterruptClaim:IsEnabled() then
-        local frames = {}
         for frame in pairs(applied) do
-            frames[#frames + 1] = frame
+            CollectForRelease(frame)
         end
-        UnitFrame.ForEach(function(frame)
-            frames[#frames + 1] = frame
-        end)
-        for i = 1, #frames do
-            ReleaseFrame(frames[i])
-        end
+        UnitFrame.ForEach(CollectForRelease)
+        ReleaseCollected()
         for frame in pairs(pending) do
             pending[frame] = nil
         end
         return
     end
-    local seen = {}
-    UnitFrame.ForEach(function(frame)
-        seen[frame] = true
-        ApplyFrame(frame)
-    end)
-    local queued = {}
+
+    UnitFrame.ForEach(VisitForApply)
     for frame in pairs(pending) do
-        queued[#queued + 1] = frame
+        listScratch[#listScratch + 1] = frame
     end
-    for i = 1, #queued do
-        seen[queued[i]] = true
-        ApplyFrame(queued[i])
+    for i = 1, #listScratch do
+        VisitForApply(listScratch[i])
+        listScratch[i] = nil
     end
     -- Frames dropped from ClickCastFrames are only noticed here; give their click back.
-    local stale = {}
     for frame in pairs(applied) do
-        if not seen[frame] then
-            stale[#stale + 1] = frame
+        if not seenScratch[frame] then
+            CollectForRelease(frame)
         end
     end
-    for i = 1, #stale do
-        ReleaseFrame(stale[i])
+    ReleaseCollected()
+    for frame in pairs(seenScratch) do
+        seenScratch[frame] = nil
     end
 end
 
-local rescanQueued = false
+-- Click-casting addons rescan and blank newly registered frames up to a few seconds later.
+local VERIFY_DELAY = 4
 
--- Other addons create or re-register unit frames in their own handlers for the same events,
--- so the walk runs on the next frame.
+local rescanQueued = false
+local verifyQueued = false
+
+local function RunQueuedRescan()
+    rescanQueued = false
+    SyncUnitFrames()
+end
+
+local function RunVerifyRescan()
+    verifyQueued = false
+    SyncUnitFrames()
+end
+
+-- Other addons create or re-register unit frames in their own handlers for the same events, so
+-- one pass runs on the next frame and a second catches their delayed blanking.
 local function QueueUnitFrameRescan()
-    if rescanQueued or not InterruptClaim:IsEnabled() then
+    if not InterruptClaim:IsEnabled() then
         return
     end
-    rescanQueued = true
-    Timer.After(0, function()
-        rescanQueued = false
-        if InterruptClaim:IsEnabled() then
-            SyncUnitFrames()
-        end
-    end)
+    if Combat.IsLockedDown() or Encounter.IsInProgress() then
+        unitFramesDirty = true
+        return
+    end
+    if not rescanQueued then
+        rescanQueued = true
+        Timer.After(0, RunQueuedRescan)
+    end
+    if not verifyQueued then
+        verifyQueued = true
+        Timer.After(VERIFY_DELAY, RunVerifyRescan)
+    end
+end
+
+local function OnCombatLeave()
+    SyncButton()
+    if unitFramesDirty then
+        SyncUnitFrames()
+    end
+end
+
+local function RunEncounterEndSync()
+    if unitFramesDirty then
+        SyncUnitFrames(true)
+    end
+end
+
+local function OnEncounterEnd()
+    if unitFramesDirty then
+        Timer.After(0, RunEncounterEndSync)
+    end
 end
 
 ---@return DropdownItem[]
@@ -657,12 +750,10 @@ function InterruptClaim:OnEnable()
     })
     if not listening then
         listening = true
-        Combat.OnLeave(function()
-            SyncButton()
-            SyncUnitFrames()
-        end)
+        Combat.OnLeave(OnCombatLeave)
         GameEvents.Listen("PLAYER_ENTERING_WORLD", QueueUnitFrameRescan)
-        Group.OnChanged(QueueUnitFrameRescan)
+        Group.OnRosterChanged(QueueUnitFrameRescan)
+        Encounter.OnEnd(OnEncounterEnd)
         UnitFrame.OnCreated(ApplyFrame)
         UnitFrame.OnAttributeSet(OnUnitFrameAttributeSet)
     end
@@ -671,16 +762,19 @@ function InterruptClaim:OnEnable()
 end
 
 function InterruptClaim:OnEnabledChanged()
+    desired = nil
     SyncButton()
     SyncUnitFrames()
 end
 
 function InterruptClaim:OnClickChanged()
+    desired = nil
     SyncButton()
     SyncUnitFrames()
 end
 
 function InterruptClaim:OnMarkChanged()
+    desired = nil
     RefreshMarkerSelection()
     RefreshAnnounceControls()
     SyncButton()

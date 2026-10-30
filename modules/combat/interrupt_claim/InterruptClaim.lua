@@ -428,7 +428,7 @@ function InterruptClaim:GetMacroText()
     local text = focus .. "\n" .. string.format(MARK_MACRO, prefix, self:GetMarkIndex())
     local announce = self:GetAnnounceLine()
     if announce then
-        local withAnnounce = text .. "\n/stopmacro [nogroup:party][@focus,noexists]\n" .. announce
+        local withAnnounce = text .. "\n/stopmacro [nogroup:party][@focus,noexists][group:raid]\n" .. announce
         if #withAnnounce <= MACRO_MAX_BODY_LENGTH then
             return withAnnounce
         end

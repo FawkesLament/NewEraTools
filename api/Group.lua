@@ -135,6 +135,14 @@ function Group.OnChanged(callback)
     end
 end
 
+---Calls `callback` when group membership or composition changes; not for role or leader changes.
+---@param callback fun()
+function Group.OnRosterChanged(callback)
+    ns.Api.GameEvents.Listen("GROUP_ROSTER_UPDATE", function()
+        callback()
+    end)
+end
+
 ---Starts a ready check. Only the group leader can succeed; otherwise this is a no-op.
 ---@type fun()
 Group.DoReadyCheck = C_PartyInfo.DoReadyCheck

@@ -8,6 +8,7 @@ return function()
         isLeaderOrAssistant = false,
         raidLeaderFullName = nil,
         changeCallbacks = {},
+        rosterCallbacks = {},
         readyChecks = 0,
         countdowns = {},
         cancels = 0,
@@ -56,6 +57,18 @@ return function()
         for _, callback in ipairs(Group.changeCallbacks) do
             callback()
         end
+    end
+
+    function Group.OnRosterChanged(callback)
+        table.insert(Group.rosterCallbacks, callback)
+    end
+
+    ---Simulates GROUP_ROSTER_UPDATE, which also reaches OnChanged listeners.
+    function Group.FireRosterChanged()
+        for _, callback in ipairs(Group.rosterCallbacks) do
+            callback()
+        end
+        Group.FireChanged()
     end
 
     function Group.DoReadyCheck()

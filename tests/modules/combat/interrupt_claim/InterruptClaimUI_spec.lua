@@ -180,17 +180,17 @@ describe("InterruptClaim UI", function()
         assert.equals(MACRO .. "\n/tm [@focus]~3", created.attributes.macrotext)
         InterruptClaim:SetAnnounceChannel(InterruptClaim.CHANNEL_PARTY)
         assert.equals(
-            MACRO .. "\n/tm [@focus]~3\n/stopmacro [nogroup:party][@focus,noexists]\n/p 我断{rt3}%f",
+            MACRO .. "\n/tm [@focus]~3\n/stopmacro [nogroup:party][@focus,noexists][group:raid]\n/p 我断{rt3}%f",
             created.attributes.macrotext
         )
         InterruptClaim:SetAnnounceMessage("我断{marker}")
         assert.equals(
-            MACRO .. "\n/tm [@focus]~3\n/stopmacro [nogroup:party][@focus,noexists]\n/p 我断{rt3}",
+            MACRO .. "\n/tm [@focus]~3\n/stopmacro [nogroup:party][@focus,noexists][group:raid]\n/p 我断{rt3}",
             created.attributes.macrotext
         )
         InterruptClaim:SetAnnounceChannel(InterruptClaim.CHANNEL_SAY)
         assert.equals(
-            MACRO .. "\n/tm [@focus]~3\n/stopmacro [nogroup:party][@focus,noexists]\n/s 我断{rt3}",
+            MACRO .. "\n/tm [@focus]~3\n/stopmacro [nogroup:party][@focus,noexists][group:raid]\n/s 我断{rt3}",
             created.attributes.macrotext
         )
         InterruptClaim:SetAnnounceMessage("")
@@ -301,35 +301,128 @@ describe("InterruptClaim UI", function()
         assert.is_nil(player.attributes["neweratools-interruptclaim"])
     end)
 
-    it("picks up frames registered without notification on the frame after a roster change", function()
-        local Group = ns.Api.Group
+    local function RosterRescan()
+        ns.Api.Group.FireRosterChanged()
+        ns.Api.Timer.RunPending()
+    end
+
+    local function CountWalks()
+        local count = { walks = 0 }
+        local forEach = UnitFrame.ForEach
+        UnitFrame.ForEach = function(handler)
+            count.walks = count.walks + 1
+            forEach(handler)
+        end
+        return count
+    end
+
+    it("picks up unnotified frames on the next frame after a roster change, then verifies later", function()
         local Timer = ns.Api.Timer
         InterruptClaim:SetEnabled(true)
         local cell = UnitButton("DFPartyFrame1")
         UnitFrame.frames[1] = cell
-        Group.FireChanged()
-        Group.FireChanged()
+        ns.Api.Group.FireRosterChanged()
+        ns.Api.Group.FireRosterChanged()
         assert.is_nil(cell.attributes["shift-type1"])
+        assert.equals(2, #Timer.pending)
+        Timer.Advance(0)
+        assert.equals("focus", cell.attributes["shift-type1"])
         assert.equals(1, #Timer.pending)
-        Timer.RunPending()
+        cell.attributes["shift-type1"] = ""
+        Timer.Advance(4)
         assert.equals("focus", cell.attributes["shift-type1"])
     end)
 
-    it("skips the roster rescan while disabled", function()
+    it("ignores role and leader changes and skips rescans while disabled", function()
         local Timer = ns.Api.Timer
+        ns.Api.Group.FireRosterChanged()
+        assert.equals(0, #Timer.pending)
+        InterruptClaim:SetEnabled(true)
         ns.Api.Group.FireChanged()
         assert.equals(0, #Timer.pending)
     end)
 
+    it("rewrites nothing when a pass finds the frame already configured", function()
+        local cell = UnitButton("DFPartyFrame1")
+        UnitFrame.frames[1] = cell
+        InterruptClaim:SetEnabled(true)
+        local writes = 0
+        local set = cell.SetAttribute
+        cell.SetAttribute = function(self, key, value)
+            writes = writes + 1
+            set(self, key, value)
+        end
+        RosterRescan()
+        assert.equals(0, writes)
+        assert.equals("focus", cell.attributes["shift-type1"])
+    end)
+
+    it("skips the unit-frame walk when combat ends with nothing queued", function()
+        UnitFrame.frames[1] = UnitButton("PlayerFrame")
+        InterruptClaim:SetEnabled(true)
+        local count = CountWalks()
+        Combat.FireEnter()
+        Combat.FireLeave()
+        assert.equals(0, count.walks)
+    end)
+
+    describe("during an encounter", function()
+        local savedInstanceEncounter
+        local inProgress
+
+        before_each(function()
+            savedInstanceEncounter = _G.C_InstanceEncounter
+            inProgress = false
+            _G.C_InstanceEncounter = {
+                IsEncounterInProgress = function()
+                    return inProgress
+                end,
+            }
+        end)
+
+        after_each(function()
+            _G.C_InstanceEncounter = savedInstanceEncounter
+        end)
+
+        it("defers roster rescans while out of lockdown and runs one pass after the encounter ends", function()
+            local Timer = ns.Api.Timer
+            InterruptClaim:SetEnabled(true)
+            local count = CountWalks()
+            inProgress = true
+            local cell = UnitButton("DFRaidFrame1")
+            UnitFrame.frames[1] = cell
+            for _ = 1, 5 do
+                ns.Api.Group.FireRosterChanged()
+            end
+            Combat.FireLeave()
+            assert.equals(0, #Timer.pending)
+            assert.equals(0, count.walks)
+            assert.is_nil(cell.attributes["shift-type1"])
+
+            ns.Api.Encounter.FireEnd(1, "Boss", 16, 20, 1)
+            Timer.RunPending()
+            assert.equals(1, count.walks)
+            assert.equals("focus", cell.attributes["shift-type1"])
+            Combat.FireLeave()
+            assert.equals(1, count.walks)
+        end)
+
+        it("does nothing at encounter end when nothing was deferred", function()
+            InterruptClaim:SetEnabled(true)
+            local count = CountWalks()
+            ns.Api.Encounter.FireEnd(1, "Boss", 16, 20, 1)
+            ns.Api.Timer.RunPending()
+            assert.equals(0, count.walks)
+        end)
+    end)
+
     it("releases a frame once the walk stops reporting it", function()
-        local Timer = ns.Api.Timer
         local cell = UnitButton("ElvUF_Party1")
         UnitFrame.frames[1] = cell
         InterruptClaim:SetEnabled(true)
         assert.equals("focus", cell.attributes["shift-type1"])
         UnitFrame.frames[1] = nil
-        ns.Api.Group.FireChanged()
-        Timer.RunPending()
+        RosterRescan()
         assert.is_nil(cell.attributes["shift-type1"])
         assert.is_nil(cell.attributes["neweratools-interruptclaim"])
     end)
@@ -343,10 +436,15 @@ describe("InterruptClaim UI", function()
         end
     end
 
-    it("restores its click when a click-casting addon blanks it", function()
+    it("restores a blanked click on the next pass, then undoes later blanks immediately", function()
         local target = UnitButton("EQOLUFTargetFrame")
         UnitFrame.frames[1] = target
         InterruptClaim:SetEnabled(true)
+        BlankModifierClicks(target)
+        assert.equals("", target.attributes["shift-type1"])
+        RosterRescan()
+        assert.equals("focus", target.attributes["shift-type1"])
+
         BlankModifierClicks(target)
         assert.equals("focus", target.attributes["shift-type1"])
         assert.equals("", target.attributes["ctrl-type1"])
@@ -358,22 +456,44 @@ describe("InterruptClaim UI", function()
         assert.equals(MACRO .. "\n/tm [@focus]1", target.attributes["shift-macrotext1"])
     end)
 
+    it("does not hook frames that were never blanked", function()
+        local cell = UnitButton("DFRaidFrame1")
+        local set = cell.SetAttribute
+        UnitFrame.frames[1] = cell
+        InterruptClaim:SetEnabled(true)
+        RosterRescan()
+        assert.equals(set, cell.SetAttribute)
+    end)
+
     it("yields to a real binding another addon writes later and does not reclaim it", function()
         local target = UnitButton("TargetFrame")
         UnitFrame.frames[1] = target
         InterruptClaim:SetEnabled(true)
         target:SetAttribute("shift-type1", "spell")
+        RosterRescan()
         assert.equals("spell", target.attributes["shift-type1"])
         assert.is_nil(target.attributes["neweratools-interruptclaim"])
-        ns.Api.Group.FireChanged()
-        ns.Api.Timer.RunPending()
+        RosterRescan()
         assert.equals("spell", target.attributes["shift-type1"])
+    end)
+
+    it("yields immediately on a watched frame", function()
+        local target = UnitButton("TargetFrame")
+        UnitFrame.frames[1] = target
+        InterruptClaim:SetEnabled(true)
+        BlankModifierClicks(target)
+        RosterRescan()
+        target:SetAttribute("shift-type1", "spell")
+        assert.equals("spell", target.attributes["shift-type1"])
+        assert.is_nil(target.attributes["neweratools-interruptclaim"])
     end)
 
     it("leaves blanked clicks alone once disabled", function()
         local target = UnitButton("TargetFrame")
         UnitFrame.frames[1] = target
         InterruptClaim:SetEnabled(true)
+        BlankModifierClicks(target)
+        RosterRescan()
         InterruptClaim:SetEnabled(false)
         assert.is_nil(target.attributes["shift-type1"])
         BlankModifierClicks(target)
@@ -384,6 +504,8 @@ describe("InterruptClaim UI", function()
         local target = UnitButton("TargetFrame")
         UnitFrame.frames[1] = target
         InterruptClaim:SetEnabled(true)
+        BlankModifierClicks(target)
+        RosterRescan()
         Combat.FireEnter()
         target:SetAttribute("shift-type1", "")
         assert.equals("", target.attributes["shift-type1"])
