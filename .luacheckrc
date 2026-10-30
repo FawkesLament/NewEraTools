@@ -13,6 +13,7 @@ local WIDGET_API = {
     "Minimap",
     "ScrollUtil",
     "STANDARD_TEXT_FONT",
+    "DAMAGE_TEXT_FONT",
     "UIParent",
     "UISpecialFrames",
 }

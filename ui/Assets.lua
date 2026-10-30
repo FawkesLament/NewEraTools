@@ -149,7 +149,7 @@ Assets.Fonts = {
     GLYPH = FONT_PREFIX .. "Glyph",
     -- Larger +/- on stepper buttons; body text stays at 12.
     STEPPER = FONT_PREFIX .. "Stepper",
-    -- Outlined Friz digits for map/marker overlays (Latin digits only; not for CJK text).
+    -- Outlined damage-number face (伤害数字 / DAMAGE_TEXT_FONT). Default for numeric overlays.
     OVERLAY_DIGIT = FONT_PREFIX .. "OverlayDigit",
 }
 
@@ -190,7 +190,7 @@ Assets.FontStyles = {
     [Assets.Fonts.GLYPH] = { size = 18, color = Assets.Colors.TEXT_MUTED },
     [Assets.Fonts.STEPPER] = { size = 18, color = Assets.Colors.TEXT },
     [Assets.Fonts.OVERLAY_DIGIT] = {
-        path = "Fonts\\FRIZQT__.TTF",
+        path = DAMAGE_TEXT_FONT,
         size = 22,
         color = Assets.Colors.TEXT_GOLD,
         flags = "OUTLINE",

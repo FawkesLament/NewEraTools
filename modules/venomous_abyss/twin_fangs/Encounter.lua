@@ -111,6 +111,7 @@ end
 function TwinFangs:CancelSoakCallout()
     soakScheduleToken = soakScheduleToken + 1
     self:CancelCallout("soak")
+    self:StopSoakTimeline()
 end
 
 ---@return boolean
@@ -126,6 +127,7 @@ local function ResetPull()
     broodToken = broodToken + 1
     soakScheduleToken = soakScheduleToken + 1
     TwinFangs:CancelCallout()
+    TwinFangs:StopSoakTimeline()
     TwinFangs:EndInterruptStatusWindow()
 end
 
@@ -199,14 +201,32 @@ local function ScheduleBrood(duration)
     end)
 end
 
+---@param beginAt number
+---@param hit3At number
+---@param token integer
+local function ScheduleSoakTimeline(beginAt, hit3At, token)
+    local now = Timer.GetTime()
+    PullAfter(math.max(beginAt - now, 0), function()
+        if token ~= soakScheduleToken or not TwinFangs:IsInEncounter() then
+            return
+        end
+        if not TwinFangs:IsSoakReminderEnabled() or not TwinFangs:IsSoakTimelineEnabled() then
+            return
+        end
+        TwinFangs:StartSoakTimeline(beginAt)
+    end)
+    PullAfter(math.max(hit3At - now, 0), function()
+        if token ~= soakScheduleToken then
+            return
+        end
+        TwinFangs:StopSoakTimeline()
+    end)
+end
+
 ---@param duration number
 local function ScheduleFeast(duration)
     feastCount = feastCount + 1
     local feastIndex = feastCount
-    local hitIndex = HitIndexForGroup(feastIndex, TwinFangs:GetSoakGroup())
-    if hitIndex == nil then
-        return
-    end
     local token = soakScheduleToken
     local now = Timer.GetTime()
     local beginAt = now + duration
@@ -215,6 +235,11 @@ local function ScheduleFeast(duration)
         beginAt + CAST_SECONDS + HIT2_GAP,
         beginAt + CAST_SECONDS + HIT2_GAP + HIT3_GAP,
     }
+    ScheduleSoakTimeline(beginAt, hitAt[3], token)
+    local hitIndex = HitIndexForGroup(feastIndex, TwinFangs:GetSoakGroup())
+    if hitIndex == nil then
+        return
+    end
     if hitIndex == 1 then
         PullAfter(hitAt[1] - HIT1_LEAD - now, function()
             ShowUntil(L.TWIN_FANGS_SOAK_ENTER, hitAt[1], token)

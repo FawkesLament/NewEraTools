@@ -61,7 +61,11 @@ function Widgets.EnsureFonts()
     fontsCreated = true
     for name, style in pairs(Assets.FontStyles) do
         local font = CreateFont(name)
-        font:SetFont(style.path or STANDARD_TEXT_FONT, style.size, style.flags or "")
+        local path = style.path
+        if name == Fonts.OVERLAY_DIGIT then
+            path = DAMAGE_TEXT_FONT or path
+        end
+        font:SetFont(path or STANDARD_TEXT_FONT, style.size, style.flags or "")
         font:SetTextColor(Widgets.UnpackColor(style.color))
         if not style.flags then
             font:SetShadowOffset(1, -1)

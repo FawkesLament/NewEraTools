@@ -191,6 +191,11 @@ describe("TwinFangs InterruptStatusHUD", function()
     end
 
     local function LoadPanel()
+        ns.Modules.Internals("TwinFangs").SoakTimelineUI = {
+            LAYOUT_ID = "TwinFangs:soakTimeline",
+            Ensure = function() end,
+            Update = function() end,
+        }
         ns.Callout = {
             LAYOUT_ID = "Callout:1",
             Ensure = function() end,
@@ -289,7 +294,11 @@ describe("TwinFangs InterruptStatusHUD", function()
         local scope = scopes.twin_fangs
         local binding = InterruptStatusHud()
         assert.equals(L.TWIN_FANGS_LAYOUT_SCOPE, scope.label)
-        assert.same({ ns.Callout.LAYOUT_ID, binding.LAYOUT_ID }, scope.elementIds)
+        assert.same({
+            ns.Callout.LAYOUT_ID,
+            binding.LAYOUT_ID,
+            "TwinFangs:soakTimeline",
+        }, scope.elementIds)
         assert.equals("boolean", type(registered[binding.LAYOUT_ID].global))
         assert.is_false(registered[binding.LAYOUT_ID].global)
     end)

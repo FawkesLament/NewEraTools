@@ -20,6 +20,7 @@ describe("TwinFangs", function()
         assert.is_false(Module:IsNameplateHintEnabled())
         assert.is_false(Module.db.nameplateHint.enabled)
         assert.equals(Schema.GROUP_LEFT, Module:GetSoakGroup())
+        assert.is_true(Module:IsSoakTimelineEnabled())
     end)
 
     describe("raid role", function()
@@ -51,6 +52,11 @@ describe("TwinFangs", function()
         assert.is_false(Module:IsSoakReminderEnabled())
         assert.is_false(Module.db.soakReminder.enabled)
         assert.is_true(Module:IsInterruptReminderEnabled())
+
+        Module:SetSoakTimelineEnabled(false)
+        assert.is_false(Module:IsSoakTimelineEnabled())
+        Module:SetSoakTimelineEnabled(true)
+        assert.is_true(Module:IsSoakTimelineEnabled())
     end)
 
     describe("nameplate hint", function()
@@ -326,6 +332,16 @@ describe("TwinFangs", function()
             ns.Modules.Start(saved)
             Module = ns.Modules.Get("TwinFangs")
             assert.equals(Schema.GROUP_LEFT, Module:GetSoakGroup())
+        end)
+
+        it("turns a saved non-boolean soak timeline flag into on", function()
+            local fresh = Loader.Load()
+            fresh.Modules.Start(fresh.Database.Load({
+                modules = {
+                    TwinFangs = { soakReminder = { timeline = "yes" } },
+                },
+            }))
+            assert.is_true(fresh.Modules.Get("TwinFangs"):IsSoakTimelineEnabled())
         end)
     end)
 

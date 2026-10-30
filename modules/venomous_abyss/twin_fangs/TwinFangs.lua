@@ -111,6 +111,23 @@ function TwinFangs:SetSoakGroup(group)
 end
 
 ---@return boolean
+function TwinFangs:IsSoakTimelineEnabled()
+    return self.db.soakReminder.timeline == true
+end
+
+---@param enabled boolean
+function TwinFangs:SetSoakTimelineEnabled(enabled)
+    enabled = enabled == true
+    if self.db.soakReminder.timeline == enabled then
+        return
+    end
+    self.db.soakReminder.timeline = enabled
+    if not enabled then
+        self:StopSoakTimeline()
+    end
+end
+
+---@return boolean
 function TwinFangs:IsInterruptReminderEnabled()
     return self.db.interruptReminder.enabled == true
 end
@@ -352,9 +369,36 @@ function TwinFangs:SetInterruptStatusHudPosition(position)
     saved.y = position.y
 end
 
+---@return FloatingWindowPosition
+function TwinFangs:GetSoakTimelinePosition()
+    return self.db.soakTimelinePosition
+end
+
+---@param position FloatingWindowPosition
+function TwinFangs:SetSoakTimelinePosition(position)
+    assert(ns.Position.IsValid(position), "Bad soak timeline position")
+    local saved = self.db.soakTimelinePosition
+    if type(saved) ~= "table" then
+        self.db.soakTimelinePosition = {
+            point = position.point,
+            relativePoint = position.relativePoint,
+            x = position.x,
+            y = position.y,
+        }
+        return
+    end
+    saved.point = position.point
+    saved.relativePoint = position.relativePoint
+    saved.x = position.x
+    saved.y = position.y
+end
+
 function TwinFangs:OnInit()
     if not Schema.GROUPS[self.db.soakReminder.group] then
         self.db.soakReminder.group = Schema.GROUP_LEFT
+    end
+    if type(self.db.soakReminder.timeline) ~= "boolean" then
+        self.db.soakReminder.timeline = true
     end
     if ns.Position.IsValid(self.db.statusHudPosition) then
         self:SetInterruptStatusHudPosition(self.db.statusHudPosition)
@@ -362,6 +406,9 @@ function TwinFangs:OnInit()
     self.db.statusHudPosition = nil
     if not ns.Position.IsValid(self.db.interruptStatusHudPosition) then
         self.db.interruptStatusHudPosition = Schema.DefaultInterruptStatusHudPosition()
+    end
+    if not ns.Position.IsValid(self.db.soakTimelinePosition) then
+        self.db.soakTimelinePosition = Schema.DefaultSoakTimelinePosition()
     end
     SanitizeNameplateHint(self.db.nameplateHint)
     local reminder = self.db.interruptReminder
@@ -383,6 +430,12 @@ end
 
 ---Drops a pending or visible soak reminder. Defined with the encounter listener.
 function TwinFangs:CancelSoakCallout() end
+
+---Shows the triple-hit soak timeline from Feast begin-cast. Defined by the timeline UI.
+function TwinFangs:StartSoakTimeline() end
+
+---Hides the live triple-hit soak timeline. Defined by the timeline UI.
+function TwinFangs:StopSoakTimeline() end
 
 ---Shows a soak or interrupt callout through CalloutManager. Defined with the encounter listener.
 function TwinFangs:ShowCallout() end

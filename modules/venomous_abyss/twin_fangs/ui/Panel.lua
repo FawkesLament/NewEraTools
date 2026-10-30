@@ -20,6 +20,7 @@ local Spacing = Assets.Spacing
 local TwinFangs = ns.Modules.Get("TwinFangs")
 local Schema = Internals.Schema
 local InterruptStatusHud = Internals.InterruptStatusHudUI
+local SoakTimelineHud = Internals.SoakTimelineUI
 local AddonCheckPanel = ns.AddonCheckPanel
 
 local SCOPE_ID = "twin_fangs"
@@ -122,10 +123,11 @@ local function BuildContent(content)
     })
     local soakBody = Layout.Stack(soak.content, { paddingY = Spacing.SMALL })
     local groupRow = soakBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local groupLabel = Widgets.CreateLabel(groupRow, Fonts.BODY, L.TWIN_FANGS_SOAK_GROUP)
+    local groupCell, timelineCell = Layout.SplitRow(groupRow, Spacing.LARGE)
+    local groupLabel = Widgets.CreateLabel(groupCell, Fonts.BODY, L.TWIN_FANGS_SOAK_GROUP)
     groupLabel:SetJustifyH("LEFT")
     local groupControl
-    groupControl = Widgets.CreateSegmentedControl(groupRow, {
+    groupControl = Widgets.CreateSegmentedControl(groupCell, {
         { value = Schema.GROUP_LEFT, text = L.TWIN_FANGS_SOAK_GROUP_LEFT },
         { value = Schema.GROUP_MIDDLE, text = L.TWIN_FANGS_SOAK_GROUP_MIDDLE },
         { value = Schema.GROUP_RIGHT, text = L.TWIN_FANGS_SOAK_GROUP_RIGHT },
@@ -137,7 +139,27 @@ local function BuildContent(content)
         groupControl:SetSelected(group)
     end)
     groupControl:SetSelected(TwinFangs:GetSoakGroup())
-    Layout.Row(groupRow, { groupLabel, groupControl }, Spacing.LARGE)
+    Layout.Row(groupCell, { groupLabel, groupControl }, Spacing.LARGE)
+
+    local timelineBox = Widgets.CreateCheckbox(timelineCell)
+    timelineBox:SetChecked(TwinFangs:IsSoakTimelineEnabled())
+    timelineBox:SetScript("OnClick", function(self)
+        if not TwinFangs:IsSoakReminderEnabled() then
+            self:SetChecked(TwinFangs:IsSoakTimelineEnabled())
+            return
+        end
+        TwinFangs:SetSoakTimelineEnabled(self:GetChecked())
+        self:SetChecked(TwinFangs:IsSoakTimelineEnabled())
+        if LayoutEditor.IsEditing() then
+            LayoutEditor.Refresh()
+        end
+    end)
+    local timelineLabel = Widgets.CreateLabel(timelineCell, Fonts.BODY, L.TWIN_FANGS_SOAK_TIMELINE_SHOW)
+    timelineLabel:SetJustifyH("LEFT")
+    timelineLabel:SetWordWrap(false)
+    Layout.Row(timelineCell, { timelineBox, timelineLabel }, Spacing.SMALL)
+    timelineBox:SetHitRectInsets(0, -(timelineLabel:GetStringWidth() + Spacing.SMALL), 0, 0)
+
     soak:SetContentHeight(soakBody:GetHeight())
     soak:RefreshContentInteractive()
 
@@ -528,10 +550,11 @@ function TwinFangs:OnEnable()
         id = SCOPE_ID,
         label = L.TWIN_FANGS_LAYOUT_SCOPE,
         order = 6,
-        elementIds = { ns.Callout.LAYOUT_ID, InterruptStatusHud.LAYOUT_ID },
+        elementIds = { ns.Callout.LAYOUT_ID, InterruptStatusHud.LAYOUT_ID, SoakTimelineHud.LAYOUT_ID },
         prepare = function()
             ns.Callout.Ensure()
             InterruptStatusHud.Ensure()
+            SoakTimelineHud.Ensure()
         end,
     })
     ns.Callout.SetScopePreview(SCOPE_ID, L.TWIN_FANGS_SOAK_ENTER, TwinFangs.HIT1_LEAD)
@@ -557,4 +580,6 @@ function TwinFangs:OnEnable()
     end)
     InterruptStatusHud.Ensure()
     InterruptStatusHud.Update()
+    SoakTimelineHud.Ensure()
+    SoakTimelineHud.Update()
 end
