@@ -33,11 +33,18 @@ local function HudState(snapshot, isBackup)
     if not isBackup then
         title = L.TWIN_FANGS_INTERRUPT_STATUS_REGION_ROLE:format(region, L.TWIN_FANGS_INTERRUPT_STATUS_PRIMARY)
     end
+    local detail
+    if isBackup then
+        detail = L.TWIN_FANGS_INTERRUPT_STATUS_BACKUP
+    elseif snapshot.indexEnd and snapshot.indexEnd > snapshot.index then
+        detail = L.TWIN_FANGS_INTERRUPT_STATUS_TASK_RANGE:format(snapshot.index, snapshot.indexEnd)
+    else
+        detail = L.TWIN_FANGS_INTERRUPT_STATUS_TASK:format(snapshot.index)
+    end
     return {
         title = title,
         text = L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(snapshot.interruptCount + 1),
-        detail = isBackup and L.TWIN_FANGS_INTERRUPT_STATUS_BACKUP
-            or L.TWIN_FANGS_INTERRUPT_STATUS_TASK:format(snapshot.index),
+        detail = detail,
         progress = snapshot.interruptCount + 1,
         maxProgress = snapshot.chainLength,
         severity = ns.StatusHUD.SEVERITY_NORMAL,

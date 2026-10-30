@@ -79,9 +79,31 @@ describe("TwinFangs AddonCheck", function()
             local config = InspectConfig()
             assert.equals(Chain.FRONT_RIGHT, config.assignment.region)
             assert.equals(2, config.assignment.index)
+            assert.equals(2, config.assignment.indexEnd)
             assert.is_nil(config.assignment.backup)
             assert.equals("party", config.assignment.channel)
             assert.equals("pppp", config.channels)
+        end)
+
+        it("reports a consecutive interrupt range for repeated primaries", function()
+            local name = Player.GetFullName()
+            TwinFangs.db.interruptReminder.chain.front_left.group = 1
+            TwinFangs.db.interruptReminder.chain.front_left.players = {
+                { name = "A-TestRealm" },
+                { name = name },
+                { name = name },
+                { name = name },
+                { name = "B-TestRealm" },
+            }
+            local config = InspectConfig()
+            assert.equals(Chain.FRONT_LEFT, config.assignment.region)
+            assert.equals(2, config.assignment.index)
+            assert.equals(4, config.assignment.indexEnd)
+            assert.equals(
+                string.format(L.TWIN_FANGS_ADDONCHECK_PRIMARY_RANGE, L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT, 2, 4)
+                    .. " · /p",
+                TwinFangs.FormatAddonCheckAssignment(config.assignment)
+            )
         end)
 
         it("reports a backup-only assignment", function()
@@ -317,6 +339,10 @@ describe("TwinFangs AddonCheck", function()
             assert.equals(
                 string.format(L.TWIN_FANGS_ADDONCHECK_PRIMARY, L.TWIN_FANGS_INTERRUPT_REGION_FRONT_RIGHT, 4),
                 TwinFangs.FormatAddonCheckAssignment({ region = Chain.FRONT_RIGHT, index = 4 })
+            )
+            assert.equals(
+                string.format(L.TWIN_FANGS_ADDONCHECK_PRIMARY_RANGE, L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT, 2, 4),
+                TwinFangs.FormatAddonCheckAssignment({ region = Chain.FRONT_LEFT, index = 2, indexEnd = 4 })
             )
             assert.equals(
                 string.format(L.TWIN_FANGS_ADDONCHECK_BACKUP, L.TWIN_FANGS_INTERRUPT_REGION_BACK_LEFT),

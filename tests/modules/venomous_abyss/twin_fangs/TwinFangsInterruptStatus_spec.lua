@@ -21,11 +21,15 @@ describe("TwinFangs interrupt status", function()
         end
     end
 
-    local function AssignPrimary(index)
+    local function AssignPrimary(index, indexEnd)
         index = index or 3
+        indexEnd = indexEnd or index
         local players = {}
-        for i = 1, index do
-            players[i] = { name = i == index and Player.GetFullName() or ("Other" .. i .. "-TestRealm") }
+        for i = 1, indexEnd do
+            local assigned = i >= index
+            players[i] = {
+                name = assigned and Player.GetFullName() or ("Other" .. i .. "-TestRealm"),
+            }
         end
         local chain = Module.db.interruptReminder.chain
         chain.front_left.group = 1
@@ -64,6 +68,7 @@ describe("TwinFangs interrupt status", function()
         return {
             region = "front_right",
             index = chainLength + 1,
+            indexEnd = chainLength + 1,
             interruptCount = interruptCount,
             chainLength = chainLength,
         }
@@ -84,6 +89,7 @@ describe("TwinFangs interrupt status", function()
         return {
             region = "front_left",
             index = index,
+            indexEnd = index,
             interruptCount = interruptCount,
             chainLength = index,
         }
@@ -552,6 +558,43 @@ describe("TwinFangs interrupt status", function()
 
             GameEvents.Fire("CHAT_MSG_PARTY")
             assert.is_nil(Module:GetDisplayedCallout())
+        end)
+
+        it("refreshes the interrupt callout and TTS on each consecutive assigned turn", function()
+            local calloutText = ns.L.TWIN_FANGS_INTERRUPT_CALLOUT:format(
+                ns.L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT
+            )
+            local BossAlert = ns.Modules.Get("BossAlert")
+            BossAlert:ListenForCalloutTts()
+            BossAlert:SetCalloutTtsEnabled(true)
+            AssignPrimary(2, 4)
+            Module:SetInterruptReminderEnabled(true)
+            Module:SetInterruptStatusTestMode(true)
+            assert.is_nil(Module:GetDisplayedCallout())
+
+            GameEvents.Fire("CHAT_MSG_PARTY")
+            assert.equals(calloutText, Module:GetDisplayedCallout())
+            local firstExpiresAt = Module:GetCalloutExpiresAt()
+            assert.equals(Timer.GetTime() + Module.INTERRUPT_CALLOUT_DURATION, firstExpiresAt)
+            assert.same({ calloutText }, ns.Api.Speech.spoken)
+
+            Timer.Advance(2)
+            GameEvents.Fire("CHAT_MSG_PARTY")
+            assert.equals(calloutText, Module:GetDisplayedCallout())
+            local secondExpiresAt = Module:GetCalloutExpiresAt()
+            assert.equals(Timer.GetTime() + Module.INTERRUPT_CALLOUT_DURATION, secondExpiresAt)
+            assert.is_true(secondExpiresAt > firstExpiresAt)
+            assert.same({ calloutText, calloutText }, ns.Api.Speech.spoken)
+
+            Timer.Advance(2)
+            GameEvents.Fire("CHAT_MSG_PARTY")
+            assert.equals(calloutText, Module:GetDisplayedCallout())
+            assert.equals(Timer.GetTime() + Module.INTERRUPT_CALLOUT_DURATION, Module:GetCalloutExpiresAt())
+            assert.same({ calloutText, calloutText, calloutText }, ns.Api.Speech.spoken)
+
+            GameEvents.Fire("CHAT_MSG_PARTY")
+            assert.is_nil(Module:GetDisplayedCallout())
+            assert.same({ calloutText, calloutText, calloutText }, ns.Api.Speech.spoken)
         end)
 
         it("shows the interrupt callout when the first assignment is the player's", function()

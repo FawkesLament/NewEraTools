@@ -141,6 +141,53 @@ describe("TwinFangs interrupt chain sync", function()
         assert.equals("1|1:15324:52:s|2:31425::p|3:12345:61:y|4:25134::p", Chain.EncodePublication(state))
     end)
 
+    it("encodes consecutive repeats as repeated subgroup-position digits", function()
+        local state = Chain.NewState()
+        FillExample(state)
+        state.regions[Chain.FRONT_LEFT].players = {
+            Player("LF1"),
+            Player("LF2"),
+            Player("LF2"),
+            Player("LF2"),
+            Player("LF3"),
+        }
+        assert.equals("1|1:12223:52:s|2:31425::p|3:12345:61:y|4:25134::p", Chain.EncodePublication(state))
+        assert.is_true(Chain.Publish(state))
+        assert.equals("1|1:12223:52:s|2:31425::p|3:12345:61:y|4:25134::p", MessageProtocol.Decode(AddonMessage.sent[1].message).payload)
+    end)
+
+    it("encodes a maximum-length 15-turn region", function()
+        local state = Chain.NewState()
+        local roster = {}
+        local players = {}
+        for index = 1, 5 do
+            local guid = "G1P" .. index
+            roster[index] = Member(guid, 1, index)
+            for _ = 1, 3 do
+                players[#players + 1] = Player(guid)
+            end
+        end
+        Chain.SetRoster(state, roster)
+        state.regions[Chain.FRONT_LEFT].group = 1
+        state.regions[Chain.FRONT_LEFT].players = players
+        assert.equals("1|1:111222333444555::p|:::p|:::p|:::p", Chain.EncodePublication(state))
+    end)
+
+    it("rejects four consecutive repeats and nonconsecutive duplicates before sending", function()
+        local state = Chain.NewState()
+        Chain.SetRoster(state, {
+            Member("A", 1, 1),
+            Member("B", 1, 2),
+        })
+        state.regions[Chain.FRONT_LEFT].group = 1
+        state.regions[Chain.FRONT_LEFT].players = { Player("A"), Player("A"), Player("A"), Player("A") }
+        assert.is_nil(Chain.EncodePublication(state))
+        state.regions[Chain.FRONT_LEFT].players = { Player("A"), Player("B"), Player("A") }
+        assert.is_nil(Chain.EncodePublication(state))
+        assert.is_false(Chain.Publish(state))
+        assert.equals(0, #AddonMessage.sent)
+    end)
+
     it("encodes empty chains, missing backups, and unassigned regions", function()
         local state = Chain.NewState()
         Chain.SetRoster(state, { Member("solo", 4, 1) })

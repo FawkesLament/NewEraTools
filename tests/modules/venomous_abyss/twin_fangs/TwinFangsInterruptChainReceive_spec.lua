@@ -122,6 +122,43 @@ describe("TwinFangs interrupt chain receive", function()
             })
         end)
 
+        it("decodes consecutive repeated subgroup positions into expanded names", function()
+            local payload = "1|1:12223:52:s|2:31425::p|3:12345:61:y|4:25134::p"
+            local regions = assert(Chain.DecodePublication(payload, ExampleRoster()))
+            assert.same({
+                "LF1-TestRealm",
+                "LF2-TestRealm",
+                "LF2-TestRealm",
+                "LF2-TestRealm",
+                "LF3-TestRealm",
+            }, {
+                regions.front_left.players[1].name,
+                regions.front_left.players[2].name,
+                regions.front_left.players[3].name,
+                regions.front_left.players[4].name,
+                regions.front_left.players[5].name,
+            })
+            assert.equals(5, #regions.front_left.players)
+            local resolved = assert(Chain.ResolvePublication(payload, ExampleRoster()))
+            assert.equals(3, #Chain.Blocks(resolved.front_left.players))
+            assert.equals(3, Chain.Blocks(resolved.front_left.players)[2].count)
+        end)
+
+        it("rejects four consecutive repeats and nonconsecutive position repeats", function()
+            assert.is_nil(Chain.DecodePublication("1|1:1111:|::|::|::", ExampleRoster()))
+            assert.equals("invalid_position", select(2, Chain.DecodePublication("1|1:1111:|::|::|::", ExampleRoster())))
+            assert.is_nil(Chain.DecodePublication("1|1:121:|::|::|::", ExampleRoster()))
+            assert.equals("duplicate_position", select(2, Chain.DecodePublication("1|1:121:|::|::|::", ExampleRoster())))
+        end)
+
+        it("decodes a maximum-length 15-turn region", function()
+            local payload = "1|1:111222333444555::p|:::p|:::p|:::p"
+            local regions = assert(Chain.DecodePublication(payload, ExampleRoster()))
+            assert.equals(15, #regions.front_left.players)
+            assert.equals("LF1-TestRealm", regions.front_left.players[3].name)
+            assert.equals("LF5-TestRealm", regions.front_left.players[15].name)
+        end)
+
         it("supports empty chains and missing backups", function()
             local regions = assert(Chain.DecodePublication("1|::|::|4::|::", { Member("solo", 4, 1) }))
             assert.is_nil(regions.front_left.group)
@@ -137,7 +174,7 @@ describe("TwinFangs interrupt chain receive", function()
             assert.equals("unsupported_version", select(2, Chain.DecodePublication("2|::|::|::|::", ExampleRoster())))
             assert.is_nil(Chain.DecodePublication("1|::|::|::", ExampleRoster()))
             assert.is_nil(Chain.DecodePublication("1|1:6:|::|::|::", ExampleRoster()))
-            assert.is_nil(Chain.DecodePublication("1|1:11:|::|::|::", ExampleRoster()))
+            assert.is_nil(Chain.DecodePublication("1|1:121:|::|::|::", ExampleRoster()))
         end)
 
         it("rejects a missing or unused subgroup position", function()
@@ -238,6 +275,22 @@ describe("TwinFangs interrupt chain receive", function()
             Chain.Listen()
             Deliver(EXAMPLE)
             assert.equals(1, #printed)
+        end)
+
+        it("replaces the chain with consecutive repeats and keeps the prior chain on invalid repeats", function()
+            Deliver("1|1:12223:52:s|2:31425::p|3:12345:61:y|4:25134::p")
+            local chain = module.db.interruptReminder.chain
+            assert.equals("LF2-TestRealm", chain.front_left.players[2].name)
+            assert.equals("LF2-TestRealm", chain.front_left.players[4].name)
+            assert.equals(5, #chain.front_left.players)
+            local before = Snapshot(chain)
+            printed = {}
+            Deliver("1|1:121:52:s|2:31425::p|3:12345:61:y|4:25134::p")
+            assert.same(before, Snapshot(module.db.interruptReminder.chain))
+            assert.equals(1, #printed)
+            Deliver("1|1:1111:52:s|2:31425::p|3:12345:61:y|4:25134::p")
+            assert.same(before, Snapshot(module.db.interruptReminder.chain))
+            assert.equals(2, #printed)
         end)
 
         it("leaves previous assignments unchanged when decoding or validation fails", function()

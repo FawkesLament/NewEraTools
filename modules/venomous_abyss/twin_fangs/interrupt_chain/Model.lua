@@ -23,6 +23,11 @@ local InterruptChain = {
     GROUP_MAX = 8,
     POSITION_MIN = 1,
     POSITION_MAX = 5,
+    ---Unique primaries per region match a raid subgroup.
+    REPEAT_MIN = 1,
+    REPEAT_MAX = 3,
+    ---Expanded interrupt turns: up to five players, each repeating at most three times.
+    TURN_MAX = 15,
     ADD_NONE = false,
     BACKUP_NONE = false,
     ---Raid groups 1–4 map onto the four battlefield regions.
@@ -83,6 +88,96 @@ function InterruptChain.CopyPlayers(players)
         copy[index] = InterruptChain.CopyPlayer(player)
     end
     return copy
+end
+
+---@param value any
+---@return integer
+function InterruptChain.ClampRepeat(value)
+    if type(value) ~= "number" then
+        return InterruptChain.REPEAT_MIN
+    end
+    local count = math.floor(value)
+    if count < InterruptChain.REPEAT_MIN then
+        return InterruptChain.REPEAT_MIN
+    end
+    if count > InterruptChain.REPEAT_MAX then
+        return InterruptChain.REPEAT_MAX
+    end
+    return count
+end
+
+---Groups consecutive identical names into one logical assignment.
+---@param players TwinFangsInterruptPlayer[]|nil
+---@return TwinFangsInterruptBlock[]
+function InterruptChain.Blocks(players)
+    ---@class TwinFangsInterruptBlock
+    ---@field player TwinFangsInterruptPlayer
+    ---@field name string|nil
+    ---@field count integer
+    ---@field first integer
+    ---@field last integer
+    local blocks = {}
+    if type(players) ~= "table" then
+        return blocks
+    end
+    for index, player in ipairs(players) do
+        local name = InterruptChain.PlayerName(player)
+        local last = blocks[#blocks]
+        if name and last and last.name == name then
+            last.count = last.count + 1
+            last.last = index
+        else
+            blocks[#blocks + 1] = {
+                player = InterruptChain.CopyPlayer(player) or player,
+                name = name,
+                count = 1,
+                first = index,
+                last = index,
+            }
+        end
+    end
+    return blocks
+end
+
+---@param blocks TwinFangsInterruptBlock[]
+---@return TwinFangsInterruptPlayer[]
+function InterruptChain.ExpandBlocks(blocks)
+    local players = {}
+    for _, block in ipairs(blocks) do
+        local record = InterruptChain.CopyPlayer(block.player)
+        if record then
+            local count = InterruptChain.ClampRepeat(block.count)
+            for _ = 1, count do
+                players[#players + 1] = InterruptChain.CopyPlayer(record)
+            end
+        end
+    end
+    return players
+end
+
+---First and last 1-based turns for `identity` in an expanded sequence.
+---@param players TwinFangsInterruptPlayer[]|nil
+---@param identity TwinFangsInterruptPlayer|string|nil
+---@return integer|nil first
+---@return integer|nil last
+function InterruptChain.AssignmentRange(players, identity)
+    local name = InterruptChain.PlayerName(identity)
+    if not name or type(players) ~= "table" then
+        return nil
+    end
+    local first
+    local last
+    for index, player in ipairs(players) do
+        if InterruptChain.PlayerName(player) == name then
+            if not first then
+                first = index
+            end
+            last = index
+        elseif first then
+            break
+        end
+    end
+    return first, last
 end
 
 ---@param member RaidMember
@@ -386,20 +481,16 @@ function InterruptChain.GetPlayerResponsibilities(chain, identity)
     ---@class TwinFangsInterruptResponsibilities
     ---@field region string|nil
     ---@field index number|nil
+    ---@field indexEnd number|nil
     ---@field backup string|nil
     local responsibilities = {}
     local view = InterruptChain.GetMemberView(chain, identity)
     local name = InterruptChain.PlayerName(identity)
     if view.primary then
         responsibilities.region = view.primary.regionId
-        if name then
-            for index, player in ipairs(view.primary.players) do
-                if InterruptChain.PlayerName(player) == name then
-                    responsibilities.index = index
-                    break
-                end
-            end
-        end
+        local first, last = InterruptChain.AssignmentRange(view.primary.players, name)
+        responsibilities.index = first
+        responsibilities.indexEnd = last
     end
     local firstBackup = view.backups[1]
     if firstBackup then

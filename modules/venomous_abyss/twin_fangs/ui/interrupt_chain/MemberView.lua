@@ -13,6 +13,7 @@ local Unit = ns.Api.Unit
 
 local Chain = Internals.InterruptChain
 local Labels = Internals.InterruptChainLabels
+local Preview = Internals.InterruptChainPreview
 
 local ACCENT_WIDTH = 2
 local CARD_HEADER = 18
@@ -167,8 +168,8 @@ local function EnsurePlayerRow(card, index)
     row.highlight = AddYouHighlight(row)
 
     local number = Widgets.CreateLabel(row, Fonts.EMPHASIS)
-    number:SetJustifyH("CENTER")
-    number:SetWidth(18)
+    number:SetJustifyH("RIGHT")
+    number:SetWidth(56)
     number:SetPoint("LEFT", row, "LEFT")
     row.number = number
 
@@ -214,8 +215,8 @@ local function RefreshAssignmentCard(card, assignment, playerName, roster)
     card.accent:SetColorTexture(accent.r, accent.g, accent.b, 0.9)
     card.title:SetText(Labels.AssignmentTitle(assignment.regionId, assignment.group, assignment.channel))
 
-    local players = assignment.players
-    local count = #players
+    local blocks = Chain.Blocks(assignment.players)
+    local count = #blocks
     card.playerCount = count
     if count == 0 then
         card.empty:Show()
@@ -224,13 +225,13 @@ local function RefreshAssignmentCard(card, assignment, playerName, roster)
         end
     else
         card.empty:Hide()
-        for index, player in ipairs(players) do
+        for index, block in ipairs(blocks) do
             local row = EnsurePlayerRow(card, index)
-            local name = Chain.PlayerName(player)
+            local name = block.name
             local isYou = name ~= nil and name == playerName
-            row.number:SetText(tostring(index))
+            row.number:SetText(Preview.FormatSequence(block.first, block.last))
             row.number:SetTextColor(Widgets.UnpackColor(accent))
-            row.name:SetText(Labels.DisplayName({}, player))
+            row.name:SetText(Labels.DisplayName({}, block.player))
             local member = RosterMember(name, roster)
             ApplyYouHighlight(row, accent, isYou)
             if isYou then

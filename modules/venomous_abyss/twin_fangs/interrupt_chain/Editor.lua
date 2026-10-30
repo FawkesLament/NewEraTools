@@ -324,10 +324,12 @@ end
 function InterruptChain.RemovePlayer(state, regionId, index)
     local region = state.regions[regionId]
     assert(region, "Unknown interrupt region")
-    if type(index) ~= "number" or index < 1 or index > #region.players then
+    local blocks = InterruptChain.Blocks(region.players)
+    if type(index) ~= "number" or index < 1 or index > #blocks then
         return false
     end
-    table.remove(region.players, index)
+    table.remove(blocks, index)
+    region.players = InterruptChain.ExpandBlocks(blocks)
     state.dirty = true
     return true
 end
@@ -340,11 +342,36 @@ end
 function InterruptChain.MovePlayer(state, regionId, index, delta)
     local region = state.regions[regionId]
     assert(region, "Unknown interrupt region")
+    local blocks = InterruptChain.Blocks(region.players)
     local target = index + delta
-    if index < 1 or index > #region.players or target < 1 or target > #region.players then
+    if index < 1 or index > #blocks or target < 1 or target > #blocks then
         return false
     end
-    region.players[index], region.players[target] = region.players[target], region.players[index]
+    blocks[index], blocks[target] = blocks[target], blocks[index]
+    region.players = InterruptChain.ExpandBlocks(blocks)
+    state.dirty = true
+    return true
+end
+
+---Sets how many consecutive turns a logical player occupies. Clamped to 1–3.
+---@param state TwinFangsInterruptChainState
+---@param regionId string
+---@param index integer
+---@param count any
+---@return boolean
+function InterruptChain.SetRepeatCount(state, regionId, index, count)
+    local region = state.regions[regionId]
+    assert(region, "Unknown interrupt region")
+    local blocks = InterruptChain.Blocks(region.players)
+    if type(index) ~= "number" or index < 1 or index > #blocks then
+        return false
+    end
+    count = InterruptChain.ClampRepeat(count)
+    if blocks[index].count == count then
+        return false
+    end
+    blocks[index].count = count
+    region.players = InterruptChain.ExpandBlocks(blocks)
     state.dirty = true
     return true
 end

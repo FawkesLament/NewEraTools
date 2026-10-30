@@ -17,6 +17,7 @@ local Unit = ns.Api.Unit
 local Schema = Internals.Schema
 local Chain = Internals.InterruptChain
 local Labels = Internals.InterruptChainLabels
+local Preview = Internals.InterruptChainPreview
 
 local LINE_HEIGHT = 11
 local CARD_HEADER = 18
@@ -25,6 +26,9 @@ local ACCENT_WIDTH = 2
 local PLAYER_ROW_HEIGHT = Sizes.CONTROL_ROW_HEIGHT
 local EMPTY_HEIGHT = 18
 local CHAIN_ROW_GAP = 0
+local SEQUENCE_WIDTH = 56
+local COUNT_DROPDOWN_WIDTH = 54
+local SUMMARY_HEIGHT = LINE_HEIGHT
 
 local REGION_ACCENTS = {
     [Chain.FRONT_LEFT] = { r = 0.31, g = 0.76, b = 0.71 },
@@ -123,10 +127,10 @@ end
 local function CardHeight()
     local extra = 1
     for _, regionId in ipairs(Chain.REGION_IDS) do
-        extra = math.max(extra, #session.regions[regionId].players)
+        extra = math.max(extra, #Chain.Blocks(session.regions[regionId].players))
     end
-    extra = math.min(extra, 5)
-    return Spacing.MEDIUM * 2 + CARD_HEADER + LINE_HEIGHT * extra + LINE_HEIGHT
+    extra = math.min(extra, Chain.POSITION_MAX)
+    return Spacing.MEDIUM * 2 + CARD_HEADER + LINE_HEIGHT * extra + LINE_HEIGHT + SUMMARY_HEIGHT
 end
 
 local function OverviewHeight()
@@ -140,16 +144,19 @@ local function RefreshCard(card, regionId)
     local region = Chain.GetRegion(session, regionId)
     local issues = Chain.IssuesFor(Chain.Validate(session), regionId)
     card.title:SetText(Labels.AssignmentTitle(regionId, region.group, region.channel))
-    if #region.players == 0 then
+    local entries = Preview.RegionEntries(session, regionId)
+    if #entries == 0 then
         card.players:SetText(L.TWIN_FANGS_INTERRUPT_CHAIN_EMPTY_ASSIGNED)
         card.players:SetTextColor(Widgets.UnpackColor(Colors.TEXT_MUTED))
+        card.summary:SetText("")
     else
         local lines = {}
-        for index, player in ipairs(region.players) do
-            lines[#lines + 1] = string.format("%d  %s", index, ColoredDisplayName(player))
+        for _, entry in ipairs(entries) do
+            lines[#lines + 1] = Preview.OverviewLine(ColoredDisplayName(entry.player), entry)
         end
         card.players:SetText(table.concat(lines, "\n"))
         card.players:SetTextColor(Widgets.UnpackColor(Colors.TEXT))
+        card.summary:SetText(Preview.OverviewSummary(entries) or "")
     end
     local backupName = region.backup and ColoredDisplayName(region.backup) or L.TWIN_FANGS_INTERRUPT_BACKUP_NONE
     card.backup:SetText(string.format(L.TWIN_FANGS_INTERRUPT_BACKUP_LINE, backupName))
@@ -201,6 +208,12 @@ local function BuildOverview(parent)
         players:SetPoint("TOPRIGHT", title, "BOTTOMRIGHT", 0, -Spacing.TINY)
         card.players = players
 
+        local summary = Widgets.CreateLabel(card, Fonts.TINY_MUTED)
+        summary:SetJustifyH("LEFT")
+        summary:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", Spacing.MEDIUM + ACCENT_WIDTH, Spacing.SMALL + LINE_HEIGHT)
+        summary:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -Spacing.SMALL, Spacing.SMALL + LINE_HEIGHT)
+        card.summary = summary
+
         local backup = Widgets.CreateLabel(card, Fonts.TINY_MUTED)
         backup:SetJustifyH("LEFT")
         backup:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", Spacing.MEDIUM + ACCENT_WIDTH, Spacing.SMALL)
@@ -249,6 +262,7 @@ local function BuildEditor(parent)
         Refresh()
     end)
     Layout.Row(navRow, { back, nav }, Spacing.MEDIUM)
+    editor.back = back
     editor.nav = nav
 
     local headingRow = stack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
@@ -430,14 +444,28 @@ local function EnsurePlayerRow(editor, index)
     row = CreateFrame("Frame", nil, editor.chainList)
     local number = Widgets.CreateLabel(row, Fonts.EMPHASIS)
     number:SetJustifyH("RIGHT")
-    number:SetWidth(18)
+    number:SetWidth(SEQUENCE_WIDTH)
     number:SetPoint("LEFT", row, "LEFT")
     row.number = number
 
     local name = Widgets.CreateLabel(row, Fonts.BODY)
     name:SetJustifyH("LEFT")
+    name:SetWordWrap(false)
     name:SetPoint("LEFT", number, "RIGHT", Spacing.SMALL, 0)
     row.name = name
+
+    local countDropdown
+    countDropdown = Dropdown.Create(row, Preview.CountItems(), function(count)
+        Chain.SetRepeatCount(session, selectedRegion, row.index, count)
+        Refresh()
+    end)
+    countDropdown:SetAutoWidth(false)
+    countDropdown:SetWidth(COUNT_DROPDOWN_WIDTH)
+    row.countDropdown = countDropdown
+
+    local countLabel = Widgets.CreateLabel(row, Fonts.SMALL_MUTED, L.TWIN_FANGS_INTERRUPT_COUNT)
+    countLabel:SetJustifyH("RIGHT")
+    row.countLabel = countLabel
 
     local remove = Widgets.CreateTextButton(row, L.TWIN_FANGS_INTERRUPT_REMOVE, function()
         Chain.RemovePlayer(session, selectedRegion, row.index)
@@ -454,7 +482,9 @@ local function EnsurePlayerRow(editor, index)
     remove:SetPoint("RIGHT", row, "RIGHT")
     down:SetPoint("RIGHT", remove, "LEFT", -Spacing.TINY, 0)
     up:SetPoint("RIGHT", down, "LEFT", -Spacing.TINY, 0)
-    name:SetPoint("RIGHT", up, "LEFT", -Spacing.SMALL, 0)
+    countDropdown:SetPoint("RIGHT", up, "LEFT", -Spacing.SMALL, 0)
+    countLabel:SetPoint("RIGHT", countDropdown, "LEFT", -Spacing.TINY, 0)
+    name:SetPoint("RIGHT", countLabel, "LEFT", -Spacing.SMALL, 0)
     row.canMoveUp = false
     row.canMoveDown = false
     local rawUpSetEnabled = up.SetEnabled
@@ -473,9 +503,9 @@ local function EnsurePlayerRow(editor, index)
 end
 
 ---@param editor Frame
----@param region TwinFangsInterruptChainRegion
-local function RefreshPlayerRows(editor, region)
-    local count = #region.players
+local function RefreshPlayerRows(editor)
+    local entries = Preview.RegionEntries(session, selectedRegion)
+    local count = #entries
     local listHeight
     if count == 0 then
         editor.empty:Show()
@@ -489,12 +519,18 @@ local function RefreshPlayerRows(editor, region)
         listHeight = count * PLAYER_ROW_HEIGHT + math.max(count - 1, 0) * CHAIN_ROW_GAP
         for index = 1, count do
             local row = EnsurePlayerRow(editor, index)
+            local entry = entries[index]
             row.index = index
-            row.number:SetText(tostring(index))
-            row.number:SetTextColor(Widgets.UnpackColor(REGION_ACCENTS[selectedRegion] or Colors.ACCENT))
-            local member = Chain.GetMember(session, region.players[index])
-            row.name:SetText(Labels.DisplayName(session.roster, region.players[index]))
+            row.guid = entry.guid
+            row.number:SetText(entry.sequence)
+            local numberColor = entry.count > Preview.MIN_COUNT and Colors.TEXT_GOLD
+                or (REGION_ACCENTS[selectedRegion] or Colors.ACCENT)
+            row.number:SetTextColor(Widgets.UnpackColor(numberColor))
+            local member = Chain.GetMember(session, entry.player)
+            row.name:SetText(Labels.DisplayName(session.roster, entry.player))
             row.name:SetTextColor(Widgets.UnpackColor(ClassColor(member and member.classFile)))
+            row.countDropdown:SetItems(Preview.CountItems())
+            row.countDropdown:SetSelected(entry.count)
             row.canMoveUp = index > 1
             row.canMoveDown = index < count
             row.up:SetEnabled(true)
@@ -553,7 +589,7 @@ local function RefreshEditor(editor)
         editor.stack:SetEntryHeight(editor.channelHintRow, 1)
     end
 
-    RefreshPlayerRows(editor, region)
+    RefreshPlayerRows(editor)
 
     local addable = Chain.GetAddablePlayers(session, regionId)
     local addItems = { { value = Chain.ADD_NONE, text = L.TWIN_FANGS_INTERRUPT_ADD_PLAYER } }
@@ -872,6 +908,12 @@ function Editor.Mount(host, onHeightChanged)
 
     Refresh()
     return stack:GetHeight()
+end
+
+---Mounted editor widgets. Used by UI specs; production code uses Mount/Refresh/SetShown.
+---@return table|nil
+function Editor.Mounted()
+    return ui
 end
 
 function Editor.Refresh()

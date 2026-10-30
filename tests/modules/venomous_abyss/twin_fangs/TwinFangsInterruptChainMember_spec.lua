@@ -65,6 +65,29 @@ describe("TwinFangs interrupt chain member view", function()
             chain.front_right.backup = Player("栖梧")
         end)
 
+        it("groups consecutive repeated primaries into one sequence range", function()
+            chain.front_left.players = {
+                Player("清风"),
+                Player("夜雨"),
+                Player("夜雨"),
+                Player("夜雨"),
+                Player("石川"),
+            }
+            local view = Chain.GetMemberView(chain, FullName("夜雨"))
+            assert.equals(5, #view.primary.players)
+            local blocks = Chain.Blocks(view.primary.players)
+            assert.equals(3, #blocks)
+            assert.equals(1, blocks[1].count)
+            assert.equals(3, blocks[2].count)
+            assert.equals(5, blocks[3].last)
+            local duties = Chain.GetPlayerResponsibilities(chain, FullName("夜雨"))
+            assert.equals(2, duties.index)
+            assert.equals(4, duties.indexEnd)
+            local Preview = InterruptChainHelper.LoadPreview(ns)
+            assert.equals("#2–4", Preview.FormatSequence(duties.index, duties.indexEnd))
+            assert.equals("#1", Preview.FormatSequence(1, 1))
+        end)
+
         it("returns the primary chain for a member, in stored order", function()
             local view = Chain.GetMemberView(chain, FullName("夜雨"))
             assert.equals(Chain.FRONT_LEFT, view.primary.regionId)

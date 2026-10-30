@@ -62,16 +62,23 @@ function InterruptChain.Validate(state)
             roster[name] = member
         end
     end
-    local primaryCount = {}
+    local primaryRegions = {}
     local backupCount = {}
     local groupCount = {}
 
     for _, regionId in ipairs(InterruptChain.REGION_IDS) do
         local region = state.regions[regionId]
-        for _, player in ipairs(region.players) do
-            local name = InterruptChain.PlayerName(player)
-            if name then
-                primaryCount[name] = (primaryCount[name] or 0) + 1
+        local seen = {}
+        for _, block in ipairs(InterruptChain.Blocks(region.players)) do
+            local name = block.name
+            if name and not seen[name] then
+                seen[name] = true
+                local owners = primaryRegions[name]
+                if not owners then
+                    owners = {}
+                    primaryRegions[name] = owners
+                end
+                owners[#owners + 1] = regionId
             end
         end
         local backupName = InterruptChain.PlayerName(region.backup)
@@ -102,9 +109,27 @@ function InterruptChain.Validate(state)
                 text = string.format(L.TWIN_FANGS_INTERRUPT_WARN_EMPTY, label),
             }
         end
-        for _, player in ipairs(region.players) do
-            local display = IssueDisplayName(state.roster, player)
-            local name = InterruptChain.PlayerName(player)
+        local blocks = InterruptChain.Blocks(region.players)
+        if #blocks > InterruptChain.POSITION_MAX then
+            issues[#issues + 1] = {
+                code = "too_many_players",
+                severity = "error",
+                region = regionId,
+                text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_TOO_MANY_PLAYERS, label),
+            }
+        end
+        if #region.players > InterruptChain.TURN_MAX then
+            issues[#issues + 1] = {
+                code = "too_many_turns",
+                severity = "error",
+                region = regionId,
+                text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_TOO_MANY_TURNS, label),
+            }
+        end
+        local seen = {}
+        for _, block in ipairs(blocks) do
+            local display = IssueDisplayName(state.roster, block.player)
+            local name = block.name
             local member = name and roster[name]
             if not member then
                 issues[#issues + 1] = {
@@ -123,7 +148,28 @@ function InterruptChain.Validate(state)
                     text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_WRONG_GROUP, display),
                 }
             end
-            if name and (primaryCount[name] or 0) > 1 then
+            if block.count > InterruptChain.REPEAT_MAX then
+                issues[#issues + 1] = {
+                    code = "repeat_limit",
+                    severity = "error",
+                    region = regionId,
+                    player = name,
+                    text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_REPEAT, display),
+                }
+            end
+            if name and seen[name] then
+                issues[#issues + 1] = {
+                    code = "nonconsecutive_primary",
+                    severity = "error",
+                    region = regionId,
+                    player = name,
+                    text = string.format(L.TWIN_FANGS_INTERRUPT_ERR_NONCONSECUTIVE, display),
+                }
+            end
+            if name then
+                seen[name] = true
+            end
+            if name and primaryRegions[name] and #primaryRegions[name] > 1 then
                 issues[#issues + 1] = {
                     code = "duplicate_primary",
                     severity = "error",

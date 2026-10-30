@@ -32,6 +32,7 @@
     <Script file="twin_fangs\ui\InterruptStatusHUD.lua"/>
     <Script file="twin_fangs\ui\SoakTimeline.lua"/>
     <Script file="twin_fangs\ui\interrupt_chain\Labels.lua"/>
+    <Script file="twin_fangs\ui\interrupt_chain\Preview.lua"/>
     <Script file="twin_fangs\ui\interrupt_chain\MacroPopup.lua"/>
     <Script file="twin_fangs\ui\interrupt_chain\Editor.lua"/>
     <Script file="twin_fangs\ui\interrupt_chain\MemberView.lua"/>

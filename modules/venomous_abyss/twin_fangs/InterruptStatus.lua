@@ -23,6 +23,7 @@ TwinFangs.INTERRUPT_CALLOUT_DURATION = CALLOUT_SECONDS
 ---@class TwinFangsInterruptStatus
 ---@field region string
 ---@field index integer
+---@field indexEnd integer
 ---@field interruptCount integer
 ---@field chainLength integer
 
@@ -30,6 +31,7 @@ TwinFangs.INTERRUPT_CALLOUT_DURATION = CALLOUT_SECONDS
 ---@field channels table<string, TwinFangsInterruptChannel>
 ---@field primaryRegion string|nil
 ---@field primaryIndex integer|nil
+---@field primaryIndexEnd integer|nil
 ---@field primaryLength integer|nil
 ---@field backupRegion string|nil
 ---@field backupLength integer|nil
@@ -55,6 +57,8 @@ local windowRegion = nil
 ---@type integer|nil
 local windowIndex = nil
 ---@type integer|nil
+local windowIndexEnd = nil
+---@type integer|nil
 local windowChainLength = nil
 ---@type string|nil
 local windowBackupRegion = nil
@@ -65,6 +69,8 @@ local testMode = false
 local testCounts = {}
 ---@type "primary"|"backup"|nil
 local interruptCalloutRole = nil
+---@type integer|nil
+local interruptCalloutRound = nil
 ---@type fun()|nil
 local unsubscribeTest = nil
 
@@ -88,13 +94,20 @@ local function HideInterruptCallout()
         return
     end
     interruptCalloutRole = nil
+    interruptCalloutRound = nil
     TwinFangs:CancelCallout("interrupt")
 end
 
 ---@param snapshot TwinFangsInterruptStatus|nil
 ---@return boolean
+local function AssignmentCovers(snapshot, round)
+    local first = snapshot.index
+    local last = snapshot.indexEnd or snapshot.index
+    return round >= first and round <= last
+end
+
 local function PrimaryDue(snapshot)
-    return snapshot ~= nil and (snapshot.interruptCount + 1) == snapshot.index
+    return snapshot ~= nil and AssignmentCovers(snapshot, snapshot.interruptCount + 1)
 end
 
 ---@param snapshot TwinFangsInterruptStatus|nil
@@ -106,10 +119,12 @@ end
 ---@param role "primary"|"backup"
 ---@param snapshot TwinFangsInterruptStatus
 local function ShowInterruptCallout(role, snapshot)
-    if interruptCalloutRole == role then
+    local round = snapshot.interruptCount + 1
+    if interruptCalloutRole == role and interruptCalloutRound == round then
         return
     end
     interruptCalloutRole = role
+    interruptCalloutRound = round
     TwinFangs:ShowCallout(L.TWIN_FANGS_INTERRUPT_CALLOUT:format(RegionLabel(snapshot.region)), Timer.GetTime() + CALLOUT_SECONDS, {
         kind = "interrupt",
         appendTimer = false,
@@ -163,11 +178,14 @@ local function CaptureMonitor()
         local region = type(chain) == "table" and chain[regionId] or nil
         channels[regionId] = Schema.CoerceChannel(region and region.channel)
     end
-    local primaryRegion, primaryIndex, primaryLength
+    local primaryRegion, primaryIndex, primaryIndexEnd, primaryLength
     if duties.region and duties.index then
         local n = RegionLength(chain, duties.region)
         if n >= 1 then
-            primaryRegion, primaryIndex, primaryLength = duties.region, duties.index, n
+            primaryRegion = duties.region
+            primaryIndex = duties.index
+            primaryIndexEnd = duties.indexEnd or duties.index
+            primaryLength = n
         end
     end
     local backupRegion, backupLength
@@ -181,6 +199,7 @@ local function CaptureMonitor()
         channels = channels,
         primaryRegion = primaryRegion,
         primaryIndex = primaryIndex,
+        primaryIndexEnd = primaryIndexEnd,
         primaryLength = primaryLength,
         backupRegion = backupRegion,
         backupLength = backupLength,
@@ -228,10 +247,10 @@ local function ListenForSupportedChannels(onChannel)
     end
 end
 
----@return string|nil, integer|nil, integer|nil
+---@return string|nil, integer|nil, integer|nil, integer|nil
 local function PrimaryAssignment()
     local monitor = CaptureMonitor()
-    return monitor.primaryRegion, monitor.primaryIndex, monitor.primaryLength
+    return monitor.primaryRegion, monitor.primaryIndex, monitor.primaryLength, monitor.primaryIndexEnd
 end
 
 ---@return string|nil, integer|nil
@@ -242,13 +261,14 @@ end
 
 ---@return TwinFangsInterruptStatus|nil
 local function LiveAssignmentStatus(count)
-    local region, index, chainLength = PrimaryAssignment()
+    local region, index, chainLength, indexEnd = PrimaryAssignment()
     if not region or not index or not chainLength then
         return nil
     end
     return {
         region = region,
         index = index,
+        indexEnd = indexEnd or index,
         interruptCount = count,
         chainLength = chainLength,
     }
@@ -263,6 +283,7 @@ local function LiveBackupStatus(count)
     return {
         region = region,
         index = chainLength + 1,
+        indexEnd = chainLength + 1,
         interruptCount = count,
         chainLength = chainLength,
     }
@@ -286,6 +307,7 @@ local function ClearWindow()
     encounterCounts = {}
     windowRegion = nil
     windowIndex = nil
+    windowIndexEnd = nil
     windowChainLength = nil
     windowBackupRegion = nil
     windowBackupChainLength = nil
@@ -366,6 +388,7 @@ function TwinFangs:GetInterruptStatus()
     return {
         region = windowRegion,
         index = windowIndex,
+        indexEnd = windowIndexEnd or windowIndex,
         interruptCount = encounterCounts[windowRegion] or 0,
         chainLength = windowChainLength,
     }
@@ -383,6 +406,7 @@ function TwinFangs:GetBackupInterruptStatus()
     return {
         region = windowBackupRegion,
         index = windowBackupChainLength + 1,
+        indexEnd = windowBackupChainLength + 1,
         interruptCount = encounterCounts[windowBackupRegion] or 0,
         chainLength = windowBackupChainLength,
     }
@@ -394,6 +418,7 @@ function TwinFangs:GetInterruptStatusPreview()
     return {
         region = PREVIEW_REGION,
         index = PREVIEW_INDEX,
+        indexEnd = PREVIEW_INDEX,
         interruptCount = PREVIEW_COUNT,
         chainLength = PREVIEW_CHAIN_LENGTH,
     }
@@ -414,6 +439,7 @@ function TwinFangs:BeginInterruptStatusWindow()
     encounterCounts = {}
     windowRegion = monitor.primaryRegion
     windowIndex = monitor.primaryIndex
+    windowIndexEnd = monitor.primaryIndexEnd or monitor.primaryIndex
     windowChainLength = monitor.primaryLength
     windowBackupRegion = monitor.backupRegion
     windowBackupChainLength = monitor.backupLength

@@ -42,6 +42,7 @@ end
 ---@class TwinFangsAddonCheckAssignment
 ---@field region string|nil
 ---@field index number|nil
+---@field indexEnd number|nil
 ---@field backup string|nil
 ---@field channel TwinFangsInterruptChannel|nil
 ---@field backupChannel TwinFangsInterruptChannel|nil
@@ -107,6 +108,13 @@ local function SnapshotAssignment()
         and found.index == math.floor(found.index)
     then
         assignment.index = found.index
+        if
+            type(found.indexEnd) == "number"
+            and found.indexEnd >= found.index
+            and found.indexEnd == math.floor(found.indexEnd)
+        then
+            assignment.indexEnd = found.indexEnd
+        end
     end
     assignment.backup = KnownRegion(found.backup)
     assignment.channel = RegionChannel(chain, assignment.region)
@@ -195,7 +203,11 @@ function TwinFangs.FormatAddonCheckAssignment(value)
         local label = RegionLabel(region)
         local line
         if type(value.index) == "number" then
-            line = string.format(L.TWIN_FANGS_ADDONCHECK_PRIMARY, label, value.index)
+            if type(value.indexEnd) == "number" and value.indexEnd > value.index then
+                line = string.format(L.TWIN_FANGS_ADDONCHECK_PRIMARY_RANGE, label, value.index, value.indexEnd)
+            else
+                line = string.format(L.TWIN_FANGS_ADDONCHECK_PRIMARY, label, value.index)
+            end
         else
             line = label
         end

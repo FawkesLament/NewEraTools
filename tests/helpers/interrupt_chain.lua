@@ -12,6 +12,14 @@ function Helper.LoadLabels(ns)
     return ns.Modules.Internals("TwinFangs").InterruptChainLabels
 end
 
+---Loads interrupt-chain sequence presentation helpers skipped by the addon test loader.
+---@param ns table
+---@return table
+function Helper.LoadPreview(ns)
+    assert(loadfile("modules/venomous_abyss/twin_fangs/ui/interrupt_chain/Preview.lua"))(Loader.ADDON_NAME, ns)
+    return ns.Modules.Internals("TwinFangs").InterruptChainPreview
+end
+
 Helper.REALM = "MockRealm"
 
 ---@param name string

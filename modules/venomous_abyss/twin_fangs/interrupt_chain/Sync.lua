@@ -15,6 +15,8 @@ InterruptChain.SYNC_PAYLOAD_VERSION = "1"
 
 local POSITION_MIN = InterruptChain.POSITION_MIN
 local POSITION_MAX = InterruptChain.POSITION_MAX
+local REPEAT_MAX = InterruptChain.REPEAT_MAX
+local TURN_MAX = InterruptChain.TURN_MAX
 
 local publishing = false
 
@@ -82,7 +84,9 @@ local function EncodeRegion(region, positions)
     end
 
     local order = {}
-    local usedSlots = {}
+    local seenSlots = {}
+    local lastPosition
+    local run = 0
     for _, player in ipairs(region.players) do
         local name = InterruptChain.PlayerName(player)
         if type(name) ~= "string" then
@@ -98,13 +102,22 @@ local function EncodeRegion(region, positions)
         if region.group ~= nil and slot.group ~= region.group then
             return nil, "primary_wrong_group"
         end
-        if usedSlots[slot.position] then
-            return nil, "duplicate_position"
+        if lastPosition == slot.position then
+            run = run + 1
+            if run > REPEAT_MAX then
+                return nil, "invalid_position"
+            end
+        else
+            if seenSlots[slot.position] then
+                return nil, "duplicate_position"
+            end
+            seenSlots[slot.position] = true
+            lastPosition = slot.position
+            run = 1
         end
-        usedSlots[slot.position] = true
         order[#order + 1] = tostring(slot.position)
     end
-    if #order > POSITION_MAX then
+    if #order > TURN_MAX then
         return nil, "invalid_position"
     end
 
@@ -355,18 +368,29 @@ local function DecodeRegion(text, slotsByGroup)
     end
 
     local players = {}
-    local usedSlots = {}
+    local seenSlots = {}
+    local lastPosition
+    local run = 0
     if orderText ~= "" then
-        if group == nil or not orderText:find("^[1-5]+$") or #orderText > POSITION_MAX then
+        if group == nil or not orderText:find("^[1-5]+$") or #orderText > TURN_MAX then
             return nil, "invalid_position"
         end
         local slots = slotsByGroup[group]
         for index = 1, #orderText do
             local position = tonumber(orderText:sub(index, index))
-            if usedSlots[position] then
-                return nil, "duplicate_position"
+            if lastPosition == position then
+                run = run + 1
+                if run > REPEAT_MAX then
+                    return nil, "invalid_position"
+                end
+            else
+                if seenSlots[position] then
+                    return nil, "duplicate_position"
+                end
+                seenSlots[position] = true
+                lastPosition = position
+                run = 1
             end
-            usedSlots[position] = true
             local player, reason, detail = ResolveSlot(slots, group, position)
             if not player then
                 return nil, reason, detail

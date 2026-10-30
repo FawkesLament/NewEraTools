@@ -404,6 +404,28 @@ describe("TwinFangs InterruptStatusHUD", function()
         assert.is_false(hud.shown)
     end)
 
+    it("shows the complete assigned range for consecutive interrupts", function()
+        local Player = ns.Api.Player
+        local name = Player.GetFullName()
+        local chain = Module.db.interruptReminder.chain
+        chain.front_left.players = {
+            { name = "A-TestRealm" },
+            { name = name },
+            { name = name },
+            { name = name },
+        }
+        Module:SetInterruptReminderEnabled(true)
+        ns.Api.Group.inRaid = true
+        Module:SetInterruptStatusTestMode(true)
+
+        local binding = InterruptStatusHud()
+        binding.Update()
+        local hud = binding.Ensure()
+        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_TASK_RANGE:format(2, 4), hud:GetState().detail)
+        assert.equals(4, hud:GetState().maxProgress)
+        Module:SetInterruptStatusTestMode(false)
+    end)
+
     it("keeps Edit Mode preview from resetting an active encounter counter", function()
         local Player = ns.Api.Player
         Module.db.interruptReminder.chain.front_left.players = { { name = Player.GetFullName() } }
