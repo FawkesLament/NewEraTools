@@ -19,6 +19,7 @@ local Spacing = Assets.Spacing
 
 local TwinFangs = ns.Modules.Get("TwinFangs")
 local Schema = Internals.Schema
+local SoakTimeline = Internals.SoakTimeline
 local InterruptStatusHud = Internals.InterruptStatusHudUI
 local SoakTimelineHud = Internals.SoakTimelineUI
 local AddonCheckPanel = ns.AddonCheckPanel
@@ -112,6 +113,7 @@ local function BuildContent(content)
 
     local soak = FeatureSection.Create(body, {
         title = L.TWIN_FANGS_SOAK_REMINDER,
+        titleFont = Fonts.MUTED,
         divider = true,
         enabled = TwinFangs:IsSoakReminderEnabled(),
         onEnabledChanged = function(enabled)
@@ -165,6 +167,7 @@ local function BuildContent(content)
 
     local interrupt = FeatureSection.Create(body, {
         title = L.TWIN_FANGS_INTERRUPT_REMINDER,
+        titleFont = Fonts.MUTED,
         divider = true,
         enabled = TwinFangs:IsInterruptReminderEnabled(),
         onEnabledChanged = function(enabled)
@@ -301,6 +304,7 @@ local function BuildContent(content)
 
     local hint = FeatureSection.Create(body, {
         title = L.TWIN_FANGS_NAMEPLATE_HINT,
+        titleFont = Fonts.MUTED,
         tooltip = L.TWIN_FANGS_NAMEPLATE_HINT_TOOLTIP,
         divider = true,
         enabled = TwinFangs:IsNameplateHintEnabled(),
@@ -542,6 +546,117 @@ local function BuildContent(content)
     hint:SetContentHeight(hintBody:GetHeight())
     hint:RefreshContentInteractive()
 
+    local venom = FeatureSection.Create(body, {
+        title = L.TWIN_FANGS_VENOM_STACKS,
+        titleFont = Fonts.MUTED,
+        tooltip = L.TWIN_FANGS_VENOM_STACKS_TOOLTIP,
+        divider = true,
+        enabled = TwinFangs:IsVenomRosterEnabled(),
+        onEnabledChanged = function(enabled)
+            TwinFangs:SetVenomRosterEnabled(enabled)
+            if LayoutEditor.IsEditing() then
+                LayoutEditor.Refresh()
+            end
+        end,
+    })
+    local venomBody = Layout.Stack(venom.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
+    local venomSpacingRow = venomBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local rowSpacingCell, columnSpacingCell = Layout.SplitRow(venomSpacingRow, Spacing.MEDIUM)
+    local rowSpacingLabel = Widgets.CreateLabel(rowSpacingCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_ROW_SPACING)
+    rowSpacingLabel:SetJustifyH("LEFT")
+    local rowSpacingSlider = Slider.Create(
+        rowSpacingCell,
+        Schema.VENOM_ROSTER_ROW_SPACING_MIN,
+        Schema.VENOM_ROSTER_ROW_SPACING_MAX,
+        Schema.VENOM_ROSTER_ROW_SPACING_STEP
+    )
+    rowSpacingSlider:SetValue(TwinFangs:GetVenomRosterRowSpacing())
+    rowSpacingSlider:SetScript("OnValueChanged", function(_, rawValue)
+        if not TwinFangs:IsVenomRosterEnabled() then
+            return
+        end
+        TwinFangs:SetVenomRosterRowSpacing(rawValue)
+        rowSpacingSlider:SetValue(TwinFangs:GetVenomRosterRowSpacing())
+    end)
+    Layout.Row(rowSpacingCell, { rowSpacingLabel, rowSpacingSlider }, Spacing.LARGE)
+
+    local columnSpacingLabel = Widgets.CreateLabel(columnSpacingCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_COLUMN_SPACING)
+    columnSpacingLabel:SetJustifyH("LEFT")
+    local columnSpacingSlider = Slider.Create(
+        columnSpacingCell,
+        Schema.VENOM_ROSTER_COLUMN_SPACING_MIN,
+        Schema.VENOM_ROSTER_COLUMN_SPACING_MAX,
+        Schema.VENOM_ROSTER_COLUMN_SPACING_STEP
+    )
+    columnSpacingSlider:SetValue(TwinFangs:GetVenomRosterColumnSpacing())
+    columnSpacingSlider:SetScript("OnValueChanged", function(_, rawValue)
+        if not TwinFangs:IsVenomRosterEnabled() then
+            return
+        end
+        TwinFangs:SetVenomRosterColumnSpacing(rawValue)
+        columnSpacingSlider:SetValue(TwinFangs:GetVenomRosterColumnSpacing())
+    end)
+    Layout.Row(columnSpacingCell, { columnSpacingLabel, columnSpacingSlider }, Spacing.LARGE)
+
+    local nameWidthRow = venomBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local nameWidthLabel = Widgets.CreateLabel(nameWidthRow, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_NAME_WIDTH)
+    local nameWidthSlider = Slider.Create(
+        nameWidthRow,
+        Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_MIN,
+        Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_MAX,
+        Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_STEP
+    )
+    nameWidthSlider:SetValue(TwinFangs:GetVenomRosterNameColumnWidth())
+    nameWidthSlider:SetScript("OnValueChanged", function(_, rawValue)
+        if not TwinFangs:IsVenomRosterEnabled() then
+            return
+        end
+        TwinFangs:SetVenomRosterNameColumnWidth(rawValue)
+        nameWidthSlider:SetValue(TwinFangs:GetVenomRosterNameColumnWidth())
+    end)
+    PlaceSlider(nameWidthRow, nameWidthLabel, nameWidthSlider)
+
+    local venomFontRow = venomBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local nameFontCell, stackFontCell = Layout.SplitRow(venomFontRow, Spacing.MEDIUM)
+    local nameFontLabel = Widgets.CreateLabel(nameFontCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_NAME_FONT_SIZE)
+    nameFontLabel:SetJustifyH("LEFT")
+    local nameFontSlider = Slider.Create(
+        nameFontCell,
+        Schema.VENOM_ROSTER_NAME_FONT_SIZE_MIN,
+        Schema.VENOM_ROSTER_NAME_FONT_SIZE_MAX,
+        Schema.VENOM_ROSTER_NAME_FONT_SIZE_STEP
+    )
+    nameFontSlider:SetValue(TwinFangs:GetVenomRosterNameFontSize())
+    nameFontSlider:SetScript("OnValueChanged", function(_, rawValue)
+        if not TwinFangs:IsVenomRosterEnabled() then
+            return
+        end
+        TwinFangs:SetVenomRosterNameFontSize(rawValue)
+        nameFontSlider:SetValue(TwinFangs:GetVenomRosterNameFontSize())
+    end)
+    Layout.Row(nameFontCell, { nameFontLabel, nameFontSlider }, Spacing.LARGE)
+
+    local stackFontLabel = Widgets.CreateLabel(stackFontCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_STACK_FONT_SIZE)
+    stackFontLabel:SetJustifyH("LEFT")
+    local stackFontSlider = Slider.Create(
+        stackFontCell,
+        Schema.VENOM_ROSTER_STACK_FONT_SIZE_MIN,
+        Schema.VENOM_ROSTER_STACK_FONT_SIZE_MAX,
+        Schema.VENOM_ROSTER_STACK_FONT_SIZE_STEP
+    )
+    stackFontSlider:SetValue(TwinFangs:GetVenomRosterStackFontSize())
+    stackFontSlider:SetScript("OnValueChanged", function(_, rawValue)
+        if not TwinFangs:IsVenomRosterEnabled() then
+            return
+        end
+        TwinFangs:SetVenomRosterStackFontSize(rawValue)
+        stackFontSlider:SetValue(TwinFangs:GetVenomRosterStackFontSize())
+    end)
+    Layout.Row(stackFontCell, { stackFontLabel, stackFontSlider }, Spacing.LARGE)
+
+    venom:SetContentHeight(venomBody:GetHeight())
+    venom:RefreshContentInteractive()
+
     return body:GetHeight()
 end
 
@@ -550,14 +665,38 @@ function TwinFangs:OnEnable()
         id = SCOPE_ID,
         label = L.TWIN_FANGS_LAYOUT_SCOPE,
         order = 6,
-        elementIds = { ns.Callout.LAYOUT_ID, InterruptStatusHud.LAYOUT_ID, SoakTimelineHud.LAYOUT_ID },
+        elementIds = {
+            ns.Callout.LAYOUT_ID,
+            InterruptStatusHud.LAYOUT_ID,
+            SoakTimelineHud.LAYOUT_ID,
+            Internals.VenomRosterUI.LAYOUT_ID,
+        },
         prepare = function()
             ns.Callout.Ensure()
             InterruptStatusHud.Ensure()
             SoakTimelineHud.Ensure()
+            Internals.VenomRosterUI.Ensure()
         end,
     })
-    ns.Callout.SetScopePreview(SCOPE_ID, L.TWIN_FANGS_SOAK_ENTER, TwinFangs.HIT1_LEAD)
+    local calloutKindText = {
+        enter = L.TWIN_FANGS_SOAK_ENTER,
+        prepare = L.TWIN_FANGS_SOAK_PREPARE,
+        now = L.TWIN_FANGS_SOAK_NOW,
+    }
+    ns.Callout.SetScopePreview(SCOPE_ID, L.TWIN_FANGS_SOAK_ENTER, TwinFangs.HIT1_LEAD, {
+        tick = function()
+            SoakTimeline.BeginPreviewClock()
+            local assignedHit = SoakTimeline.AssignedHitForGroup(TwinFangs:GetSoakGroup())
+            local callout = SoakTimeline.PreviewCallout(SoakTimeline.PreviewElapsed(), assignedHit)
+            if not callout then
+                return nil
+            end
+            return calloutKindText[callout.kind], callout.remaining
+        end,
+        onEnd = function()
+            SoakTimeline.EndPreviewClock()
+        end,
+    })
     ns.MainPanel:RegisterSection({
         title = L.TWIN_FANGS_TITLE,
         group = ns.PanelGroups.VENOMOUS_ABYSS,
@@ -582,4 +721,6 @@ function TwinFangs:OnEnable()
     InterruptStatusHud.Update()
     SoakTimelineHud.Ensure()
     SoakTimelineHud.Update()
+    Internals.VenomRosterUI.Ensure()
+    Internals.VenomRosterUI.Update()
 end

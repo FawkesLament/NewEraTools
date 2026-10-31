@@ -10,7 +10,6 @@ local Timer = ns.Api.Timer
 local CALLOUT_SOURCE = "TwinFangs"
 
 local TwinFangs = ns.Modules.Get("TwinFangs")
-local Schema = Internals.Schema
 
 -- Mythic Twin Fangs in The Venomous Abyss.
 local ENCOUNTER_ID = 3421
@@ -43,11 +42,6 @@ TwinFangs.HIT2_GAP = HIT2_GAP
 TwinFangs.HIT3_GAP = HIT3_GAP
 TwinFangs.HIT1_LEAD = HIT1_LEAD
 TwinFangs.PREPARE_LEAD = PREPARE_LEAD
-
--- Casts 1, 2, 5, and 6 (and the same slots every 6 casts): right, left, middle.
-local ORDER_RIGHT_FIRST = { Schema.GROUP_RIGHT, Schema.GROUP_LEFT, Schema.GROUP_MIDDLE }
--- Casts 3 and 4: left, right, middle.
-local ORDER_LEFT_FIRST = { Schema.GROUP_LEFT, Schema.GROUP_RIGHT, Schema.GROUP_MIDDLE }
 
 ---@type EncounterWhileIn|nil
 local fight = nil
@@ -140,28 +134,11 @@ local function RoundedDuration(duration)
     return math.floor(duration + 0.5)
 end
 
----Soak order repeats every 6 casts: 1, 2, 5, 6 are right-left-middle; 3 and 4 are left-right-middle.
----@param feastIndex integer
----@return string[]
-local function SoakOrder(feastIndex)
-    local slot = feastIndex % 6
-    if slot == 3 or slot == 4 then
-        return ORDER_LEFT_FIRST
-    end
-    return ORDER_RIGHT_FIRST
-end
-
 ---@param feastIndex integer
 ---@param group string
 ---@return integer|nil
 local function HitIndexForGroup(feastIndex, group)
-    local order = SoakOrder(feastIndex)
-    for index, candidate in ipairs(order) do
-        if candidate == group then
-            return index
-        end
-    end
-    return nil
+    return Internals.SoakTimeline.AssignedHitForGroup(group, feastIndex)
 end
 
 ---@param text string
@@ -204,7 +181,8 @@ end
 ---@param beginAt number
 ---@param hit3At number
 ---@param token integer
-local function ScheduleSoakTimeline(beginAt, hit3At, token)
+---@param assignedHit integer|nil
+local function ScheduleSoakTimeline(beginAt, hit3At, token, assignedHit)
     local now = Timer.GetTime()
     PullAfter(math.max(beginAt - now, 0), function()
         if token ~= soakScheduleToken or not TwinFangs:IsInEncounter() then
@@ -213,7 +191,7 @@ local function ScheduleSoakTimeline(beginAt, hit3At, token)
         if not TwinFangs:IsSoakReminderEnabled() or not TwinFangs:IsSoakTimelineEnabled() then
             return
         end
-        TwinFangs:StartSoakTimeline(beginAt)
+        TwinFangs:StartSoakTimeline(beginAt, assignedHit)
     end)
     PullAfter(math.max(hit3At - now, 0), function()
         if token ~= soakScheduleToken then
@@ -235,8 +213,8 @@ local function ScheduleFeast(duration)
         beginAt + CAST_SECONDS + HIT2_GAP,
         beginAt + CAST_SECONDS + HIT2_GAP + HIT3_GAP,
     }
-    ScheduleSoakTimeline(beginAt, hitAt[3], token)
     local hitIndex = HitIndexForGroup(feastIndex, TwinFangs:GetSoakGroup())
+    ScheduleSoakTimeline(beginAt, hitAt[3], token, hitIndex)
     if hitIndex == nil then
         return
     end

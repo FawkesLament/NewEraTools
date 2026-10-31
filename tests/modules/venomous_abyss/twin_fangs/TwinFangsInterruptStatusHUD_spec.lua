@@ -196,6 +196,11 @@ describe("TwinFangs InterruptStatusHUD", function()
             Ensure = function() end,
             Update = function() end,
         }
+        ns.Modules.Internals("TwinFangs").VenomRosterUI = {
+            LAYOUT_ID = "TwinFangs:venomRoster",
+            Ensure = function() end,
+            Update = function() end,
+        }
         ns.Callout = {
             LAYOUT_ID = "Callout:1",
             Ensure = function() end,
@@ -298,6 +303,7 @@ describe("TwinFangs InterruptStatusHUD", function()
             ns.Callout.LAYOUT_ID,
             binding.LAYOUT_ID,
             "TwinFangs:soakTimeline",
+            "TwinFangs:venomRoster",
         }, scope.elementIds)
         assert.equals("boolean", type(registered[binding.LAYOUT_ID].global))
         assert.is_false(registered[binding.LAYOUT_ID].global)

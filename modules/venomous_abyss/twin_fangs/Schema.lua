@@ -36,12 +36,22 @@ local Internals = ns.Modules.Internals("TwinFangs")
 ---@field fontSize number
 ---@field fontColor RgbColor
 
+---@class TwinFangsVenomRosterSettings
+---@field enabled boolean
+---@field rowSpacing number
+---@field columnSpacing number
+---@field nameColumnWidth number
+---@field nameFontSize number
+---@field stackFontSize number
+
 ---@class TwinFangsSettings
 ---@field soakReminder TwinFangsSoakReminder
 ---@field interruptReminder TwinFangsReminder
 ---@field nameplateHint TwinFangsNameplateHint
 ---@field interruptStatusHudPosition FloatingWindowPosition
 ---@field soakTimelinePosition FloatingWindowPosition
+---@field venomRoster TwinFangsVenomRosterSettings
+---@field venomRosterPosition FloatingWindowPosition
 
 local GROUP_LEFT = "left"
 local GROUP_MIDDLE = "middle"
@@ -99,6 +109,27 @@ local Schema = {
     FONT_SIZE_MIN = 8,
     FONT_SIZE_MAX = 32,
     FONT_SIZE_STEP = 1,
+
+    VENOM_ROSTER_ROW_SPACING_DEFAULT = 20,
+    VENOM_ROSTER_ROW_SPACING_MIN = 16,
+    VENOM_ROSTER_ROW_SPACING_MAX = 32,
+    VENOM_ROSTER_ROW_SPACING_STEP = 1,
+    VENOM_ROSTER_COLUMN_SPACING_DEFAULT = 12,
+    VENOM_ROSTER_COLUMN_SPACING_MIN = 4,
+    VENOM_ROSTER_COLUMN_SPACING_MAX = 24,
+    VENOM_ROSTER_COLUMN_SPACING_STEP = 1,
+    VENOM_ROSTER_NAME_COLUMN_WIDTH_DEFAULT = 120,
+    VENOM_ROSTER_NAME_COLUMN_WIDTH_MIN = 64,
+    VENOM_ROSTER_NAME_COLUMN_WIDTH_MAX = 200,
+    VENOM_ROSTER_NAME_COLUMN_WIDTH_STEP = 1,
+    VENOM_ROSTER_NAME_FONT_SIZE_DEFAULT = 12,
+    VENOM_ROSTER_NAME_FONT_SIZE_MIN = 8,
+    VENOM_ROSTER_NAME_FONT_SIZE_MAX = 20,
+    VENOM_ROSTER_NAME_FONT_SIZE_STEP = 1,
+    VENOM_ROSTER_STACK_FONT_SIZE_DEFAULT = 16,
+    VENOM_ROSTER_STACK_FONT_SIZE_MIN = 10,
+    VENOM_ROSTER_STACK_FONT_SIZE_MAX = 28,
+    VENOM_ROSTER_STACK_FONT_SIZE_STEP = 1,
     -- Ice-blue number fill (#7DD6FF).
     FONT_COLOR_DEFAULT = { r = 125 / 255, g = 214 / 255, b = 1 },
 
@@ -293,6 +324,25 @@ function Schema.DefaultSoakTimelinePosition()
     return { point = "CENTER", relativePoint = "CENTER", x = 0, y = -40 }
 end
 
+---Factory venom-roster HUD anchor. A new table, so callers can store it without aliasing.
+---@return FloatingWindowPosition
+function Schema.DefaultVenomRosterPosition()
+    return { point = "CENTER", relativePoint = "CENTER", x = -320, y = 40 }
+end
+
+---A fresh venom-roster appearance record on every call.
+---@return TwinFangsVenomRosterSettings
+function Schema.NewVenomRoster()
+    return {
+        enabled = true,
+        rowSpacing = Schema.VENOM_ROSTER_ROW_SPACING_DEFAULT,
+        columnSpacing = Schema.VENOM_ROSTER_COLUMN_SPACING_DEFAULT,
+        nameColumnWidth = Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_DEFAULT,
+        nameFontSize = Schema.VENOM_ROSTER_NAME_FONT_SIZE_DEFAULT,
+        stackFontSize = Schema.VENOM_ROSTER_STACK_FONT_SIZE_DEFAULT,
+    }
+end
+
 ---A fresh module saved-variables table. Returns new nested tables on every call.
 ---@return TwinFangsSettings
 function Schema.NewSettings()
@@ -309,5 +359,7 @@ function Schema.NewSettings()
         nameplateHint = Schema.NewNameplateHint(),
         interruptStatusHudPosition = Schema.DefaultInterruptStatusHudPosition(),
         soakTimelinePosition = Schema.DefaultSoakTimelinePosition(),
+        venomRoster = Schema.NewVenomRoster(),
+        venomRosterPosition = Schema.DefaultVenomRosterPosition(),
     }
 end

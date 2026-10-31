@@ -16,6 +16,7 @@
     <Script file="RaidRoleModeLabel.lua"/>
     <Script file="CollapsibleSection.lua"/>
     <Script file="FloatingWindow.lua"/>
+    <Script file="LazyEncounterUI.lua"/>
     <Script file="AddonCheckPanelModel.lua"/>
     <Script file="AddonCheckPanel.lua"/>
     <Script file="WarningWindow.lua"/>

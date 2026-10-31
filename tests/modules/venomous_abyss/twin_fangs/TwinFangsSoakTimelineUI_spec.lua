@@ -18,6 +18,12 @@ describe("TwinFangs soak timeline UI", function()
         end
         function label:SetTextColor() end
         function label:SetFont() end
+        function label:Show()
+            self.shown = true
+        end
+        function label:Hide()
+            self.shown = false
+        end
         return label
     end
 
@@ -70,7 +76,9 @@ describe("TwinFangs soak timeline UI", function()
         function frame:SetBackdropColor() end
         function frame:SetBackdropBorderColor() end
         function frame:SetTexture() end
-        function frame:SetVertexColor() end
+        function frame:SetVertexColor(r, g, b, a)
+            self.vertexColor = { r = r, g = g, b = b, a = a }
+        end
         function frame:AddMaskTexture() end
         function frame:CreateFontString()
             return FakeLabel(self)
@@ -180,8 +188,11 @@ describe("TwinFangs soak timeline UI", function()
         assert.equals("function", type(frame.scripts.OnUpdate))
 
         local SoakTimeline = ns.Modules.Internals("TwinFangs").SoakTimeline
-        frame.scripts.OnUpdate(frame, SoakTimeline.DURATION)
-        frame.scripts.OnUpdate(frame, SoakTimeline.LOOP)
+        local Timer = ns.Api.Timer
+        Timer.Advance(SoakTimeline.DURATION)
+        frame.scripts.OnUpdate(frame)
+        Timer.Advance(SoakTimeline.LOOP)
+        frame.scripts.OnUpdate(frame)
 
         def.onEditEnd()
         assert.is_false(frame.shown)
@@ -218,6 +229,68 @@ describe("TwinFangs soak timeline UI", function()
         frame.scripts.OnUpdate(frame)
         assert.is_false(frame.shown)
         assert.is_nil(frame.scripts.OnUpdate)
+    end)
+
+    it("rings the assigned hit from the player's soak group and keeps the numbered nodes", function()
+        local Schema = ns.Modules.Internals("TwinFangs").Schema
+        Module:SetSoakGroup(Schema.GROUP_MIDDLE)
+        local frame = Binding().Ensure()
+        local def = registered[Binding().LAYOUT_ID]
+        def.onEditBegin()
+        frame.scripts.OnUpdate(frame)
+
+        local function Rings()
+            local shown = {}
+            for index = 1, 3 do
+                local node = frame.hitNodes[index]
+                shown[index] = node.ringFrame.shown == true
+                assert.equals(node.ringFrame.shown == true, node.arrow.shown == true)
+                assert.equals(ns.Assets.Glyphs.SORT_DESC, node.arrow:GetText())
+                assert.equals(tostring(index), node.label:GetText())
+            end
+            return shown
+        end
+
+        assert.same({ false, false, true }, Rings())
+        assert.equals(24, frame.hitNodes[3].nodeFrame.width)
+        assert.equals(22, frame.hitNodes[1].nodeFrame.width)
+
+        Module:SetSoakGroup(Schema.GROUP_RIGHT)
+        frame.scripts.OnUpdate(frame)
+        assert.same({ true, false, false }, Rings())
+
+        local SoakTimeline = ns.Modules.Internals("TwinFangs").SoakTimeline
+        local Timer = ns.Api.Timer
+        Timer.Advance(SoakTimeline.HIT_AT[1])
+        frame.scripts.OnUpdate(frame)
+        assert.same({ true, false, false }, Rings())
+        assert.equals(0.95, frame.hitNodes[1].fill.vertexColor.r)
+        assert.equals(0.93, frame.hitNodes[1].ring.vertexColor.r)
+        Timer.Advance(SoakTimeline.FLASH)
+        frame.scripts.OnUpdate(frame)
+        assert.same({ true, false, false }, Rings())
+        assert.equals(0.86, frame.hitNodes[1].fill.vertexColor.r)
+        Timer.Advance(SoakTimeline.LOOP - SoakTimeline.HIT_AT[1] - SoakTimeline.FLASH)
+        frame.scripts.OnUpdate(frame)
+        assert.same({ true, false, false }, Rings())
+        assert.equals(125 / 255, frame.hitNodes[1].fill.vertexColor.r)
+    end)
+
+    it("keeps the gold ring when the assigned hit is also the live boss hit", function()
+        Module:SetSoakReminderEnabled(true)
+        local Schema = ns.Modules.Internals("TwinFangs").Schema
+        Module:SetSoakGroup(Schema.GROUP_RIGHT)
+        local frame = Binding().Ensure()
+        Module:StartSoakTimeline(ns.Api.Timer.GetTime(), 1)
+        frame.scripts.OnUpdate(frame)
+        assert.is_true(frame.hitNodes[1].ringFrame.shown)
+        assert.is_true(frame.hitNodes[1].arrow.shown)
+        assert.is_false(frame.hitNodes[2].ringFrame.shown)
+        assert.is_false(frame.hitNodes[2].arrow.shown)
+        local fill = frame.hitNodes[1].fill.vertexColor
+        assert.equals(125 / 255, fill.r)
+        assert.equals(214 / 255, fill.g)
+        assert.equals(0.93, frame.hitNodes[1].ring.vertexColor.r)
     end)
 
     it("repositions through the Twin Fangs layout element", function()

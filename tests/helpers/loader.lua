@@ -71,6 +71,7 @@ local function IsSkipped(path)
         or path == "ui/Position.lua"
         or path == "ui/Color.lua"
         or path == "ui/CalloutAnchor.lua"
+        or path == "ui/LazyEncounterUI.lua"
     then
         return false
     end

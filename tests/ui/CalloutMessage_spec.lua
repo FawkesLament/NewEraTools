@@ -244,6 +244,46 @@ describe("CalloutMessage", function()
         end))
     end)
 
+    it("sampled preview follows changing text and remaining time", function()
+        local frame = NewCallout()
+        local remaining = 4.25
+        local message = "Prepare"
+        frame:ShowSampledPreview(function()
+            if remaining <= 0 then
+                message = "Now"
+                remaining = 2
+            end
+            return message, remaining
+        end)
+        assert.equals("Prepare (4.2)", lastLabel.text)
+        remaining = 0
+        Tick(frame)
+        assert.equals("Now (2.0)", lastLabel.text)
+        frame:ShowSampledPreview(function()
+            return nil
+        end)
+        Tick(frame)
+        assert.equals("", lastLabel.text)
+        assert.is_true(frame.shown)
+    end)
+
+    it("Bind uses a sampled preview when the scope supplies a tick", function()
+        local registered
+        ns.LayoutEditor.Register = function(def)
+            registered = def
+        end
+        ns.CalloutMessage.Bind(BindConfig({
+            hasPreviewTick = function()
+                return true
+            end,
+            previewTick = function()
+                return "Enter", 4.25
+            end,
+        })).Ensure()
+        registered.onEditBegin()
+        assert.equals("Enter (4.2)", lastLabel.text)
+    end)
+
     it("preview loops the countdown instead of hiding", function()
         local frame = NewCallout()
         frame:ShowPreview("Soak", 2, true)

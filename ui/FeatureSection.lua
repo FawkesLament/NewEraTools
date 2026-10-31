@@ -17,6 +17,7 @@ ns.FeatureSection = FeatureSection
 
 ---@class FeatureSectionOptions
 ---@field title string  Shown in the header to the left of the On/Off toggle.
+---@field titleFont string|nil  Font object name from Assets.Fonts. Defaults to BODY.
 ---@field tooltip string|nil  Shown when hovering the title.
 ---@field enabled boolean|nil  Whether the feature starts enabled. Defaults to true.
 ---@field toggle boolean|nil  When false, the header has no On/Off control. Defaults to true.
@@ -133,7 +134,9 @@ function FeatureSection.Create(stack, options)
         NotifyHeight()
     end
 
-    local title = Widgets.CreateLabel(header, Fonts.BODY, options.title)
+    local titleFont = options.titleFont or Fonts.BODY
+    assert(type(titleFont) == "string", "FeatureSection titleFont must be a font object name")
+    local title = Widgets.CreateLabel(header, titleFont, options.title)
     title:SetJustifyH("LEFT")
     title:SetPoint("LEFT", header, "LEFT")
     section.titleLabel = title

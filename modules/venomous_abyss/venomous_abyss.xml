@@ -15,6 +15,7 @@
     <Script file="sszorak\ui\Window.lua"/>
     <Script file="sszorak\ui\Panel.lua"/>
     <Script file="twin_fangs\Schema.lua"/>
+    <Script file="twin_fangs\VenomRoster.lua"/>
     <Script file="twin_fangs\TwinFangs.lua"/>
     <Script file="twin_fangs\interrupt_chain\Model.lua"/>
     <Script file="twin_fangs\interrupt_chain\Editor.lua"/>
@@ -37,4 +38,5 @@
     <Script file="twin_fangs\ui\interrupt_chain\Editor.lua"/>
     <Script file="twin_fangs\ui\interrupt_chain\MemberView.lua"/>
     <Script file="twin_fangs\ui\Panel.lua"/>
+    <Script file="twin_fangs\ui\VenomRoster.lua"/>
 </Ui>

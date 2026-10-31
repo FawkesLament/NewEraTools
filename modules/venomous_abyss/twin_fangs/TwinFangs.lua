@@ -19,6 +19,8 @@ local ADDON_CHECK_MODULE_ID = "TwinFangs"
 ---@field OnNameplateHintHide fun(self: TwinFangs, unit: string)|nil  Defined by the UI; live badge removed.
 ---@field OnNameplateHintCleared fun(self: TwinFangs)|nil  Defined by the UI; every live badge removed.
 ---@field OnInterruptStatusChanged fun(self: TwinFangs)|nil  Defined by the UI; interrupt StatusHUD shown, updated, or hidden.
+---@field OnVenomRosterEnabledChanged fun(self: TwinFangs)|nil  Defined by the UI; roster hidden or shown from the settings toggle.
+---@field OnVenomRosterAppearanceChanged fun(self: TwinFangs)|nil  Defined by the UI; scale, spacing, and fonts applied in place.
 local TwinFangs = ns.Modules.New("TwinFangs", {
     defaults = Schema.NewSettings(),
 })
@@ -393,6 +395,193 @@ function TwinFangs:SetSoakTimelinePosition(position)
     saved.y = position.y
 end
 
+---@param settings TwinFangsVenomRosterSettings
+local function SanitizeVenomRoster(settings)
+    settings.enabled = settings.enabled ~= false
+    settings.scale = nil
+    settings.rowSpacing = Util.Snap(
+        tonumber(settings.rowSpacing) or Schema.VENOM_ROSTER_ROW_SPACING_DEFAULT,
+        Schema.VENOM_ROSTER_ROW_SPACING_MIN,
+        Schema.VENOM_ROSTER_ROW_SPACING_MAX,
+        Schema.VENOM_ROSTER_ROW_SPACING_STEP
+    )
+    settings.columnSpacing = Util.Snap(
+        tonumber(settings.columnSpacing) or Schema.VENOM_ROSTER_COLUMN_SPACING_DEFAULT,
+        Schema.VENOM_ROSTER_COLUMN_SPACING_MIN,
+        Schema.VENOM_ROSTER_COLUMN_SPACING_MAX,
+        Schema.VENOM_ROSTER_COLUMN_SPACING_STEP
+    )
+    settings.nameColumnWidth = Util.Snap(
+        tonumber(settings.nameColumnWidth) or Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_DEFAULT,
+        Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_MIN,
+        Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_MAX,
+        Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_STEP
+    )
+    settings.nameFontSize = Util.Snap(
+        tonumber(settings.nameFontSize) or Schema.VENOM_ROSTER_NAME_FONT_SIZE_DEFAULT,
+        Schema.VENOM_ROSTER_NAME_FONT_SIZE_MIN,
+        Schema.VENOM_ROSTER_NAME_FONT_SIZE_MAX,
+        Schema.VENOM_ROSTER_NAME_FONT_SIZE_STEP
+    )
+    settings.stackFontSize = Util.Snap(
+        tonumber(settings.stackFontSize) or Schema.VENOM_ROSTER_STACK_FONT_SIZE_DEFAULT,
+        Schema.VENOM_ROSTER_STACK_FONT_SIZE_MIN,
+        Schema.VENOM_ROSTER_STACK_FONT_SIZE_MAX,
+        Schema.VENOM_ROSTER_STACK_FONT_SIZE_STEP
+    )
+end
+
+local function NotifyVenomRosterEnabled()
+    if TwinFangs.OnVenomRosterEnabledChanged then
+        TwinFangs:OnVenomRosterEnabledChanged()
+    end
+end
+
+local function NotifyVenomRosterAppearance()
+    if TwinFangs.OnVenomRosterAppearanceChanged then
+        TwinFangs:OnVenomRosterAppearanceChanged()
+    end
+end
+
+---@return boolean
+function TwinFangs:IsVenomRosterEnabled()
+    return self.db.venomRoster.enabled ~= false
+end
+
+---@param enabled boolean
+function TwinFangs:SetVenomRosterEnabled(enabled)
+    enabled = enabled == true
+    if self.db.venomRoster.enabled == enabled then
+        return
+    end
+    self.db.venomRoster.enabled = enabled
+    NotifyVenomRosterEnabled()
+end
+
+---@return number
+function TwinFangs:GetVenomRosterRowSpacing()
+    return self.db.venomRoster.rowSpacing
+end
+
+---@param spacing number
+function TwinFangs:SetVenomRosterRowSpacing(spacing)
+    spacing = Util.Snap(
+        spacing,
+        Schema.VENOM_ROSTER_ROW_SPACING_MIN,
+        Schema.VENOM_ROSTER_ROW_SPACING_MAX,
+        Schema.VENOM_ROSTER_ROW_SPACING_STEP
+    )
+    if self.db.venomRoster.rowSpacing == spacing then
+        return
+    end
+    self.db.venomRoster.rowSpacing = spacing
+    NotifyVenomRosterAppearance()
+end
+
+---@return number
+function TwinFangs:GetVenomRosterColumnSpacing()
+    return self.db.venomRoster.columnSpacing
+end
+
+---@param spacing number
+function TwinFangs:SetVenomRosterColumnSpacing(spacing)
+    spacing = Util.Snap(
+        spacing,
+        Schema.VENOM_ROSTER_COLUMN_SPACING_MIN,
+        Schema.VENOM_ROSTER_COLUMN_SPACING_MAX,
+        Schema.VENOM_ROSTER_COLUMN_SPACING_STEP
+    )
+    if self.db.venomRoster.columnSpacing == spacing then
+        return
+    end
+    self.db.venomRoster.columnSpacing = spacing
+    NotifyVenomRosterAppearance()
+end
+
+---@return number
+function TwinFangs:GetVenomRosterNameColumnWidth()
+    return self.db.venomRoster.nameColumnWidth
+end
+
+---@param width number
+function TwinFangs:SetVenomRosterNameColumnWidth(width)
+    width = Util.Snap(
+        width,
+        Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_MIN,
+        Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_MAX,
+        Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_STEP
+    )
+    if self.db.venomRoster.nameColumnWidth == width then
+        return
+    end
+    self.db.venomRoster.nameColumnWidth = width
+    NotifyVenomRosterAppearance()
+end
+
+---@return number
+function TwinFangs:GetVenomRosterNameFontSize()
+    return self.db.venomRoster.nameFontSize
+end
+
+---@param size number
+function TwinFangs:SetVenomRosterNameFontSize(size)
+    size = Util.Snap(
+        size,
+        Schema.VENOM_ROSTER_NAME_FONT_SIZE_MIN,
+        Schema.VENOM_ROSTER_NAME_FONT_SIZE_MAX,
+        Schema.VENOM_ROSTER_NAME_FONT_SIZE_STEP
+    )
+    if self.db.venomRoster.nameFontSize == size then
+        return
+    end
+    self.db.venomRoster.nameFontSize = size
+    NotifyVenomRosterAppearance()
+end
+
+---@return number
+function TwinFangs:GetVenomRosterStackFontSize()
+    return self.db.venomRoster.stackFontSize
+end
+
+---@param size number
+function TwinFangs:SetVenomRosterStackFontSize(size)
+    size = Util.Snap(
+        size,
+        Schema.VENOM_ROSTER_STACK_FONT_SIZE_MIN,
+        Schema.VENOM_ROSTER_STACK_FONT_SIZE_MAX,
+        Schema.VENOM_ROSTER_STACK_FONT_SIZE_STEP
+    )
+    if self.db.venomRoster.stackFontSize == size then
+        return
+    end
+    self.db.venomRoster.stackFontSize = size
+    NotifyVenomRosterAppearance()
+end
+
+---@return FloatingWindowPosition
+function TwinFangs:GetVenomRosterPosition()
+    return self.db.venomRosterPosition
+end
+
+---@param position FloatingWindowPosition
+function TwinFangs:SetVenomRosterPosition(position)
+    assert(ns.Position.IsValid(position), "Bad venom roster position")
+    local saved = self.db.venomRosterPosition
+    if type(saved) ~= "table" then
+        self.db.venomRosterPosition = {
+            point = position.point,
+            relativePoint = position.relativePoint,
+            x = position.x,
+            y = position.y,
+        }
+        return
+    end
+    saved.point = position.point
+    saved.relativePoint = position.relativePoint
+    saved.x = position.x
+    saved.y = position.y
+end
+
 function TwinFangs:OnInit()
     if not Schema.GROUPS[self.db.soakReminder.group] then
         self.db.soakReminder.group = Schema.GROUP_LEFT
@@ -409,6 +598,14 @@ function TwinFangs:OnInit()
     end
     if not ns.Position.IsValid(self.db.soakTimelinePosition) then
         self.db.soakTimelinePosition = Schema.DefaultSoakTimelinePosition()
+    end
+    if not ns.Position.IsValid(self.db.venomRosterPosition) then
+        self.db.venomRosterPosition = Schema.DefaultVenomRosterPosition()
+    end
+    if type(self.db.venomRoster) ~= "table" then
+        self.db.venomRoster = Schema.NewVenomRoster()
+    else
+        SanitizeVenomRoster(self.db.venomRoster)
     end
     SanitizeNameplateHint(self.db.nameplateHint)
     local reminder = self.db.interruptReminder

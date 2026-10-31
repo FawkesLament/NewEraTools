@@ -92,6 +92,7 @@ end
 ---@class CalloutMessage: Frame
 ---@field SetMessage fun(self: CalloutMessage, message: any, options: CalloutMessageShowOptions|nil)
 ---@field ShowPreview fun(self: CalloutMessage, message: any, remainingSeconds: integer, appendTimer: boolean|nil)
+---@field ShowSampledPreview fun(self: CalloutMessage, sampler: fun(): (any, number)|nil)
 ---@field Clear fun(self: CalloutMessage)
 ---@field ApplyAppearance fun(self: CalloutMessage): boolean|nil  Re-applies the current shared appearance. True when scale changed.
 
@@ -107,6 +108,8 @@ end
 ---@field getDefaultPosition fun(): CalloutAnchor
 ---@field previewText any|fun(): any
 ---@field previewDuration number|fun(): number|nil|nil
+---@field previewTick (fun(): (any, number)|nil)|nil  When set, Edit Mode samples this instead of a looping static preview.
+---@field hasPreviewTick (fun(): boolean)|nil
 ---@field getAppendTimer fun(): boolean|nil
 ---@field wrap string|nil
 ---@field global boolean|nil  When true, participates in the common UI editing scope.
@@ -190,6 +193,8 @@ function CalloutMessage.Create(options)
     local shownRemaining = nil
     -- When set, countdown loops instead of hiding (layout-edit preview).
     local previewDuration = nil
+    ---@type (fun(): (any, number)|nil)|nil
+    local previewSampler = nil
 
     local function RemainingTime()
         if not expireTime then
@@ -238,9 +243,36 @@ function CalloutMessage.Create(options)
         activeMessage = nil
         expireTime = nil
         previewDuration = nil
+        previewSampler = nil
         appendTimer = false
         shownRemaining = nil
         frame:Hide()
+    end
+
+    local function ApplySampler()
+        local sampler = previewSampler
+        if not sampler then
+            return
+        end
+        local message, remaining = sampler()
+        if message == nil or type(remaining) ~= "number" or remaining <= 0 then
+            activeMessage = nil
+            expireTime = nil
+            shownRemaining = nil
+            label:SetText("")
+            frame:Show()
+            return
+        end
+        if message ~= activeMessage then
+            shownRemaining = nil
+        end
+        activeMessage = message
+        previewDuration = nil
+        appendTimer = true
+        expireTime = Timer.GetTime() + remaining
+        ApplyDisplay()
+        frame:Show()
+        frame:Raise()
     end
 
     ---Live preview countdown (loops); used while repositioning the host frame.
@@ -250,6 +282,7 @@ function CalloutMessage.Create(options)
     function frame:ShowPreview(message, remainingSeconds, withTimer)
         assert(message ~= nil, "CalloutMessage preview requires message")
         token = token + 1
+        previewSampler = nil
         local duration = remainingSeconds or DEFAULT_DURATION
         activeMessage = message
         previewDuration = duration
@@ -259,6 +292,18 @@ function CalloutMessage.Create(options)
         ApplyDisplay()
         frame:Show()
         frame:Raise()
+    end
+
+    ---Edit-mode preview that re-samples text and remaining time every frame.
+    ---@param sampler fun(): (any, number)|nil
+    function frame:ShowSampledPreview(sampler)
+        assert(type(sampler) == "function", "CalloutMessage sampled preview requires a function")
+        token = token + 1
+        previewSampler = sampler
+        previewDuration = nil
+        appendTimer = true
+        shownRemaining = nil
+        ApplySampler()
     end
 
     ---Shows `message` until `options.expiresAt` (or now + duration). Replaces any active message immediately.
@@ -287,6 +332,7 @@ function CalloutMessage.Create(options)
         local currentToken = token
         activeMessage = message
         previewDuration = nil
+        previewSampler = nil
         appendTimer = options.appendTimer == true
         shownRemaining = nil
         expireTime = expiresAt
@@ -311,6 +357,10 @@ function CalloutMessage.Create(options)
     end
 
     frame:SetScript("OnUpdate", function()
+        if previewSampler then
+            ApplySampler()
+            return
+        end
         if not frame:IsShown() or activeMessage == nil or not appendTimer then
             return
         end
@@ -388,6 +438,10 @@ function CalloutMessage.Bind(config)
                     config.onEditBegin()
                 end
                 local win = binding.Ensure()
+                if config.hasPreviewTick and config.hasPreviewTick() and config.previewTick then
+                    win:ShowSampledPreview(config.previewTick)
+                    return
+                end
                 win:ShowPreview(PreviewMessage(), PreviewDuration(), true)
             end,
             onEditEnd = function()

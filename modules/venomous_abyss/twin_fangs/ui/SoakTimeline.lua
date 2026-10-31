@@ -14,12 +14,18 @@ local Timer = ns.Api.Timer
 
 local LAYOUT_ID = "TwinFangs:soakTimeline"
 local WINDOW_WIDTH = 268
-local WINDOW_HEIGHT = 40
+local WINDOW_HEIGHT = 52
 local BAR_WIDTH = 220
 local BAR_HEIGHT = 6
+local BAR_OFFSET_Y = -4
 local NODE_SIZE = 22
+local NODE_ASSIGNED_SIZE = 24
 local DIGIT_SIZE = 14
 local GLOW_SIZE = 30
+local GLOW_ASSIGNED_SIZE = 34
+local RING_SIZE = 30
+local ARROW_SIZE = 10
+local ARROW_GAP = 0
 local PULSE_SPEED = 8
 
 -- Cool ice-blue fills so the widget stays readable over the green venom arena.
@@ -29,6 +35,7 @@ local COLOR_PENDING = { r = 0.28, g = 0.30, b = 0.34, a = 1 }
 local COLOR_BAR_BG = { r = 0.16, g = 0.17, b = 0.20, a = 1 }
 local COLOR_FLASH = { r = 0.95, g = 0.98, b = 1, a = 1 }
 local COLOR_GLOW = { r = 0.55, g = 0.82, b = 1, a = 1 }
+local COLOR_ASSIGNED_RING = { r = 0.93, g = 0.70, b = 0.22, a = 1 }
 local COLOR_NODE_TEXT = { r = 0.95, g = 0.98, b = 1, a = 1 }
 local COLOR_NODE_TEXT_PENDING = { r = 0.55, g = 0.58, b = 0.62, a = 1 }
 local COLOR_NODE_TEXT_DONE = { r = 0.22, g = 0.32, b = 0.42, a = 1 }
@@ -40,13 +47,23 @@ Internals.SoakTimelineUI = SoakTimelineUI
 
 local window
 local fill
----@type { glow: Texture, fill: Texture, label: FontString }[]
+---@class TwinFangsSoakTimelineNodeFrames
+---@field glowFrame Frame
+---@field glow Texture
+---@field ringFrame Frame
+---@field ring Texture
+---@field nodeFrame Frame
+---@field fill Texture
+---@field label FontString
+---@field arrow FontString
+---@type TwinFangsSoakTimelineNodeFrames[]
 local nodes
 local layoutRegistered = false
 local layoutEditing = false
-local previewElapsed = 0
 ---@type number|nil
 local liveBeginAt
+---@type integer|nil
+local liveAssignedHit
 local scaleListening = false
 
 local function PaintTexture(texture, color, alpha)
@@ -122,12 +139,25 @@ local function ApplyState(state)
         fill:Show()
     end
 
-    local pulseClock = liveBeginAt and (Timer.GetTime() - liveBeginAt) or previewElapsed
+    local pulseClock = liveBeginAt and (Timer.GetTime() - liveBeginAt) or SoakTimeline.PreviewElapsed()
     local pulse = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(pulseClock * PULSE_SPEED))
     for index = 1, SoakTimeline.HIT_COUNT do
         local node = nodes[index]
         local nodeState = state.nodes[index]
         node.label:SetText(tostring(index))
+        if nodeState.assigned then
+            node.glowFrame:SetSize(GLOW_ASSIGNED_SIZE, GLOW_ASSIGNED_SIZE)
+            node.ringFrame:SetSize(RING_SIZE, RING_SIZE)
+            node.nodeFrame:SetSize(NODE_ASSIGNED_SIZE, NODE_ASSIGNED_SIZE)
+            PaintTexture(node.ring, COLOR_ASSIGNED_RING)
+            node.ringFrame:Show()
+            node.arrow:Show()
+        else
+            node.glowFrame:SetSize(GLOW_SIZE, GLOW_SIZE)
+            node.nodeFrame:SetSize(NODE_SIZE, NODE_SIZE)
+            node.ringFrame:Hide()
+            node.arrow:Hide()
+        end
         if nodeState.flashing then
             PaintTexture(node.fill, COLOR_FLASH)
             PaintTexture(node.glow, COLOR_GLOW, 0.9)
@@ -150,11 +180,15 @@ local function ApplyState(state)
 end
 
 local function HideWindow()
-    previewElapsed = 0
     if window then
         window:SetScript("OnUpdate", nil)
         window:Hide()
     end
+end
+
+---@return integer|nil
+local function PreviewAssignedHit()
+    return SoakTimeline.AssignedHitForGroup(TwinFangs:GetSoakGroup())
 end
 
 local function TickLive()
@@ -165,10 +199,11 @@ local function TickLive()
     local elapsed = Timer.GetTime() - liveBeginAt
     if elapsed >= SoakTimeline.DURATION then
         liveBeginAt = nil
+        liveAssignedHit = nil
         HideWindow()
         return
     end
-    ApplyState(SoakTimeline.SequenceState(elapsed))
+    ApplyState(SoakTimeline.SequenceState(elapsed, liveAssignedHit))
 end
 
 local function ShowLive()
@@ -185,13 +220,12 @@ local function ShowLive()
 end
 
 local function StartPreview()
-    previewElapsed = 0
-    ApplyState(SoakTimeline.StateAt(0))
+    SoakTimeline.BeginPreviewClock()
+    ApplyState(SoakTimeline.StateAt(SoakTimeline.PreviewElapsed(), PreviewAssignedHit()))
     window:Show()
     window:Raise()
-    window:SetScript("OnUpdate", function(_, elapsed)
-        previewElapsed = previewElapsed + elapsed
-        ApplyState(SoakTimeline.StateAt(previewElapsed))
+    window:SetScript("OnUpdate", function()
+        ApplyState(SoakTimeline.StateAt(SoakTimeline.PreviewElapsed(), PreviewAssignedHit()))
     end)
 end
 
@@ -224,6 +258,7 @@ local function Register(frame)
         end,
         onEditEnd = function()
             layoutEditing = false
+            SoakTimeline.EndPreviewClock()
             SoakTimelineUI.Update()
         end,
     })
@@ -248,7 +283,7 @@ local function CreateWindow()
     local bar = frame:CreateTexture(nil, "BACKGROUND")
     bar:SetTexture(Assets.Textures.WHITE)
     bar:SetSize(BAR_WIDTH, BAR_HEIGHT)
-    bar:SetPoint("CENTER", frame, "CENTER", 0, 0)
+    bar:SetPoint("CENTER", frame, "CENTER", 0, BAR_OFFSET_Y)
     PaintTexture(bar, COLOR_BAR_BG)
 
     fill = frame:CreateTexture(nil, "ARTWORK")
@@ -262,18 +297,39 @@ local function CreateWindow()
     for index = 1, SoakTimeline.HIT_COUNT do
         local glowFrame, glow = CreateCircle(frame, GLOW_SIZE, "BACKGROUND")
         glowFrame:SetFrameLevel(frame:GetFrameLevel() + 1)
+        local ringFrame, ring = CreateCircle(frame, RING_SIZE, "ARTWORK")
+        ringFrame:SetFrameLevel(frame:GetFrameLevel() + 2)
+        ringFrame:Hide()
         local nodeFrame, nodeFill = CreateCircle(frame, NODE_SIZE, "ARTWORK")
-        nodeFrame:SetFrameLevel(frame:GetFrameLevel() + 2)
+        nodeFrame:SetFrameLevel(frame:GetFrameLevel() + 3)
         local x = SoakTimeline.HitFraction(index) * BAR_WIDTH
         glowFrame:SetPoint("CENTER", bar, "LEFT", x, 0)
+        ringFrame:SetPoint("CENTER", bar, "LEFT", x, 0)
         nodeFrame:SetPoint("CENTER", bar, "LEFT", x, 0)
+        local arrow = Widgets.CreateLabel(frame, Fonts.GLYPH, Assets.Glyphs.SORT_DESC)
+        local glyphStyle = Assets.FontStyles[Fonts.GLYPH]
+        arrow:SetFont(glyphStyle.path or STANDARD_TEXT_FONT, ARROW_SIZE, glyphStyle.flags or "OUTLINE")
+        arrow:SetTextColor(Widgets.UnpackColor(COLOR_ASSIGNED_RING))
+        arrow:SetJustifyH("CENTER")
+        arrow:SetPoint("BOTTOM", nodeFrame, "TOP", 0, ARROW_GAP)
+        arrow:Hide()
         local digitStyle = Assets.FontStyles[Fonts.OVERLAY_DIGIT]
         local label = Widgets.CreateLabel(nodeFrame, Fonts.OVERLAY_DIGIT, tostring(index))
         label:SetFont(digitStyle.path or STANDARD_TEXT_FONT, DIGIT_SIZE, digitStyle.flags or "OUTLINE")
         label:SetJustifyH("CENTER")
         label:SetPoint("CENTER")
-        nodes[index] = { glow = glow, fill = nodeFill, label = label }
+        nodes[index] = {
+            glowFrame = glowFrame,
+            glow = glow,
+            ringFrame = ringFrame,
+            ring = ring,
+            nodeFrame = nodeFrame,
+            fill = nodeFill,
+            label = label,
+            arrow = arrow,
+        }
     end
+    frame.hitNodes = nodes
 
     ListenForScale()
     Register(frame)
@@ -298,8 +354,10 @@ function SoakTimelineUI.Update()
 end
 
 ---@param beginAt number
-function TwinFangs:StartSoakTimeline(beginAt)
+---@param assignedHit integer|nil
+function TwinFangs:StartSoakTimeline(beginAt, assignedHit)
     liveBeginAt = beginAt
+    liveAssignedHit = assignedHit or PreviewAssignedHit()
     if layoutEditing then
         return
     end
@@ -314,6 +372,7 @@ end
 
 function TwinFangs:StopSoakTimeline()
     liveBeginAt = nil
+    liveAssignedHit = nil
     if layoutEditing then
         return
     end
