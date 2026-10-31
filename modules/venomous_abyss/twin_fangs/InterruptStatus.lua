@@ -9,7 +9,7 @@ local InterruptChain = Internals.InterruptChain
 local Schema = Internals.Schema
 
 -- Visible after Brood fires; interrupt reports do not extend this window.
-local WINDOW_SECONDS = 11
+local WINDOW_SECONDS = 14
 local CALLOUT_SECONDS = 10
 -- Edit Mode uses the same snapshot as a live window at round 1 in front-left, assignment 3.
 local PREVIEW_REGION = InterruptChain.FRONT_LEFT
@@ -424,7 +424,7 @@ function TwinFangs:GetInterruptStatusPreview()
     }
 end
 
----Starts an 11-second interrupt-status window. No-op without a primary or backup assignment.
+---Starts a 14-second interrupt-status window. No-op without a primary or backup assignment.
 function TwinFangs:BeginInterruptStatusWindow()
     if not self:IsInEncounter() or not self:IsInterruptReminderEnabled() then
         return

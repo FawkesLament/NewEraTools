@@ -14,6 +14,7 @@ ns.Api.Group = Group
 ---@field subgroup number
 ---@field classFile string|nil  e.g. "WARRIOR".
 ---@field role GroupRole
+---@field unit string  `raidN` matching `index`.
 
 local CHANGE_EVENTS = {
     "GROUP_ROSTER_UPDATE",
@@ -23,6 +24,15 @@ local CHANGE_EVENTS = {
 
 ---@type fun(): boolean
 Group.IsInRaid = IsInRaid
+
+---@type fun(): boolean
+Group.IsInGroup = IsInGroup
+
+---Group size including the player, or 0 when not in a group.
+---@return number
+function Group.GetNumMembers()
+    return GetNumGroupMembers() or 0
+end
 
 ---@return RaidMember[]  Roster order; empty when not in a raid.
 function Group.GetRaidMembers()
@@ -46,6 +56,7 @@ function Group.GetRaidMembers()
                 subgroup = subgroup,
                 classFile = classFile,
                 role = UnitGroupRolesAssigned(unit),
+                unit = unit,
             })
         end
     end

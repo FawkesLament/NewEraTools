@@ -46,6 +46,14 @@ return function()
         return "Expiration", "Normal"
     end
 
+    function Aura.HasExpirationOnlyReverseSort()
+        return Aura.supported == true
+    end
+
+    function Aura.GetExpirationOnlyReverseSort()
+        return "ExpirationOnly", "Reverse"
+    end
+
     function Aura.GetDurationBarOptions()
         return { direction = 1 }
     end

@@ -3,6 +3,8 @@ return function()
         members = {},
         rosterComplete = nil,
         inRaid = false,
+        inGroup = false,
+        numMembers = 0,
         raidChatType = nil,
         isRaidLeader = false,
         isLeaderOrAssistant = false,
@@ -16,6 +18,23 @@ return function()
 
     function Group.IsInRaid()
         return Group.inRaid == true
+    end
+
+    function Group.IsInGroup()
+        return Group.inGroup == true or Group.inRaid == true
+    end
+
+    function Group.GetNumMembers()
+        if Group.numMembers > 0 then
+            return Group.numMembers
+        end
+        if Group.inRaid then
+            return #Group.members
+        end
+        if Group.inGroup then
+            return Group.numMembers
+        end
+        return 0
     end
 
     function Group.GetRaidMembers()

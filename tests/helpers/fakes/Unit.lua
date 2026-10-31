@@ -9,6 +9,10 @@ return function()
         exists = {
             player = true,
         },
+        ---@type table<string, string|nil>
+        names = {
+            player = "You",
+        },
         ---@type table<string, boolean|nil>  nil = secret / unknown.
         assist = {
             player = true,
@@ -70,7 +74,7 @@ return function()
     end
 
     ---@param unit string
-    ---@param state { exists: boolean|nil, guid: string|nil, canAssist: boolean|nil, canAttack: boolean|nil, isBossMob: boolean|nil }
+    ---@param state { exists: boolean|nil, guid: string|nil, name: string|nil, canAssist: boolean|nil, canAttack: boolean|nil, isBossMob: boolean|nil }
     function Unit.SetForTests(unit, state)
         if state.exists == nil then
             Unit.exists[unit] = false
@@ -78,6 +82,9 @@ return function()
             Unit.exists[unit] = state.exists == true
         end
         Unit.guids[unit] = state.guid
+        if state.name ~= nil then
+            Unit.names[unit] = state.name
+        end
         if state.canAssist == nil then
             Unit.assist[unit] = nil
         else
@@ -104,6 +111,17 @@ return function()
             return nil
         end
         return guid
+    end
+
+    function Unit.GetName(unit)
+        if not Unit.Exists(unit) then
+            return nil
+        end
+        local name = Unit.names[unit]
+        if type(name) ~= "string" or name == "" then
+            return nil
+        end
+        return name
     end
 
     function Unit.GetClassFile()

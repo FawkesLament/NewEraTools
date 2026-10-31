@@ -161,6 +161,24 @@ function Aura.GetExpirationSort()
     return AuraContainerSortMethod.Expiration, AuraContainerSortDirection.Normal
 end
 
+---Whether ExpirationOnly + Reverse sorting is available after loading AuraContainer.
+---@return boolean
+function Aura.HasExpirationOnlyReverseSort()
+    if not Aura.EnsureLoaded() then
+        return false
+    end
+    return type(AuraContainerSortMethod) == "table"
+        and AuraContainerSortMethod.ExpirationOnly ~= nil
+        and type(AuraContainerSortDirection) == "table"
+        and AuraContainerSortDirection.Reverse ~= nil
+end
+
+---@return unknown sortMethod
+---@return unknown sortDirection
+function Aura.GetExpirationOnlyReverseSort()
+    return AuraContainerSortMethod.ExpirationOnly, AuraContainerSortDirection.Reverse
+end
+
 ---Options for AuraButton:SetDurationBar so the bar drains with remaining time.
 ---@return table
 function Aura.GetDurationBarOptions()

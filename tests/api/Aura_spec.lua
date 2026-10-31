@@ -49,6 +49,24 @@ describe("Aura production options", function()
         assert.equals("normal", direction)
     end)
 
+    it("returns expiration-only reverse sort when those constants exist", function()
+        C_AddOns = {
+            IsAddOnLoaded = function()
+                return true
+            end,
+            LoadAddOn = function()
+                return true
+            end,
+        }
+        AuraContainerSortMethod = { Expiration = "expiration", ExpirationOnly = "expirationOnly" }
+        AuraContainerSortDirection = { Normal = "normal", Reverse = "reverse" }
+        local Aura = Load()
+        assert.is_true(Aura.HasExpirationOnlyReverseSort())
+        local method, direction = Aura.GetExpirationOnlyReverseSort()
+        assert.equals("expirationOnly", method)
+        assert.equals("reverse", direction)
+    end)
+
     it("returns false from EnsureLoaded when C_AddOns is unavailable", function()
         C_AddOns = nil
         assert.is_false(Load().EnsureLoaded())

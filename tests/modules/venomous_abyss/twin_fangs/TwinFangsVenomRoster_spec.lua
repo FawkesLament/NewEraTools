@@ -225,6 +225,47 @@ describe("TwinFangs venom roster", function()
         assert.same(position, loaded:GetVenomRosterPosition())
     end)
 
+    it("maps raid roster slots onto raid unit tokens and subgroup order", function()
+        local Group = ns.Api.Group
+        Group.inRaid = true
+        Group.members = {
+            Member("LateGroup1", 1, 12),
+            Member("Group3", 3, 2),
+            Member("EarlyGroup1", 1, 4),
+        }
+        Group.members[1].unit = nil
+        Group.members[2].unit = nil
+        Group.members[3].unit = nil
+        local members = VenomRoster.CollectLiveMembers()
+        assert.equals("raid12", members[1].unit)
+        assert.equals("raid2", members[2].unit)
+        assert.equals("raid4", members[3].unit)
+        local columns = VenomRoster.Organize(members)
+        assert.same({ "EarlyGroup1", "LateGroup1" }, Names(columns[1]))
+        assert.same({ "Group3" }, Names(columns[2]))
+        assert.equals("raid4", columns[1].members[1].unit)
+        assert.equals("raid12", columns[1].members[2].unit)
+        assert.equals("raid2", columns[2].members[1].unit)
+    end)
+
+    it("uses player and party tokens when not in a raid", function()
+        local Group = ns.Api.Group
+        local Unit = ns.Api.Unit
+        Group.inRaid = false
+        Group.inGroup = true
+        Group.numMembers = 3
+        Unit.SetForTests("player", { exists = true, name = "You", guid = "Player-1" })
+        Unit.SetForTests("party1", { exists = true, name = "Ally", guid = "Player-2" })
+        Unit.SetForTests("party2", { exists = true, name = "Friend", guid = "Player-3" })
+        local members = VenomRoster.CollectLiveMembers()
+        assert.equals(3, #members)
+        assert.equals("player", members[1].unit)
+        assert.equals("party1", members[2].unit)
+        assert.equals("party2", members[3].unit)
+        assert.equals(1, members[1].subgroup)
+        assert.equals(1, members[3].subgroup)
+    end)
+
     it("clamps invalid venom roster saved values without a migration", function()
         local fresh = Loader.Load()
         fresh.Modules.Start(fresh.Database.Load({

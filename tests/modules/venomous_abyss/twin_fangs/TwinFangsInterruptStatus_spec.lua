@@ -110,7 +110,7 @@ describe("TwinFangs interrupt status", function()
     end)
 
     describe("activation", function()
-        it("opens an 11-second window when Brood elapses for a primary assignment", function()
+        it("opens a 14-second window when Brood elapses for a primary assignment", function()
             AssignPrimary(3)
             assert.is_true(Module:HasPrimaryInterruptAssignment())
             StartMythic()

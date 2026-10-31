@@ -121,6 +121,20 @@ function Unit.GetGUID(unit)
     return guid
 end
 
+---Unit name without realm, or nil when missing or secret.
+---@param unit string  A unit token, e.g. "player" or "raid3".
+---@return string|nil
+function Unit.GetName(unit)
+    if not Unit.Exists(unit) then
+        return nil
+    end
+    local name = UnitName(unit)
+    if IsSecret(name) or type(name) ~= "string" or name == "" then
+        return nil
+    end
+    return name
+end
+
 ---@param unit string  A unit token, e.g. "raid3".
 ---@return string|nil  Class file name, e.g. "WARRIOR".
 function Unit.GetClassFile(unit)

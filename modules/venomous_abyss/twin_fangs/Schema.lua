@@ -334,7 +334,7 @@ end
 ---@return TwinFangsVenomRosterSettings
 function Schema.NewVenomRoster()
     return {
-        enabled = true,
+        enabled = false,
         rowSpacing = Schema.VENOM_ROSTER_ROW_SPACING_DEFAULT,
         columnSpacing = Schema.VENOM_ROSTER_COLUMN_SPACING_DEFAULT,
         nameColumnWidth = Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_DEFAULT,

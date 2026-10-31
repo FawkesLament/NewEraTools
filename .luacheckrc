@@ -65,6 +65,7 @@ local GAME_API = {
     "SetOverrideBindingClick",
     "ClearOverrideBindings",
     "hooksecurefunc",
+    "IsInGroup",
     "IsInRaid",
     "LE_PARTY_CATEGORY_HOME",
     "LE_PARTY_CATEGORY_INSTANCE",

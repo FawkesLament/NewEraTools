@@ -1,9 +1,11 @@
 local Loader = require("helpers.loader")
+local Fs = require("helpers.fs")
 
 local UI_PATH = "modules/venomous_abyss/twin_fangs/ui/VenomRoster.lua"
 
 describe("TwinFangs venom roster UI", function()
     local ns, Module, originalCreateFrame, created, registered, editing, onScaleChanged
+    local auraContainers, savedAuraGlobals
 
     local function FakeLabel(parent)
         local label = { parent = parent, text = "", shown = true, points = {} }
@@ -17,6 +19,15 @@ describe("TwinFangs venom roster UI", function()
         end
         function label:GetText()
             return self.text
+        end
+        function label:Show()
+            self.shown = true
+        end
+        function label:Hide()
+            self.shown = false
+        end
+        function label:IsShown()
+            return self.shown
         end
         function label:SetTextColor(r, g, b, a)
             self.color = { r = r, g = g, b = b, a = a }
@@ -37,10 +48,11 @@ describe("TwinFangs venom roster UI", function()
         return label
     end
 
-    local function FakeFrame(parent, name)
+    local function FakeFrame(parent, name, kind)
         local frame = {
             parent = parent,
             name = name,
+            kind = kind,
             shown = true,
             scripts = {},
             width = 0,
@@ -103,17 +115,61 @@ describe("TwinFangs venom roster UI", function()
         function frame:CreateFontString()
             return FakeLabel(self)
         end
+        if kind == "AuraContainer" then
+            auraContainers[#auraContainers + 1] = frame
+            function frame:AddAuraSlot(key, filter, options)
+                self.auraSlot = { key = key, filter = filter, options = options }
+                local button = FakeFrame(self, "AuraButton", "AuraButton")
+                function button:SetApplicationCount(fontString, countOptions)
+                    self.applicationCount = { fontString = fontString, options = countOptions }
+                end
+                self.slotButton = button
+                if options and options.initializeFrame then
+                    options.initializeFrame(button)
+                end
+                return button
+            end
+            function frame:SetUnit(unit)
+                self.unit = unit
+                self.unitSets = (self.unitSets or 0) + 1
+            end
+            function frame:SetEnabled(enabled)
+                self.enabled = enabled == true
+            end
+            function frame:SetAuraSlotEnabled(_, enabled)
+                self.slotEnabled = enabled == true
+            end
+            function frame:CanChangeProtectedState()
+                return true
+            end
+        end
         return frame
     end
 
     before_each(function()
         originalCreateFrame = CreateFrame
         created = {}
+        auraContainers = {}
         registered = {}
         editing = {}
         onScaleChanged = nil
-        CreateFrame = function(_, name, parent)
-            return FakeFrame(parent, name)
+        savedAuraGlobals = {
+            AuraContainerSortMethod = AuraContainerSortMethod,
+            AuraContainerSortDirection = AuraContainerSortDirection,
+            C_AddOns = C_AddOns,
+        }
+        AuraContainerSortMethod = { Expiration = "Expiration", ExpirationOnly = "ExpirationOnly" }
+        AuraContainerSortDirection = { Normal = "Normal", Reverse = "Reverse" }
+        C_AddOns = {
+            IsAddOnLoaded = function()
+                return true
+            end,
+            LoadAddOn = function()
+                return true
+            end,
+        }
+        CreateFrame = function(kind, name, parent)
+            return FakeFrame(parent, name, kind)
         end
         ns = Loader.Load()
         ns.Modules.Start(ns.Database.Load(nil))
@@ -173,6 +229,11 @@ describe("TwinFangs venom roster UI", function()
 
     after_each(function()
         CreateFrame = originalCreateFrame
+        if savedAuraGlobals then
+            AuraContainerSortMethod = savedAuraGlobals.AuraContainerSortMethod
+            AuraContainerSortDirection = savedAuraGlobals.AuraContainerSortDirection
+            C_AddOns = savedAuraGlobals.C_AddOns
+        end
     end)
 
     local function UI()
@@ -409,5 +470,210 @@ describe("TwinFangs venom roster UI", function()
         assert.equals(afterCreate, #created)
         assert.is_false(root.shown)
         assert.is_true(registered[ui.LAYOUT_ID].isEnabled())
+    end)
+
+    local function RaidMember(name, subgroup, index, classFile)
+        return {
+            name = name,
+            subgroup = subgroup,
+            index = index,
+            classFile = classFile or "MAGE",
+            unit = "raid" .. index,
+        }
+    end
+
+    local function SetRaid(members)
+        ns.Api.Group.inRaid = true
+        ns.Api.Group.members = members
+    end
+
+    it("configures one harmful AuraSlot per live row without spell-ID matching", function()
+        local ui = UI()
+        SetRaid({
+            RaidMember("Alpha", 1, 4),
+            RaidMember("Beta", 3, 12),
+        })
+        ui.SetLiveActive(true)
+        local instance = ui.Ensure()
+        local alpha = instance.columns[1].rows[1]
+        local beta = instance.columns[2].rows[1]
+        assert.equals(2, #auraContainers)
+        assert.equals(alpha.stackHost, alpha.container.parent)
+        assert.equals("raid4", alpha.container.unit)
+        assert.equals("raid12", beta.container.unit)
+        local slot = alpha.container.auraSlot
+        assert.equals("venom", slot.key)
+        assert.equals("HARMFUL", slot.filter)
+        assert.equals("HARMFUL", slot.options.filterString)
+        assert.equals(false, slot.options.candidateFilters.isFromPlayerOrPlayerPet)
+        assert.equals(false, slot.options.candidateFilters.isBossOrRoleAura)
+        assert.equals("ExpirationOnly", slot.options.sortMethod)
+        assert.equals("Reverse", slot.options.sortDirection)
+        assert.is_nil(slot.options.maxFrameCount)
+        assert.is_nil(slot.options.includeSpellIDs)
+        assert.is_nil(slot.options.candidateFilters.includeSpellIDs)
+        local count = alpha.auraButton.applicationCount
+        assert.equals(alpha.liveStackText, count.fontString)
+        assert.same({}, count.options)
+        assert.is_false(alpha.stackText.shown)
+        assert.is_true(alpha.liveStackText.shown)
+        assert.equals("", alpha.stackText.text)
+    end)
+
+    it("binds names and aura units to the same subgroup-ordered rows", function()
+        local ui = UI()
+        SetRaid({
+            RaidMember("Late", 1, 12, "WARRIOR"),
+            RaidMember("Mid", 2, 7, "PRIEST"),
+            RaidMember("Early", 1, 4, "MAGE"),
+        })
+        ui.SetLiveActive(true)
+        local instance = ui.Ensure()
+        local group1 = VisibleRows(instance.columns[1])
+        assert.equals("Early", group1[1].nameText.text)
+        assert.equals("raid4", group1[1].container.unit)
+        assert.equals("Late", group1[2].nameText.text)
+        assert.equals("raid12", group1[2].container.unit)
+        assert.equals("Mid", VisibleRows(instance.columns[2])[1].nameText.text)
+        assert.equals("raid7", instance.columns[2].rows[1].container.unit)
+    end)
+
+    it("reuses live frames when the raid shrinks, grows, and changes subgroups", function()
+        local ui = UI()
+        local members = {}
+        for index = 1, 30 do
+            members[index] = RaidMember("P" .. index, math.ceil(index / 5), index)
+        end
+        SetRaid(members)
+        ui.SetLiveActive(true)
+        local instance = ui.Ensure()
+        local afterCreate = #created
+        local firstContainers = {}
+        for slot, column in ipairs(instance.columns) do
+            firstContainers[slot] = {}
+            for rowSlot, row in ipairs(column.rows) do
+                firstContainers[slot][rowSlot] = row.container
+            end
+        end
+        assert.equals(30, #auraContainers)
+
+        SetRaid({ RaidMember("P1", 1, 1) })
+        ui.Update()
+        assert.equals(afterCreate, #created)
+        assert.equals(1, #VisibleColumns(instance))
+        assert(firstContainers[1][1] == instance.columns[1].rows[1].container, "group 1 row 1 container was recreated")
+        assert.equals("raid1", instance.columns[1].rows[1].container.unit)
+        assert.is_false(instance.columns[6].rows[5].frame.shown)
+        assert.is_false(instance.columns[6].rows[5].container.shown)
+
+        SetRaid({
+            RaidMember("Moved", 3, 1),
+            RaidMember("Stay", 1, 4),
+        })
+        ns.Api.Group.FireRosterChanged()
+        assert.equals(afterCreate, #created)
+        assert.equals("Stay", instance.columns[1].rows[1].nameText.text)
+        assert.equals("raid4", instance.columns[1].rows[1].container.unit)
+        assert.equals("Moved", instance.columns[2].rows[1].nameText.text)
+        assert.equals("raid1", instance.columns[2].rows[1].container.unit)
+        assert(firstContainers[1][1] == instance.columns[1].rows[1].container, "group 1 row 1 container was recreated after move")
+        assert(firstContainers[2][1] == instance.columns[2].rows[1].container, "group 2 row 1 container was recreated after move")
+    end)
+
+    it("keeps mock stacks off the native application-count FontString", function()
+        local ui = UI()
+        ui.ShowPreview(5)
+        local instance = ui.Ensure()
+        assert.equals(0, #auraContainers)
+        assert.equals("0", instance.columns[1].rows[1].stackText.text)
+        assert.is_true(instance.columns[1].rows[1].stackText.shown)
+
+        SetRaid({ RaidMember("Live", 1, 2) })
+        ui.SetLiveActive(true)
+        local row = instance.columns[1].rows[1]
+        assert.equals(1, #auraContainers)
+        assert.equals("Live", row.nameText.text)
+        assert.equals("raid2", row.container.unit)
+        assert.equals("", row.stackText.text)
+        assert.is_false(row.stackText.shown)
+        assert.is_true(row.liveStackText.shown)
+        row.liveStackText.text = "native"
+
+        ui.ShowPreview(5)
+        assert.equals(1, #auraContainers)
+        assert.equals("Player1", row.nameText.text)
+        assert.equals("0", row.stackText.text)
+        assert.is_true(row.stackText.shown)
+        assert.is_false(row.liveStackText.shown)
+        assert.equals("native", row.liveStackText.text)
+        assert.is_false(row.container.shown)
+        assert.is_false(row.container.enabled)
+
+        ui.HidePreview()
+        assert.equals("Live", row.nameText.text)
+        assert.equals("raid2", row.container.unit)
+        assert.is_true(row.container.shown)
+        assert.is_false(row.stackText.shown)
+        assert.equals("native", row.liveStackText.text)
+    end)
+
+    it("uses mock Edit Mode data without live raid members", function()
+        local ui = UI()
+        SetRaid({ RaidMember("Live", 1, 1) })
+        ui.SetLiveActive(true)
+        local instance = ui.Ensure()
+        local def = registered[ui.LAYOUT_ID]
+        def.onEditBegin()
+        assert.equals("Player1", instance.columns[1].rows[1].nameText.text)
+        assert.equals("0", instance.columns[1].rows[1].stackText.text)
+        assert.is_true(instance.columns[1].rows[1].stackText.shown)
+        assert.is_false(instance.columns[1].rows[1].liveStackText.shown)
+        assert.is_false(instance.columns[1].rows[1].container.shown)
+        def.onEditEnd()
+        assert.equals("Live", instance.columns[1].rows[1].nameText.text)
+        assert.equals("raid1", instance.columns[1].rows[1].container.unit)
+        assert.is_true(instance.columns[1].rows[1].container.shown)
+    end)
+
+    it("defers AuraContainer creation until combat lockdown ends", function()
+        local ui = UI()
+        ns.Modules.Get("TwinFangs"):OnEnable()
+        SetRaid({ RaidMember("Live", 1, 1) })
+        ns.Api.Combat.inCombat = true
+        ui.SetLiveActive(true)
+        local instance = ui.Ensure()
+        local row = instance.columns[1].rows[1]
+        assert.equals(0, #auraContainers)
+        assert.equals("Live", row.nameText.text)
+        assert.is_true(row.auraPending)
+
+        ns.Api.Combat.FireLeave()
+        assert.equals(1, #auraContainers)
+        assert.equals("raid1", row.container.unit)
+        assert.is_true(row.container.shown)
+        assert.is_nil(row.auraPending)
+    end)
+
+    it("does not read aura application counts from Lua", function()
+        local source = Fs.ReadFile(UI_PATH)
+        assert.is_nil(source:find("applications", 1, true))
+        assert.is_nil(source:find("GetAuraData", 1, true))
+        assert.is_nil(source:find("UNIT_AURA", 1, true))
+        assert.is_nil(source:find("C_UnitAuras", 1, true))
+    end)
+
+    it("exposes /netvenom live without encounter wiring", function()
+        local ui = UI()
+        ns.Modules.Get("TwinFangs"):OnEnable()
+        SetRaid({ RaidMember("Live", 1, 8) })
+        local command = ns.Api.Slash.registered.NEWERATOOLSTWINFANGSVENOM
+        command.handler("live")
+        local instance = ui.Ensure()
+        assert.is_true(ui.IsLiveActive())
+        assert.equals("Live", instance.columns[1].rows[1].nameText.text)
+        assert.equals("raid8", instance.columns[1].rows[1].container.unit)
+        command.handler("hide")
+        assert.is_false(ui.IsLiveActive())
+        assert.is_false(instance.root.shown)
     end)
 end)

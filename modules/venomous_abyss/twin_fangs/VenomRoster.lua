@@ -1,5 +1,7 @@
 local _, ns = ...
 local Internals = ns.Modules.Internals("TwinFangs")
+local Group = ns.Api.Group
+local Unit = ns.Api.Unit
 
 local MAX_GROUPS = 6
 local MAX_GROUP_SIZE = 5
@@ -221,4 +223,58 @@ function VenomRoster.BuildPreviewMembers(spec)
     end
     local counts = spec.counts or spec
     return MembersFromGroupCounts(counts)
+end
+
+---@param unit string
+---@param index number
+---@param subgroup number
+---@return TwinFangsVenomRosterMember|nil
+local function MemberFromUnit(unit, index, subgroup)
+    local name = Unit.GetName(unit)
+    if type(name) ~= "string" or name == "" then
+        return nil
+    end
+    return {
+        name = name,
+        fullName = Unit.GetFullName(name),
+        guid = Unit.GetGUID(unit),
+        index = index,
+        subgroup = subgroup,
+        classFile = Unit.GetClassFile(unit),
+        unit = unit,
+    }
+end
+
+---Live raid, party, or solo roster with unit tokens. Raid members keep subgroup and index
+---from GetRaidRosterInfo; party/solo testing is a single group-1 column.
+---@return TwinFangsVenomRosterMember[]
+function VenomRoster.CollectLiveMembers()
+    if Group.IsInRaid() then
+        local members = Group.GetRaidMembers()
+        for _, member in ipairs(members) do
+            if type(member.unit) ~= "string" or member.unit == "" then
+                member.unit = "raid" .. member.index
+            end
+        end
+        return members
+    end
+    local members = {}
+    local player = MemberFromUnit("player", 1, 1)
+    if player then
+        members[1] = player
+    end
+    if not Group.IsInGroup() then
+        return members
+    end
+    local grouped = Group.GetNumMembers()
+    if type(grouped) ~= "number" or grouped < 2 then
+        return members
+    end
+    for partyIndex = 1, grouped - 1 do
+        local member = MemberFromUnit("party" .. partyIndex, #members + 1, 1)
+        if member then
+            members[#members + 1] = member
+        end
+    end
+    return members
 end
