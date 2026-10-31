@@ -6,7 +6,6 @@ local Assets = ns.Assets
 local Chat = ns.Api.Chat
 local Combat = ns.Api.Combat
 local AddonCheckPanel = ns.AddonCheckPanel
-local ActionRow = ns.ActionRow
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
 local Slider = ns.Slider
@@ -355,15 +354,19 @@ local function BuildMapContent(content)
     })
     mapBody = body
 
-    local toolsRow = body:AddRow(ActionRow.HEIGHT)
-    ActionRow.Apply(toolsRow, {
-        title = L.SSZORAK_TOOLS_PREVIEW,
-        description = L.SSZORAK_TOOLS_PREVIEW_DESC,
-        buttons = {
-            { text = L.SSZORAK_START_TEST, onClick = Window.StartPreview },
-            { text = L.SSZORAK_EDIT_POSITION, onClick = BeginEditPosition, layout = true },
-        },
-    })
+    local headerActions = CreateFrame("Frame", nil, content.header)
+    headerActions:SetHeight(Sizes.CONTROL_HEIGHT)
+    local editLayout = Widgets.CreateLayoutEditButton(headerActions, L.SSZORAK_EDIT_POSITION, BeginEditPosition)
+    local testButton = Widgets.CreateButton(headerActions, L.SSZORAK_START_TEST, Window.StartPreview)
+    editLayout:SetPoint("RIGHT", headerActions, "RIGHT")
+    testButton:SetPoint("RIGHT", editLayout, "LEFT", -Spacing.MEDIUM, 0)
+    headerActions:SetWidth(testButton:GetWidth() + Spacing.MEDIUM + editLayout:GetWidth())
+    function headerActions:SetEnabled(isEnabled)
+        testButton:SetEnabled(isEnabled)
+        editLayout:SetEnabled(isEnabled)
+        self:SetAlpha(1)
+    end
+    content:SetHeaderAction(headerActions)
 
     local roleRow = body:AddRow(ns.RaidRoleModeLabel.HEIGHT)
     roleLabel = ns.RaidRoleModeLabel.Create(roleRow, L.SSZORAK_RAID_ROLE_MODE_TOOLTIP)

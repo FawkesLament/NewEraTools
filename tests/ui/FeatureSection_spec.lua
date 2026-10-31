@@ -138,7 +138,7 @@ describe("FeatureSection", function()
                 Sizes = { CONTROL_ROW_HEIGHT = 32, CONTROL_HEIGHT = 24, BORDER = 1 },
                 Spacing = { SMALL = 4, MEDIUM = 8 },
                 Colors = { DIVIDER = { 1, 1, 1, 1 } },
-                Fonts = { BODY = "Body" },
+                Fonts = { BODY = "Body", SUBTITLE = "Subtitle" },
             },
         }
         assert(loadfile("ui/Layout.lua"))(Loader.ADDON_NAME, ns)

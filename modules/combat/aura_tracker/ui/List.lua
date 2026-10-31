@@ -70,7 +70,7 @@ function UI.SelectFirstTrackerEnabledForCurrentPlayer()
     UI.SelectTracker(trackerId)
 end
 
----The settings page is the scroll child, so the ScrollFrame is a few parents up.
+---The settings body is the scroll child, so the ScrollFrame is a few parents up.
 ---@param frame Frame|nil
 ---@return ScrollFrame|nil
 function UI.PageScrollFrame(frame)

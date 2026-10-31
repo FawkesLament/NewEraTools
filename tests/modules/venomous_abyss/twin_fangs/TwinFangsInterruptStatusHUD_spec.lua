@@ -206,7 +206,6 @@ describe("TwinFangs InterruptStatusHUD", function()
             Ensure = function() end,
             SetScopePreview = function() end,
         }
-        ns.ActionRow = { HEIGHT = 30 }
         ns.CollapsibleSection = {}
         ns.FeatureSection = {}
         ns.ColorSwatch = {}

@@ -2,7 +2,6 @@ local _, ns = ...
 local L = ns.L
 local Assets = ns.Assets
 local Combat = ns.Api.Combat
-local ActionRow = ns.ActionRow
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
 local Util = ns.Util
@@ -76,14 +75,9 @@ local function BuildContent(content)
         spacing = Spacing.SMALL,
     })
 
-    local toolsRow = body:AddRow(ActionRow.HEIGHT)
-    ActionRow.Apply(toolsRow, {
-        title = L.THE_LOST_EXPLORERS_TOOLS_LAYOUT,
-        description = L.THE_LOST_EXPLORERS_TOOLS_LAYOUT_DESC,
-        buttons = {
-            { text = L.THE_LOST_EXPLORERS_EDIT_POSITION, onClick = BeginEditPosition, layout = true },
-        },
-    })
+    local editLayout =
+        Widgets.CreateLayoutEditButton(content.header, L.THE_LOST_EXPLORERS_EDIT_POSITION, BeginEditPosition)
+    content:SetHeaderAction(editLayout)
 
     local orderHeader = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local orderLabel = Widgets.CreateLabel(orderHeader, Fonts.BODY, L.THE_LOST_EXPLORERS_FEED_ORDER)

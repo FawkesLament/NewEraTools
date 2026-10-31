@@ -635,7 +635,6 @@ local function BuildContent(content)
 
     local mark = FeatureSection.Create(body, {
         title = L.INTERRUPT_CLAIM_MARK,
-        titleFont = Fonts.MUTED,
         divider = true,
         enabled = InterruptClaim:IsMarkEnabled(),
         onEnabledChanged = function(enabled)
@@ -668,7 +667,6 @@ local function BuildContent(content)
 
     local announce = FeatureSection.Create(markBody, {
         title = L.INTERRUPT_CLAIM_ANNOUNCE,
-        titleFont = Fonts.MUTED,
         tooltip = L.INTERRUPT_CLAIM_ANNOUNCE_TITLE_HINT,
         divider = true,
         toggle = false,

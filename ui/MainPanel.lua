@@ -141,10 +141,10 @@ local function SetNavSelected(button, isSelected)
 end
 
 local function CreateSection(frame, def)
-    local section = CreateFrame("Frame", nil, frame.content)
+    -- Title row lives on the page host, not the scroll child, so it stays put while the body moves.
+    local section = CreateFrame("Frame", nil, frame.pageHost)
     section:SetPoint("TOPLEFT")
     section:SetPoint("TOPRIGHT")
-    -- Header-only pages never run `build`; a 0-tall parent inside the scroll frame culls the header.
     section:SetHeight(PAGE_HEADER_HEIGHT)
     section:Hide()
 
@@ -178,28 +178,69 @@ local function CreateSection(frame, def)
     divider:SetPoint("BOTTOMRIGHT")
     divider:SetColorTexture(Widgets.UnpackColor(Colors.DIVIDER))
 
-    local body = CreateFrame("Frame", nil, section)
-    body:SetPoint("TOPLEFT", header, "BOTTOMLEFT")
-    body:SetPoint("TOPRIGHT", header, "BOTTOMRIGHT")
+    local body = CreateFrame("Frame", nil, frame.content)
+    body:SetPoint("TOPLEFT")
+    body:SetPoint("TOPRIGHT")
     body:SetHeight(1)
+    body:Hide()
     section.body = body
     section.bodyHeight = 0
-    section.headerHeight = PAGE_HEADER_HEIGHT
     -- Callers may add a compact readout on this row. The title stays left; a toggle, if any, stays right.
     body.header = header
     body.titleLabel = title
 
-    if def.onEnabledChanged then
-        local enabled = def.enabled ~= false
+    local toggle
+    local headerAction
+    local enabled = def.enabled ~= false
 
-        local function ApplyContentInteractive()
-            body:SetAlpha(enabled and 1 or PAGE_DISABLED_ALPHA)
-            FeatureSection.SetSubtreeInteractive(body, enabled)
+    local function SetHeaderActionEnabled(isEnabled)
+        if not headerAction then
+            return
         end
+        if headerAction.SetEnabled then
+            headerAction:SetEnabled(isEnabled)
+        elseif isEnabled then
+            headerAction:Enable()
+        else
+            headerAction:Disable()
+        end
+    end
 
+    local function ApplyContentInteractive()
+        if not def.onEnabledChanged then
+            return
+        end
+        body:SetAlpha(enabled and 1 or PAGE_DISABLED_ALPHA)
+        FeatureSection.SetSubtreeInteractive(body, enabled)
+        SetHeaderActionEnabled(enabled)
+    end
+
+    ---Places `frame` immediately left of the On/Off toggle, or at the header's right when there is no toggle.
+    ---One action at a time; a later call replaces the anchor. Disabled with the page body; the toggle stays available.
+    ---@param frame Frame
+    function body:SetHeaderAction(frame)
+        assert(
+            type(frame) == "table" and type(frame.SetPoint) == "function",
+            "MainPanel header action must be a frame"
+        )
+        frame:SetParent(header)
+        frame:ClearAllPoints()
+        if toggle then
+            frame:SetPoint("RIGHT", toggle, "LEFT", -Spacing.MEDIUM, 0)
+        else
+            frame:SetPoint("RIGHT", header, "TOPRIGHT", 0, titleBandCenterY)
+        end
+        headerAction = frame
+        if def.onEnabledChanged then
+            ApplyContentInteractive()
+        else
+            SetHeaderActionEnabled(true)
+        end
+    end
+
+    if def.onEnabledChanged then
         -- Declare before CreateSegmentedControl so the click closure captures the local
         -- (Lua 5.1: a local is not in scope on the RHS of its own declaration).
-        local toggle
         toggle = Widgets.CreateSegmentedControl(header, {
             { value = true, text = L.FEATURE_ON },
             { value = false, text = L.FEATURE_OFF },
@@ -237,7 +278,7 @@ local function SyncActivePageHeight(frame)
     local section = frame.activeSection
     local height = 1
     if section then
-        height = math.max(section.headerHeight + section.bodyHeight, 1)
+        height = math.max(section.bodyHeight, 1)
     end
     frame.content:SetHeight(height)
     local scrollFrame = frame.scrollFrame
@@ -256,7 +297,6 @@ end
 local function SetSectionBodyHeight(frame, section, height)
     section.bodyHeight = math.max(height, 0)
     section.body:SetHeight(math.max(height, 1))
-    section:SetHeight(math.max(section.headerHeight + section.bodyHeight, 1))
     if section == frame.activeSection then
         SyncActivePageHeight(frame)
     end
@@ -331,7 +371,11 @@ local function AddSection(frame, def)
     section.built = false
     -- Fires on selection, on opening the panel, and on expanding it from collapsed.
     section:HookScript("OnShow", function()
+        section.body:Show()
         EnsureSectionBuilt(frame, section)
+    end)
+    section:HookScript("OnHide", function()
+        section.body:Hide()
     end)
     table.insert(frame.sections, sections + 1, section)
 
@@ -492,15 +536,28 @@ local function CreateBody(frame, header)
     sidebarDivider:SetPoint("TOPLEFT", sidebar, "TOPRIGHT")
     sidebarDivider:SetPoint("BOTTOMLEFT", sidebar, "BOTTOMRIGHT")
 
-    local scrollFrame = CreateFrame("ScrollFrame", nil, body)
-    scrollFrame:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", Spacing.XLARGE, -Spacing.LARGE)
-    scrollFrame:SetPoint(
+    local pageHost = CreateFrame("Frame", nil, body)
+    pageHost:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", Spacing.XLARGE, -Spacing.LARGE)
+    pageHost:SetPoint(
         "BOTTOMRIGHT",
         body,
         "BOTTOMRIGHT",
         -(Spacing.XLARGE + Sizes.SCROLL_BAR_WIDTH + Spacing.SMALL),
         Spacing.LARGE
     )
+
+    local scrollFrame = CreateFrame("ScrollFrame", nil, pageHost)
+    scrollFrame:SetPoint("TOPLEFT", 0, -PAGE_HEADER_HEIGHT)
+    scrollFrame:SetPoint("BOTTOMRIGHT")
+
+    -- Wheel over the frozen title row still moves the page, same as hovering the body.
+    pageHost:EnableMouseWheel(true)
+    pageHost:SetScript("OnMouseWheel", function(_, delta)
+        local onMouseWheel = scrollFrame:GetScript("OnMouseWheel")
+        if onMouseWheel then
+            onMouseWheel(scrollFrame, delta)
+        end
+    end)
 
     local scrollBar = CreateFrame("EventFrame", nil, body, Assets.Templates.SCROLL_BAR)
     scrollBar:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", Spacing.MEDIUM, 0)
@@ -512,7 +569,7 @@ local function CreateBody(frame, header)
     content:SetSize(1, 1)
     scrollFrame:SetScrollChild(content)
 
-    return body, sidebar, scrollFrame, content
+    return body, sidebar, scrollFrame, content, pageHost
 end
 
 local function CreatePanel()
@@ -527,11 +584,12 @@ local function CreatePanel()
     frame:Hide()
 
     local header = CreateHeader(frame)
-    local body, sidebar, scrollFrame, content = CreateBody(frame, header)
+    local body, sidebar, scrollFrame, content, pageHost = CreateBody(frame, header)
     frame.sidebar = sidebar
     frame.navStack = Layout.Stack(sidebar, { paddingY = Spacing.MEDIUM })
     frame.scrollFrame = scrollFrame
     frame.content = content
+    frame.pageHost = pageHost
 
     scrollFrame:HookScript("OnSizeChanged", function(self, width)
         content:SetWidth(width)
@@ -567,8 +625,10 @@ end
 ---Adds a feature settings page to the panel. `def.build` runs the first time the page is visible,
 ---so modules must not depend on its widgets existing before then. The container passed to it also has
 ---`container:SetContentHeight(height)` for when its content height changes later.
----`container.header` is the title row and `container.titleLabel` is the title on its left.
----An On/Off toggle, when present, occupies the header's right side.
+---`container.header` is the frozen title row above the scrollable body; `container.titleLabel` is
+---the title on its left. An On/Off toggle, when present, occupies the header's right side.
+---`container:SetHeaderAction(frame)` places one compact control left of that toggle, or at the
+---header's right when there is no toggle.
 ---When `onEnabledChanged` is set, the page header shows an On/Off toggle and the container also has
 ---`container:RefreshContentInteractive()` to re-apply enable/disable after rebuilding controls.
 ---@param def PanelSectionDef

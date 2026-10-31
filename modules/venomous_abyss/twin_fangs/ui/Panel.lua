@@ -2,7 +2,6 @@ local _, ns = ...
 local Internals = ns.Modules.Internals("TwinFangs")
 local L = ns.L
 local Assets = ns.Assets
-local ActionRow = ns.ActionRow
 local CollapsibleSection = ns.CollapsibleSection
 local FeatureSection = ns.FeatureSection
 local Layout = ns.Layout
@@ -75,14 +74,8 @@ local function BuildContent(content)
         spacing = Spacing.SMALL,
     })
 
-    local toolsRow = body:AddRow(ActionRow.HEIGHT)
-    ActionRow.Apply(toolsRow, {
-        title = L.TWIN_FANGS_TOOLS_LAYOUT,
-        description = L.TWIN_FANGS_TOOLS_LAYOUT_DESC,
-        buttons = {
-            { text = L.TWIN_FANGS_EDIT_POSITION, onClick = BeginEditPosition, layout = true },
-        },
-    })
+    local editLayout = Widgets.CreateLayoutEditButton(content.header, L.TWIN_FANGS_EDIT_POSITION, BeginEditPosition)
+    content:SetHeaderAction(editLayout)
 
     addonCheckRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     addonCheckButton = Widgets.CreateButton(addonCheckRow, L.ADDONCHECK_BUTTON, function()
@@ -113,7 +106,6 @@ local function BuildContent(content)
 
     local soak = FeatureSection.Create(body, {
         title = L.TWIN_FANGS_SOAK_REMINDER,
-        titleFont = Fonts.MUTED,
         divider = true,
         enabled = TwinFangs:IsSoakReminderEnabled(),
         onEnabledChanged = function(enabled)
@@ -167,7 +159,6 @@ local function BuildContent(content)
 
     local interrupt = FeatureSection.Create(body, {
         title = L.TWIN_FANGS_INTERRUPT_REMINDER,
-        titleFont = Fonts.MUTED,
         divider = true,
         enabled = TwinFangs:IsInterruptReminderEnabled(),
         onEnabledChanged = function(enabled)
@@ -304,7 +295,6 @@ local function BuildContent(content)
 
     local hint = FeatureSection.Create(body, {
         title = L.TWIN_FANGS_NAMEPLATE_HINT,
-        titleFont = Fonts.MUTED,
         tooltip = L.TWIN_FANGS_NAMEPLATE_HINT_TOOLTIP,
         divider = true,
         enabled = TwinFangs:IsNameplateHintEnabled(),
@@ -548,7 +538,6 @@ local function BuildContent(content)
 
     local venom = FeatureSection.Create(body, {
         title = L.TWIN_FANGS_VENOM_STACKS,
-        titleFont = Fonts.MUTED,
         divider = true,
         enabled = TwinFangs:IsVenomRosterEnabled(),
         onEnabledChanged = function(enabled)

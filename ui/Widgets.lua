@@ -123,14 +123,14 @@ function Widgets.CreateLabel(parent, font, text)
     return label
 end
 
----Lays out a muted subsection title with a bottom divider inside an existing row.
+---Lays out a subsection title with a bottom divider inside an existing row.
 ---Use with `stack:AddRow(Sizes.CONTENT_SECTION_HEADER)`.
 ---@param row Frame
 ---@param title string
 ---@return FontString
 function Widgets.LayoutSectionHeader(row, title)
     Widgets.EnsureFonts()
-    local label = Widgets.CreateLabel(row, Fonts.HEADER, title)
+    local label = Widgets.CreateLabel(row, Fonts.SUBTITLE, title)
     label:SetJustifyH("LEFT")
     label:SetPoint("LEFT", row, "LEFT")
     local divider = row:CreateTexture(nil, "ARTWORK")

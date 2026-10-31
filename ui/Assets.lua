@@ -61,6 +61,8 @@ Assets.Colors = {
     BG = { r = 0.071, g = 0.075, b = 0.090, a = 0.95 },
     -- For windows left open over the game world, which should stay visible through them.
     BG_TRANSLUCENT = { r = 0.071, g = 0.075, b = 0.090, a = 0.6 },
+    -- No fill; for HUD overlays that should only show their own content.
+    TRANSPARENT = { r = 0, g = 0, b = 0, a = 0 },
     -- Slightly more see-through than BG_TRANSLUCENT; for warning overlays.
     BG_WARNING = { r = 0.071, g = 0.075, b = 0.090, a = 0.8 },
     SURFACE = { r = 0.102, g = 0.110, b = 0.133, a = 1 },
@@ -125,6 +127,7 @@ Assets.Fonts = {
     HEADER = FONT_PREFIX .. "Header",
     NAV_GROUP = FONT_PREFIX .. "NavGroup",
     BODY = FONT_PREFIX .. "Body",
+    SUBTITLE = FONT_PREFIX .. "Subtitle",
     -- Larger body face for copyable generated text (e.g. interrupt macros).
     PAYLOAD = FONT_PREFIX .. "Payload",
     -- Slightly larger with an outline; for short emphasized spans (e.g. marker names).
@@ -159,6 +162,7 @@ Assets.FontStyles = {
     [Assets.Fonts.HEADER] = { size = 13, color = Assets.Colors.TEXT_MUTED },
     [Assets.Fonts.NAV_GROUP] = { size = 12, color = Assets.Colors.ACCENT },
     [Assets.Fonts.BODY] = { size = 12, color = Assets.Colors.TEXT },
+    [Assets.Fonts.SUBTITLE] = { size = 13, color = Assets.Colors.TEXT_MUTED },
     [Assets.Fonts.EMPHASIS] = { size = 14, color = Assets.Colors.TEXT, flags = "OUTLINE" },
     [Assets.Fonts.DISPLAY] = { size = 32, color = Assets.Colors.TEXT_GOLD, flags = "OUTLINE" },
     -- Amber + thick outline, ARHei for CJK raid-warning style callouts.

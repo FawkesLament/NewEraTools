@@ -77,11 +77,8 @@ function UI.SyncEditorHeaderPosition()
         header:Hide()
         return
     end
-    local section = container:GetParent()
-    local pageHeaderHeight = (section and section.headerHeight) or 0
-    local layoutOffset = pageHeaderHeight
-        + UI.contentBody:GetOffset(UI.editorHost)
-        + UI.editorStack:GetOffset(placeholder)
+    -- Page title sits outside the scroll viewport, so pin against the editor stack only.
+    local layoutOffset = UI.contentBody:GetOffset(UI.editorHost) + UI.editorStack:GetOffset(placeholder)
     local y = scroll:GetVerticalScroll() - layoutOffset
     local pinned = y >= 0
     if pinned then

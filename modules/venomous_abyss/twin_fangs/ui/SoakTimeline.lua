@@ -267,8 +267,8 @@ end
 local function CreateWindow()
     local frame = Widgets.CreateSurface(
         UIParent,
-        Colors.BG_TRANSLUCENT,
-        Colors.BORDER_SUBTLE,
+        Colors.TRANSPARENT,
+        nil,
         ns.ADDON_NAME .. "TwinFangsSoakTimeline"
     )
     frame:SetFrameStrata("MEDIUM")
