@@ -352,7 +352,7 @@ describe("TwinFangs interrupt chain sync", function()
         assert.same(before[Chain.FRONT_LEFT].players, module.db.interruptReminder.chain.front_left.players)
     end)
 
-    it("encodes all six communication channels on the four regions", function()
+    it("encodes every communication channel on the four regions", function()
         local Schema = ns.Modules.Internals("TwinFangs").Schema
         local state = Chain.NewState()
         FillExample(state)
@@ -366,11 +366,11 @@ describe("TwinFangs interrupt chain sync", function()
             state.regions[regionId].channel = channel
         end
         assert.equals("1|1:15324:52:s|2:31425::y|3:12345:61:e|4:25134::n", Chain.EncodePublication(state))
-        state.regions[Chain.FRONT_LEFT].channel = Schema.CHANNEL_PARTY
+        state.regions[Chain.FRONT_LEFT].channel = Schema.CHANNEL_RAID
         state.regions[Chain.FRONT_RIGHT].channel = Schema.CHANNEL_MARKER
         state.regions[Chain.BACK_LEFT].channel = Schema.CHANNEL_PARTY
         state.regions[Chain.BACK_RIGHT].channel = Schema.CHANNEL_PARTY
-        assert.equals("1|1:15324:52:p|2:31425::m|3:12345:61:p|4:25134::p", Chain.EncodePublication(state))
+        assert.equals("1|1:15324:52:r|2:31425::m|3:12345:61:p|4:25134::p", Chain.EncodePublication(state))
     end)
 
     it("does not send conflicting exclusive channels", function()

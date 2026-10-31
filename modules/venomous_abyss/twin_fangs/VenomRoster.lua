@@ -1,10 +1,16 @@
 local _, ns = ...
 local Internals = ns.Modules.Internals("TwinFangs")
 local Group = ns.Api.Group
+local Instance = ns.Api.Instance
 local Unit = ns.Api.Unit
 
 local MAX_GROUPS = 6
 local MAX_GROUP_SIZE = 5
+local PIT_INSTANCE_ID = 3004
+local PIT_SUBZONES = {
+    ["Pit of Fangs"] = true,
+    ["毒牙深渊"] = true,
+}
 
 local PREVIEW_CLASSES = {
     "WARRIOR",
@@ -38,6 +44,7 @@ local PREVIEW_CLASSES = {
 local VenomRoster = {
     MAX_GROUPS = MAX_GROUPS,
     MAX_GROUP_SIZE = MAX_GROUP_SIZE,
+    INSTANCE_ID = PIT_INSTANCE_ID,
 }
 Internals.VenomRoster = VenomRoster
 
@@ -243,6 +250,12 @@ local function MemberFromUnit(unit, index, subgroup)
         classFile = Unit.GetClassFile(unit),
         unit = unit,
     }
+end
+
+---Whether the player is in Twin Fangs' Pit of Fangs room in The Venomous Abyss.
+---@return boolean
+function VenomRoster.IsInPitOfFangs()
+    return Instance.GetInfo().instanceID == PIT_INSTANCE_ID and PIT_SUBZONES[Instance.GetSubZoneText()] == true
 end
 
 ---Live raid, party, or solo roster with unit tokens. Raid members keep subgroup and index

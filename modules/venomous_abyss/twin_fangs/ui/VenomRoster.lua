@@ -5,6 +5,7 @@ local Assets = ns.Assets
 local Widgets = ns.Widgets
 local Aura = ns.Api.Aura
 local Combat = ns.Api.Combat
+local Instance = ns.Api.Instance
 local Unit = ns.Api.Unit
 
 local Colors = Assets.Colors
@@ -52,11 +53,13 @@ Internals.VenomRosterUI = VenomRosterUI
 
 ---@type TwinFangsVenomRosterInstance|nil
 local instance
+---@type LazyEncounterUI
+local helper
 local layoutRegistered = false
 local layoutEditing = false
 local slashPreviewing = false
-local liveActive = false
 local rosterListening = false
+local zoneListening = false
 local scaleListening = false
 
 ---@return number
@@ -303,6 +306,10 @@ local function EnsureLiveStackText(row)
     return liveStackText
 end
 
+-- CreateFrame/AddAuraSlot are combat-protected. SetUnit on an existing container is allowed
+-- in combat. Pending creates flush on combat leave. PlaceRow still ClearAllPoints/SetPoint on
+-- ordinary row frames; if lockdown ever blocks that, names stay on the previous layout until
+-- the next out-of-combat roster refresh. No speculative in-combat reanchor is attempted.
 ---@param row TwinFangsVenomRosterRow
 ---@return Frame|nil
 local function EnsureAuraContainer(row)
@@ -402,27 +409,40 @@ local function ShowLiveStack(row)
 end
 
 ---@param row TwinFangsVenomRosterRow
-local function DisableAuraContainer(row)
+---@param clearBinding boolean|nil
+local function DisableAuraContainer(row, clearBinding)
     local container = row.container
-    if not container then
-        return
+    if container then
+        pcall(function()
+            if container.SetAuraSlotEnabled then
+                container:SetAuraSlotEnabled(SLOT_KEY, false)
+            end
+            if container.SetEnabled then
+                container:SetEnabled(false)
+            end
+            container:Hide()
+        end)
     end
-    pcall(function()
-        if container.SetAuraSlotEnabled then
-            container:SetAuraSlotEnabled(SLOT_KEY, false)
-        end
-        if container.SetEnabled then
-            container:SetEnabled(false)
-        end
-        container:Hide()
-    end)
-    row.boundUnit = nil
+    if clearBinding ~= false then
+        row.boundUnit = nil
+    end
     HideLiveStack(row)
+end
+
+---@param rosterInstance TwinFangsVenomRosterInstance
+local function DisableAllAuras(rosterInstance)
+    for _, column in ipairs(rosterInstance.columns) do
+        for _, row in ipairs(column.rows) do
+            DisableAuraContainer(row, false)
+        end
+    end
+    rosterInstance.liveDisplay = false
 end
 
 ---@param row TwinFangsVenomRosterRow
 ---@param unit string
-local function BindAuraUnit(row, unit)
+---@param enable boolean|nil
+local function BindAuraUnit(row, unit, enable)
     local container = EnsureAuraContainer(row)
     if not container then
         row.stackText:SetText("")
@@ -434,6 +454,10 @@ local function BindAuraUnit(row, unit)
             container:SetUnit(unit)
         end)
         row.boundUnit = unit
+    end
+    if enable == false then
+        DisableAuraContainer(row, false)
+        return
     end
     if not CanConfigureAura(container) then
         ShowLiveStack(row)
@@ -494,7 +518,8 @@ end
 ---@param member TwinFangsVenomRosterMember|nil
 ---@param stack number|nil
 ---@param live boolean|nil
-local function BindRow(row, member, stack, live)
+---@param enableAuras boolean|nil
+local function BindRow(row, member, stack, live, enableAuras)
     row.member = member
     if not member then
         row.nameText:SetText("")
@@ -508,14 +533,14 @@ local function BindRow(row, member, stack, live)
     if live then
         local unit = member.unit
         if type(unit) == "string" and unit ~= "" then
-            BindAuraUnit(row, unit)
+            BindAuraUnit(row, unit, enableAuras)
         else
             DisableAuraContainer(row)
             row.stackText:SetText("")
         end
         return
     end
-    DisableAuraContainer(row)
+    DisableAuraContainer(row, false)
     if stack ~= nil then
         row.stackText:SetText(tostring(stack))
     else
@@ -536,10 +561,12 @@ end
 ---@param columns TwinFangsVenomRosterColumn[]
 ---@param stacks table<number, number>|nil
 ---@param live boolean|nil
-local function ApplyLayout(rosterInstance, columns, stacks, live)
+---@param enableAuras boolean|nil
+local function ApplyLayout(rosterInstance, columns, stacks, live, enableAuras)
     rosterInstance.boundColumns = columns
     rosterInstance.boundStacks = stacks
     rosterInstance.liveDisplay = live == true
+    local aurasOn = live == true and enableAuras ~= false
     local rowHeight = TwinFangs:GetVenomRosterRowSpacing()
     local columnGap = TwinFangs:GetVenomRosterColumnSpacing()
     local nameWidth = NameColumnWidth()
@@ -560,7 +587,7 @@ local function ApplyLayout(rosterInstance, columns, stacks, live)
             PlaceRow(column, rowSlot, rowHeight, nameWidth)
             row.frame:Show()
             local stack = stacks and stacks[member.index] or nil
-            BindRow(row, member, stack, live)
+            BindRow(row, member, stack, live, aurasOn)
         end
         for rowSlot = #data.members + 1, #column.rows do
             local row = column.rows[rowSlot]
@@ -615,18 +642,26 @@ local function ApplyPreview(spec)
     ApplyLayout(rosterInstance, VenomRoster.Organize(members), VenomRoster.PreviewStacksByIndex(members), false)
 end
 
-local function ApplyLiveRoster()
+---@param enableAuras boolean|nil
+local function ApplyLiveRoster(enableAuras)
     local rosterInstance = VenomRosterUI.Ensure()
     local members = VenomRoster.CollectLiveMembers()
     local columns = VenomRoster.Organize(members)
-    ApplyLayout(rosterInstance, columns, nil, true)
+    ApplyLayout(rosterInstance, columns, nil, true, enableAuras ~= false)
 end
 
 local function FlushPendingAuras()
-    if not instance or not instance.liveDisplay then
+    if layoutEditing or slashPreviewing then
         return
     end
-    ApplyLiveRoster()
+    if helper:IsActive() then
+        ApplyLiveRoster(true)
+        return
+    end
+    if instance and TwinFangs:IsVenomRosterEnabled() and VenomRoster.IsInPitOfFangs() then
+        ApplyLiveRoster(false)
+        HideRoot()
+    end
 end
 
 local function ListenForLiveRoster()
@@ -635,7 +670,7 @@ local function ListenForLiveRoster()
     end
     rosterListening = true
     ns.Api.Group.OnRosterChanged(function()
-        if liveActive and not layoutEditing and not slashPreviewing then
+        if helper:IsActive() and not layoutEditing and not slashPreviewing then
             VenomRosterUI.Update()
         end
     end)
@@ -689,13 +724,19 @@ local function CreateInstance()
     return instance
 end
 
-local helper = ns.LazyEncounterUI.Create({
+helper = ns.LazyEncounterUI.Create({
     create = CreateInstance,
     activate = function(rosterInstance)
+        ListenForLiveRoster()
+        if layoutEditing then
+            return
+        end
+        ApplyLiveRoster(true)
         rosterInstance.root:Show()
         rosterInstance.root:Raise()
     end,
     deactivate = function(rosterInstance)
+        DisableAllAuras(rosterInstance)
         rosterInstance.root:Hide()
     end,
 })
@@ -711,7 +752,7 @@ function VenomRosterUI.RefreshAppearance()
         return
     end
     if instance.boundColumns then
-        ApplyLayout(instance, instance.boundColumns, instance.boundStacks, instance.liveDisplay)
+        ApplyLayout(instance, instance.boundColumns, instance.boundStacks, instance.liveDisplay, helper:IsActive())
         return
     end
     ApplyScale(instance.root)
@@ -737,8 +778,8 @@ function VenomRosterUI.Update()
             ShowRoot()
             return
         end
-        if liveActive then
-            ApplyLiveRoster()
+        if helper:IsActive() then
+            ApplyLiveRoster(true)
             ShowRoot()
             return
         end
@@ -757,23 +798,49 @@ function VenomRosterUI.Apply(members, stacks)
     ApplyLayout(rosterInstance, VenomRoster.Organize(members), stacks, false)
 end
 
----Enables or disables live AuraContainer binding. Encounter lifecycle will call this;
----it is not tied to instance 3004 or encounter 3421 yet.
+---Creates AuraContainers in Pit of Fangs when the feature is on. No-op after the first success.
+function VenomRosterUI.PrepareIfNeeded()
+    if helper:IsPrepared() then
+        return
+    end
+    if not TwinFangs:IsVenomRosterEnabled() then
+        return
+    end
+    if not VenomRoster.IsInPitOfFangs() then
+        return
+    end
+    helper:Prepare()
+    if not helper:IsActive() then
+        ApplyLiveRoster(false)
+        HideRoot()
+    end
+end
+
+---Enables or disables live AuraContainer binding. Encounter lifecycle and `/netvenom live` call this.
 ---@param active boolean
 function VenomRosterUI.SetLiveActive(active)
     ListenForLiveRoster()
-    liveActive = active == true
-    if liveActive then
+    if active then
+        if not TwinFangs:IsVenomRosterEnabled() then
+            return
+        end
         slashPreviewing = false
-    elseif not layoutEditing and not slashPreviewing then
-        ClearBoundRoster()
+        helper:SetActive(true)
+    else
+        slashPreviewing = false
+        helper:SetActive(false)
     end
     VenomRosterUI.Update()
 end
 
 ---@return boolean
 function VenomRosterUI.IsLiveActive()
-    return liveActive == true
+    return helper:IsActive()
+end
+
+---@return boolean
+function VenomRosterUI.IsPrepared()
+    return helper:IsPrepared()
 end
 
 ---Development-only preview. Isolated from live combat; Edit Mode reuses the same mock builders.
@@ -787,7 +854,7 @@ end
 
 function VenomRosterUI.HidePreview()
     slashPreviewing = false
-    if not layoutEditing and not liveActive then
+    if not layoutEditing and not helper:IsActive() then
         ClearBoundRoster()
     end
     VenomRosterUI.Update()
@@ -796,14 +863,33 @@ end
 function TwinFangs:OnVenomRosterEnabledChanged()
     if not TwinFangs:IsVenomRosterEnabled() then
         slashPreviewing = false
+        if helper:IsActive() then
+            VenomRosterUI.SetLiveActive(false)
+        elseif instance and not layoutEditing then
+            DisableAllAuras(instance)
+            HideRoot()
+        end
         if not layoutEditing then
             ClearBoundRoster()
+        end
+    else
+        VenomRosterUI.PrepareIfNeeded()
+        if TwinFangs:IsInEncounter() then
+            VenomRosterUI.SetLiveActive(true)
         end
     end
     if ns.LayoutEditor.IsEditing() then
         ns.LayoutEditor.Refresh()
     end
     VenomRosterUI.Update()
+end
+
+function TwinFangs:PrepareVenomRoster()
+    VenomRosterUI.PrepareIfNeeded()
+end
+
+function TwinFangs:SetVenomRosterEncounterActive(active)
+    VenomRosterUI.SetLiveActive(active)
 end
 
 function TwinFangs:OnVenomRosterAppearanceChanged()
@@ -824,13 +910,27 @@ function TwinFangs:PreviewVenomRoster(spec)
     VenomRosterUI.ShowPreview(spec)
 end
 
+local function ListenForPitOfFangs()
+    if zoneListening then
+        return
+    end
+    zoneListening = true
+    local function EvaluatePrewarm()
+        VenomRosterUI.PrepareIfNeeded()
+    end
+    Instance.OnEnteringWorld(EvaluatePrewarm)
+    Instance.OnZoneChangedIndoors(EvaluatePrewarm)
+    Instance.OnZoneChangedNewArea(EvaluatePrewarm)
+end
+
 local previousEnable = TwinFangs.OnEnable
 function TwinFangs:OnEnable()
     if previousEnable then
         previousEnable(self)
     end
     ListenForLiveRoster()
-    VenomRosterUI.Ensure()
+    ListenForPitOfFangs()
+    VenomRosterUI.PrepareIfNeeded()
     VenomRosterUI.Update()
     ns.Api.Slash.Register("NEWERATOOLSTWINFANGSVENOM", { "/netvenom" }, function(input)
         input = type(input) == "string" and input:match("^%s*(.-)%s*$") or ""

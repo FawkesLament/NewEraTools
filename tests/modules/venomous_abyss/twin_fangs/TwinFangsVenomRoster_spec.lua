@@ -181,8 +181,8 @@ describe("TwinFangs venom roster", function()
         assert.equals(2, #custom[2].members)
     end)
 
-    it("defaults the venom roster on and restores appearance from SavedVariables", function()
-        assert.is_true(Module:IsVenomRosterEnabled())
+    it("defaults the venom roster off and restores appearance from SavedVariables", function()
+        assert.is_false(Module:IsVenomRosterEnabled())
         assert.equals(20, Module:GetVenomRosterRowSpacing())
         assert.equals(12, Module:GetVenomRosterColumnSpacing())
         assert.equals(12, Module:GetVenomRosterNameFontSize())
@@ -190,7 +190,7 @@ describe("TwinFangs venom roster", function()
         assert.equals(120, Module:GetVenomRosterNameColumnWidth())
         assert.same(Schema.DefaultVenomRosterPosition(), Module:GetVenomRosterPosition())
 
-        Module:SetVenomRosterEnabled(false)
+        Module:SetVenomRosterEnabled(true)
         Module:SetVenomRosterRowSpacing(24)
         Module:SetVenomRosterColumnSpacing(8)
         Module:SetVenomRosterNameColumnWidth(80)
@@ -204,7 +204,7 @@ describe("TwinFangs venom roster", function()
             modules = {
                 TwinFangs = {
                     venomRoster = {
-                        enabled = false,
+                        enabled = true,
                         rowSpacing = 24,
                         columnSpacing = 8,
                         nameColumnWidth = 80,
@@ -216,13 +216,27 @@ describe("TwinFangs venom roster", function()
             },
         }))
         local loaded = reloaded.Modules.Get("TwinFangs")
-        assert.is_false(loaded:IsVenomRosterEnabled())
+        assert.is_true(loaded:IsVenomRosterEnabled())
         assert.equals(24, loaded:GetVenomRosterRowSpacing())
         assert.equals(8, loaded:GetVenomRosterColumnSpacing())
         assert.equals(80, loaded:GetVenomRosterNameColumnWidth())
         assert.equals(14, loaded:GetVenomRosterNameFontSize())
         assert.equals(18, loaded:GetVenomRosterStackFontSize())
         assert.same(position, loaded:GetVenomRosterPosition())
+    end)
+
+    it("detects Pit of Fangs in instance 3004 for either locale name", function()
+        local Instance = ns.Api.Instance
+        Instance.info.instanceID = 3004
+        Instance.subZoneText = "Pit of Fangs"
+        assert.is_true(VenomRoster.IsInPitOfFangs())
+        Instance.subZoneText = "毒牙深渊"
+        assert.is_true(VenomRoster.IsInPitOfFangs())
+        Instance.subZoneText = "Altar of the Six Winds"
+        assert.is_false(VenomRoster.IsInPitOfFangs())
+        Instance.subZoneText = "Pit of Fangs"
+        Instance.info.instanceID = 0
+        assert.is_false(VenomRoster.IsInPitOfFangs())
     end)
 
     it("maps raid roster slots onto raid unit tokens and subgroup order", function()
@@ -284,7 +298,7 @@ describe("TwinFangs venom roster", function()
         }))
         local loaded = fresh.Modules.Get("TwinFangs")
         local loadedSchema = fresh.Modules.Internals("TwinFangs").Schema
-        assert.is_true(loaded:IsVenomRosterEnabled())
+        assert.is_false(loaded:IsVenomRosterEnabled())
         assert.is_nil(loaded.db.venomRoster.scale)
         assert.equals(loadedSchema.VENOM_ROSTER_ROW_SPACING_MIN, loaded:GetVenomRosterRowSpacing())
         assert.equals(loadedSchema.VENOM_ROSTER_COLUMN_SPACING_MAX, loaded:GetVenomRosterColumnSpacing())

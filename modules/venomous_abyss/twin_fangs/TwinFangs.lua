@@ -655,6 +655,12 @@ function TwinFangs:SetInterruptStatusTestMode() end
 ---Whether the interrupt-status HUD is in panel test mode. Defined by InterruptStatus.lua.
 function TwinFangs:IsInterruptStatusTestMode() end
 
+---Prewarms Venom Roster frames in Pit of Fangs when the feature is on. Defined by the roster UI.
+function TwinFangs:PrepareVenomRoster() end
+
+---Activates or deactivates live Venom Roster monitoring. Defined by the roster UI.
+function TwinFangs:SetVenomRosterEncounterActive() end
+
 ---Drops live nameplate badges. Defined with the hint listener.
 function TwinFangs:ClearNameplateHints() end
 

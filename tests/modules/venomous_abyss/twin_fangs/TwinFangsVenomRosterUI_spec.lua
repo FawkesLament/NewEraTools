@@ -225,6 +225,7 @@ describe("TwinFangs venom roster UI", function()
             end,
         }
         assert(loadfile(UI_PATH))(Loader.ADDON_NAME, ns)
+        Module:SetVenomRosterEnabled(true)
     end)
 
     after_each(function()
@@ -675,5 +676,211 @@ describe("TwinFangs venom roster UI", function()
         command.handler("hide")
         assert.is_false(ui.IsLiveActive())
         assert.is_false(instance.root.shown)
+    end)
+
+    describe("lifecycle", function()
+        local Encounter
+
+        local function EnterPit(subZone)
+            ns.Api.Instance.info.instanceID = 3004
+            ns.Api.Instance.info.instanceType = "raid"
+            ns.Api.Instance.subZoneText = subZone or "Pit of Fangs"
+        end
+
+        local function LeavePit()
+            ns.Api.Instance.subZoneText = "The Venomous Abyss"
+        end
+
+        local function StartFight(difficultyID)
+            Encounter.FireStart(
+                Module.ENCOUNTER_ID,
+                "Twin Fangs",
+                difficultyID or ns.Api.Instance.DIFFICULTY_MYTHIC_RAID,
+                20
+            )
+        end
+
+        local function EndFight(difficultyID)
+            Encounter.FireEnd(
+                Module.ENCOUNTER_ID,
+                "Twin Fangs",
+                difficultyID or ns.Api.Instance.DIFFICULTY_MYTHIC_RAID,
+                20,
+                1
+            )
+        end
+
+        before_each(function()
+            Encounter = ns.Api.Encounter
+            SetRaid({ RaidMember("Live", 1, 1) })
+            ns.Modules.Get("TwinFangs"):OnEnable()
+            Module:ListenForEncounter()
+        end)
+
+        it("prewarms in Pit of Fangs when the feature is on and stays hidden", function()
+            local ui = UI()
+            EnterPit()
+            ns.Api.Instance.FireEnteringWorld()
+            assert.is_true(ui.IsPrepared())
+            local instance = ui.Ensure()
+            assert.is_false(instance.root.shown)
+            assert.is_false(ui.IsLiveActive())
+            if instance.columns[1] and instance.columns[1].rows[1].container then
+                assert.is_false(instance.columns[1].rows[1].container.shown)
+                assert.is_false(instance.columns[1].rows[1].container.enabled)
+            end
+        end)
+
+        it("prewarms for the Chinese Pit of Fangs subzone", function()
+            local ui = UI()
+            EnterPit("毒牙深渊")
+            ns.Api.Instance.FireZoneChangedIndoors()
+            assert.is_true(ui.IsPrepared())
+            assert.is_false(ui.Ensure().root.shown)
+        end)
+
+        it("does not prewarm in the wrong instance or subzone", function()
+            local ui = UI()
+            ns.Api.Instance.info.instanceID = 3004
+            ns.Api.Instance.subZoneText = "Altar of the Six Winds"
+            ns.Api.Instance.FireZoneChangedIndoors()
+            assert.is_false(ui.IsPrepared())
+
+            ns.Api.Instance.info.instanceID = 0
+            ns.Api.Instance.subZoneText = "Pit of Fangs"
+            ns.Api.Instance.FireZoneChangedNewArea()
+            assert.is_false(ui.IsPrepared())
+        end)
+
+        it("does not recreate the roster across repeated zone events", function()
+            local ui = UI()
+            EnterPit()
+            ns.Api.Instance.FireEnteringWorld()
+            local first = ui.Ensure().root
+            local createdAfter = #created
+            LeavePit()
+            ns.Api.Instance.FireZoneChangedIndoors()
+            EnterPit()
+            ns.Api.Instance.FireZoneChangedIndoors()
+            ns.Api.Instance.FireZoneChangedNewArea()
+            ns.Api.Instance.FireEnteringWorld()
+            assert.equals(first, ui.Ensure().root)
+            assert.equals(createdAfter, #created)
+            assert.is_false(ui.IsLiveActive())
+        end)
+
+        it("activates encounter 3421 on every raid difficulty and ignores other encounters", function()
+            local ui = UI()
+            for _, difficultyID in ipairs({ 14, 15, 16, 17 }) do
+                StartFight(difficultyID)
+                assert.is_true(ui.IsLiveActive())
+                assert.is_true(ui.Ensure().root.shown)
+                assert.equals("raid1", ui.Ensure().columns[1].rows[1].container.unit)
+                EndFight(difficultyID)
+                assert.is_false(ui.IsLiveActive())
+                assert.is_false(ui.Ensure().root.shown)
+            end
+
+            Encounter.FireStart(1, "Other", ns.Api.Instance.DIFFICULTY_MYTHIC_RAID, 20)
+            assert.is_false(ui.IsLiveActive())
+            assert.is_false(ui.Ensure().root.shown)
+        end)
+
+        it("reuses the same instance across repeated pulls", function()
+            local ui = UI()
+            EnterPit()
+            ns.Api.Instance.FireZoneChangedIndoors()
+            local instance = ui.Ensure()
+            local root = instance.root
+            local createdAfter = #created
+            StartFight()
+            local container = instance.columns[1].rows[1].container
+            EndFight()
+            StartFight()
+            assert.equals(root, ui.Ensure().root)
+            assert.is_true(container == ui.Ensure().columns[1].rows[1].container)
+            assert.equals(createdAfter, #created)
+            assert.is_true(ui.IsLiveActive())
+            EndFight()
+        end)
+
+        it("does not prewarm when the feature is disabled", function()
+            local ui = UI()
+            Module:SetVenomRosterEnabled(false)
+            EnterPit()
+            ns.Api.Instance.FireEnteringWorld()
+            assert.is_false(ui.IsPrepared())
+        end)
+
+        it("prewarms after enabling the feature in Pit of Fangs and activates during the pull", function()
+            local ui = UI()
+            Module:SetVenomRosterEnabled(false)
+            EnterPit()
+            ns.Api.Instance.FireZoneChangedIndoors()
+            assert.is_false(ui.IsPrepared())
+
+            Module:SetVenomRosterEnabled(true)
+            assert.is_true(ui.IsPrepared())
+            assert.is_false(ui.IsLiveActive())
+
+            StartFight()
+            local instance = ui.Ensure()
+            assert.is_true(ui.IsLiveActive())
+            Module:SetVenomRosterEnabled(false)
+            assert.is_false(ui.IsLiveActive())
+            assert.is_false(instance.root.shown)
+            local root = instance.root
+            Module:SetVenomRosterEnabled(true)
+            assert.is_true(ui.IsLiveActive())
+            assert.equals(root, ui.Ensure().root)
+            EndFight()
+        end)
+
+        it("activates on encounter entry even when prewarming was skipped", function()
+            local ui = UI()
+            assert.is_false(ui.IsPrepared())
+            StartFight()
+            assert.is_true(ui.IsPrepared())
+            assert.is_true(ui.IsLiveActive())
+            assert.is_true(ui.Ensure().root.shown)
+            EndFight()
+            assert.is_true(ui.IsPrepared())
+            assert.is_false(ui.IsLiveActive())
+        end)
+
+        it("binds joiners without recreating existing AuraContainers", function()
+            local ui = UI()
+            EnterPit()
+            ns.Api.Instance.FireZoneChangedIndoors()
+            StartFight()
+            local instance = ui.Ensure()
+            local firstContainer = instance.columns[1].rows[1].container
+            local root = instance.root
+            SetRaid({
+                RaidMember("Live", 1, 1),
+                RaidMember("Joiner", 2, 2),
+            })
+            ns.Api.Group.FireRosterChanged()
+            assert.equals(root, ui.Ensure().root)
+            assert.is_true(firstContainer == instance.columns[1].rows[1].container)
+            assert.equals("raid1", instance.columns[1].rows[1].container.unit)
+            assert.equals("Joiner", instance.columns[2].rows[1].nameText.text)
+            assert.equals("raid2", instance.columns[2].rows[1].container.unit)
+            EndFight()
+        end)
+
+        it("lets encounter lifecycle take over from /netvenom live", function()
+            local ui = UI()
+            ns.Api.Slash.registered.NEWERATOOLSTWINFANGSVENOM.handler("live")
+            assert.is_true(ui.IsLiveActive())
+            local root = ui.Ensure().root
+            StartFight()
+            assert.is_true(ui.IsLiveActive())
+            assert.equals(root, ui.Ensure().root)
+            EndFight()
+            assert.is_false(ui.IsLiveActive())
+            assert.is_false(ui.Ensure().root.shown)
+            assert.equals(root, ui.Ensure().root)
+        end)
     end)
 end)

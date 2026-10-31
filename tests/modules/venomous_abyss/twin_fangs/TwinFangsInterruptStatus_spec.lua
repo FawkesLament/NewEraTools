@@ -359,6 +359,27 @@ describe("TwinFangs interrupt status", function()
             assert.same(ExpectedStatus(2), Module:GetInterruptStatus())
         end)
 
+        it("increments once per raid or raid-leader chat without reading the payload", function()
+            AssignPrimary()
+            Module.db.interruptReminder.chain.front_left.channel = "raid"
+            StartMythic()
+            TriggerBrood()
+            local secret = setmetatable({}, {
+                __index = function()
+                    error("secret payload was read")
+                end,
+                __tostring = function()
+                    error("secret payload was read")
+                end,
+            })
+            GameEvents.Fire("CHAT_MSG_RAID", secret, secret)
+            GameEvents.Fire("CHAT_MSG_RAID_LEADER", secret)
+            GameEvents.Fire("CHAT_MSG_RAID_WARNING", secret)
+            GameEvents.Fire("CHAT_MSG_PARTY", secret)
+            assert.equals(2, Module:GetInterruptCount())
+            assert.same(ExpectedStatus(2), Module:GetInterruptStatus())
+        end)
+
         it("ignores party events outside the window and non-party chat", function()
             AssignPrimary()
             StartMythic()
@@ -723,15 +744,18 @@ describe("TwinFangs interrupt status", function()
             GameEvents.Fire("CHAT_MSG_EMOTE", secret)
             GameEvents.Fire("CHAT_MSG_TEXT_EMOTE", secret)
             GameEvents.Fire("CHAT_MSG_PARTY", secret)
+            GameEvents.Fire("CHAT_MSG_RAID", secret)
+            GameEvents.Fire("CHAT_MSG_RAID_LEADER", secret)
             GameEvents.Fire("RAID_TARGET_UPDATE", secret)
             assert.equals(1, Module:GetInterruptCount())
             assert.same(ExpectedStatus(1, 1), Module:GetInterruptStatus())
         end)
 
-        it("counts all six channel events as one signal each", function()
+        it("counts each supported channel event as one signal", function()
             local me = { name = Player.GetFullName() }
             local routes = {
                 { channel = "party", event = "CHAT_MSG_PARTY" },
+                { channel = "raid", event = "CHAT_MSG_RAID" },
                 { channel = "say", event = "CHAT_MSG_SAY" },
                 { channel = "yell", event = "CHAT_MSG_YELL" },
                 { channel = "emote", event = "CHAT_MSG_EMOTE" },

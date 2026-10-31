@@ -549,7 +549,6 @@ local function BuildContent(content)
     local venom = FeatureSection.Create(body, {
         title = L.TWIN_FANGS_VENOM_STACKS,
         titleFont = Fonts.MUTED,
-        tooltip = L.TWIN_FANGS_VENOM_STACKS_TOOLTIP,
         divider = true,
         enabled = TwinFangs:IsVenomRosterEnabled(),
         onEnabledChanged = function(enabled)
@@ -580,7 +579,8 @@ local function BuildContent(content)
     end)
     Layout.Row(rowSpacingCell, { rowSpacingLabel, rowSpacingSlider }, Spacing.LARGE)
 
-    local columnSpacingLabel = Widgets.CreateLabel(columnSpacingCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_COLUMN_SPACING)
+    local columnSpacingLabel =
+        Widgets.CreateLabel(columnSpacingCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_COLUMN_SPACING)
     columnSpacingLabel:SetJustifyH("LEFT")
     local columnSpacingSlider = Slider.Create(
         columnSpacingCell,

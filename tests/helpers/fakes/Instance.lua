@@ -17,6 +17,7 @@ return function()
         seasonalMythicNames = {},
         enteringWorldCallbacks = {},
         zoneChangedIndoorsCallbacks = {},
+        zoneChangedNewAreaCallbacks = {},
         challengeModeStartCallbacks = {},
         challengeModeCompletedCallbacks = {},
         challengeModeResetCallbacks = {},
@@ -69,6 +70,10 @@ return function()
         table.insert(Instance.zoneChangedIndoorsCallbacks, callback)
     end
 
+    function Instance.OnZoneChangedNewArea(callback)
+        table.insert(Instance.zoneChangedNewAreaCallbacks, callback)
+    end
+
     function Instance.OnChallengeModeStart(callback)
         table.insert(Instance.challengeModeStartCallbacks, callback)
     end
@@ -89,6 +94,12 @@ return function()
 
     function Instance.FireZoneChangedIndoors()
         for _, callback in ipairs(Instance.zoneChangedIndoorsCallbacks) do
+            callback()
+        end
+    end
+
+    function Instance.FireZoneChangedNewArea()
+        for _, callback in ipairs(Instance.zoneChangedNewAreaCallbacks) do
             callback()
         end
     end

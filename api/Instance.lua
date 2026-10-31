@@ -239,6 +239,12 @@ function Instance.OnZoneChangedIndoors(callback)
     ns.Api.GameEvents.Listen("ZONE_CHANGED_INDOORS", callback)
 end
 
+---Calls `callback` when the player enters a new area (including instance zoning).
+---@param callback fun()
+function Instance.OnZoneChangedNewArea(callback)
+    ns.Api.GameEvents.Listen("ZONE_CHANGED_NEW_AREA", callback)
+end
+
 ---Calls `callback` when a Mythic+ run starts.
 ---@param callback fun()
 function Instance.OnChallengeModeStart(callback)

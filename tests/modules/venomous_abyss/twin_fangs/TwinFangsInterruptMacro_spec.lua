@@ -75,6 +75,7 @@ describe("TwinFangs interrupt macros", function()
         it("emits one communication command for each supported channel", function()
             local expected = {
                 [Schema.CHANNEL_PARTY] = "/p 已打断",
+                [Schema.CHANNEL_RAID] = "/raid 已打断",
                 [Schema.CHANNEL_SAY] = "/s 已打断",
                 [Schema.CHANNEL_YELL] = "/y 已打断",
                 [Schema.CHANNEL_EMOTE] = "/e 已打断",

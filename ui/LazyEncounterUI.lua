@@ -36,6 +36,16 @@ function LazyEncounterUI:Prepare()
     self.instance = self.create()
 end
 
+---@return boolean
+function LazyEncounterUI:IsPrepared()
+    return self.instance ~= nil
+end
+
+---@return boolean
+function LazyEncounterUI:IsActive()
+    return self.active == true
+end
+
 ---@param active boolean
 function LazyEncounterUI:SetActive(active)
     if active then

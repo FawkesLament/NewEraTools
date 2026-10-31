@@ -63,13 +63,14 @@ local SIDE_TOP = "top"
 local SIDE_BOTTOM = "bottom"
 
 local CHANNEL_PARTY = "party"
+local CHANNEL_RAID = "raid"
 local CHANNEL_SAY = "say"
 local CHANNEL_YELL = "yell"
 local CHANNEL_EMOTE = "emote"
 local CHANNEL_NOD = "nod"
 local CHANNEL_MARKER = "marker"
 
----@alias TwinFangsInterruptChannel "party"|"say"|"yell"|"emote"|"nod"|"marker"
+---@alias TwinFangsInterruptChannel "party"|"raid"|"say"|"yell"|"emote"|"nod"|"marker"
 
 ---Saved-settings vocabulary, defaults, and clamps shared by the module and the settings UI.
 local Schema = {
@@ -134,15 +135,25 @@ local Schema = {
     FONT_COLOR_DEFAULT = { r = 125 / 255, g = 214 / 255, b = 1 },
 
     CHANNEL_PARTY = CHANNEL_PARTY,
+    CHANNEL_RAID = CHANNEL_RAID,
     CHANNEL_SAY = CHANNEL_SAY,
     CHANNEL_YELL = CHANNEL_YELL,
     CHANNEL_EMOTE = CHANNEL_EMOTE,
     CHANNEL_NOD = CHANNEL_NOD,
     CHANNEL_MARKER = CHANNEL_MARKER,
     CHANNEL_DEFAULT = CHANNEL_PARTY,
-    CHANNEL_IDS = { CHANNEL_PARTY, CHANNEL_SAY, CHANNEL_YELL, CHANNEL_EMOTE, CHANNEL_NOD, CHANNEL_MARKER },
+    CHANNEL_IDS = {
+        CHANNEL_PARTY,
+        CHANNEL_RAID,
+        CHANNEL_SAY,
+        CHANNEL_YELL,
+        CHANNEL_EMOTE,
+        CHANNEL_NOD,
+        CHANNEL_MARKER,
+    },
     CHANNELS = {
         [CHANNEL_PARTY] = true,
+        [CHANNEL_RAID] = true,
         [CHANNEL_SAY] = true,
         [CHANNEL_YELL] = true,
         [CHANNEL_EMOTE] = true,
@@ -151,6 +162,7 @@ local Schema = {
     },
     CHANNEL_ALLOWS_BACKUP = {
         [CHANNEL_PARTY] = false,
+        [CHANNEL_RAID] = true,
         [CHANNEL_SAY] = true,
         [CHANNEL_YELL] = true,
         [CHANNEL_EMOTE] = true,
@@ -158,10 +170,12 @@ local Schema = {
         [CHANNEL_MARKER] = true,
     },
     -- Channels that share a group cannot be used by two regions. party is omitted
-    -- (reusable). say/yell/emote each have their own group so two regions cannot
-    -- share the same spoken channel; mixing them is allowed until in-game tests
-    -- prove they cannot be distinguished. Assign the same group id to merge them.
+    -- (reusable per raid subgroup). raid is exclusive because `/raid` is raid-wide.
+    -- say/yell/emote each have their own group so two regions cannot share the
+    -- same spoken channel; mixing them is allowed until in-game tests prove they
+    -- cannot be distinguished. Assign the same group id to merge them.
     CHANNEL_CONFLICT_GROUP = {
+        [CHANNEL_RAID] = "raid",
         [CHANNEL_SAY] = "say",
         [CHANNEL_YELL] = "yell",
         [CHANNEL_EMOTE] = "emote",
@@ -170,6 +184,7 @@ local Schema = {
     },
     CHANNEL_LABELS = {
         [CHANNEL_PARTY] = "TWIN_FANGS_INTERRUPT_CHANNEL_PARTY",
+        [CHANNEL_RAID] = "TWIN_FANGS_INTERRUPT_CHANNEL_RAID",
         [CHANNEL_SAY] = "TWIN_FANGS_INTERRUPT_CHANNEL_SAY",
         [CHANNEL_YELL] = "TWIN_FANGS_INTERRUPT_CHANNEL_YELL",
         [CHANNEL_EMOTE] = "TWIN_FANGS_INTERRUPT_CHANNEL_EMOTE",
@@ -179,6 +194,7 @@ local Schema = {
     -- One-letter sync / AddonCheck codes. Keep stable; legacy payloads omit them.
     CHANNEL_WIRE = {
         [CHANNEL_PARTY] = "p",
+        [CHANNEL_RAID] = "r",
         [CHANNEL_SAY] = "s",
         [CHANNEL_YELL] = "y",
         [CHANNEL_EMOTE] = "e",
@@ -187,6 +203,7 @@ local Schema = {
     },
     CHANNEL_FROM_WIRE = {
         p = CHANNEL_PARTY,
+        r = CHANNEL_RAID,
         s = CHANNEL_SAY,
         y = CHANNEL_YELL,
         e = CHANNEL_EMOTE,
@@ -196,6 +213,7 @@ local Schema = {
     -- Interrupt-macro communication line. appendReport adds the localized "已打断" text.
     CHANNEL_MACRO = {
         [CHANNEL_PARTY] = { command = "/p", appendReport = true },
+        [CHANNEL_RAID] = { command = "/raid", appendReport = true },
         [CHANNEL_SAY] = { command = "/s", appendReport = true },
         [CHANNEL_YELL] = { command = "/y", appendReport = true },
         [CHANNEL_EMOTE] = { command = "/e", appendReport = true },

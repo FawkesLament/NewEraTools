@@ -293,6 +293,10 @@ function TwinFangs:ListenForEncounter()
     fight = Encounter.WhileIn(ENCOUNTER_ID, function(difficultyID, scope)
         -- A real Twin Fangs pull on any difficulty replaces the panel's interrupt-status test.
         TwinFangs:SetInterruptStatusTestMode(false)
+        TwinFangs:SetVenomRosterEncounterActive(TwinFangs:IsVenomRosterEnabled())
+        scope:Add(function()
+            TwinFangs:SetVenomRosterEncounterActive(false)
+        end)
         if difficultyID ~= Instance.DIFFICULTY_MYTHIC_RAID then
             return
         end

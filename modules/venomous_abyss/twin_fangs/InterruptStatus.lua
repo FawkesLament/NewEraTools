@@ -38,6 +38,7 @@ TwinFangs.INTERRUPT_CALLOUT_DURATION = CALLOUT_SECONDS
 
 local SUPPORTED_CHANNEL_EVENTS = {
     { channel = Schema.CHANNEL_PARTY, events = { "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER" } },
+    { channel = Schema.CHANNEL_RAID, events = { "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER" } },
     { channel = Schema.CHANNEL_SAY, events = { "CHAT_MSG_SAY" } },
     { channel = Schema.CHANNEL_YELL, events = { "CHAT_MSG_YELL" } },
     { channel = Schema.CHANNEL_EMOTE, events = { "CHAT_MSG_EMOTE" } },
