@@ -2,7 +2,7 @@
 ## Title: NewEraTools
 ## Notes: A toolbox addon. Type /nets to open the menu.
 ## Author: R.D.
-## Version: 1.2.2
+## Version: 1.2.3
 ## IconTexture: Interface\AddOns\NewEraTools\media\icons\mini_logo
 ## OptionalDeps: LibSharedMedia-3.0
 ## SavedVariables: NewEraToolsDB
