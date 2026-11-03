@@ -20,6 +20,8 @@ return function()
         ---@type table<string, boolean|nil>  nil = secret / unknown.
         attack = {},
         ---@type table<string, boolean|nil>  nil = secret / unknown.
+        enemy = {},
+        ---@type table<string, boolean|nil>  nil = secret / unknown.
         bossMob = {},
     }
 
@@ -62,6 +64,18 @@ return function()
     end
 
     ---@return boolean|nil
+    function Unit.IsEnemy(unit)
+        if not Unit.Exists(unit) then
+            return nil
+        end
+        local isEnemy = Unit.enemy[unit]
+        if isEnemy == nil then
+            return nil
+        end
+        return isEnemy == true
+    end
+
+    ---@return boolean|nil
     function Unit.IsBossMob(unit)
         if type(unit) ~= "string" or unit == "" then
             return nil
@@ -74,7 +88,7 @@ return function()
     end
 
     ---@param unit string
-    ---@param state { exists: boolean|nil, guid: string|nil, name: string|nil, canAssist: boolean|nil, canAttack: boolean|nil, isBossMob: boolean|nil }
+    ---@param state { exists: boolean|nil, guid: string|nil, name: string|nil, canAssist: boolean|nil, canAttack: boolean|nil, isEnemy: boolean|nil, isBossMob: boolean|nil }
     function Unit.SetForTests(unit, state)
         if state.exists == nil then
             Unit.exists[unit] = false
@@ -94,6 +108,11 @@ return function()
             Unit.attack[unit] = nil
         else
             Unit.attack[unit] = state.canAttack == true
+        end
+        if state.isEnemy == nil then
+            Unit.enemy[unit] = nil
+        else
+            Unit.enemy[unit] = state.isEnemy == true
         end
         if state.isBossMob == nil then
             Unit.bossMob[unit] = nil

@@ -25,6 +25,9 @@ local function InstallClient()
     UnitCanAttack = function()
         return false
     end
+    UnitIsEnemy = function()
+        return false
+    end
     UnitIsBossMob = function()
         return false
     end
@@ -48,6 +51,7 @@ describe("Unit production", function()
         saved.UnitExists = UnitExists
         saved.UnitCanAssist = UnitCanAssist
         saved.UnitCanAttack = UnitCanAttack
+        saved.UnitIsEnemy = UnitIsEnemy
         saved.UnitIsBossMob = UnitIsBossMob
         saved.UnitGUID = UnitGUID
         saved.UnitClass = UnitClass
@@ -67,6 +71,7 @@ describe("Unit production", function()
         UnitExists = saved.UnitExists
         UnitCanAssist = saved.UnitCanAssist
         UnitCanAttack = saved.UnitCanAttack
+        UnitIsEnemy = saved.UnitIsEnemy
         UnitIsBossMob = saved.UnitIsBossMob
         UnitGUID = saved.UnitGUID
         UnitClass = saved.UnitClass
@@ -255,6 +260,56 @@ describe("Unit production", function()
                 error("secret call failed")
             end
             assert.is_nil(Unit.CanPlayerAttack("target"))
+        end)
+    end)
+
+    describe("IsEnemy", function()
+        it("returns nil for a missing unit and does not call UnitIsEnemy", function()
+            local Unit = Load()
+            local called = false
+            UnitIsEnemy = function()
+                called = true
+            end
+            assert.is_nil(Unit.IsEnemy("target"))
+            assert.is_nil(Unit.IsEnemy(""))
+            assert.is_false(called)
+        end)
+
+        it("reads a plain UnitIsEnemy result and fails closed on secret or junk", function()
+            local Unit = Load()
+            UnitExists = function(unit)
+                return unit == "target"
+            end
+            UnitIsEnemy = function(_, unit)
+                assert.equals("target", unit)
+                return true
+            end
+            assert.is_true(Unit.IsEnemy("target"))
+
+            UnitIsEnemy = function()
+                return 1
+            end
+            assert.is_true(Unit.IsEnemy("target"))
+
+            UnitIsEnemy = function()
+                return false
+            end
+            assert.is_false(Unit.IsEnemy("target"))
+
+            UnitIsEnemy = function()
+                return 0
+            end
+            assert.is_false(Unit.IsEnemy("target"))
+
+            UnitIsEnemy = function()
+                return SECRET
+            end
+            assert.is_nil(Unit.IsEnemy("target"))
+
+            UnitIsEnemy = function()
+                error("secret call failed")
+            end
+            assert.is_nil(Unit.IsEnemy("target"))
         end)
     end)
 

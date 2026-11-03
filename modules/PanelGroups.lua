@@ -8,5 +8,6 @@ local PanelGroups = {
     COMBAT = { order = 1, title = L.PANEL_GROUP_COMBAT },
     RAID_LEADER = { order = 2, title = L.PANEL_GROUP_RAID_LEADER },
     VENOMOUS_ABYSS = { order = 3, title = L.PANEL_GROUP_VENOMOUS_ABYSS },
+    DEV_TOOLS = { order = 4, title = L.PANEL_GROUP_DEV_TOOLS },
 }
 ns.PanelGroups = PanelGroups

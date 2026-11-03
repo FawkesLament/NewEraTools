@@ -13,6 +13,15 @@ function Client.GetAddonVersion()
     return C_AddOns.GetAddOnMetadata(addonName, "Version")
 end
 
+---Current calendar clock, or nil when the client API is missing.
+---@return CalendarTime|nil
+function Client.GetCalendarTime()
+    if C_DateAndTime and type(C_DateAndTime.GetCurrentCalendarTime) == "function" then
+        return C_DateAndTime.GetCurrentCalendarTime()
+    end
+    return nil
+end
+
 ---Calls `callback` once this addon's files and saved variables have loaded.
 ---@param callback fun()
 function Client.OnAddonLoaded(callback)

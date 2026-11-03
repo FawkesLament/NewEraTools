@@ -23,5 +23,19 @@ return function()
         table.insert(Client.loadedCallbacks, callback)
     end
 
+    Client.calendarTime = {
+        year = 2026,
+        month = 11,
+        monthDay = 2,
+        hour = 18,
+        minute = 53,
+        second = 4,
+    }
+
+    ---@return CalendarTime
+    function Client.GetCalendarTime()
+        return Client.calendarTime
+    end
+
     return Client
 end

@@ -90,6 +90,17 @@ function Unit.CanPlayerAttack(unit)
     return ReadPlainBoolean(pcall(UnitCanAttack, "player", unit))
 end
 
+---Whether `unit` is hostile to the player. Nil when the unit is missing or the result is secret —
+---callers must treat nil as "not an enemy".
+---@param unit string
+---@return boolean|nil
+function Unit.IsEnemy(unit)
+    if not Unit.Exists(unit) then
+        return nil
+    end
+    return ReadPlainBoolean(pcall(UnitIsEnemy, "player", unit))
+end
+
 ---Whether `unit` is a boss mob. Nil when the token is secret or `UnitIsBossMob` throws or
 ---returns a secret value — callers must treat nil as "not safe to label".
 ---@param unit string

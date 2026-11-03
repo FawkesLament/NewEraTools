@@ -3,5 +3,6 @@
     <Include file="raid_leader\raid_leader.xml"/>
     <Include file="venomous_abyss\venomous_abyss.xml"/>
     <Include file="combat\combat.xml"/>
+    <Include file="dev_tools\dev_tools.xml"/>
 </Ui>
 

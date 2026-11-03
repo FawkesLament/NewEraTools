@@ -8,6 +8,11 @@ local MEDIA_PATH = "Interface\\AddOns\\" .. ns.ADDON_NAME .. "\\media\\"
 Assets.LOGO = MEDIA_PATH .. "icons\\logo"
 Assets.MINI_LOGO = MEDIA_PATH .. "icons\\mini_logo"
 
+-- Bundled typefaces for SetFont; include the file extension.
+Assets.FontFiles = {
+    EXPRESSWAY = MEDIA_PATH .. "fonts\\Expressway.ttf",
+}
+
 Assets.Textures = {
     -- A plain white square; tinted with SetVertexColor or used as a backdrop for flat fills.
     WHITE = "Interface\\Buttons\\WHITE8x8",
@@ -18,6 +23,13 @@ Assets.Textures = {
     CIRCLE_MASK = "Interface\\CHARACTERFRAME\\TempPortraitAlphaMask",
     -- Rounded-square HUD chip (media/icons/interrupt_badge_ice_blue.tga).
     ROUNDED_SQUARE = MEDIA_PATH .. "icons\\interrupt_badge_ice_blue",
+    -- Three-slice interrupt assignment chip: fixed left cap, stretchable center, fixed right cap.
+    INTERRUPT_INDICATOR_LEFT_GOLD = MEDIA_PATH .. "icons\\interrupt_indicator_left_cap_gold",
+    INTERRUPT_INDICATOR_CENTER_GOLD = MEDIA_PATH .. "icons\\interrupt_indicator_stretchable_gold",
+    INTERRUPT_INDICATOR_RIGHT_GOLD = MEDIA_PATH .. "icons\\interrupt_indicator_right_cap_gold",
+    INTERRUPT_INDICATOR_LEFT_PALE_GREEN = MEDIA_PATH .. "icons\\interrupt_indicator_left_cap_pale_green",
+    INTERRUPT_INDICATOR_CENTER_PALE_GREEN = MEDIA_PATH .. "icons\\interrupt_indicator_stretchable_pale_green",
+    INTERRUPT_INDICATOR_RIGHT_PALE_GREEN = MEDIA_PATH .. "icons\\interrupt_indicator_right_cap_pale_green",
     MINIMAP_HIGHLIGHT = "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight",
     MINIMAP_BACKGROUND = "Interface\\Minimap\\UI-Minimap-Background",
     MINIMAP_BORDER = "Interface\\Minimap\\MiniMap-TrackingBorder",
