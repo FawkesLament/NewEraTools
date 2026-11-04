@@ -340,6 +340,19 @@ describe("CoiledAltar interrupt tracker", function()
             w1, w2 = Tracker.GetPossibleWorlds(rangedFirst.curWave)
             assert.is_false(w1)
             assert.is_true(w2)
+
+            local oneUnmarked = NewState()
+            Spawn(oneUnmarked, 1)
+            w1, w2 = Tracker.GetPossibleWorlds(oneUnmarked.curWave)
+            assert.is_false(w1)
+            assert.is_true(w2)
+
+            Mark("boss3", true)
+            local oneMarked = NewState()
+            Spawn(oneMarked, 1)
+            w1, w2 = Tracker.GetPossibleWorlds(oneMarked.curWave)
+            assert.is_true(w1)
+            assert.is_false(w2)
         end)
 
         it("starts a new wave on top of a surviving expired shadow", function()
@@ -449,6 +462,192 @@ describe("CoiledAltar interrupt tracker", function()
             Tracker.Flush(state)
             assert.is_false(state.list[1].casting)
             assert.equals(0, state.list[1].kicks)
+        end)
+    end)
+
+    describe("state-change notification", function()
+        it("notifies once after a flushed batch, not per buffered event", function()
+            local state = NewState()
+            local calls = 0
+            state.onStateChanged = function(observed)
+                calls = calls + 1
+                Same(state, observed)
+            end
+            Spawn(state, 2)
+            assert.equals(1, calls)
+
+            Cast(state, "START", "boss3", true)
+            Cast(state, "START", "boss4", true)
+            Cast(state, "INTERRUPTED", "boss3", true, true)
+            assert.equals(1, calls)
+            Tracker.Flush(state)
+            assert.equals(2, calls)
+            assert.is_true(state.list[1].casting == false)
+            assert.equals(1, state.list[1].kicks)
+        end)
+
+        it("does not notify when Flush has no pending batch", function()
+            local state = NewState()
+            Spawn(state, 2)
+            local calls = 0
+            state.onStateChanged = function()
+                calls = calls + 1
+            end
+            Tracker.Flush(state)
+            assert.equals(0, calls)
+        end)
+
+        it("notifies immediately after a raid-target update", function()
+            local state = NewState()
+            Spawn(state, 2)
+            local calls = 0
+            state.onStateChanged = function()
+                calls = calls + 1
+            end
+            Mark("boss3", true)
+            Tracker.OnRaidTargetChanged(state)
+            assert.equals(1, calls)
+            assert.is_true(state.list[1].marked)
+        end)
+
+        it("defers a raid-target update that shares an engage batch until flush", function()
+            local state = NewState()
+            Spawn(state, 2)
+            local calls = 0
+            state.onStateChanged = function()
+                calls = calls + 1
+            end
+            SetBossCount(2)
+            Tracker.OnEngage(state)
+            Mark("boss3", true)
+            Tracker.OnRaidTargetChanged(state)
+            assert.equals(0, calls)
+            Tracker.Flush(state)
+            assert.equals(1, calls)
+        end)
+
+        it("does not notify for events the tracker ignores", function()
+            local state = NewState()
+            Spawn(state, 2)
+            local calls = 0
+            state.onStateChanged = function()
+                calls = calls + 1
+            end
+            Cast(state, "START", "player", true)
+            Cast(state, "START", "boss1", true)
+            assert.equals(0, calls)
+            assert.is_nil(state.batch)
+        end)
+
+        it("does not notify after encounter cleanup, including a pending flush", function()
+            AssignChain()
+            local calls = 0
+            Module.OnInterruptStateChanged = function()
+                calls = calls + 1
+            end
+            Module:ListenForEncounter()
+            Encounter.FireStart(Module.ENCOUNTER_ID, "The Coiled Altar", 16, 20)
+            SetBossCount(2)
+            Encounter.FireEngageUnit()
+            assert.equals(0, calls)
+            Encounter.FireEnd(Module.ENCOUNTER_ID, "The Coiled Altar", 16, 20, 1)
+            Timer.Advance(0)
+            assert.equals(1, calls)
+            assert.is_nil(Tracker.Get())
+        end)
+
+        it("accepts an options table when starting the tracker", function()
+            local scope = ns.ResourceScope.New()
+            local calls = 0
+            local state = Tracker.Start(scope, {
+                onStateChanged = function()
+                    calls = calls + 1
+                end,
+            })
+            Spawn(state, 2)
+            assert.equals(1, calls)
+            scope:Dispose()
+            assert.is_nil(state.onStateChanged)
+        end)
+    end)
+
+    describe("interrupt status", function()
+        local function StartAssignedEncounter(chainId, ...)
+            local name = ns.Api.Player.GetFullName()
+            for index = 1, select("#", ...) do
+                assert.is_true(Module:AssignInterruptPlayer(chainId, select(index, ...), name))
+            end
+            Module:ListenForEncounter()
+            Encounter.FireStart(Module.ENCOUNTER_ID, "The Coiled Altar", 16, 20)
+            Mark("boss3", true)
+            Mark("boss4", false)
+            SetBossCount(2)
+            Encounter.FireEngageUnit()
+            Timer.Advance(0)
+        end
+
+        it("maps the local melee assignment onto the marked shadow", function()
+            StartAssignedEncounter("MELEE", 3)
+            local status = Module:GetInterruptStatus()
+            assert.equals("MELEE", status.chainId)
+            assert.same({ 3 }, status.indices)
+            assert.equals(3, status.index)
+            assert.equals(3, status.indexEnd)
+            assert.equals(0, status.kicks)
+            assert.is_false(status.pending)
+            assert.equals(6, status.chainLength)
+            assert.is_false(status.casting)
+        end)
+
+        it("keeps every matching slot and reports a consecutive run for the HUD", function()
+            StartAssignedEncounter("MELEE", 1, 2, 4)
+            local status = Module:GetInterruptStatus()
+            assert.same({ 1, 2, 4 }, status.indices)
+            assert.equals(1, status.index)
+            assert.equals(2, status.indexEnd)
+        end)
+
+        it("follows the ranged shadow when the first member is melee", function()
+            StartAssignedEncounter("RANGED", 2)
+            Cast(Tracker.Get(), "INTERRUPTED", "boss4", true, true)
+            Timer.Advance(0)
+            local status = Module:GetInterruptStatus()
+            assert.equals("RANGED", status.chainId)
+            assert.equals(1, status.kicks)
+            assert.equals(2, status.index)
+        end)
+
+        it("keeps a shared round while melee identity is ambiguous", function()
+            StartAssignedEncounter("MELEE", 1)
+            Mark("boss3", false)
+            Tracker.OnRaidTargetChanged(Tracker.Get())
+            local status = Module:GetInterruptStatus()
+            assert.equals("MELEE", status.chainId)
+            assert.equals(0, status.kicks)
+            assert.is_false(status.pending)
+        end)
+
+        it("reports pending when unmarked shadows have different kicks", function()
+            StartAssignedEncounter("MELEE", 1)
+            Mark("boss3", false)
+            Tracker.OnRaidTargetChanged(Tracker.Get())
+            Cast(Tracker.Get(), "INTERRUPTED", "boss3", true, true)
+            Timer.Advance(0)
+            local status = Module:GetInterruptStatus()
+            assert.equals("MELEE", status.chainId)
+            assert.is_true(status.pending)
+            assert.is_nil(status.kicks)
+        end)
+
+        it("hides when the local player is unassigned", function()
+            AssignChain()
+            Module:ListenForEncounter()
+            Encounter.FireStart(Module.ENCOUNTER_ID, "The Coiled Altar", 16, 20)
+            Mark("boss3", true)
+            SetBossCount(2)
+            Encounter.FireEngageUnit()
+            Timer.Advance(0)
+            assert.is_nil(Module:GetInterruptStatus())
         end)
     end)
 end)

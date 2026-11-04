@@ -150,6 +150,21 @@ describe("CoiledAltar interrupt assignments", function()
         end
     end)
 
+    it("finds every local-player slot in one chain and rejects a split assignment", function()
+        local name = ns.Api.Player.GetFullName()
+        Module:AssignInterruptPlayer(Assignments.MELEE, 1, name)
+        Module:AssignInterruptPlayer(Assignments.MELEE, 3, name)
+        Module:AssignInterruptPlayer(Assignments.MELEE, 4, "OtherPlayer")
+        local chainId, indices = Assignments.PlayerPositions(Module:GetInterruptAssignments(), name)
+        assert.equals(Assignments.MELEE, chainId)
+        assert.same({ 1, 3 }, indices)
+
+        Module:AssignInterruptPlayer(Assignments.RANGED, 2, name)
+        chainId, indices = Assignments.PlayerPositions(Module:GetInterruptAssignments(), name)
+        assert.is_nil(chainId)
+        assert.same({}, indices)
+    end)
+
     it("keeps nameplate hint settings independent of assignments", function()
         Module:SetNameplateHintEnabled(true)
         Module:AssignInterruptPlayer(Assignments.MELEE, 1, "PlayerA")

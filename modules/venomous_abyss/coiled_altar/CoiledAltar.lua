@@ -1,5 +1,6 @@
 local _, ns = ...
 local Internals = ns.Modules.Internals("CoiledAltar")
+local Player = ns.Api.Player
 local Util = ns.Util
 
 -- The Coiled Altar, the seventh boss of The Venomous Abyss.
@@ -42,6 +43,7 @@ local SIDE_BOTTOM = "bottom"
 ---@class CoiledAltar: Module
 ---@field db CoiledAltarSettings
 ---@field OnInterruptAssignmentsChanged fun(self: CoiledAltar)|nil  Defined by the assignment editor.
+---@field OnInterruptStateChanged fun(self: CoiledAltar)|nil  Defined by UI consumers; encounter interrupt state is ready.
 ---@field OnNameplateHintChanged fun(self: CoiledAltar)|nil  Defined by the UI; nameplate preview button enabled or blocked.
 ---@field OnNameplateHintPreviewChanged fun(self: CoiledAltar)|nil  Defined by the UI; nameplate indicators shown or hidden.
 ---@field OnNameplateHintAppearanceChanged fun(self: CoiledAltar)|nil  Defined by the UI; visible indicators restyled.
@@ -177,6 +179,9 @@ function CoiledAltar:SetMechanicReminderEnabled(enabled)
         return
     end
     self.db.mechanicReminder.enabled = enabled
+    if self.OnInterruptStateChanged then
+        self:OnInterruptStateChanged()
+    end
 end
 
 ---@return boolean
@@ -191,6 +196,9 @@ function CoiledAltar:SetInterruptReminderEnabled(enabled)
         return
     end
     self.db.mechanicReminder.interrupt = enabled
+    if self.OnInterruptStateChanged then
+        self:OnInterruptStateChanged()
+    end
 end
 
 ---@return InterruptRotationTrackerAnchor
@@ -201,6 +209,176 @@ end
 ---@param position InterruptRotationTrackerAnchor
 function CoiledAltar:SetInterruptRotationTrackerPosition(position)
     ns.InterruptRotationTrackerAnchor.SetPosition(position)
+end
+
+---@param state CoiledAltarInterruptState
+---@param object CoiledAltarShadow|nil
+---@return CoiledAltarShadow|nil
+local function LiveShadow(state, object)
+    if not object then
+        return nil
+    end
+    for index = 1, #state.list do
+        if state.list[index] == object then
+            return object
+        end
+    end
+    return nil
+end
+
+---@param indices integer[]
+---@return integer[]
+local function CopyIndices(indices)
+    local copy = {}
+    for index = 1, #indices do
+        copy[index] = indices[index]
+    end
+    return copy
+end
+
+---@class CoiledAltarInterruptAssignment
+---@field chainId CoiledAltarInterruptChainId
+---@field indices integer[]
+
+---@class CoiledAltarRotationTrackerView
+---@field mode "hidden"|"normal"|"pending"
+---@field chainId CoiledAltarInterruptChainId|nil
+---@field indices integer[]|nil
+---@field kicks integer|nil
+---@field casting boolean|nil
+
+---Read-only RotationTracker view for the local player's assignment.
+---@param state CoiledAltarInterruptState|nil
+---@param assignment CoiledAltarInterruptAssignment|nil
+---@return CoiledAltarRotationTrackerView
+function Internals.ResolveRotationTrackerView(state, assignment)
+    if not state or state.disposed or not state.curWave then
+        return { mode = "hidden" }
+    end
+    if type(assignment) ~= "table" or type(assignment.indices) ~= "table" or #assignment.indices == 0 then
+        return { mode = "hidden" }
+    end
+    local Assignments = Internals.InterruptAssignments
+    local chainId = assignment.chainId
+    if not Assignments.IsChain(chainId) then
+        return { mode = "hidden" }
+    end
+    local wave = state.curWave
+    if type(wave) ~= "table" or type(wave.members) ~= "table" then
+        return { mode = "hidden" }
+    end
+    local memberCount = #wave.members
+    if memberCount ~= 1 and memberCount ~= 2 then
+        return { mode = "hidden" }
+    end
+
+    local firstMelee, secondMelee = Internals.InterruptTracker.GetPossibleWorlds(wave)
+    local candidates = {}
+    local function Consider(index)
+        local shadow = wave.members[index]
+        if shadow then
+            candidates[#candidates + 1] = shadow
+        end
+    end
+    if chainId == Assignments.MELEE then
+        if firstMelee then
+            Consider(1)
+        end
+        if secondMelee then
+            Consider(2)
+        end
+    else
+        if firstMelee then
+            Consider(2)
+        end
+        if secondMelee then
+            Consider(1)
+        end
+    end
+    if #candidates == 0 then
+        return { mode = "hidden" }
+    end
+
+    local indices = CopyIndices(assignment.indices)
+    if #candidates == 1 then
+        local shadow = candidates[1]
+        if not LiveShadow(state, shadow) then
+            return { mode = "hidden" }
+        end
+        return {
+            mode = "normal",
+            chainId = chainId,
+            indices = indices,
+            kicks = shadow.kicks,
+            casting = shadow.casting == true,
+        }
+    end
+
+    local kicks = candidates[1].kicks
+    for index = 2, #candidates do
+        if candidates[index].kicks ~= kicks then
+            return {
+                mode = "pending",
+                chainId = chainId,
+                indices = indices,
+            }
+        end
+    end
+    return {
+        mode = "normal",
+        chainId = chainId,
+        indices = indices,
+        kicks = kicks,
+        casting = false,
+    }
+end
+
+---@param indices integer[]
+---@return integer
+local function ConsecutiveEnd(indices)
+    local last = indices[1]
+    for index = 2, #indices do
+        if indices[index] ~= last + 1 then
+            break
+        end
+        last = indices[index]
+    end
+    return last
+end
+
+---@class CoiledAltarInterruptStatus
+---@field chainId CoiledAltarInterruptChainId
+---@field indices integer[]
+---@field index integer
+---@field indexEnd integer
+---@field kicks integer|nil
+---@field pending boolean
+---@field chainLength integer
+---@field casting boolean
+
+---Local player's interrupt HUD snapshot for the current wave, or nil when it cannot be shown.
+---@return CoiledAltarInterruptStatus|nil
+function CoiledAltar:GetInterruptStatus()
+    local Assignments = Internals.InterruptAssignments
+    local chainId, indices = Assignments.PlayerPositions(self.db.assignments, Player.GetFullName())
+    local assignment
+    if chainId and #indices > 0 then
+        assignment = { chainId = chainId, indices = indices }
+    end
+    local view = Internals.ResolveRotationTrackerView(Internals.InterruptTracker.Get(), assignment)
+    if view.mode == "hidden" then
+        return nil
+    end
+    return {
+        chainId = view.chainId,
+        indices = view.indices,
+        index = view.indices[1],
+        indexEnd = ConsecutiveEnd(view.indices),
+        kicks = view.kicks,
+        pending = view.mode == "pending",
+        chainLength = Assignments.SLOT_COUNT,
+        casting = view.casting == true,
+    }
 end
 
 ---@return boolean

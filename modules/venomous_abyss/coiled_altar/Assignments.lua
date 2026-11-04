@@ -251,6 +251,43 @@ function Assignments.ClearSlot(assignments, chainId, index)
     return WriteSlot(assignments, chainId, index, EmptySlot())
 end
 
+---Slots in one chain that belong to this player. Both chains occupied is treated as unset.
+---@param assignments CoiledAltarInterruptAssignments|nil
+---@param identity any
+---@return CoiledAltarInterruptChainId|nil
+---@return integer[]
+function Assignments.PlayerPositions(assignments, identity)
+    local indices = {}
+    if type(assignments) ~= "table" then
+        return nil, indices
+    end
+    local name = Assignments.QualifyName(identity)
+    if not name then
+        return nil, indices
+    end
+    local foundId
+    for _, chainId in ipairs(Assignments.CHAIN_IDS) do
+        local chain = assignments[chainId]
+        if type(chain) == "table" then
+            local chainIndices = {}
+            for index = 1, SLOT_COUNT do
+                local slot = chain[index]
+                if type(slot) == "table" and slot.type == TYPE_PLAYER and slot.value == name then
+                    chainIndices[#chainIndices + 1] = index
+                end
+            end
+            if #chainIndices > 0 then
+                if foundId then
+                    return nil, {}
+                end
+                foundId = chainId
+                indices = chainIndices
+            end
+        end
+    end
+    return foundId, indices
+end
+
 ---@param assignments CoiledAltarInterruptAssignments|nil
 ---@return boolean
 function Assignments.HasAssignments(assignments)
@@ -292,6 +329,9 @@ end
 local function Notify()
     if CoiledAltar.OnInterruptAssignmentsChanged then
         CoiledAltar:OnInterruptAssignmentsChanged()
+    end
+    if CoiledAltar.OnInterruptStateChanged then
+        CoiledAltar:OnInterruptStateChanged()
     end
 end
 

@@ -488,12 +488,14 @@ end
 -- 5. Replay events are forwarded to the same production subscriptions (Spell / Encounter /
 --    Nameplate / RaidTarget). The adapter does not apply interrupt-state transitions itself.
 local CoiledAltarReplay = {}
+local lastResolveView
 
 function CoiledAltarReplay.mount(env)
     local ns = Loader.Load()
     ns.Modules.Start(ns.Database.Load(nil))
     local Module = ns.Modules.Get("CoiledAltar")
-    local Tracker = ns.Modules.Internals("CoiledAltar").InterruptTracker
+    local Internals = ns.Modules.Internals("CoiledAltar")
+    local Tracker = Internals.InterruptTracker
     local Encounter = ns.Api.Encounter
     local Nameplate = ns.Api.Nameplate
     local RaidTarget = ns.Api.RaidTarget
@@ -560,6 +562,10 @@ function CoiledAltarReplay.mount(env)
     env.events:on("RAID_TARGET_UPDATE", function()
         RaidTarget.FireChanged()
     end)
+
+    lastResolveView = function(assignment)
+        return Internals.ResolveRotationTrackerView(Tracker.Get(), assignment)
+    end
 
     local ids = NewIdentityMap()
     return {
@@ -650,6 +656,234 @@ describe("Coiled Altar interrupt replay", function()
             assert.same({ nameplate7 = "w1m1" }, snapshots[120].plateOwners)
             assert.same({ "W1" }, snapshots[120].possibleWorlds)
             assert.equals("w1m1", runner:snapshot().live[1].id)
+        end)
+
+        it("derives the RotationTracker view from production state", function()
+            local melee = { chainId = "MELEE", indices = { 1 } }
+            local views = {}
+            RunReplay(LoadFixtureFile(EXAMPLE_PATH), function(_, frame)
+                views[frame.id] = lastResolveView(melee)
+            end)
+            assert.equals("normal", views[100].mode)
+            assert.equals("MELEE", views[100].chainId)
+            assert.equals(0, views[100].kicks)
+            assert.equals("normal", views[120].mode)
+            assert.equals(1, views[120].kicks)
+        end)
+
+        it("derives pending, interrupt, marker, death, and expired-death views", function()
+            local melee = { chainId = "MELEE", indices = { 1 } }
+            local views = {}
+            RunReplay({
+                schemaVersion = 1,
+                name = "Rotation Tracker View",
+                frames = {
+                    {
+                        id = 1,
+                        time = 1,
+                        steps = {
+                            {
+                                op = "unit",
+                                token = "boss3",
+                                properties = { exists = true, level = 92, markerPresent = false },
+                            },
+                            {
+                                op = "unit",
+                                token = "boss4",
+                                properties = { exists = true, level = 92, markerPresent = false },
+                            },
+                            {
+                                op = "unit",
+                                token = "boss5",
+                                properties = { exists = false },
+                            },
+                            {
+                                op = "event",
+                                name = "INSTANCE_ENCOUNTER_ENGAGE_UNIT",
+                                args = Replay.args(),
+                            },
+                        },
+                    },
+                    {
+                        id = 2,
+                        time = 2,
+                        steps = {
+                            {
+                                op = "event",
+                                name = "UNIT_SPELLCAST_INTERRUPTED",
+                                args = Replay.args("boss3", Replay.PRESENT, Replay.PRESENT),
+                            },
+                        },
+                    },
+                    {
+                        id = 3,
+                        time = 3,
+                        steps = {
+                            {
+                                op = "unit",
+                                token = "boss3",
+                                properties = { markerPresent = true },
+                            },
+                            {
+                                op = "event",
+                                name = "RAID_TARGET_UPDATE",
+                                args = Replay.args(),
+                            },
+                        },
+                    },
+                    {
+                        id = 4,
+                        time = 4,
+                        steps = {
+                            {
+                                op = "unit",
+                                token = "nameplate7",
+                                properties = { exists = true, level = 92, markerPresent = false },
+                            },
+                            {
+                                op = "event",
+                                name = "UNIT_SPELLCAST_START",
+                                args = Replay.args("boss3", Replay.PRESENT, Replay.PRESENT),
+                            },
+                            {
+                                op = "event",
+                                name = "UNIT_SPELLCAST_START",
+                                args = Replay.args("nameplate7", Replay.PRESENT, Replay.PRESENT),
+                            },
+                        },
+                    },
+                    {
+                        id = 5,
+                        time = 5,
+                        steps = {
+                            {
+                                op = "unit",
+                                token = "boss3",
+                                properties = { exists = true, level = 92, markerPresent = false },
+                            },
+                            { op = "remove", token = "boss4" },
+                            {
+                                op = "event",
+                                name = "INSTANCE_ENCOUNTER_ENGAGE_UNIT",
+                                args = Replay.args(),
+                            },
+                            {
+                                op = "event",
+                                name = "UNIT_SPELLCAST_INTERRUPTED",
+                                args = Replay.args("nameplate7", Replay.PRESENT, nil),
+                            },
+                            {
+                                op = "event",
+                                name = "NAME_PLATE_UNIT_REMOVED",
+                                args = Replay.args("nameplate7"),
+                            },
+                            { op = "remove", token = "nameplate7" },
+                        },
+                    },
+                    {
+                        id = 6,
+                        time = 6,
+                        steps = {
+                            {
+                                op = "unit",
+                                token = "boss3",
+                                properties = { exists = true, level = 92, markerPresent = false },
+                            },
+                            {
+                                op = "unit",
+                                token = "boss4",
+                                properties = { exists = true, level = 92, markerPresent = true },
+                            },
+                            {
+                                op = "unit",
+                                token = "boss5",
+                                properties = { exists = true, level = 92, markerPresent = false },
+                            },
+                            {
+                                op = "unit",
+                                token = "boss6",
+                                properties = { exists = false },
+                            },
+                            {
+                                op = "event",
+                                name = "INSTANCE_ENCOUNTER_ENGAGE_UNIT",
+                                args = Replay.args(),
+                            },
+                        },
+                    },
+                    {
+                        id = 7,
+                        time = 7,
+                        steps = {
+                            {
+                                op = "unit",
+                                token = "nameplate8",
+                                properties = { exists = true, level = 92, markerPresent = false },
+                            },
+                            {
+                                op = "event",
+                                name = "UNIT_SPELLCAST_START",
+                                args = Replay.args("boss3", Replay.PRESENT, Replay.PRESENT),
+                            },
+                            {
+                                op = "event",
+                                name = "UNIT_SPELLCAST_START",
+                                args = Replay.args("nameplate8", Replay.PRESENT, Replay.PRESENT),
+                            },
+                        },
+                    },
+                    {
+                        id = 8,
+                        time = 8,
+                        steps = {
+                            {
+                                op = "unit",
+                                token = "boss3",
+                                properties = { exists = true, level = 92, markerPresent = true },
+                            },
+                            {
+                                op = "unit",
+                                token = "boss4",
+                                properties = { exists = true, level = 92, markerPresent = false },
+                            },
+                            {
+                                op = "unit",
+                                token = "boss5",
+                                properties = { exists = false },
+                            },
+                            {
+                                op = "event",
+                                name = "INSTANCE_ENCOUNTER_ENGAGE_UNIT",
+                                args = Replay.args(),
+                            },
+                            {
+                                op = "event",
+                                name = "UNIT_SPELLCAST_INTERRUPTED",
+                                args = Replay.args("nameplate8", Replay.PRESENT, nil),
+                            },
+                            {
+                                op = "event",
+                                name = "NAME_PLATE_UNIT_REMOVED",
+                                args = Replay.args("nameplate8"),
+                            },
+                            { op = "remove", token = "nameplate8" },
+                        },
+                    },
+                },
+            }, function(_, frame)
+                views[frame.id] = lastResolveView(melee)
+            end)
+
+            assert.equals("normal", views[1].mode)
+            assert.equals(0, views[1].kicks)
+            assert.equals("pending", views[2].mode)
+            assert.equals("normal", views[3].mode)
+            assert.equals(1, views[3].kicks)
+            assert.equals("hidden", views[5].mode)
+            assert.equals("normal", views[6].mode)
+            assert.equals(0, views[6].kicks)
+            assert.equals("normal", views[8].mode)
+            assert.equals(0, views[8].kicks)
         end)
 
         it("keeps stable object ids after a boss-token shift", function()

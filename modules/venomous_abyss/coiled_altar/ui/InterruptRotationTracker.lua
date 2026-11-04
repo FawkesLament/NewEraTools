@@ -8,16 +8,49 @@ local PREVIEW_INDEX = 3
 local PREVIEW_ROUND = 1
 local PREVIEW_CHAIN_LENGTH = 6
 
----@return StatusHUDState
-local function PreviewState()
+---@param snapshot CoiledAltarInterruptStatus|nil
+---@return StatusHUDState|nil
+local function HudState(snapshot)
+    if not snapshot then
+        return nil
+    end
+    local title = L.COILED_ALTAR_INTERRUPT_CHAIN_MELEE
+    if snapshot.chainId == Internals.InterruptAssignments.RANGED then
+        title = L.COILED_ALTAR_INTERRUPT_CHAIN_RANGED
+    end
+    local detail
+    if snapshot.indexEnd and snapshot.indexEnd > snapshot.index then
+        detail = L.COILED_ALTAR_INTERRUPT_STATUS_TASK_RANGE:format(snapshot.index, snapshot.indexEnd)
+    else
+        detail = L.COILED_ALTAR_INTERRUPT_STATUS_TASK:format(snapshot.index)
+    end
+    local text = L.COILED_ALTAR_INTERRUPT_STATUS_PENDING
+    local progress = 0
+    if not snapshot.pending then
+        text = L.COILED_ALTAR_INTERRUPT_STATUS_ROUND:format(snapshot.kicks + 1)
+        progress = snapshot.kicks + 1
+    end
     return {
-        title = L.COILED_ALTAR_INTERRUPT_CHAIN_MELEE,
-        text = L.COILED_ALTAR_INTERRUPT_STATUS_ROUND:format(PREVIEW_ROUND),
-        detail = L.COILED_ALTAR_INTERRUPT_STATUS_TASK:format(PREVIEW_INDEX),
-        progress = PREVIEW_ROUND,
-        maxProgress = PREVIEW_CHAIN_LENGTH,
+        title = title,
+        text = text,
+        detail = detail,
+        progress = progress,
+        maxProgress = snapshot.chainLength,
         severity = ns.StatusHUD.SEVERITY_NORMAL,
     }
+end
+
+---@return StatusHUDState
+local function PreviewState()
+    return HudState({
+        chainId = Internals.InterruptAssignments.MELEE,
+        indices = { PREVIEW_INDEX },
+        index = PREVIEW_INDEX,
+        indexEnd = PREVIEW_INDEX,
+        kicks = PREVIEW_ROUND - 1,
+        chainLength = PREVIEW_CHAIN_LENGTH,
+        casting = false,
+    })
 end
 
 local InterruptRotationTracker = ns.InterruptRotationTracker.Bind({
@@ -40,10 +73,17 @@ local InterruptRotationTracker = ns.InterruptRotationTracker.Bind({
     end,
     previewState = PreviewState,
     getState = function()
-        return nil
+        if not CoiledAltar:IsMechanicReminderEnabled() or not CoiledAltar:IsInterruptReminderEnabled() then
+            return nil
+        end
+        return HudState(CoiledAltar:GetInterruptStatus())
     end,
     getBackupState = function()
         return nil
     end,
 })
 Internals.InterruptRotationTrackerUI = InterruptRotationTracker
+
+function CoiledAltar:OnInterruptStateChanged()
+    InterruptRotationTracker.Update()
+end

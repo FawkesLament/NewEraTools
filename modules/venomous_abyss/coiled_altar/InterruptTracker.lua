@@ -49,6 +49,7 @@ CoiledAltar.ENCOUNTER_ID = ENCOUNTER_ID
 ---@field requestFlush fun()|nil
 ---@field flushScheduled boolean|nil
 ---@field disposed boolean|nil
+---@field onStateChanged fun(state: CoiledAltarInterruptState)|nil
 
 local Tracker = {}
 Internals.InterruptTracker = Tracker
@@ -80,8 +81,15 @@ function Tracker.GetPossibleWorlds(wave)
     end
     local first = wave.members[1]
     local second = wave.members[2]
-    if not first or not second then
+    if not first then
         return true, true
+    end
+    -- A 1-add wave has no pair; marked goes to melee (W1), unmarked to ranged (W2).
+    if not second then
+        if first.marked == true then
+            return true, false
+        end
+        return false, true
     end
     local aMarked = first.marked == true
     local bMarked = second.marked == true
@@ -163,6 +171,17 @@ local function NewBatch()
         removedOwners = {},
         removedPlates = {},
     }
+end
+
+---@param state CoiledAltarInterruptState
+local function NotifyStateChanged(state)
+    if state.disposed then
+        return
+    end
+    local callback = state.onStateChanged
+    if callback then
+        callback(state)
+    end
 end
 
 ---@param state CoiledAltarInterruptState
@@ -493,6 +512,7 @@ function Tracker.Flush(state)
     for i = 1, #batch.bossEvents do
         ApplyBossEvent(state, batch.bossEvents[i])
     end
+    NotifyStateChanged(state)
 end
 
 function Tracker.OnEngage(state)
@@ -574,14 +594,21 @@ function Tracker.OnRaidTargetChanged(state)
         return
     end
     RefreshLiveMarks(state)
+    NotifyStateChanged(state)
 end
 
 ---@param scope ResourceScope
+---@param onStateChanged fun(state: CoiledAltarInterruptState)|{ onStateChanged: fun(state: CoiledAltarInterruptState) }|nil
 ---@return CoiledAltarInterruptState
-function Tracker.Start(scope)
+function Tracker.Start(scope, onStateChanged)
     local state = Tracker.New()
     state.disposed = false
     state.flushScheduled = false
+    if type(onStateChanged) == "function" then
+        state.onStateChanged = onStateChanged
+    elseif type(onStateChanged) == "table" and type(onStateChanged.onStateChanged) == "function" then
+        state.onStateChanged = onStateChanged.onStateChanged
+    end
 
     local function RequestFlush()
         if state.flushScheduled or state.disposed then
@@ -621,6 +648,7 @@ function Tracker.Start(scope)
     scope:Add(function()
         state.disposed = true
         state.batch = nil
+        state.onStateChanged = nil
     end)
 
     return state
@@ -633,11 +661,18 @@ function CoiledAltar:ListenForEncounter()
         if not CoiledAltar:HasInterruptAssignments() then
             return
         end
-        local state = Tracker.Start(scope)
+        local state = Tracker.Start(scope, function()
+            if CoiledAltar.OnInterruptStateChanged then
+                CoiledAltar:OnInterruptStateChanged()
+            end
+        end)
         current = state
         scope:Add(function()
             if current == state then
                 current = nil
+            end
+            if CoiledAltar.OnInterruptStateChanged then
+                CoiledAltar:OnInterruptStateChanged()
             end
         end)
     end)

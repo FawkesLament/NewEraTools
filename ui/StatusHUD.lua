@@ -281,6 +281,17 @@ function StatusHUD.Create(options)
             progress = maxProgress
         end
 
+        if
+            applied.title == state.title
+            and applied.text == state.text
+            and applied.detail == detailText
+            and applied.progress == progress
+            and applied.maxProgress == maxProgress
+            and applied.severity == severity
+        then
+            return
+        end
+
         title:SetText(state.title)
         title:SetTextColor(Widgets.UnpackColor(headerColor))
         detail:SetTextColor(Widgets.UnpackColor(roleColor))
@@ -430,11 +441,15 @@ function StatusHUD.Bind(config)
         LayoutEditor.ApplyPosition(window, config.getPosition())
         local state = config.getState and config.getState() or nil
         if state == nil then
-            window:Hide()
+            if window:IsShown() then
+                window:Hide()
+            end
             return
         end
         window:SetState(state)
-        window:Show()
+        if not window:IsShown() then
+            window:Show()
+        end
     end
 
     return binding

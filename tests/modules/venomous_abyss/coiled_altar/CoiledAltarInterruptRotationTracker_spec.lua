@@ -301,6 +301,124 @@ describe("CoiledAltar InterruptRotationTracker", function()
         assert.is_false(registered[binding.LAYOUT_ID].global)
     end)
 
+    it("paints the live assignment and advances the round when the tracked shadow is kicked", function()
+        local Player = ns.Api.Player
+        local Unit = ns.Api.Unit
+        local RaidTarget = ns.Api.RaidTarget
+        local Encounter = ns.Api.Encounter
+        local Spell = ns.Api.Spell
+        local Timer = ns.Api.Timer
+        Module:AssignInterruptPlayer("MELEE", 3, Player.GetFullName())
+        Module:SetMechanicReminderEnabled(true)
+        Module:SetInterruptReminderEnabled(true)
+        Module:ListenForEncounter()
+        Encounter.FireStart(Module.ENCOUNTER_ID, "The Coiled Altar", 16, 20)
+        RaidTarget.indices.boss3 = 1
+        for i = 3, 5 do
+            Unit.SetForTests("boss" .. i, { exists = i < 5 })
+        end
+        Encounter.FireEngageUnit()
+        Timer.Advance(0)
+
+        local binding = InterruptRotationTracker()
+        local hud = binding.Ensure()
+        assert.is_true(hud.shown)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_CHAIN_MELEE, hud:GetState().title)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_ROUND:format(1), hud:GetState().text)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_TASK:format(3), hud:GetState().detail)
+        assert.equals(1, hud:GetState().progress)
+        assert.equals(6, hud:GetState().maxProgress)
+
+        Spell.FireCastInterrupted("boss3", true, true)
+        Timer.Advance(0)
+        assert.equals(hud, binding.Ensure())
+        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_ROUND:format(2), hud:GetState().text)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_TASK:format(3), hud:GetState().detail)
+        assert.equals(2, hud:GetState().progress)
+
+        Encounter.FireEnd(Module.ENCOUNTER_ID, "The Coiled Altar", 16, 20, 1)
+        assert.is_false(hud.shown)
+        Spell.FireCastInterrupted("boss3", true, true)
+        Timer.Advance(0)
+        assert.is_false(hud.shown)
+        assert.equals(hud, binding.Ensure())
+    end)
+
+    it("stays pending until a marker resolves the assigned side", function()
+        local Player = ns.Api.Player
+        local Unit = ns.Api.Unit
+        local Encounter = ns.Api.Encounter
+        local Spell = ns.Api.Spell
+        local Timer = ns.Api.Timer
+        local RaidTarget = ns.Api.RaidTarget
+        Module:AssignInterruptPlayer("MELEE", 1, Player.GetFullName())
+        Module:AssignInterruptPlayer("MELEE", 3, Player.GetFullName())
+        Module:SetMechanicReminderEnabled(true)
+        Module:SetInterruptReminderEnabled(true)
+        Module:ListenForEncounter()
+        Encounter.FireStart(Module.ENCOUNTER_ID, "The Coiled Altar", 16, 20)
+        for i = 3, 5 do
+            Unit.SetForTests("boss" .. i, { exists = i < 5 })
+        end
+        Encounter.FireEngageUnit()
+        Timer.Advance(0)
+
+        local binding = InterruptRotationTracker()
+        local hud = binding.Ensure()
+        assert.is_true(hud.shown)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_CHAIN_MELEE, hud:GetState().title)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_ROUND:format(1), hud:GetState().text)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_TASK:format(1), hud:GetState().detail)
+        assert.same({ 1, 3 }, Module:GetInterruptStatus().indices)
+        assert.equals(1, hud:GetState().progress)
+
+        Spell.FireCastInterrupted("boss3", true, true)
+        Timer.Advance(0)
+        assert.equals(hud, binding.Ensure())
+        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_PENDING, hud:GetState().text)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_TASK:format(1), hud:GetState().detail)
+        assert.equals(0, hud:GetState().progress)
+        assert.equals(6, hud:GetState().maxProgress)
+
+        RaidTarget.indices.boss3 = 1
+        RaidTarget.FireChanged()
+        assert.equals(hud, binding.Ensure())
+        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_ROUND:format(2), hud:GetState().text)
+        assert.equals(2, hud:GetState().progress)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_CHAIN_MELEE, hud:GetState().title)
+    end)
+
+    it("shows a consecutive assignment range and stays hidden without a reminder", function()
+        local Player = ns.Api.Player
+        local Unit = ns.Api.Unit
+        local RaidTarget = ns.Api.RaidTarget
+        local Encounter = ns.Api.Encounter
+        local Timer = ns.Api.Timer
+        Module:AssignInterruptPlayer("RANGED", 2, Player.GetFullName())
+        Module:AssignInterruptPlayer("RANGED", 3, Player.GetFullName())
+        Module:ListenForEncounter()
+        Encounter.FireStart(Module.ENCOUNTER_ID, "The Coiled Altar", 16, 20)
+        RaidTarget.indices.boss3 = 1
+        for i = 3, 5 do
+            Unit.SetForTests("boss" .. i, { exists = i < 5 })
+        end
+        Encounter.FireEngageUnit()
+        Timer.Advance(0)
+
+        local binding = InterruptRotationTracker()
+        binding.Update()
+        local hud = binding.Ensure()
+        assert.is_false(hud.shown)
+
+        Module:SetMechanicReminderEnabled(true)
+        Module:SetInterruptReminderEnabled(true)
+        assert.is_true(hud.shown)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_CHAIN_RANGED, hud:GetState().title)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_TASK_RANGE:format(2, 3), hud:GetState().detail)
+        assert.equals(1, hud:GetState().progress)
+        assert.equals(6, hud:GetState().maxProgress)
+    end)
+
     it("repositions through the shared interrupt rotation tracker anchor", function()
         LoadPanel()
         local binding = InterruptRotationTracker()
