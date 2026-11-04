@@ -110,6 +110,20 @@ describe("EventLog", function()
             assert.same({ "UNIT_SPELLCAST_STOP 0.000 boss1 Cast-boss 3" }, Module:GetLines())
         end)
 
+        it("ignores friendly and secret-token nameplates", function()
+            Unit.SetForTests("nameplate1", { exists = true, isEnemy = false })
+            Unit.SetForTests("nameplate2", { exists = true, isEnemy = true })
+            GameEvents.Fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+            GameEvents.Fire("NAME_PLATE_UNIT_ADDED", Secret())
+            GameEvents.Fire("NAME_PLATE_UNIT_ADDED", "nameplate2")
+            GameEvents.Fire("NAME_PLATE_UNIT_REMOVED", "nameplate1")
+            GameEvents.Fire("NAME_PLATE_UNIT_REMOVED", "nameplate2")
+            assert.same({
+                "NAME_PLATE_UNIT_ADDED 0.000 nameplate2",
+                "NAME_PLATE_UNIT_REMOVED 0.000 nameplate2",
+            }, Module:GetLines())
+        end)
+
         it("clears previous lines when a new encounter starts", function()
             GameEvents.Fire("ENCOUNTER_WARNING", { text = "first" })
             Timer.now = 40

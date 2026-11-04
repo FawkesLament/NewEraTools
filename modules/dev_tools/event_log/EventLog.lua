@@ -28,13 +28,15 @@ local LOGGED_EVENTS = {
     "INSTANCE_ENCOUNTER_OBJECTIVE_UPDATE",
 }
 
-local SPELLCAST_EVENTS = {
+local ENEMY_UNIT_EVENTS = {
     UNIT_SPELLCAST_START = true,
     UNIT_SPELLCAST_SUCCEEDED = true,
     UNIT_SPELLCAST_INTERRUPTED = true,
     UNIT_SPELLCAST_STOP = true,
     UNIT_SPELLCAST_CHANNEL_START = true,
     UNIT_SPELLCAST_CHANNEL_STOP = true,
+    NAME_PLATE_UNIT_ADDED = true,
+    NAME_PLATE_UNIT_REMOVED = true,
 }
 
 ---@class EventLog: Module
@@ -143,7 +145,7 @@ end
 
 ---@param unitToken any
 ---@return boolean
-local function ShouldLogSpellcast(unitToken)
+local function ShouldLogEnemyUnit(unitToken)
     if Secrets.IsSecret(unitToken) then
         return false
     end
@@ -157,7 +159,7 @@ local function SubscribeLoggedEvents(callback)
     for i = 1, #LOGGED_EVENTS do
         local event = LOGGED_EVENTS[i]
         unsubs[i] = GameEvents.Listen(event, function(...)
-            if SPELLCAST_EVENTS[event] and not ShouldLogSpellcast(...) then
+            if ENEMY_UNIT_EVENTS[event] and not ShouldLogEnemyUnit(...) then
                 return
             end
             callback(event, ...)
