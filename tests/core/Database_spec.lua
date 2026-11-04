@@ -93,7 +93,7 @@ describe("Database", function()
                 },
             })
 
-            assert.equals(10, saved.schemaVersion)
+            assert.equals(12, saved.schemaVersion)
             assert.is_nil(saved.modules.InterruptClaim)
             assert.is_true(saved.modules.CombatTimer.enabled)
         end)
@@ -106,6 +106,83 @@ describe("Database", function()
 
             assert.is_nil(saved.modules.InterruptClaim)
             assert.is_false(saved.modules.CombatTimer.enabled)
+        end)
+    end)
+
+    describe("interrupt rotation tracker position", function()
+        it("promotes Twin Fangs' interrupt HUD anchor to the shared key", function()
+            local saved = Database.Load({
+                schemaVersion = 10,
+                modules = {
+                    TwinFangs = {
+                        interruptStatusHudPosition = {
+                            point = "BOTTOM",
+                            relativePoint = "BOTTOM",
+                            x = 8,
+                            y = 16,
+                        },
+                    },
+                },
+            })
+
+            assert.same({
+                point = "BOTTOM",
+                relativePoint = "BOTTOM",
+                x = 8,
+                y = 16,
+            }, saved.interruptRotationTrackerPosition)
+            assert.is_nil(saved.interruptStatusHudPosition)
+            assert.is_nil(saved.modules.TwinFangs.interruptStatusHudPosition)
+        end)
+
+        it("promotes a leftover Twin Fangs statusHudPosition when the renamed key is missing", function()
+            local saved = Database.Load({
+                schemaVersion = 10,
+                modules = {
+                    TwinFangs = {
+                        statusHudPosition = { point = "TOP", relativePoint = "TOP", x = 4, y = -8 },
+                    },
+                },
+            })
+
+            assert.same({ point = "TOP", relativePoint = "TOP", x = 4, y = -8 }, saved.interruptRotationTrackerPosition)
+            assert.is_nil(saved.interruptStatusHudPosition)
+            assert.is_nil(saved.modules.TwinFangs.statusHudPosition)
+        end)
+
+        it("drops an invalid Twin Fangs HUD anchor", function()
+            local saved = Database.Load({
+                schemaVersion = 10,
+                modules = {
+                    TwinFangs = {
+                        interruptStatusHudPosition = { point = "CENTER", x = 0, y = 80 },
+                    },
+                },
+            })
+
+            assert.is_nil(saved.interruptRotationTrackerPosition)
+            assert.is_nil(saved.interruptStatusHudPosition)
+            assert.is_nil(saved.modules.TwinFangs.interruptStatusHudPosition)
+        end)
+
+        it("renames the shared interruptStatusHudPosition key", function()
+            local saved = Database.Load({
+                schemaVersion = 11,
+                interruptStatusHudPosition = {
+                    point = "LEFT",
+                    relativePoint = "LEFT",
+                    x = 2,
+                    y = 4,
+                },
+            })
+
+            assert.same({
+                point = "LEFT",
+                relativePoint = "LEFT",
+                x = 2,
+                y = 4,
+            }, saved.interruptRotationTrackerPosition)
+            assert.is_nil(saved.interruptStatusHudPosition)
         end)
     end)
 end)

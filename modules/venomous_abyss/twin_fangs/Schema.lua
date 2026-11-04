@@ -48,7 +48,6 @@ local Internals = ns.Modules.Internals("TwinFangs")
 ---@field soakReminder TwinFangsSoakReminder
 ---@field interruptReminder TwinFangsReminder
 ---@field nameplateHint TwinFangsNameplateHint
----@field interruptStatusHudPosition FloatingWindowPosition
 ---@field soakTimelinePosition FloatingWindowPosition
 ---@field venomRoster TwinFangsVenomRosterSettings
 ---@field venomRosterPosition FloatingWindowPosition
@@ -330,10 +329,10 @@ function Schema.NewNameplateHint()
     }
 end
 
----Factory interrupt-status HUD anchor. A new table, so callers can store it without aliasing.
+---Factory interrupt rotation tracker anchor. A new table, so callers can store it without aliasing.
 ---@return FloatingWindowPosition
-function Schema.DefaultInterruptStatusHudPosition()
-    return { point = "CENTER", relativePoint = "CENTER", x = 0, y = 80 }
+function Schema.DefaultInterruptRotationTrackerPosition()
+    return ns.InterruptRotationTrackerAnchor.DefaultPosition()
 end
 
 ---Factory triple-soak timeline anchor. A new table, so callers can store it without aliasing.
@@ -375,7 +374,6 @@ function Schema.NewSettings()
             chain = Schema.NewInterruptChain(),
         },
         nameplateHint = Schema.NewNameplateHint(),
-        interruptStatusHudPosition = Schema.DefaultInterruptStatusHudPosition(),
         soakTimelinePosition = Schema.DefaultSoakTimelinePosition(),
         venomRoster = Schema.NewVenomRoster(),
         venomRosterPosition = Schema.DefaultVenomRosterPosition(),

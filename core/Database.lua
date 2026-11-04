@@ -3,7 +3,7 @@ local _, ns = ...
 local Database = {}
 ns.Database = Database
 
-local SCHEMA_VERSION = 10
+local SCHEMA_VERSION = 12
 
 -- migrations[n] upgrades saved data from version n - 1 to version n, in place.
 local migrations = {}
@@ -82,6 +82,46 @@ migrations[10] = function(saved)
     if type(modules) == "table" then
         modules.InterruptClaim = nil
     end
+end
+
+local function ModulePosition(settings, key)
+    if type(settings) ~= "table" then
+        return nil
+    end
+    local position = settings[key]
+    if not IsCalloutPosition(position) then
+        return nil
+    end
+    return position
+end
+
+-- One shared interrupt rotation tracker anchor. Twin Fangs' saved point wins when it is valid.
+migrations[11] = function(saved)
+    local modules = saved.modules
+    local settings = type(modules) == "table" and modules.TwinFangs or nil
+    local chosen = ModulePosition(settings, "interruptStatusHudPosition")
+        or ModulePosition(settings, "statusHudPosition")
+    if chosen then
+        saved.interruptStatusHudPosition = {
+            point = chosen.point,
+            relativePoint = chosen.relativePoint,
+            x = chosen.x,
+            y = chosen.y,
+        }
+    end
+    if type(settings) == "table" then
+        settings.interruptStatusHudPosition = nil
+        settings.statusHudPosition = nil
+    end
+end
+
+-- Shared interrupt rotation tracker anchor renamed from interruptStatusHudPosition.
+migrations[12] = function(saved)
+    local position = saved.interruptStatusHudPosition
+    if type(position) == "table" and saved.interruptRotationTrackerPosition == nil then
+        saved.interruptRotationTrackerPosition = position
+    end
+    saved.interruptStatusHudPosition = nil
 end
 
 ---Upgrades saved variables to the current schema, creating them if missing.

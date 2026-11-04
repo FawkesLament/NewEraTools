@@ -2,6 +2,7 @@
     <Script file="Assets.lua"/>
     <Script file="Position.lua"/>
     <Script file="CalloutAnchor.lua"/>
+    <Script file="InterruptRotationTrackerAnchor.lua"/>
     <Script file="Color.lua"/>
     <Script file="Widgets.lua"/>
     <Script file="Dropdown.lua"/>
@@ -22,7 +23,7 @@
     <Script file="WarningWindow.lua"/>
     <Script file="CalloutMessage.lua"/>
     <Script file="StatusHUD.lua"/>
-    <Script file="InterruptStatusHUD.lua"/>
+    <Script file="InterruptRotationTracker.lua"/>
     <Script file="CollapsiblePanel.lua"/>
     <Script file="LayoutCoordinateInspector.lua"/>
     <Script file="LayoutEditor.lua"/>

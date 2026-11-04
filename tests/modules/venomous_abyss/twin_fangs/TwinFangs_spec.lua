@@ -345,54 +345,56 @@ describe("TwinFangs", function()
         end)
     end)
 
-    describe("interrupt status HUD position", function()
+    describe("interrupt rotation tracker position", function()
         it("defaults below center and persists a moved anchor", function()
-            assert.same(Schema.DefaultInterruptStatusHudPosition(), Module:GetInterruptStatusHudPosition())
+            assert.same(Schema.DefaultInterruptRotationTrackerPosition(), Module:GetInterruptRotationTrackerPosition())
             local position = { point = "TOP", relativePoint = "TOP", x = 12, y = -40 }
-            Module:SetInterruptStatusHudPosition(position)
-            assert.same(position, Module.db.interruptStatusHudPosition)
-            assert.equals(Module.db.interruptStatusHudPosition, Module:GetInterruptStatusHudPosition())
+            Module:SetInterruptRotationTrackerPosition(position)
+            assert.same(position, ns.InterruptRotationTrackerAnchor.GetPosition())
+            assert.equals(ns.InterruptRotationTrackerAnchor.GetPosition(), Module:GetInterruptRotationTrackerPosition())
+            assert.is_nil(Module.db.interruptStatusHudPosition)
+            assert.is_nil(Module.db.interruptRotationTrackerPosition)
 
             local reloaded = Loader.Load()
             reloaded.Modules.Start(ns.Database.Load({
-                modules = {
-                    TwinFangs = { interruptStatusHudPosition = position },
-                },
+                interruptRotationTrackerPosition = position,
             }))
-            assert.same(position, reloaded.Modules.Get("TwinFangs"):GetInterruptStatusHudPosition())
+            assert.same(position, reloaded.Modules.Get("TwinFangs"):GetInterruptRotationTrackerPosition())
+            assert.equals(
+                reloaded.InterruptRotationTrackerAnchor.GetPosition(),
+                reloaded.Modules.Get("CoiledAltar"):GetInterruptRotationTrackerPosition()
+            )
         end)
 
         it("replaces an invalid saved position with the factory anchor", function()
             local fresh = Loader.Load()
             fresh.Modules.Start(fresh.Database.Load({
-                modules = {
-                    TwinFangs = {
-                        interruptStatusHudPosition = {
-                            point = "CENTER",
-                            relativePoint = "CENTER",
-                            x = "bad",
-                            y = 0,
-                        },
-                    },
+                interruptRotationTrackerPosition = {
+                    point = "CENTER",
+                    relativePoint = "CENTER",
+                    x = "bad",
+                    y = 0,
                 },
             }))
             assert.same(
-                fresh.Modules.Internals("TwinFangs").Schema.DefaultInterruptStatusHudPosition(),
-                fresh.Modules.Get("TwinFangs"):GetInterruptStatusHudPosition()
+                fresh.Modules.Internals("TwinFangs").Schema.DefaultInterruptRotationTrackerPosition(),
+                fresh.Modules.Get("TwinFangs"):GetInterruptRotationTrackerPosition()
             )
         end)
 
-        it("adopts a leftover statusHudPosition key", function()
+        it("adopts a leftover Twin Fangs statusHudPosition key", function()
             local position = { point = "TOP", relativePoint = "TOP", x = 4, y = -8 }
             local fresh = Loader.Load()
             fresh.Modules.Start(fresh.Database.Load({
+                schemaVersion = 10,
                 modules = {
                     TwinFangs = { statusHudPosition = position },
                 },
             }))
             local module = fresh.Modules.Get("TwinFangs")
-            assert.same(position, module:GetInterruptStatusHudPosition())
+            assert.same(position, module:GetInterruptRotationTrackerPosition())
             assert.is_nil(module.db.statusHudPosition)
+            assert.is_nil(module.db.interruptStatusHudPosition)
         end)
     end)
 end)

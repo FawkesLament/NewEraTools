@@ -4,8 +4,10 @@ local L = ns.L
 local Assets = ns.Assets
 local FeatureSection = ns.FeatureSection
 local Layout = ns.Layout
+local LayoutEditor = ns.LayoutEditor
 local NumberStepper = ns.NumberStepper
 local Slider = ns.Slider
+local Util = ns.Util
 local Widgets = ns.Widgets
 
 local Fonts = Assets.Fonts
@@ -13,6 +15,17 @@ local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 
 local CoiledAltar = ns.Modules.Get("CoiledAltar")
+local InterruptRotationTracker = Internals.InterruptRotationTrackerUI
+
+local SCOPE_ID = "coiled_altar"
+
+local function BeginEditPosition()
+    if not CoiledAltar:IsMechanicReminderEnabled() then
+        Util.Print(L.LAYOUT_EDIT_NONE)
+        return
+    end
+    LayoutEditor.BeginScope(SCOPE_ID)
+end
 
 ---@param row Frame
 ---@param label FontString
@@ -45,12 +58,49 @@ local function BuildContent(content)
         spacing = Spacing.SMALL,
     })
 
+    local editLayout = Widgets.CreateLayoutEditButton(content.header, L.COILED_ALTAR_EDIT_POSITION, BeginEditPosition)
+    content:SetHeaderAction(editLayout)
+
     local editorHost = body:AddRow(1)
     local editorHeight = Internals.InterruptAssignmentsUI.Mount(editorHost, function(height)
         body:SetEntryHeight(editorHost, height)
         content:SetContentHeight(body:GetHeight())
     end)
     body:SetEntryHeight(editorHost, editorHeight)
+
+    local reminder = FeatureSection.Create(body, {
+        title = L.COILED_ALTAR_MECHANIC_REMINDER,
+        divider = true,
+        enabled = CoiledAltar:IsMechanicReminderEnabled(),
+        onEnabledChanged = function(enabled)
+            CoiledAltar:SetMechanicReminderEnabled(enabled)
+            if LayoutEditor.IsEditing() then
+                LayoutEditor.Refresh()
+            end
+        end,
+    })
+    local reminderBody = Layout.Stack(reminder.content, { paddingY = Spacing.SMALL })
+    local interruptRow = reminderBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local interruptBox = Widgets.CreateCheckbox(interruptRow)
+    interruptBox:SetChecked(CoiledAltar:IsInterruptReminderEnabled())
+    interruptBox:SetScript("OnClick", function(self)
+        if not CoiledAltar:IsMechanicReminderEnabled() then
+            self:SetChecked(CoiledAltar:IsInterruptReminderEnabled())
+            return
+        end
+        CoiledAltar:SetInterruptReminderEnabled(self:GetChecked())
+        self:SetChecked(CoiledAltar:IsInterruptReminderEnabled())
+        if LayoutEditor.IsEditing() then
+            LayoutEditor.Refresh()
+        end
+    end)
+    local interruptLabel = Widgets.CreateLabel(interruptRow, Fonts.BODY, L.COILED_ALTAR_INTERRUPT_REMINDER)
+    interruptLabel:SetJustifyH("LEFT")
+    interruptLabel:SetWordWrap(false)
+    Layout.Row(interruptRow, { interruptBox, interruptLabel }, Spacing.SMALL)
+    interruptBox:SetHitRectInsets(0, -(interruptLabel:GetStringWidth() + Spacing.SMALL), 0, 0)
+    reminder:SetContentHeight(reminderBody:GetHeight())
+    reminder:RefreshContentInteractive()
 
     local hint = FeatureSection.Create(body, {
         title = L.COILED_ALTAR_NAMEPLATE_HINT,
@@ -231,10 +281,30 @@ local function BuildContent(content)
 end
 
 function CoiledAltar:OnEnable()
+    LayoutEditor.RegisterScope({
+        id = SCOPE_ID,
+        label = L.COILED_ALTAR_LAYOUT_SCOPE,
+        order = 7,
+        elementIds = {
+            ns.Callout.LAYOUT_ID,
+            InterruptRotationTracker.LAYOUT_ID,
+        },
+        prepare = function()
+            ns.Callout.Ensure()
+            InterruptRotationTracker.Ensure()
+        end,
+    })
+    ns.Callout.SetScopePreview(
+        SCOPE_ID,
+        L.COILED_ALTAR_INTERRUPT_CALLOUT,
+        CoiledAltar.INTERRUPT_CALLOUT_DURATION
+    )
     ns.MainPanel:RegisterSection({
         title = L.COILED_ALTAR_TITLE,
         group = ns.PanelGroups.VENOMOUS_ABYSS,
         build = BuildContent,
     })
     self:ListenForEncounter()
+    InterruptRotationTracker.Ensure()
+    InterruptRotationTracker.Update()
 end

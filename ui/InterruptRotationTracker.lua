@@ -1,25 +1,25 @@
 local _, ns = ...
 local Spacing = ns.Assets.Spacing
 
-local InterruptStatusHUD = {}
-ns.InterruptStatusHUD = InterruptStatusHUD
+local InterruptRotationTracker = {}
+ns.InterruptRotationTracker = InterruptRotationTracker
 
----@class InterruptStatusHUDBindOptions: StatusHUDBindOptions
+---@class InterruptRotationTrackerBindOptions: StatusHUDBindOptions
 ---@field getBackupState fun(): StatusHUDState|nil
 ---@field backupName string
 ---@field backupTone string|nil
 
----@class InterruptStatusHUDBinding: StatusHUDBinding
+---@class InterruptRotationTrackerBinding: StatusHUDBinding
 ---@field EnsureBackup fun(): StatusHUD
 
 ---Layout-editable primary StatusHUD with an optional stacked backup card.
 ---Backup shares the primary's saved point when the primary is hidden.
----@param config InterruptStatusHUDBindOptions
----@return InterruptStatusHUDBinding
-function InterruptStatusHUD.Bind(config)
-    assert(type(config) == "table", "InterruptStatusHUD.Bind requires options")
-    assert(type(config.getBackupState) == "function", "InterruptStatusHUD.Bind requires getBackupState")
-    assert(type(config.backupName) == "string", "InterruptStatusHUD.Bind requires backupName")
+---@param config InterruptRotationTrackerBindOptions
+---@return InterruptRotationTrackerBinding
+function InterruptRotationTracker.Bind(config)
+    assert(type(config) == "table", "InterruptRotationTracker.Bind requires options")
+    assert(type(config.getBackupState) == "function", "InterruptRotationTracker.Bind requires getBackupState")
+    assert(type(config.backupName) == "string", "InterruptRotationTracker.Bind requires backupName")
 
     local previewing = false
     ---@type StatusHUD|nil
@@ -105,5 +105,5 @@ function InterruptStatusHUD.Bind(config)
         return EnsureBackup()
     end
 
-    return binding --[[@as InterruptStatusHUDBinding]]
+    return binding --[[@as InterruptRotationTrackerBinding]]
 end

@@ -31,7 +31,7 @@
     <Script file="twin_fangs\ui\InterruptBadge.lua"/>
     <Script file="twin_fangs\ui\Nameplates.lua"/>
     <Script file="twin_fangs\ui\interrupt_chain\Labels.lua"/>
-    <Script file="twin_fangs\ui\InterruptStatusHUD.lua"/>
+    <Script file="twin_fangs\ui\InterruptRotationTracker.lua"/>
     <Script file="twin_fangs\ui\SoakTimeline.lua"/>
     <Script file="twin_fangs\ui\interrupt_chain\Preview.lua"/>
     <Script file="twin_fangs\ui\interrupt_chain\MacroPopup.lua"/>
@@ -42,6 +42,7 @@
     <Script file="coiled_altar\CoiledAltar.lua"/>
     <Script file="coiled_altar\Assignments.lua"/>
     <Script file="coiled_altar\InterruptTracker.lua"/>
+    <Script file="coiled_altar\ui\InterruptRotationTracker.lua"/>
     <Script file="coiled_altar\ui\Nameplates.lua"/>
     <Script file="coiled_altar\ui\Assignments.lua"/>
     <Script file="coiled_altar\CoiledAltarUI.lua"/>

@@ -18,7 +18,7 @@ local ADDON_CHECK_MODULE_ID = "TwinFangs"
 ---@field OnNameplateHintShow fun(self: TwinFangs, unit: string, number: integer)|nil  Defined by the UI; live badge attached.
 ---@field OnNameplateHintHide fun(self: TwinFangs, unit: string)|nil  Defined by the UI; live badge removed.
 ---@field OnNameplateHintCleared fun(self: TwinFangs)|nil  Defined by the UI; every live badge removed.
----@field OnInterruptStatusChanged fun(self: TwinFangs)|nil  Defined by the UI; interrupt StatusHUD shown, updated, or hidden.
+---@field OnInterruptStatusChanged fun(self: TwinFangs)|nil  Defined by the UI; interrupt rotation tracker shown, updated, or hidden.
 ---@field OnVenomRosterEnabledChanged fun(self: TwinFangs)|nil  Defined by the UI; roster hidden or shown from the settings toggle.
 ---@field OnVenomRosterAppearanceChanged fun(self: TwinFangs)|nil  Defined by the UI; scale, spacing, and fonts applied in place.
 local TwinFangs = ns.Modules.New("TwinFangs", {
@@ -347,28 +347,14 @@ function TwinFangs:SetCalloutPosition(position)
     ns.CalloutAnchor.SetPosition(position)
 end
 
----@return FloatingWindowPosition
-function TwinFangs:GetInterruptStatusHudPosition()
-    return self.db.interruptStatusHudPosition
+---@return InterruptRotationTrackerAnchor
+function TwinFangs:GetInterruptRotationTrackerPosition()
+    return ns.InterruptRotationTrackerAnchor.GetPosition()
 end
 
----@param position FloatingWindowPosition
-function TwinFangs:SetInterruptStatusHudPosition(position)
-    assert(ns.Position.IsValid(position), "Bad interrupt status HUD position")
-    local saved = self.db.interruptStatusHudPosition
-    if type(saved) ~= "table" then
-        self.db.interruptStatusHudPosition = {
-            point = position.point,
-            relativePoint = position.relativePoint,
-            x = position.x,
-            y = position.y,
-        }
-        return
-    end
-    saved.point = position.point
-    saved.relativePoint = position.relativePoint
-    saved.x = position.x
-    saved.y = position.y
+---@param position InterruptRotationTrackerAnchor
+function TwinFangs:SetInterruptRotationTrackerPosition(position)
+    ns.InterruptRotationTrackerAnchor.SetPosition(position)
 end
 
 ---@return FloatingWindowPosition
@@ -589,13 +575,8 @@ function TwinFangs:OnInit()
     if type(self.db.soakReminder.timeline) ~= "boolean" then
         self.db.soakReminder.timeline = true
     end
-    if ns.Position.IsValid(self.db.statusHudPosition) then
-        self:SetInterruptStatusHudPosition(self.db.statusHudPosition)
-    end
     self.db.statusHudPosition = nil
-    if not ns.Position.IsValid(self.db.interruptStatusHudPosition) then
-        self.db.interruptStatusHudPosition = Schema.DefaultInterruptStatusHudPosition()
-    end
+    self.db.interruptStatusHudPosition = nil
     if not ns.Position.IsValid(self.db.soakTimelinePosition) then
         self.db.soakTimelinePosition = Schema.DefaultSoakTimelinePosition()
     end
@@ -649,10 +630,10 @@ function TwinFangs:EndInterruptStatusWindow() end
 ---Counts configured-channel reports during a Brood window. Defined by InterruptStatus.lua.
 function TwinFangs:ListenForInterruptStatus() end
 
----Panel test mode for the interrupt-status HUD. Defined by InterruptStatus.lua.
+---Panel test mode for the interrupt rotation tracker. Defined by InterruptStatus.lua.
 function TwinFangs:SetInterruptStatusTestMode() end
 
----Whether the interrupt-status HUD is in panel test mode. Defined by InterruptStatus.lua.
+---Whether the interrupt rotation tracker is in panel test mode. Defined by InterruptStatus.lua.
 function TwinFangs:IsInterruptStatusTestMode() end
 
 ---Prewarms Venom Roster frames in Pit of Fangs when the feature is on. Defined by the roster UI.

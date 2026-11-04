@@ -1,4 +1,4 @@
-describe("InterruptStatusHUD", function()
+describe("InterruptRotationTracker", function()
     local ns, originalCreateFrame, registered
 
     local function FakeLabel()
@@ -126,8 +126,8 @@ describe("InterruptStatusHUD", function()
         local config = {
             layoutId = "Feature:interrupt",
             label = "Interrupt",
-            name = "NewEraToolsInterruptStatus",
-            backupName = "NewEraToolsInterruptBackup",
+            name = "NewEraToolsInterruptRotationTracker",
+            backupName = "NewEraToolsInterruptRotationTrackerBackup",
             parent = FakeFrame(),
             isEnabled = function()
                 return true
@@ -215,7 +215,7 @@ describe("InterruptStatusHUD", function()
             return FakeFrame()
         end
         assert(loadfile("ui/StatusHUD.lua"))("NewEraTools", ns)
-        assert(loadfile("ui/InterruptStatusHUD.lua"))("NewEraTools", ns)
+        assert(loadfile("ui/InterruptRotationTracker.lua"))("NewEraTools", ns)
     end)
 
     after_each(function()
@@ -223,12 +223,12 @@ describe("InterruptStatusHUD", function()
     end)
 
     it("rejects incomplete Bind options", function()
-        assert.is_false(pcall(ns.InterruptStatusHUD.Bind))
-        assert.is_false(pcall(ns.InterruptStatusHUD.Bind, { layoutId = "x" }))
-        assert.is_false(pcall(ns.InterruptStatusHUD.Bind, {
+        assert.is_false(pcall(ns.InterruptRotationTracker.Bind))
+        assert.is_false(pcall(ns.InterruptRotationTracker.Bind, { layoutId = "x" }))
+        assert.is_false(pcall(ns.InterruptRotationTracker.Bind, {
             layoutId = "Feature:interrupt",
             label = "Interrupt",
-            name = "NewEraToolsInterruptStatus",
+            name = "NewEraToolsInterruptRotationTracker",
             isEnabled = function()
                 return true
             end,
@@ -243,7 +243,7 @@ describe("InterruptStatusHUD", function()
     end)
 
     it("stacks backup under a visible primary HUD", function()
-        local bound = ns.InterruptStatusHUD.Bind(BindConfig({
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
             getState = SampleState,
             getBackupState = BackupState,
         }))
@@ -260,7 +260,7 @@ describe("InterruptStatusHUD", function()
     end)
 
     it("keeps backup at the saved point when primary is hidden", function()
-        local bound = ns.InterruptStatusHUD.Bind(BindConfig({
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
             getBackupState = BackupState,
         }))
         bound.Update()
@@ -273,7 +273,7 @@ describe("InterruptStatusHUD", function()
     end)
 
     it("hides backup while the primary layout preview is active", function()
-        local bound = ns.InterruptStatusHUD.Bind(BindConfig({
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
             getState = SampleState,
             getBackupState = BackupState,
         }))

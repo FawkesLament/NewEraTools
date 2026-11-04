@@ -19,7 +19,7 @@ local Spacing = Assets.Spacing
 local TwinFangs = ns.Modules.Get("TwinFangs")
 local Schema = Internals.Schema
 local SoakTimeline = Internals.SoakTimeline
-local InterruptStatusHud = Internals.InterruptStatusHudUI
+local InterruptRotationTracker = Internals.InterruptRotationTrackerUI
 local SoakTimelineHud = Internals.SoakTimelineUI
 local AddonCheckPanel = ns.AddonCheckPanel
 
@@ -295,7 +295,6 @@ local function BuildContent(content)
 
     local hint = FeatureSection.Create(body, {
         title = L.TWIN_FANGS_NAMEPLATE_HINT,
-        tooltip = L.TWIN_FANGS_NAMEPLATE_HINT_TOOLTIP,
         divider = true,
         enabled = TwinFangs:IsNameplateHintEnabled(),
         onEnabledChanged = function(enabled)
@@ -656,13 +655,13 @@ function TwinFangs:OnEnable()
         order = 6,
         elementIds = {
             ns.Callout.LAYOUT_ID,
-            InterruptStatusHud.LAYOUT_ID,
+            InterruptRotationTracker.LAYOUT_ID,
             SoakTimelineHud.LAYOUT_ID,
             Internals.VenomRosterUI.LAYOUT_ID,
         },
         prepare = function()
             ns.Callout.Ensure()
-            InterruptStatusHud.Ensure()
+            InterruptRotationTracker.Ensure()
             SoakTimelineHud.Ensure()
             Internals.VenomRosterUI.Ensure()
         end,
@@ -706,8 +705,8 @@ function TwinFangs:OnEnable()
             syncInterruptChainEditor()
         end
     end)
-    InterruptStatusHud.Ensure()
-    InterruptStatusHud.Update()
+    InterruptRotationTracker.Ensure()
+    InterruptRotationTracker.Update()
     SoakTimelineHud.Ensure()
     SoakTimelineHud.Update()
     Internals.VenomRosterUI.Ensure()

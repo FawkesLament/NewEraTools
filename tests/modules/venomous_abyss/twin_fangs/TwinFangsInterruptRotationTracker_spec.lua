@@ -1,12 +1,12 @@
 local Loader = require("helpers.loader")
 
 local STATUS_HUD_PATH = "ui/StatusHUD.lua"
-local SHARED_INTERRUPT_STATUS_HUD_PATH = "ui/InterruptStatusHUD.lua"
+local SHARED_INTERRUPT_ROTATION_TRACKER_PATH = "ui/InterruptRotationTracker.lua"
 local LABELS_PATH = "modules/venomous_abyss/twin_fangs/ui/interrupt_chain/Labels.lua"
-local INTERRUPT_STATUS_HUD_PATH = "modules/venomous_abyss/twin_fangs/ui/InterruptStatusHUD.lua"
+local INTERRUPT_ROTATION_TRACKER_PATH = "modules/venomous_abyss/twin_fangs/ui/InterruptRotationTracker.lua"
 local PANEL_PATH = "modules/venomous_abyss/twin_fangs/ui/Panel.lua"
 
-describe("TwinFangs InterruptStatusHUD", function()
+describe("TwinFangs InterruptRotationTracker", function()
     local ns, Module, L, originalCreateFrame
     local registered
     local scopes
@@ -189,9 +189,9 @@ describe("TwinFangs InterruptStatusHUD", function()
             return FakeFrame()
         end
         assert(loadfile(STATUS_HUD_PATH))(Loader.ADDON_NAME, namespace)
-        assert(loadfile(SHARED_INTERRUPT_STATUS_HUD_PATH))(Loader.ADDON_NAME, namespace)
+        assert(loadfile(SHARED_INTERRUPT_ROTATION_TRACKER_PATH))(Loader.ADDON_NAME, namespace)
         assert(loadfile(LABELS_PATH))(Loader.ADDON_NAME, namespace)
-        assert(loadfile(INTERRUPT_STATUS_HUD_PATH))(Loader.ADDON_NAME, namespace)
+        assert(loadfile(INTERRUPT_ROTATION_TRACKER_PATH))(Loader.ADDON_NAME, namespace)
     end
 
     local function LoadPanel()
@@ -238,8 +238,8 @@ describe("TwinFangs InterruptStatusHUD", function()
         CreateFrame = originalCreateFrame
     end)
 
-    local function InterruptStatusHud()
-        return ns.Modules.Internals("TwinFangs").InterruptStatusHudUI
+    local function InterruptRotationTracker()
+        return ns.Modules.Internals("TwinFangs").InterruptRotationTrackerUI
     end
 
     local function PreviewState()
@@ -261,29 +261,29 @@ describe("TwinFangs InterruptStatusHUD", function()
     end
 
     it("creates one instance, registers it, and stays hidden in normal play", function()
-        local binding = InterruptStatusHud()
+        local binding = InterruptRotationTracker()
         binding.Update()
         local hud = binding.Ensure()
         local def = registered[binding.LAYOUT_ID]
         assert.equals("TwinFangs:interrupt", binding.LAYOUT_ID)
-        assert.is_false(def.global)
+        assert.is_true(def.global)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_TITLE, def.label)
         assert.is_true(def.isEnabled())
         assert.is_false(hud.shown)
-        assert.same(Module:GetInterruptStatusHudPosition(), hud.position)
+        assert.same(Module:GetInterruptRotationTrackerPosition(), hud.position)
     end)
 
-    it("supplies the mock interrupt preview only while Twin Fangs Edit Mode is active", function()
+    it("supplies the mock interrupt preview in Common UI and Twin Fangs Edit Mode", function()
         LoadPanel()
-        local binding = InterruptStatusHud()
+        local binding = InterruptRotationTracker()
         local hud = binding.Ensure()
         Module:SetInterruptReminderEnabled(true)
         binding.Update()
         assert.is_false(hud.shown)
 
         ns.LayoutEditor.BeginScope("common")
-        assert.is_false(hud.shown)
-        assert.is_nil(editing[binding.LAYOUT_ID])
+        assert.is_true(hud.shown)
+        assert.same(PreviewState(), hud:GetState())
 
         ns.LayoutEditor.BeginScope("twin_fangs")
         assert.is_false(Module:HasPrimaryInterruptAssignment())
@@ -297,10 +297,10 @@ describe("TwinFangs InterruptStatusHUD", function()
         assert.is_false(hud.shown)
     end)
 
-    it("registers the interrupt status HUD in the Twin Fangs scope", function()
+    it("registers the interrupt rotation tracker in the Twin Fangs scope", function()
         LoadPanel()
         local scope = scopes.twin_fangs
-        local binding = InterruptStatusHud()
+        local binding = InterruptRotationTracker()
         assert.equals(L.TWIN_FANGS_LAYOUT_SCOPE, scope.label)
         assert.same({
             ns.Callout.LAYOUT_ID,
@@ -308,20 +308,20 @@ describe("TwinFangs InterruptStatusHUD", function()
             "TwinFangs:soakTimeline",
             "TwinFangs:venomRoster",
         }, scope.elementIds)
-        assert.equals("boolean", type(registered[binding.LAYOUT_ID].global))
-        assert.is_false(registered[binding.LAYOUT_ID].global)
+        assert.is_true(registered[binding.LAYOUT_ID].global)
     end)
 
     it("repositions through the Twin Fangs layout element and keeps the saved point", function()
         LoadPanel()
-        local binding = InterruptStatusHud()
+        local binding = InterruptRotationTracker()
         local hud = binding.Ensure()
         local def = registered[binding.LAYOUT_ID]
         local next = { point = "BOTTOM", relativePoint = "BOTTOM", x = 8, y = 16 }
         def.setPosition(next)
-        assert.same(next, Module:GetInterruptStatusHudPosition())
+        assert.same(next, Module:GetInterruptRotationTrackerPosition())
         def.getPosition().x = 8
-        assert.equals(8, Module.db.interruptStatusHudPosition.x)
+        assert.equals(8, ns.InterruptRotationTrackerAnchor.GetPosition().x)
+        assert.is_nil(Module.db.interruptStatusHudPosition)
 
         ns.LayoutEditor.BeginScope("twin_fangs")
         assert.same(next, hud.position)
@@ -329,15 +329,14 @@ describe("TwinFangs InterruptStatusHUD", function()
 
         local reloaded = Loader.Load()
         reloaded.Modules.Start(ns.Database.Load({
-            modules = {
-                TwinFangs = { interruptStatusHudPosition = next },
-            },
+            interruptRotationTrackerPosition = next,
         }))
-        assert.same(next, reloaded.Modules.Get("TwinFangs"):GetInterruptStatusHudPosition())
+        assert.same(next, reloaded.Modules.Get("TwinFangs"):GetInterruptRotationTrackerPosition())
+        assert.same(next, reloaded.Modules.Get("CoiledAltar"):GetInterruptRotationTrackerPosition())
     end)
 
-    it("does not treat interrupt-reminder enable as combat HUD activation", function()
-        local binding = InterruptStatusHud()
+    it("does not treat interrupt-reminder enable as combat tracker activation", function()
+        local binding = InterruptRotationTracker()
         local hud = binding.Ensure()
         Module:SetInterruptReminderEnabled(true)
         binding.Update()
@@ -360,7 +359,7 @@ describe("TwinFangs InterruptStatusHUD", function()
         ns.Api.Encounter.FireStart(Module.ENCOUNTER_ID, "Twin Fangs", ns.Api.Instance.DIFFICULTY_MYTHIC_RAID, 20)
         Module:BeginInterruptStatusWindow()
 
-        local binding = InterruptStatusHud()
+        local binding = InterruptRotationTracker()
         binding.Update()
         local hud = binding.Ensure()
         assert.equals(hud, binding.Ensure())
@@ -392,7 +391,7 @@ describe("TwinFangs InterruptStatusHUD", function()
         ns.Api.Group.inRaid = true
         Module:SetInterruptStatusTestMode(true)
 
-        local binding = InterruptStatusHud()
+        local binding = InterruptRotationTracker()
         binding.Update()
         local hud = binding.Ensure()
         assert.is_true(hud.shown)
@@ -427,7 +426,7 @@ describe("TwinFangs InterruptStatusHUD", function()
         ns.Api.Group.inRaid = true
         Module:SetInterruptStatusTestMode(true)
 
-        local binding = InterruptStatusHud()
+        local binding = InterruptRotationTracker()
         binding.Update()
         local hud = binding.Ensure()
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_TASK_RANGE:format(2, 4), hud:GetState().detail)
@@ -444,7 +443,7 @@ describe("TwinFangs InterruptStatusHUD", function()
         Module:BeginInterruptStatusWindow()
         ns.Api.GameEvents.Fire("CHAT_MSG_PARTY")
 
-        local binding = InterruptStatusHud()
+        local binding = InterruptRotationTracker()
         local hud = binding.Ensure()
         local def = registered[binding.LAYOUT_ID]
         def.onEditBegin()
@@ -469,13 +468,13 @@ describe("TwinFangs InterruptStatusHUD", function()
         ns.Api.Encounter.FireStart(Module.ENCOUNTER_ID, "Twin Fangs", ns.Api.Instance.DIFFICULTY_MYTHIC_RAID, 20)
         Module:BeginInterruptStatusWindow()
 
-        local binding = InterruptStatusHud()
+        local binding = InterruptRotationTracker()
         binding.Update()
         local hud = binding.Ensure()
         local backup = binding.EnsureBackup()
         assert.is_false(hud.shown)
         assert.is_true(backup.shown)
-        assert.same(Module:GetInterruptStatusHudPosition(), backup.position)
+        assert.same(Module:GetInterruptRotationTrackerPosition(), backup.position)
         assert.equals(L.TWIN_FANGS_INTERRUPT_REGION_FRONT_RIGHT, backup:GetState().title)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1), backup:GetState().text)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_BACKUP, backup:GetState().detail)
@@ -500,7 +499,7 @@ describe("TwinFangs InterruptStatusHUD", function()
         ns.Api.Encounter.FireStart(Module.ENCOUNTER_ID, "Twin Fangs", ns.Api.Instance.DIFFICULTY_MYTHIC_RAID, 20)
         Module:BeginInterruptStatusWindow()
 
-        local binding = InterruptStatusHud()
+        local binding = InterruptRotationTracker()
         binding.Update()
         local hud = binding.Ensure()
         local backup = binding.EnsureBackup()
@@ -532,7 +531,7 @@ describe("TwinFangs InterruptStatusHUD", function()
         ns.Api.Group.inRaid = true
         Module:SetInterruptStatusTestMode(true)
 
-        local binding = InterruptStatusHud()
+        local binding = InterruptRotationTracker()
         binding.Update()
         local backup = binding.EnsureBackup()
         assert.is_true(backup.shown)

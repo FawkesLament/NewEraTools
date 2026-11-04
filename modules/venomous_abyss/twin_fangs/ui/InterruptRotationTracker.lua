@@ -35,25 +35,26 @@ local function HudState(snapshot, isBackup)
     }
 end
 
-local InterruptStatusHUD = ns.InterruptStatusHUD.Bind({
+local InterruptRotationTracker = ns.InterruptRotationTracker.Bind({
     layoutId = "TwinFangs:interrupt",
-    name = ns.ADDON_NAME .. "TwinFangsInterruptStatus",
-    backupName = ns.ADDON_NAME .. "TwinFangsInterruptBackupStatus",
+    name = ns.ADDON_NAME .. "TwinFangsInterruptRotationTracker",
+    backupName = ns.ADDON_NAME .. "TwinFangsInterruptRotationTrackerBackup",
     label = L.TWIN_FANGS_INTERRUPT_STATUS_TITLE,
     tone = ns.StatusHUD.TONE_EMPHASIS,
     backupTone = ns.StatusHUD.TONE_STANDBY,
-    -- Edit Mode can always preview this HUD. Combat visibility is assignment-gated.
+    -- Shared Common UI element. Combat visibility is assignment-gated.
+    global = true,
     isEnabled = function()
         return true
     end,
     getPosition = function()
-        return TwinFangs:GetInterruptStatusHudPosition()
+        return TwinFangs:GetInterruptRotationTrackerPosition()
     end,
     setPosition = function(position)
-        TwinFangs:SetInterruptStatusHudPosition(position)
+        TwinFangs:SetInterruptRotationTrackerPosition(position)
     end,
     getDefaultPosition = function()
-        return Internals.Schema.DefaultInterruptStatusHudPosition()
+        return ns.InterruptRotationTrackerAnchor.DefaultPosition()
     end,
     previewState = function()
         return HudState(TwinFangs:GetInterruptStatusPreview())
@@ -65,8 +66,8 @@ local InterruptStatusHUD = ns.InterruptStatusHUD.Bind({
         return HudState(TwinFangs:GetBackupInterruptStatus(), true)
     end,
 })
-Internals.InterruptStatusHudUI = InterruptStatusHUD
+Internals.InterruptRotationTrackerUI = InterruptRotationTracker
 
 function TwinFangs:OnInterruptStatusChanged()
-    InterruptStatusHUD.Update()
+    InterruptRotationTracker.Update()
 end

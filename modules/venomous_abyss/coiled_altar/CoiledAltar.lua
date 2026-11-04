@@ -30,8 +30,13 @@ local SIDE_BOTTOM = "bottom"
 ---@field offsetX number
 ---@field offsetY number
 
+---@class CoiledAltarMechanicReminder
+---@field enabled boolean
+---@field interrupt boolean
+
 ---@class CoiledAltarSettings
 ---@field nameplateHint CoiledAltarNameplateHint
+---@field mechanicReminder CoiledAltarMechanicReminder
 ---@field assignments CoiledAltarInterruptAssignments
 
 ---@class CoiledAltar: Module
@@ -45,6 +50,11 @@ local SIDE_BOTTOM = "bottom"
 ---@field OnNameplateHintCleared fun(self: CoiledAltar)|nil
 local CoiledAltar = ns.Modules.New("CoiledAltar", {
     defaults = {
+        mechanicReminder = {
+            enabled = false,
+            -- When true, the interrupt callout and status HUD are shown.
+            interrupt = false,
+        },
         nameplateHint = {
             -- When true, interrupt assignments are shown on nameplates.
             enabled = false,
@@ -74,6 +84,7 @@ CoiledAltar.OFFSET_MAX = OFFSET_MAX
 CoiledAltar.OFFSET_STEP = OFFSET_STEP
 CoiledAltar.SIDE_TOP = SIDE_TOP
 CoiledAltar.SIDE_BOTTOM = SIDE_BOTTOM
+CoiledAltar.INTERRUPT_CALLOUT_DURATION = 10
 
 -- Session-only; the settings toggle does not show indicators until the player starts a preview.
 local nameplateHintPreviewing = false
@@ -136,9 +147,60 @@ local function SanitizeNameplateHint(settings)
     return settings
 end
 
+---@param settings any
+---@return CoiledAltarMechanicReminder
+local function SanitizeMechanicReminder(settings)
+    if type(settings) ~= "table" then
+        return { enabled = settings == true, interrupt = false }
+    end
+    settings.enabled = settings.enabled == true
+    settings.interrupt = settings.interrupt == true
+    return settings
+end
+
 function CoiledAltar:OnInit()
+    self.db.mechanicReminder = SanitizeMechanicReminder(self.db.mechanicReminder)
+    self.db.interruptReminder = nil
     self.db.nameplateHint = SanitizeNameplateHint(self.db.nameplateHint)
     self.db.assignments = Internals.InterruptAssignments.SanitizeSaved(self.db.assignments)
+end
+
+---@return boolean
+function CoiledAltar:IsMechanicReminderEnabled()
+    return self.db.mechanicReminder.enabled == true
+end
+
+---@param enabled boolean
+function CoiledAltar:SetMechanicReminderEnabled(enabled)
+    enabled = enabled == true
+    if self.db.mechanicReminder.enabled == enabled then
+        return
+    end
+    self.db.mechanicReminder.enabled = enabled
+end
+
+---@return boolean
+function CoiledAltar:IsInterruptReminderEnabled()
+    return self.db.mechanicReminder.interrupt == true
+end
+
+---@param enabled boolean
+function CoiledAltar:SetInterruptReminderEnabled(enabled)
+    enabled = enabled == true
+    if self.db.mechanicReminder.interrupt == enabled then
+        return
+    end
+    self.db.mechanicReminder.interrupt = enabled
+end
+
+---@return InterruptRotationTrackerAnchor
+function CoiledAltar:GetInterruptRotationTrackerPosition()
+    return ns.InterruptRotationTrackerAnchor.GetPosition()
+end
+
+---@param position InterruptRotationTrackerAnchor
+function CoiledAltar:SetInterruptRotationTrackerPosition(position)
+    ns.InterruptRotationTrackerAnchor.SetPosition(position)
 end
 
 ---@return boolean
