@@ -1,6 +1,8 @@
 local Loader = require("helpers.loader")
 
 local STATUS_HUD_PATH = "ui/StatusHUD.lua"
+local SHARED_INTERRUPT_STATUS_HUD_PATH = "ui/InterruptStatusHUD.lua"
+local LABELS_PATH = "modules/venomous_abyss/twin_fangs/ui/interrupt_chain/Labels.lua"
 local INTERRUPT_STATUS_HUD_PATH = "modules/venomous_abyss/twin_fangs/ui/InterruptStatusHUD.lua"
 local PANEL_PATH = "modules/venomous_abyss/twin_fangs/ui/Panel.lua"
 
@@ -187,6 +189,8 @@ describe("TwinFangs InterruptStatusHUD", function()
             return FakeFrame()
         end
         assert(loadfile(STATUS_HUD_PATH))(Loader.ADDON_NAME, namespace)
+        assert(loadfile(SHARED_INTERRUPT_STATUS_HUD_PATH))(Loader.ADDON_NAME, namespace)
+        assert(loadfile(LABELS_PATH))(Loader.ADDON_NAME, namespace)
         assert(loadfile(INTERRUPT_STATUS_HUD_PATH))(Loader.ADDON_NAME, namespace)
     end
 
