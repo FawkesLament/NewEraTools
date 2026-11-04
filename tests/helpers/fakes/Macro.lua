@@ -61,9 +61,7 @@ return function()
     end
 
     function Macro.IsCharacterSlot(index)
-        return type(index) == "number"
-            and index > ACCOUNT_SLOTS
-            and index <= ACCOUNT_SLOTS + CHARACTER_SLOTS
+        return type(index) == "number" and index > ACCOUNT_SLOTS and index <= ACCOUNT_SLOTS + CHARACTER_SLOTS
     end
 
     function Macro.Matches(index, name, icon, body)

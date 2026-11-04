@@ -171,7 +171,6 @@ local function SetRoleStatus(message, color)
     end
 end
 
-
 local function HideAddonCheckPanel()
     if addonCheckPanel then
         addonCheckPanel:Hide()

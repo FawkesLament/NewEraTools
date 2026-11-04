@@ -577,8 +577,14 @@ describe("TwinFangs venom roster UI", function()
         assert.equals("raid4", instance.columns[1].rows[1].container.unit)
         assert.equals("Moved", instance.columns[2].rows[1].nameText.text)
         assert.equals("raid1", instance.columns[2].rows[1].container.unit)
-        assert(firstContainers[1][1] == instance.columns[1].rows[1].container, "group 1 row 1 container was recreated after move")
-        assert(firstContainers[2][1] == instance.columns[2].rows[1].container, "group 2 row 1 container was recreated after move")
+        assert(
+            firstContainers[1][1] == instance.columns[1].rows[1].container,
+            "group 1 row 1 container was recreated after move"
+        )
+        assert(
+            firstContainers[2][1] == instance.columns[2].rows[1].container,
+            "group 2 row 1 container was recreated after move"
+        )
     end)
 
     it("keeps mock stacks off the native application-count FontString", function()

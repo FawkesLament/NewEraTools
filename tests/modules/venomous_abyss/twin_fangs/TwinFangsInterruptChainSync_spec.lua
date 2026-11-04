@@ -153,7 +153,10 @@ describe("TwinFangs interrupt chain sync", function()
         }
         assert.equals("1|1:12223:52:s|2:31425::p|3:12345:61:y|4:25134::p", Chain.EncodePublication(state))
         assert.is_true(Chain.Publish(state))
-        assert.equals("1|1:12223:52:s|2:31425::p|3:12345:61:y|4:25134::p", MessageProtocol.Decode(AddonMessage.sent[1].message).payload)
+        assert.equals(
+            "1|1:12223:52:s|2:31425::p|3:12345:61:y|4:25134::p",
+            MessageProtocol.Decode(AddonMessage.sent[1].message).payload
+        )
     end)
 
     it("encodes a maximum-length 15-turn region", function()

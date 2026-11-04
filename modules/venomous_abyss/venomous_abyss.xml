@@ -40,6 +40,8 @@
     <Script file="twin_fangs\ui\Panel.lua"/>
     <Script file="twin_fangs\ui\VenomRoster.lua"/>
     <Script file="coiled_altar\CoiledAltar.lua"/>
+    <Script file="coiled_altar\Assignments.lua"/>
     <Script file="coiled_altar\ui\Nameplates.lua"/>
+    <Script file="coiled_altar\ui\Assignments.lua"/>
     <Script file="coiled_altar\CoiledAltarUI.lua"/>
 </Ui>

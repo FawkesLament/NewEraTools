@@ -219,10 +219,7 @@ local function CreateSection(frame, def)
     ---One action at a time; a later call replaces the anchor. Disabled with the page body; the toggle stays available.
     ---@param frame Frame
     function body:SetHeaderAction(frame)
-        assert(
-            type(frame) == "table" and type(frame.SetPoint) == "function",
-            "MainPanel header action must be a frame"
-        )
+        assert(type(frame) == "table" and type(frame.SetPoint) == "function", "MainPanel header action must be a frame")
         frame:SetParent(header)
         frame:ClearAllPoints()
         if toggle then

@@ -212,16 +212,15 @@ describe("TwinFangs AddonCheck", function()
             local config = InspectConfig()
             local body = assert(ns.AddonCheckCodec.EncodeValue(config))
             local payload = assert(
-                ns.AddonCheckCodec.EncodeResponsePayload("ok", TwinFangs.ADDON_CHECK_MODULE_ID, AddonCheck.GetVersion(), body)
-            )
-            local wire = assert(
-                ns.MessageProtocol.Encode(
-                    ns.MessageProtocol.TYPE_RESPONSE,
-                    AddonCheck.TOPIC,
-                    "ac1",
-                    payload
+                ns.AddonCheckCodec.EncodeResponsePayload(
+                    "ok",
+                    TwinFangs.ADDON_CHECK_MODULE_ID,
+                    AddonCheck.GetVersion(),
+                    body
                 )
             )
+            local wire =
+                assert(ns.MessageProtocol.Encode(ns.MessageProtocol.TYPE_RESPONSE, AddonCheck.TOPIC, "ac1", payload))
             assert.is_true(#wire <= ns.MessageProtocol.MAX_MESSAGE_LENGTH)
             local decoded = assert(ns.AddonCheckCodec.DecodeValue(body, 1))
             assert.same(config, decoded)

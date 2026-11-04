@@ -323,13 +323,7 @@ local function EnsureAuraContainer(row)
         row.auraPending = true
         return nil
     end
-    local ok, container = pcall(
-        CreateFrame,
-        "AuraContainer",
-        nil,
-        row.stackHost,
-        "CustomAuraContainerTemplate"
-    )
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, row.stackHost, "CustomAuraContainerTemplate")
     if not ok or not container then
         row.auraPending = true
         return nil
@@ -609,10 +603,7 @@ local function ApplyLayout(rosterInstance, columns, stacks, live, enableAuras)
         rosterInstance.root:SetSize(0, 0)
         return
     end
-    rosterInstance.root:SetSize(
-        populated * columnWidth + (populated - 1) * columnGap,
-        maxRows * rowHeight
-    )
+    rosterInstance.root:SetSize(populated * columnWidth + (populated - 1) * columnGap, maxRows * rowHeight)
 end
 
 local function ClearBoundRoster()

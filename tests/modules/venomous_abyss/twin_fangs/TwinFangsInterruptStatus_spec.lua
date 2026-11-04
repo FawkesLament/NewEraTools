@@ -582,9 +582,7 @@ describe("TwinFangs interrupt status", function()
         end)
 
         it("refreshes the interrupt callout and TTS on each consecutive assigned turn", function()
-            local calloutText = ns.L.TWIN_FANGS_INTERRUPT_CALLOUT:format(
-                ns.L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT
-            )
+            local calloutText = ns.L.TWIN_FANGS_INTERRUPT_CALLOUT:format(ns.L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT)
             local BossAlert = ns.Modules.Get("BossAlert")
             BossAlert:ListenForCalloutTts()
             BossAlert:SetCalloutTtsEnabled(true)

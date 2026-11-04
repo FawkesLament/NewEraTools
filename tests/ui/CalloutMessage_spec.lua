@@ -272,14 +272,16 @@ describe("CalloutMessage", function()
         ns.LayoutEditor.Register = function(def)
             registered = def
         end
-        ns.CalloutMessage.Bind(BindConfig({
-            hasPreviewTick = function()
-                return true
-            end,
-            previewTick = function()
-                return "Enter", 4.25
-            end,
-        })).Ensure()
+        ns.CalloutMessage
+            .Bind(BindConfig({
+                hasPreviewTick = function()
+                    return true
+                end,
+                previewTick = function()
+                    return "Enter", 4.25
+                end,
+            }))
+            .Ensure()
         registered.onEditBegin()
         assert.equals("Enter (4.2)", lastLabel.text)
     end)
@@ -319,14 +321,16 @@ describe("CalloutMessage", function()
         ns.LayoutEditor.Register = function(def)
             registered = def
         end
-        ns.CalloutMessage.Bind(BindConfig({
-            previewText = function()
-                return "Boss"
-            end,
-            previewDuration = function()
-                return 7
-            end,
-        })).Ensure()
+        ns.CalloutMessage
+            .Bind(BindConfig({
+                previewText = function()
+                    return "Boss"
+                end,
+                previewDuration = function()
+                    return 7
+                end,
+            }))
+            .Ensure()
         registered.onEditBegin()
         assert.equals("Boss (7.0)", lastLabel.text)
     end)

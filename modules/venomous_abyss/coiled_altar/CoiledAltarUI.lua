@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("CoiledAltar")
 local L = ns.L
 local Assets = ns.Assets
 local FeatureSection = ns.FeatureSection
@@ -43,6 +44,13 @@ local function BuildContent(content)
         paddingY = Spacing.SMALL,
         spacing = Spacing.SMALL,
     })
+
+    local editorHost = body:AddRow(1)
+    local editorHeight = Internals.InterruptAssignmentsUI.Mount(editorHost, function(height)
+        body:SetEntryHeight(editorHost, height)
+        content:SetContentHeight(body:GetHeight())
+    end)
+    body:SetEntryHeight(editorHost, editorHeight)
 
     local hint = FeatureSection.Create(body, {
         title = L.COILED_ALTAR_NAMEPLATE_HINT,

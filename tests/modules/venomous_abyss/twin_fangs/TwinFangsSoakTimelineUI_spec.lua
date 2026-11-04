@@ -300,9 +300,6 @@ describe("TwinFangs soak timeline UI", function()
         local nextPosition = { point = "BOTTOM", relativePoint = "BOTTOM", x = 6, y = 18 }
         def.setPosition(nextPosition)
         assert.same(nextPosition, Module:GetSoakTimelinePosition())
-        assert.same(
-            ns.Modules.Internals("TwinFangs").Schema.DefaultSoakTimelinePosition(),
-            def.getDefaultPosition()
-        )
+        assert.same(ns.Modules.Internals("TwinFangs").Schema.DefaultSoakTimelinePosition(), def.getDefaultPosition())
     end)
 end)

@@ -329,13 +329,8 @@ local function BuildContent(content)
 
     local scaleRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local scaleLabel = Widgets.CreateLabel(scaleRow, Fonts.BODY, L.RL_TOOLBAR_SCALE)
-    local scaleSlider = Slider.Create(
-        scaleRow,
-        RLToolbar.SCALE_MIN,
-        RLToolbar.SCALE_MAX,
-        RLToolbar.SCALE_STEP,
-        { percentage = true }
-    )
+    local scaleSlider =
+        Slider.Create(scaleRow, RLToolbar.SCALE_MIN, RLToolbar.SCALE_MAX, RLToolbar.SCALE_STEP, { percentage = true })
     Widgets.AttachTooltip(scaleSlider, "ANCHOR_BOTTOM", function(tooltip)
         tooltip:SetText(L.RL_TOOLBAR_SCALE_TOOLTIP)
     end)

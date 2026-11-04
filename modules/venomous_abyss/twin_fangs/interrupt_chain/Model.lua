@@ -439,12 +439,12 @@ end
 ---@param region table
 ---@return TwinFangsInterruptMemberAssignment
 local function CopyAssignment(regionId, region)
----@class TwinFangsInterruptMemberAssignment
----@field regionId string
----@field group number|nil
----@field players TwinFangsInterruptPlayer[]
----@field backup TwinFangsInterruptPlayer|nil
----@field channel TwinFangsInterruptChannel
+    ---@class TwinFangsInterruptMemberAssignment
+    ---@field regionId string
+    ---@field group number|nil
+    ---@field players TwinFangsInterruptPlayer[]
+    ---@field backup TwinFangsInterruptPlayer|nil
+    ---@field channel TwinFangsInterruptChannel
     return {
         regionId = regionId,
         group = InterruptChain.IsRaidGroup(region.group) and region.group or nil,

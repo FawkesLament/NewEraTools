@@ -124,7 +124,12 @@ end
 
 ---@return number
 function BossAlert:GetCalloutFontSize()
-    return Util.Snap(CalloutSettings(self).fontSize, CALLOUT_FONT_SIZE_MIN, CALLOUT_FONT_SIZE_MAX, CALLOUT_FONT_SIZE_STEP)
+    return Util.Snap(
+        CalloutSettings(self).fontSize,
+        CALLOUT_FONT_SIZE_MIN,
+        CALLOUT_FONT_SIZE_MAX,
+        CALLOUT_FONT_SIZE_STEP
+    )
 end
 
 ---@param size number

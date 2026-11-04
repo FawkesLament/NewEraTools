@@ -148,7 +148,10 @@ describe("TwinFangs interrupt chain receive", function()
             assert.is_nil(Chain.DecodePublication("1|1:1111:|::|::|::", ExampleRoster()))
             assert.equals("invalid_position", select(2, Chain.DecodePublication("1|1:1111:|::|::|::", ExampleRoster())))
             assert.is_nil(Chain.DecodePublication("1|1:121:|::|::|::", ExampleRoster()))
-            assert.equals("duplicate_position", select(2, Chain.DecodePublication("1|1:121:|::|::|::", ExampleRoster())))
+            assert.equals(
+                "duplicate_position",
+                select(2, Chain.DecodePublication("1|1:121:|::|::|::", ExampleRoster()))
+            )
         end)
 
         it("decodes a maximum-length 15-turn region", function()
@@ -223,8 +226,14 @@ describe("TwinFangs interrupt chain receive", function()
             assert.is_nil(Chain.DecodePublication("1|1:1::x|::|::|::", ExampleRoster()))
             assert.equals("invalid_channel", select(2, Chain.DecodePublication("1|1:1::x|::|::|::", ExampleRoster())))
             assert.is_nil(Chain.ResolvePublication("1|1:1::n|2:1::n|::|::", ExampleRoster()))
-            assert.equals("channel_conflict", select(2, Chain.ResolvePublication("1|1:1::n|2:1::n|::|::", ExampleRoster())))
-            assert.equals("channel_conflict", select(2, Chain.ResolvePublication("1|1:1::r|2:1::r|::|::", ExampleRoster())))
+            assert.equals(
+                "channel_conflict",
+                select(2, Chain.ResolvePublication("1|1:1::n|2:1::n|::|::", ExampleRoster()))
+            )
+            assert.equals(
+                "channel_conflict",
+                select(2, Chain.ResolvePublication("1|1:1::r|2:1::r|::|::", ExampleRoster()))
+            )
         end)
     end)
 

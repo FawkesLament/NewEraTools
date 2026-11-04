@@ -69,10 +69,7 @@ local function DefaultMapPosition(frame)
 end
 
 local function IsFactoryMapPosition(position)
-    return position.point == "CENTER"
-        and position.relativePoint == "CENTER"
-        and position.x == 0
-        and position.y == 0
+    return position.point == "CENTER" and position.relativePoint == "CENTER" and position.x == 0 and position.y == 0
 end
 
 ---What the player should see. Preview always shows; otherwise only at the altar when the feature is on.

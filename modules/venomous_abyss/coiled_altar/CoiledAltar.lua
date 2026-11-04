@@ -1,4 +1,5 @@
 local _, ns = ...
+local Internals = ns.Modules.Internals("CoiledAltar")
 local Util = ns.Util
 
 -- The Coiled Altar, the seventh boss of The Venomous Abyss.
@@ -31,9 +32,11 @@ local SIDE_BOTTOM = "bottom"
 
 ---@class CoiledAltarSettings
 ---@field nameplateHint CoiledAltarNameplateHint
+---@field assignments CoiledAltarInterruptAssignments
 
 ---@class CoiledAltar: Module
 ---@field db CoiledAltarSettings
+---@field OnInterruptAssignmentsChanged fun(self: CoiledAltar)|nil  Defined by the assignment editor.
 ---@field OnNameplateHintChanged fun(self: CoiledAltar)|nil  Defined by the UI; nameplate preview button enabled or blocked.
 ---@field OnNameplateHintPreviewChanged fun(self: CoiledAltar)|nil  Defined by the UI; nameplate indicators shown or hidden.
 ---@field OnNameplateHintAppearanceChanged fun(self: CoiledAltar)|nil  Defined by the UI; visible indicators restyled.
@@ -52,6 +55,8 @@ local CoiledAltar = ns.Modules.New("CoiledAltar", {
             offsetX = 0,
             offsetY = 0,
         },
+        -- Encounter-wide interrupt chains. Sanitized to six slots per chain in OnInit.
+        assignments = {},
     },
 })
 
@@ -133,6 +138,7 @@ end
 
 function CoiledAltar:OnInit()
     self.db.nameplateHint = SanitizeNameplateHint(self.db.nameplateHint)
+    self.db.assignments = Internals.InterruptAssignments.SanitizeSaved(self.db.assignments)
 end
 
 ---@return boolean

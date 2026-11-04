@@ -265,12 +265,7 @@ local function Register(frame)
 end
 
 local function CreateWindow()
-    local frame = Widgets.CreateSurface(
-        UIParent,
-        Colors.TRANSPARENT,
-        nil,
-        ns.ADDON_NAME .. "TwinFangsSoakTimeline"
-    )
+    local frame = Widgets.CreateSurface(UIParent, Colors.TRANSPARENT, nil, ns.ADDON_NAME .. "TwinFangsSoakTimeline")
     frame:SetFrameStrata("MEDIUM")
     frame:SetToplevel(true)
     frame:SetClampedToScreen(true)
