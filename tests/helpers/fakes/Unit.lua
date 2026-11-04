@@ -23,6 +23,8 @@ return function()
         enemy = {},
         ---@type table<string, boolean|nil>  nil = secret / unknown.
         bossMob = {},
+        ---@type table<string, number|nil>
+        levels = {},
     }
 
     function Unit.GetFullName(name)
@@ -88,7 +90,7 @@ return function()
     end
 
     ---@param unit string
-    ---@param state { exists: boolean|nil, guid: string|nil, name: string|nil, canAssist: boolean|nil, canAttack: boolean|nil, isEnemy: boolean|nil, isBossMob: boolean|nil }
+    ---@param state { exists: boolean|nil, guid: string|nil, name: string|nil, canAssist: boolean|nil, canAttack: boolean|nil, isEnemy: boolean|nil, isBossMob: boolean|nil, level: number|nil }
     function Unit.SetForTests(unit, state)
         if state.exists == nil then
             Unit.exists[unit] = false
@@ -119,6 +121,14 @@ return function()
         else
             Unit.bossMob[unit] = state.isBossMob == true
         end
+        Unit.levels[unit] = state.level
+    end
+
+    function Unit.GetLevel(unit)
+        if type(unit) ~= "string" or unit == "" then
+            return nil
+        end
+        return Unit.levels[unit]
     end
 
     function Unit.GetGUID(unit)

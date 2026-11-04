@@ -16,4 +16,8 @@ return function(encounter, gameEvents)
     function encounter.FireWarning(warningInfo)
         gameEvents.Fire("ENCOUNTER_WARNING", warningInfo)
     end
+
+    function encounter.FireEngageUnit()
+        gameEvents.Fire("INSTANCE_ENCOUNTER_ENGAGE_UNIT")
+    end
 end

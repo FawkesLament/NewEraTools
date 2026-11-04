@@ -93,6 +93,7 @@ local GAME_API = {
     "UnitGroupRolesAssigned",
     "UnitGUID",
     "UnitIsBossMob",
+    "UnitLevel",
     "UnitIsGroupAssistant",
     "UnitIsGroupLeader",
     "UnitName",

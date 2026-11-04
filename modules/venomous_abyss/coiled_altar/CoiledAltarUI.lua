@@ -236,4 +236,5 @@ function CoiledAltar:OnEnable()
         group = ns.PanelGroups.VENOMOUS_ABYSS,
         build = BuildContent,
     })
+    self:ListenForEncounter()
 end

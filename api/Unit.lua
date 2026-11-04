@@ -115,6 +115,23 @@ function Unit.IsBossMob(unit)
     return ReadPlainBoolean(pcall(UnitIsBossMob, unit))
 end
 
+---Unit level, or nil when missing or secret.
+---@param unit string
+---@return number|nil
+function Unit.GetLevel(unit)
+    if IsSecret(unit) then
+        return nil
+    end
+    if type(unit) ~= "string" or unit == "" then
+        return nil
+    end
+    local level = UnitLevel(unit)
+    if IsSecret(level) or type(level) ~= "number" then
+        return nil
+    end
+    return level
+end
+
 ---@param unit string  A unit token, e.g. "player" or "raid3".
 ---@return string|nil
 function Unit.GetGUID(unit)

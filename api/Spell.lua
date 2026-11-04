@@ -17,6 +17,20 @@ function Spell.OnCastStop(callback)
     return ns.Api.GameEvents.Listen("UNIT_SPELLCAST_STOP", callback)
 end
 
+---Calls `callback` when any unit's spellcast is interrupted.
+---@param callback fun(unitTarget: string, castGUID: string, spellID: number)
+---@return fun()  Unsubscribe.
+function Spell.OnCastInterrupted(callback)
+    return ns.Api.GameEvents.Listen("UNIT_SPELLCAST_INTERRUPTED", callback)
+end
+
+---Calls `callback` when any unit successfully finishes a spellcast.
+---@param callback fun(unitTarget: string, castGUID: string, spellID: number)
+---@return fun()  Unsubscribe.
+function Spell.OnCastSucceeded(callback)
+    return ns.Api.GameEvents.Listen("UNIT_SPELLCAST_SUCCEEDED", callback)
+end
+
 ---Calls `callback` when `unit` starts channeling.
 ---@param unit string
 ---@param callback fun(unitTarget: string, castGUID: string, spellID: number, castBarID: number|nil)

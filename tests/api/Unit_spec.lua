@@ -31,6 +31,9 @@ local function InstallClient()
     UnitIsBossMob = function()
         return false
     end
+    UnitLevel = function()
+        return 0
+    end
     UnitGUID = function()
         return nil
     end
@@ -53,6 +56,7 @@ describe("Unit production", function()
         saved.UnitCanAttack = UnitCanAttack
         saved.UnitIsEnemy = UnitIsEnemy
         saved.UnitIsBossMob = UnitIsBossMob
+        saved.UnitLevel = UnitLevel
         saved.UnitGUID = UnitGUID
         saved.UnitClass = UnitClass
         saved.UnitClassBase = UnitClassBase
@@ -73,6 +77,7 @@ describe("Unit production", function()
         UnitCanAttack = saved.UnitCanAttack
         UnitIsEnemy = saved.UnitIsEnemy
         UnitIsBossMob = saved.UnitIsBossMob
+        UnitLevel = saved.UnitLevel
         UnitGUID = saved.UnitGUID
         UnitClass = saved.UnitClass
         UnitClassBase = saved.UnitClassBase
@@ -356,6 +361,27 @@ describe("Unit production", function()
             assert.is_nil(Unit.IsBossMob(""))
             assert.is_nil(Unit.IsBossMob(nil))
             assert.equals(0, queried)
+        end)
+    end)
+
+    describe("GetLevel", function()
+        it("returns a plain level and nil when the level cannot be compared", function()
+            local Unit = Load()
+            UnitLevel = function(unit)
+                if unit == "player" then
+                    return 80
+                end
+                if unit == "secret" then
+                    return SECRET
+                end
+                return "high"
+            end
+            assert.equals(80, Unit.GetLevel("player"))
+            assert.is_nil(Unit.GetLevel("secret"))
+            assert.is_nil(Unit.GetLevel("empty"))
+            assert.is_nil(Unit.GetLevel(""))
+            assert.is_nil(Unit.GetLevel(SECRET))
+            assert.is_nil(Unit.GetLevel(nil))
         end)
     end)
 

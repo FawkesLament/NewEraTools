@@ -1,5 +1,5 @@
 -- Runs every tests/**/*_spec.lua file. Usage, from the addon folder: luajit tests/run.lua
--- Specs use a busted-compatible subset: describe, it, before_each, after_each,
+-- Specs use a busted-compatible subset: describe, it, pending, before_each, after_each,
 -- assert.equals/same/is_true/is_false/is_nil.
 -- describe and it run immediately while the spec file loads. A hook applies only to
 -- examples that have not already run. Each describe keeps every before_each and
@@ -73,6 +73,7 @@ assert = setmetatable({
 })
 
 local passed = 0
+local skipped = 0
 local failures = {}
 local scopes = {}
 local examplesRegistered = 0
@@ -149,6 +150,16 @@ function it(name, body)
     end
 end
 
+---Registers a skipped example. Does not count as a pass or a failure.
+---@param name string
+---@param reason string|nil
+function pending(name, reason)
+    examplesRegistered = examplesRegistered + 1
+    skipped = skipped + 1
+    print("SKIP " .. FullName(name))
+    print("     " .. (reason or "pending"))
+end
+
 local function DiscoverSpecs()
     local specs = {}
     for _, path in ipairs(Fs.ListFiles()) do
@@ -204,5 +215,9 @@ for _, failure in ipairs(failures) do
     print("FAIL " .. failure.name)
     print("     " .. failure.message)
 end
-print(string.format("%d passed, %d failed (%d spec files)", passed, #failures, #specs))
+if skipped > 0 then
+    print(string.format("%d passed, %d failed, %d skipped (%d spec files)", passed, #failures, skipped, #specs))
+else
+    print(string.format("%d passed, %d failed (%d spec files)", passed, #failures, #specs))
+end
 os.exit(#failures == 0 and 0 or 1)

@@ -33,6 +33,13 @@ function Encounter.OnWarning(callback)
     return ns.Api.GameEvents.Listen("ENCOUNTER_WARNING", callback)
 end
 
+---Calls `callback` when a boss unit is added to or removed from the encounter frames.
+---@param callback fun()
+---@return fun()  Unsubscribe.
+function Encounter.OnEngageUnit(callback)
+    return ns.Api.GameEvents.Listen("INSTANCE_ENCOUNTER_ENGAGE_UNIT", callback)
+end
+
 ---xpcall handler: runs before the stack unwinds, so the trace still shows where `setup` failed.
 ---@param err any
 ---@return any
