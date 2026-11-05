@@ -480,7 +480,7 @@ end
 -- Production mount:
 -- 1. Fresh namespace via Loader.Load / Modules.Start.
 -- 2. Assign a MELEE interrupt so HasInterruptAssignments() is true.
--- 3. CoiledAltar:ListenForEncounter() + ENCOUNTER_START 3429, which calls Tracker.Start.
+-- 3. CoiledAltar:ListenForEncounter() (Encounter.lua) + ENCOUNTER_START 3429, which calls InterruptStates.Start.
 --    Fixtures may omit ENCOUNTER_START. A fixture ENCOUNTER_END is forwarded to the
 --    production WhileIn teardown; the snapshot then reports empty tracker state.
 -- 4. Replace requestFlush's Timer.After(0, ...) with env:defer. EnsureBatch still decides
@@ -495,7 +495,7 @@ function CoiledAltarReplay.mount(env)
     ns.Modules.Start(ns.Database.Load(nil))
     local Module = ns.Modules.Get("CoiledAltar")
     local Internals = ns.Modules.Internals("CoiledAltar")
-    local Tracker = Internals.InterruptTracker
+    local Tracker = Internals.InterruptStates
     local Encounter = ns.Api.Encounter
     local Nameplate = ns.Api.Nameplate
     local RaidTarget = ns.Api.RaidTarget

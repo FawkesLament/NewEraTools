@@ -280,6 +280,10 @@ local function BuildContent(content)
     return body:GetHeight()
 end
 
+function CoiledAltar:OnInterruptStateChanged()
+    InterruptRotationTracker.Update()
+end
+
 function CoiledAltar:OnEnable()
     LayoutEditor.RegisterScope({
         id = SCOPE_ID,

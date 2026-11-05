@@ -71,6 +71,7 @@ External addons register optional feature extensions through `NewEraToolsAPI`. T
 - Add LuaLS annotations for public APIs and non-obvious data shapes.
 - Comments explain intent, constraints, and surprising behavior, not what the code already states.
 - Prefer simple, local solutions over speculative abstractions. Avoid duplicating existing infrastructure.
+- New files start with a 1-sentence comment doc defining their responsibility and scope.
 
 ## Testing
 

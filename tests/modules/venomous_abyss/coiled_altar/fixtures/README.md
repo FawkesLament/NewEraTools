@@ -1,6 +1,6 @@
 # Coiled Altar Interrupt Replay Fixtures
 
-Place Lua fixtures in this directory. The integration spec loads them through the generic replay harness and drives the production Coiled Altar interrupt tracker.
+Place Lua fixtures in this directory. The integration spec loads them through the generic replay harness and drives the production Coiled Altar interrupt states.
 
 Do not regroup events by timestamp. Do not infer frame boundaries from floating-point time. Preserve the original event order and the frame boundaries you observed.
 

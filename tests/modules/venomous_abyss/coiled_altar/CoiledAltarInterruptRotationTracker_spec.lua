@@ -190,6 +190,10 @@ describe("CoiledAltar InterruptRotationTracker", function()
         assert(loadfile(STATUS_HUD_PATH))(Loader.ADDON_NAME, namespace)
         assert(loadfile(SHARED_INTERRUPT_ROTATION_TRACKER_PATH))(Loader.ADDON_NAME, namespace)
         assert(loadfile(INTERRUPT_ROTATION_TRACKER_PATH))(Loader.ADDON_NAME, namespace)
+        local module = namespace.Modules.Get("CoiledAltar")
+        function module:OnInterruptStateChanged()
+            namespace.Modules.Internals("CoiledAltar").InterruptRotationTrackerUI.Update()
+        end
     end
 
     local function LoadPanel()

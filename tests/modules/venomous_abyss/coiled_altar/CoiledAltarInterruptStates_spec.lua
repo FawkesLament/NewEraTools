@@ -1,6 +1,6 @@
 local Loader = require("helpers.loader")
 
-describe("CoiledAltar interrupt tracker", function()
+describe("CoiledAltar interrupt states", function()
     local ns, Module, Tracker, Encounter, Nameplate, RaidTarget, Spell, Timer, Unit
 
     local function AssignChain()
@@ -47,7 +47,7 @@ describe("CoiledAltar interrupt tracker", function()
         ns = Loader.Load()
         ns.Modules.Start(ns.Database.Load(nil))
         Module = ns.Modules.Get("CoiledAltar")
-        Tracker = ns.Modules.Internals("CoiledAltar").InterruptTracker
+        Tracker = ns.Modules.Internals("CoiledAltar").InterruptStates
         Encounter = ns.Api.Encounter
         Nameplate = ns.Api.Nameplate
         RaidTarget = ns.Api.RaidTarget

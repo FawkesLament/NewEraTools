@@ -8,10 +8,6 @@ local Spell = ns.Api.Spell
 local Timer = ns.Api.Timer
 local Unit = ns.Api.Unit
 
-local CoiledAltar = ns.Modules.Get("CoiledAltar")
-
--- The Coiled Altar in The Venomous Abyss.
-local ENCOUNTER_ID = 3429
 -- Shadows occupy consecutive boss tokens starting here. boss1/boss2 are the main bosses.
 local FIRST_SHADOW_BOSS = 3
 local SHADOW_LEVEL = 92
@@ -19,8 +15,6 @@ local START = "START"
 local INTERRUPTED = "INTERRUPTED"
 local STOP = "STOP"
 local SUCCEEDED = "SUCCEEDED"
-
-CoiledAltar.ENCOUNTER_ID = ENCOUNTER_ID
 
 ---@class CoiledAltarShadow
 ---@field wave CoiledAltarWave
@@ -51,19 +45,19 @@ CoiledAltar.ENCOUNTER_ID = ENCOUNTER_ID
 ---@field disposed boolean|nil
 ---@field onStateChanged fun(state: CoiledAltarInterruptState)|nil
 
-local Tracker = {}
-Internals.InterruptTracker = Tracker
+local States = {}
+Internals.InterruptStates = States
 
 ---@type CoiledAltarInterruptState|nil
 local current = nil
 
 ---@return CoiledAltarInterruptState|nil
-function Tracker.Get()
+function States.Get()
     return current
 end
 
 ---@return CoiledAltarInterruptState
-function Tracker.New()
+function States.New()
     return {
         list = {},
         plateOwner = {},
@@ -75,7 +69,7 @@ end
 ---@param wave CoiledAltarWave|nil
 ---@return boolean w1  First member may be melee.
 ---@return boolean w2  Second member may be melee.
-function Tracker.GetPossibleWorlds(wave)
+function States.GetPossibleWorlds(wave)
     if type(wave) ~= "table" or type(wave.members) ~= "table" then
         return true, true
     end
@@ -252,6 +246,13 @@ local function IsLive(state, object)
         end
     end
     return false
+end
+
+---@param state CoiledAltarInterruptState
+---@param object CoiledAltarShadow|nil
+---@return boolean
+function States.IsLive(state, object)
+    return object ~= nil and IsLive(state, object)
 end
 
 ---@param state CoiledAltarInterruptState
@@ -498,7 +499,7 @@ local function ApplyBossEvent(state, event)
     end
 end
 
-function Tracker.Flush(state)
+function States.Flush(state)
     local batch = state.batch
     if not batch then
         return
@@ -515,7 +516,7 @@ function Tracker.Flush(state)
     NotifyStateChanged(state)
 end
 
-function Tracker.OnEngage(state)
+function States.OnEngage(state)
     local batch = EnsureBatch(state)
     if batch then
         batch.engage = true
@@ -527,7 +528,7 @@ end
 ---@param unit any
 ---@param hasCastGUID boolean
 ---@param hasArg3 boolean
-function Tracker.OnCast(state, kind, unit, hasCastGUID, hasArg3)
+function States.OnCast(state, kind, unit, hasCastGUID, hasArg3)
     if Secrets.IsSecret(unit) or type(unit) ~= "string" then
         return
     end
@@ -573,7 +574,7 @@ function Tracker.OnCast(state, kind, unit, hasCastGUID, hasArg3)
     }
 end
 
-function Tracker.OnNameplateRemoved(state, unit)
+function States.OnNameplateRemoved(state, unit)
     if Secrets.IsSecret(unit) or type(unit) ~= "string" then
         return
     end
@@ -589,7 +590,7 @@ function Tracker.OnNameplateRemoved(state, unit)
     UnbindPlate(state, unit)
 end
 
-function Tracker.OnRaidTargetChanged(state)
+function States.OnRaidTargetChanged(state)
     if state.batch and state.batch.engage then
         return
     end
@@ -600,8 +601,8 @@ end
 ---@param scope ResourceScope
 ---@param onStateChanged fun(state: CoiledAltarInterruptState)|{ onStateChanged: fun(state: CoiledAltarInterruptState) }|nil
 ---@return CoiledAltarInterruptState
-function Tracker.Start(scope, onStateChanged)
-    local state = Tracker.New()
+function States.Start(scope, onStateChanged)
+    local state = States.New()
     state.disposed = false
     state.flushScheduled = false
     if type(onStateChanged) == "function" then
@@ -620,7 +621,7 @@ function Tracker.Start(scope, onStateChanged)
             if state.disposed then
                 return
             end
-            Tracker.Flush(state)
+            States.Flush(state)
         end)
     end
 
@@ -628,52 +629,32 @@ function Tracker.Start(scope, onStateChanged)
 
     local function OnCast(kind)
         return function(unit, castGUID, spellID)
-            Tracker.OnCast(state, kind, unit, castGUID ~= nil, spellID ~= nil)
+            States.OnCast(state, kind, unit, castGUID ~= nil, spellID ~= nil)
         end
     end
 
     scope:Subscribe(Encounter.OnEngageUnit, function()
-        Tracker.OnEngage(state)
+        States.OnEngage(state)
     end)
     scope:Subscribe(Spell.OnCastStart, OnCast(START))
     scope:Subscribe(Spell.OnCastInterrupted, OnCast(INTERRUPTED))
     scope:Subscribe(Spell.OnCastStop, OnCast(STOP))
     scope:Subscribe(Spell.OnCastSucceeded, OnCast(SUCCEEDED))
     scope:Subscribe(RaidTarget.OnChanged, function()
-        Tracker.OnRaidTargetChanged(state)
+        States.OnRaidTargetChanged(state)
     end)
     scope:Subscribe(Nameplate.OnRemoved, function(unit)
-        Tracker.OnNameplateRemoved(state, unit)
+        States.OnNameplateRemoved(state, unit)
     end)
+    current = state
     scope:Add(function()
         state.disposed = true
         state.batch = nil
         state.onStateChanged = nil
+        if current == state then
+            current = nil
+        end
     end)
 
     return state
-end
-
----Starts watching this boss fight. Combat tracking binds only when interrupt chains are configured.
----Called from OnEnable.
-function CoiledAltar:ListenForEncounter()
-    Encounter.WhileIn(ENCOUNTER_ID, function(_, scope)
-        if not CoiledAltar:HasInterruptAssignments() then
-            return
-        end
-        local state = Tracker.Start(scope, function()
-            if CoiledAltar.OnInterruptStateChanged then
-                CoiledAltar:OnInterruptStateChanged()
-            end
-        end)
-        current = state
-        scope:Add(function()
-            if current == state then
-                current = nil
-            end
-            if CoiledAltar.OnInterruptStateChanged then
-                CoiledAltar:OnInterruptStateChanged()
-            end
-        end)
-    end)
 end

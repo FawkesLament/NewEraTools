@@ -83,7 +83,3 @@ local InterruptRotationTracker = ns.InterruptRotationTracker.Bind({
     end,
 })
 Internals.InterruptRotationTrackerUI = InterruptRotationTracker
-
-function CoiledAltar:OnInterruptStateChanged()
-    InterruptRotationTracker.Update()
-end

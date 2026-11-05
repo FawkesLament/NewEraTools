@@ -66,7 +66,7 @@ describe("CoiledAltar RotationTracker view", function()
         ns = Loader.Load()
         ns.Modules.Start(ns.Database.Load(nil))
         Internals = ns.Modules.Internals("CoiledAltar")
-        Tracker = Internals.InterruptTracker
+        Tracker = Internals.InterruptStates
         RaidTarget = ns.Api.RaidTarget
         Unit = ns.Api.Unit
     end)

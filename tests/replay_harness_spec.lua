@@ -591,7 +591,7 @@ describe("Replay harness", function()
             local function Mount(env)
                 local ns = Loader.Load()
                 ns.Modules.Start(ns.Database.Load(nil))
-                local Tracker = ns.Modules.Internals("CoiledAltar").InterruptTracker
+                local Tracker = ns.Modules.Internals("CoiledAltar").InterruptStates
                 local RaidTarget = ns.Api.RaidTarget
                 local Unit = ns.Api.Unit
 

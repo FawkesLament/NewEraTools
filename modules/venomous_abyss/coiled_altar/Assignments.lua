@@ -1,5 +1,6 @@
 local _, ns = ...
 local Internals = ns.Modules.Internals("CoiledAltar")
+local Player = ns.Api.Player
 local Unit = ns.Api.Unit
 
 local CoiledAltar = ns.Modules.Get("CoiledAltar")
@@ -288,6 +289,20 @@ function Assignments.PlayerPositions(assignments, identity)
     return foundId, indices
 end
 
+---@class CoiledAltarInterruptAssignment
+---@field chainId CoiledAltarInterruptChainId
+---@field indices integer[]
+
+---Local player's interrupt-chain assignment for the current saved config, or nil.
+---@return CoiledAltarInterruptAssignment|nil
+function Internals.LocalInterruptAssignment()
+    local chainId, indices = Assignments.PlayerPositions(CoiledAltar.db.assignments, Player.GetFullName())
+    if chainId and #indices > 0 then
+        return { chainId = chainId, indices = indices }
+    end
+    return nil
+end
+
 ---@param assignments CoiledAltarInterruptAssignments|nil
 ---@return boolean
 function Assignments.HasAssignments(assignments)
@@ -330,9 +345,7 @@ local function Notify()
     if CoiledAltar.OnInterruptAssignmentsChanged then
         CoiledAltar:OnInterruptAssignmentsChanged()
     end
-    if CoiledAltar.OnInterruptStateChanged then
-        CoiledAltar:OnInterruptStateChanged()
-    end
+    Internals.NotifyEncounterState()
 end
 
 ---@param chainId CoiledAltarInterruptChainId
