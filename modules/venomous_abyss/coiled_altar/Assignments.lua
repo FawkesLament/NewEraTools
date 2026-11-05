@@ -42,6 +42,18 @@ function Assignments.IsChain(chainId)
     return chainId == MELEE or chainId == RANGED
 end
 
+---@param chainId any
+---@return CoiledAltarInterruptChainId|nil
+function Assignments.OppositeChain(chainId)
+    if chainId == MELEE then
+        return RANGED
+    end
+    if chainId == RANGED then
+        return MELEE
+    end
+    return nil
+end
+
 ---@return CoiledAltarInterruptSlot
 local function EmptySlot()
     return { type = TYPE_EMPTY }
@@ -220,13 +232,72 @@ end
 
 ---@param assignments CoiledAltarInterruptAssignments
 ---@param chainId any
+---@param identity any
+---@return boolean
+function Assignments.ChainHasPlayer(assignments, chainId, identity)
+    local name = Assignments.QualifyName(identity)
+    if not name then
+        return false
+    end
+    local chain = GetChain(assignments, chainId)
+    if not chain then
+        return false
+    end
+    for index = 1, SLOT_COUNT do
+        local slot = chain[index]
+        if type(slot) == "table" and slot.type == TYPE_PLAYER and slot.value == name then
+            return true
+        end
+    end
+    return false
+end
+
+---Qualified names that occupy at least one player slot in both chains. Text slots are ignored.
+---@param assignments CoiledAltarInterruptAssignments|nil
+---@return string[]
+function Assignments.CrossChainPlayers(assignments)
+    local names = {}
+    if type(assignments) ~= "table" then
+        return names
+    end
+    local seen = {}
+    local melee = assignments[MELEE]
+    if type(melee) ~= "table" then
+        return names
+    end
+    for index = 1, SLOT_COUNT do
+        local slot = melee[index]
+        if type(slot) == "table" and slot.type == TYPE_PLAYER then
+            local name = Assignments.QualifyName(slot.value)
+            if name and not seen[name] and Assignments.ChainHasPlayer(assignments, RANGED, name) then
+                seen[name] = true
+                names[#names + 1] = name
+            end
+        end
+    end
+    table.sort(names)
+    return names
+end
+
+---@param assignments CoiledAltarInterruptAssignments
+---@param chainId any
 ---@param index any
 ---@param name any
 ---@return boolean
+---@return "CROSS_CHAIN"|nil
+---@return CoiledAltarInterruptChainId|nil
 function Assignments.SetPlayer(assignments, chainId, index, name)
     local qualified = Assignments.QualifyName(name)
     if not qualified then
         return false
+    end
+    local current = Assignments.GetSlot(assignments, chainId, index)
+    if current and current.type == TYPE_PLAYER and current.value == qualified then
+        return false
+    end
+    local opposite = Assignments.OppositeChain(chainId)
+    if opposite and Assignments.ChainHasPlayer(assignments, opposite, qualified) then
+        return false, "CROSS_CHAIN", opposite
     end
     return WriteSlot(assignments, chainId, index, { type = TYPE_PLAYER, value = qualified })
 end
@@ -368,9 +439,12 @@ end
 ---@param index integer
 ---@param name string
 ---@return boolean
+---@return "CROSS_CHAIN"|nil
+---@return CoiledAltarInterruptChainId|nil
 function CoiledAltar:AssignInterruptPlayer(chainId, index, name)
-    if not Assignments.SetPlayer(self.db.assignments, chainId, index, name) then
-        return false
+    local changed, err, occupiedChain = Assignments.SetPlayer(self.db.assignments, chainId, index, name)
+    if not changed then
+        return false, err, occupiedChain
     end
     Notify()
     return true

@@ -6,6 +6,7 @@ local Layout = ns.Layout
 local WarningWindow = ns.WarningWindow
 local Widgets = ns.Widgets
 local Group = ns.Api.Group
+local Player = ns.Api.Player
 local Unit = ns.Api.Unit
 
 local Colors = Assets.Colors
@@ -36,6 +37,7 @@ Internals.InterruptAssignmentsUI = Editor
 local selectedChain = Assignments.MELEE
 local selectedIndex = 1
 local editMode = MODE_PLAYER
+local lastAssignError
 local ui
 local confirmWindow
 local Refresh
@@ -69,6 +71,52 @@ local function SlotDisplay(slot, roster)
         return ShortName(stored), Colors.TEXT
     end
     return L.COILED_ALTAR_INTERRUPT_SLOT_EMPTY, Colors.TEXT_MUTED
+end
+
+---Raid members when grouped; otherwise only the local character.
+---@return RaidMember[]
+local function EditorRoster()
+    if Group.IsInGroup() then
+        return Group.GetRaidMembers()
+    end
+    local fullName = Player.GetFullName()
+    if not fullName then
+        return {}
+    end
+    local name = Unit.GetName("player") or ShortName(fullName)
+    return {
+        {
+            name = name,
+            fullName = fullName,
+            guid = Player.GetGUID(),
+            index = 1,
+            subgroup = 0,
+            classFile = Player.GetClassFile(),
+            role = Player.GetRole() or "NONE",
+            unit = "player",
+        },
+    }
+end
+
+---@param occupiedChain CoiledAltarInterruptChainId|nil
+---@return string
+local function CrossChainAssignText(occupiedChain)
+    if occupiedChain == Assignments.MELEE then
+        return L.COILED_ALTAR_INTERRUPT_CROSS_CHAIN_MELEE
+    end
+    return L.COILED_ALTAR_INTERRUPT_CROSS_CHAIN_RANGED
+end
+
+---@param name string
+local function TryAssignPlayer(name)
+    local ok, err, occupiedChain = CoiledAltar:AssignInterruptPlayer(selectedChain, selectedIndex, name)
+    if ok then
+        return
+    end
+    if err == "CROSS_CHAIN" then
+        lastAssignError = CrossChainAssignText(occupiedChain)
+        Refresh()
+    end
 end
 
 ---@param parent Frame
@@ -152,6 +200,7 @@ local function BuildChain(parent, chainId)
         slot:SetScript("OnClick", function()
             selectedChain = chainId
             selectedIndex = index
+            lastAssignError = nil
             local assigned = CoiledAltar:GetInterruptSlot(chainId, index)
             if assigned and assigned.type == Assignments.TYPE_TEXT then
                 editMode = MODE_TEXT
@@ -243,14 +292,21 @@ local function EnsureRosterButton(column, index)
         if not self.member then
             return
         end
-        CoiledAltar:AssignInterruptPlayer(selectedChain, selectedIndex, self.member.fullName or self.member.name)
+        TryAssignPlayer(self.member.fullName or self.member.name)
+    end)
+    Widgets.AttachTooltip(button, "ANCHOR_TOP", function(tooltip)
+        if not button.blocked or not button.blockedText then
+            return
+        end
+        local r, g, b = Widgets.UnpackColor(Colors.ERROR)
+        tooltip:AddLine(button.blockedText, r, g, b)
     end)
     column.buttons[index] = button
     return button
 end
 
 local function RefreshSlots()
-    local roster = Group.GetRaidMembers()
+    local roster = EditorRoster()
     local function Paint(chainFrame, chainId)
         for index, slot in ipairs(chainFrame.slots) do
             local assigned = CoiledAltar:GetInterruptSlot(chainId, index) or { type = Assignments.TYPE_EMPTY }
@@ -274,31 +330,48 @@ end
 
 local function HidePlayerExtras()
     ui.emptyHint:Hide()
-    ui.manualRow:Hide()
     ui.rosterGrid:Hide()
     ui.playerStack:SetEntryHeight(ui.emptyHintRow, 1)
-    ui.playerStack:SetEntryHeight(ui.manualRow, 1)
     ui.playerStack:SetEntryHeight(ui.rosterGrid, 1)
 end
 
+local function RefreshValidation()
+    local text = lastAssignError
+    if not text then
+        local names = Assignments.CrossChainPlayers(CoiledAltar:GetInterruptAssignments())
+        if #names > 0 then
+            local shown = {}
+            for index, name in ipairs(names) do
+                shown[index] = ShortName(name)
+            end
+            text = string.format(L.COILED_ALTAR_INTERRUPT_CROSS_CHAIN_WARNING, table.concat(shown, "、"))
+        end
+    end
+    if text then
+        ui.validation:SetText(text)
+        ui.validation:SetTextColor(Widgets.UnpackColor(Colors.ERROR))
+        ui.validation:SetWidth(math.max(ui.desc:GetWidth() or 0, 1))
+        ui.stack:SetEntryHeight(ui.validationRow, math.max(ui.validation:GetStringHeight() or 0, DESC_MIN_HEIGHT))
+        return
+    end
+    ui.validation:SetText("")
+    ui.stack:SetEntryHeight(ui.validationRow, 1)
+end
+
 local function RefreshRoster()
-    local members = Group.GetRaidMembers()
+    local members = EditorRoster()
     local grid = ui.rosterGrid
     if #members == 0 then
         grid:Hide()
         ui.emptyHint:Show()
         ui.emptyHint:SetText(L.COILED_ALTAR_INTERRUPT_ROSTER_EMPTY)
-        ui.manualRow:Show()
         ui.playerStack:SetEntryHeight(ui.emptyHintRow, math.max(ui.emptyHint:GetStringHeight(), DESC_MIN_HEIGHT))
-        ui.playerStack:SetEntryHeight(ui.manualRow, Sizes.CONTROL_ROW_HEIGHT)
         ui.playerStack:SetEntryHeight(grid, 1)
         return
     end
 
     ui.emptyHint:Hide()
-    ui.manualRow:Hide()
     ui.playerStack:SetEntryHeight(ui.emptyHintRow, 1)
-    ui.playerStack:SetEntryHeight(ui.manualRow, 1)
 
     local order, groups = GroupedRoster(members)
     local width = math.max(grid:GetWidth() or 0, 1)
@@ -333,7 +406,6 @@ local function RefreshRoster()
             local button = EnsureRosterButton(column, memberIndex)
             button.member = member
             button.name:SetText(member.name)
-            button.name:SetTextColor(Widgets.UnpackColor(ClassColor(member.classFile)))
             local yOffset = -(GROUP_HEADER_HEIGHT + (memberIndex - 1) * ROSTER_ROW_HEIGHT)
             button:ClearAllPoints()
             button:SetPoint("TOPLEFT", column, "TOPLEFT", 0, yOffset)
@@ -341,12 +413,22 @@ local function RefreshRoster()
             local assigned = CoiledAltar:GetInterruptSlot(selectedChain, selectedIndex)
             local identity = Assignments.QualifyName(member.fullName or member.name)
             local onSlot = assigned and assigned.type == Assignments.TYPE_PLAYER and assigned.value == identity
+            local opposite = Assignments.OppositeChain(selectedChain)
+            local blocked = opposite
+                and Assignments.ChainHasPlayer(CoiledAltar:GetInterruptAssignments(), opposite, identity)
+            button.blocked = blocked
+            button.blockedText = blocked and CrossChainAssignText(opposite) or nil
+            button:SetAlpha(blocked and 0.4 or 1)
+            local nameColor = blocked and Colors.TEXT_MUTED or ClassColor(member.classFile)
+            button.name:SetTextColor(Widgets.UnpackColor(nameColor))
             Widgets.ApplyBackdrop(button, Colors.SURFACE, onSlot and Colors.ACCENT or Colors.BORDER)
             button:Show()
         end
         for extra = #list + 1, #column.buttons do
             column.buttons[extra]:Hide()
             column.buttons[extra].member = nil
+            column.buttons[extra].blocked = nil
+            column.buttons[extra].blockedText = nil
         end
     end
     for extra = #order + 1, #grid.columns do
@@ -396,19 +478,13 @@ function Refresh()
     end
     RefreshSlots()
     RefreshEditor()
+    RefreshValidation()
     NotifyHeight()
 end
 
 local function AssignSelectedText()
     local text = ui.textBox:GetText() or ""
     CoiledAltar:AssignInterruptText(selectedChain, selectedIndex, text)
-end
-
-local function AssignManualName()
-    local name = ui.manualBox:GetText() or ""
-    if CoiledAltar:AssignInterruptPlayer(selectedChain, selectedIndex, name) then
-        ui.manualBox:SetText("")
-    end
 end
 
 local function HideClearConfirm()
@@ -454,6 +530,7 @@ function Editor.Mount(host, onHeightChanged)
     selectedChain = Assignments.MELEE
     selectedIndex = 1
     editMode = MODE_PLAYER
+    lastAssignError = nil
 
     -- Stack on the host row itself. An extra top-only wrapper would have height 0 and
     -- WoW would leave its children unplaced, which reserves space with nothing visible.
@@ -473,6 +550,14 @@ function Editor.Mount(host, onHeightChanged)
     local chainHeight = GROUP_HEADER_HEIGHT + Assignments.SLOT_COUNT * SLOT_HEIGHT
     local chains = stack:Add(BuildChains(host), chainHeight)
 
+    local validationRow = stack:AddRow(1)
+    local validation = Widgets.CreateLabel(validationRow, Fonts.SMALL_MUTED)
+    validation:SetJustifyH("LEFT")
+    validation:SetJustifyV("TOP")
+    validation:SetWordWrap(true)
+    validation:SetPoint("TOPLEFT")
+    validation:SetPoint("TOPRIGHT")
+
     local modeRow = stack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local mode
     mode = Widgets.CreateSegmentedControl(modeRow, {
@@ -480,6 +565,7 @@ function Editor.Mount(host, onHeightChanged)
         { value = MODE_TEXT, text = L.COILED_ALTAR_INTERRUPT_MODE_TEXT },
     }, function(value)
         editMode = value
+        lastAssignError = nil
         Refresh()
     end)
     local clear =
@@ -497,20 +583,6 @@ function Editor.Mount(host, onHeightChanged)
     emptyHint:SetWordWrap(true)
     emptyHint:SetPoint("TOPLEFT")
     emptyHint:SetPoint("TOPRIGHT")
-
-    local manualRow = playerStack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local manualLabel = Widgets.CreateLabel(manualRow, Fonts.BODY, L.COILED_ALTAR_INTERRUPT_MANUAL_NAME)
-    manualLabel:SetJustifyH("LEFT")
-    local assign = Widgets.CreateButton(manualRow, L.COILED_ALTAR_INTERRUPT_ASSIGN, AssignManualName)
-    local manualBox = CreateTextBox(manualRow, 48)
-    manualLabel:SetPoint("LEFT", manualRow, "LEFT")
-    assign:SetPoint("RIGHT", manualRow, "RIGHT")
-    manualBox:SetPoint("LEFT", manualLabel, "RIGHT", Spacing.SMALL, 0)
-    manualBox:SetPoint("RIGHT", assign, "LEFT", -Spacing.SMALL, 0)
-    manualBox:SetScript("OnEnterPressed", function(self)
-        self:ClearFocus()
-        AssignManualName()
-    end)
 
     local rosterGrid = playerStack:Add(CreateFrame("Frame", nil, playerPane), 1)
     rosterGrid.columns = {}
@@ -543,13 +615,13 @@ function Editor.Mount(host, onHeightChanged)
         descRow = descRow,
         desc = desc,
         chains = chains,
+        validationRow = validationRow,
+        validation = validation,
         mode = mode,
         clear = clear,
         playerPane = playerPane,
         emptyHintRow = emptyHintRow,
         emptyHint = emptyHint,
-        manualRow = manualRow,
-        manualBox = manualBox,
         rosterGrid = rosterGrid,
         textPane = textPane,
         textBox = textBox,
@@ -557,6 +629,7 @@ function Editor.Mount(host, onHeightChanged)
     }
 
     function CoiledAltar:OnInterruptAssignmentsChanged()
+        lastAssignError = nil
         Refresh()
     end
 
@@ -574,6 +647,7 @@ function Editor.Mount(host, onHeightChanged)
         ui.desc:SetWidth(width)
         ui.stack:SetEntryHeight(ui.descRow, math.max(ui.desc:GetStringHeight() or 0, DESC_MIN_HEIGHT))
         ui.emptyHint:SetWidth(width)
+        ui.validation:SetWidth(width)
         Refresh()
     end
 

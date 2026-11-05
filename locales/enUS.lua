@@ -328,9 +328,13 @@ L.COILED_ALTAR_INTERRUPT_CHAIN_RANGED = "Ranged Shadow"
 L.COILED_ALTAR_INTERRUPT_SLOT_EMPTY = "Unassigned"
 L.COILED_ALTAR_INTERRUPT_MODE_PLAYER = "Player"
 L.COILED_ALTAR_INTERRUPT_MODE_TEXT = "Custom Text"
-L.COILED_ALTAR_INTERRUPT_ROSTER_EMPTY = "Not in a raid. Enter a player name to test assignments."
-L.COILED_ALTAR_INTERRUPT_MANUAL_NAME = "Player name"
-L.COILED_ALTAR_INTERRUPT_ASSIGN = "Assign"
+L.COILED_ALTAR_INTERRUPT_ROSTER_EMPTY = "No group members are available to assign."
+L.COILED_ALTAR_INTERRUPT_CROSS_CHAIN_MELEE =
+    "This player is already on the melee interrupt chain and cannot also join the ranged chain."
+L.COILED_ALTAR_INTERRUPT_CROSS_CHAIN_RANGED =
+    "This player is already on the ranged interrupt chain and cannot also join the melee chain."
+L.COILED_ALTAR_INTERRUPT_CROSS_CHAIN_WARNING =
+    "These players are assigned to both the melee and ranged interrupt chains: %s. Correct this manually."
 L.COILED_ALTAR_INTERRUPT_TEXT_HINT = "Custom text"
 L.COILED_ALTAR_INTERRUPT_APPLY = "Apply"
 L.COILED_ALTAR_INTERRUPT_CLEAR_ALL = "Clear All"

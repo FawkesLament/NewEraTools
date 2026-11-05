@@ -36,13 +36,13 @@ describe("CoiledAltar interrupt assignments", function()
         assert.is_true(Module:AssignInterruptPlayer(Assignments.MELEE, 1, "PlayerA"))
         assert.is_true(Module:AssignInterruptPlayer(Assignments.MELEE, 3, "PlayerB"))
         assert.is_true(Module:AssignInterruptPlayer(Assignments.MELEE, 4, "PlayerA"))
-        assert.is_true(Module:AssignInterruptPlayer(Assignments.RANGED, 2, "PlayerA"))
+        assert.is_true(Module:AssignInterruptPlayer(Assignments.RANGED, 2, "PlayerC"))
 
         assert.same(Slot(Assignments.TYPE_PLAYER, "PlayerA-TestRealm"), Module:GetInterruptSlot(Assignments.MELEE, 1))
         assert.same(Slot(Assignments.TYPE_EMPTY), Module:GetInterruptSlot(Assignments.MELEE, 2))
         assert.same(Slot(Assignments.TYPE_PLAYER, "PlayerB-TestRealm"), Module:GetInterruptSlot(Assignments.MELEE, 3))
         assert.same(Slot(Assignments.TYPE_PLAYER, "PlayerA-TestRealm"), Module:GetInterruptSlot(Assignments.MELEE, 4))
-        assert.same(Slot(Assignments.TYPE_PLAYER, "PlayerA-TestRealm"), Module:GetInterruptSlot(Assignments.RANGED, 2))
+        assert.same(Slot(Assignments.TYPE_PLAYER, "PlayerC-TestRealm"), Module:GetInterruptSlot(Assignments.RANGED, 2))
         assert.same(Slot(Assignments.TYPE_EMPTY), Module:GetInterruptSlot(Assignments.RANGED, 1))
     end)
 
@@ -159,10 +159,71 @@ describe("CoiledAltar interrupt assignments", function()
         assert.equals(Assignments.MELEE, chainId)
         assert.same({ 1, 3 }, indices)
 
-        Module:AssignInterruptPlayer(Assignments.RANGED, 2, name)
+        Module.db.assignments.RANGED[2] = Slot(Assignments.TYPE_PLAYER, Assignments.QualifyName(name))
         chainId, indices = Assignments.PlayerPositions(Module:GetInterruptAssignments(), name)
         assert.is_nil(chainId)
         assert.same({}, indices)
+    end)
+
+    it("rejects assigning a player who already occupies the opposite chain", function()
+        assert.is_true(Module:AssignInterruptPlayer(Assignments.MELEE, 1, "PlayerA"))
+        assert.is_true(Module:AssignInterruptPlayer(Assignments.MELEE, 4, "PlayerA"))
+        local ok, err, occupied = Module:AssignInterruptPlayer(Assignments.RANGED, 3, "PlayerA")
+        assert.is_false(ok)
+        assert.equals("CROSS_CHAIN", err)
+        assert.equals(Assignments.MELEE, occupied)
+        assert.same(Slot(Assignments.TYPE_EMPTY), Module:GetInterruptSlot(Assignments.RANGED, 3))
+        assert.same(Slot(Assignments.TYPE_PLAYER, "PlayerA-TestRealm"), Module:GetInterruptSlot(Assignments.MELEE, 1))
+        assert.same(Slot(Assignments.TYPE_PLAYER, "PlayerA-TestRealm"), Module:GetInterruptSlot(Assignments.MELEE, 4))
+
+        assert.is_true(Module:AssignInterruptPlayer(Assignments.RANGED, 1, "PlayerB"))
+        ok, err, occupied = Module:AssignInterruptPlayer(Assignments.MELEE, 2, "PlayerB")
+        assert.is_false(ok)
+        assert.equals("CROSS_CHAIN", err)
+        assert.equals(Assignments.RANGED, occupied)
+        assert.same(Slot(Assignments.TYPE_EMPTY), Module:GetInterruptSlot(Assignments.MELEE, 2))
+
+        assert.is_true(Module:AssignInterruptPlayer(Assignments.RANGED, 2, "PlayerC"))
+        ok, err, occupied = Module:AssignInterruptPlayer(Assignments.RANGED, 2, "PlayerA-TestRealm")
+        assert.is_false(ok)
+        assert.equals("CROSS_CHAIN", err)
+        assert.equals(Assignments.MELEE, occupied)
+        assert.same(Slot(Assignments.TYPE_PLAYER, "PlayerC-TestRealm"), Module:GetInterruptSlot(Assignments.RANGED, 2))
+        assert.is_false(Module:AssignInterruptPlayer(Assignments.RANGED, 3, "PlayerA"))
+        assert.same(Slot(Assignments.TYPE_EMPTY), Module:GetInterruptSlot(Assignments.RANGED, 3))
+    end)
+
+    it("does not treat custom text as a player identity for cross-chain conflicts", function()
+        assert.is_true(Module:AssignInterruptText(Assignments.MELEE, 2, "点名近战"))
+        assert.is_true(Module:AssignInterruptPlayer(Assignments.RANGED, 1, "点名近战"))
+        assert.same(Slot(Assignments.TYPE_TEXT, "点名近战"), Module:GetInterruptSlot(Assignments.MELEE, 2))
+        assert.same(Slot(Assignments.TYPE_PLAYER, "点名近战-TestRealm"), Module:GetInterruptSlot(Assignments.RANGED, 1))
+        assert.same({}, Assignments.CrossChainPlayers(Module:GetInterruptAssignments()))
+    end)
+
+    it("preserves saved cross-chain player assignments and reports them", function()
+        local saved = Assignments.SanitizeSaved({
+            MELEE = {
+                { type = "player", value = "PlayerA" },
+                { type = "text", value = "点名近战" },
+            },
+            RANGED = {
+                [3] = { type = "player", value = "PlayerA-TestRealm" },
+                [4] = { type = "player", value = "PlayerB" },
+            },
+        })
+        assert.same(Slot(Assignments.TYPE_PLAYER, "PlayerA-TestRealm"), saved.MELEE[1])
+        assert.same(Slot(Assignments.TYPE_TEXT, "点名近战"), saved.MELEE[2])
+        assert.same(Slot(Assignments.TYPE_PLAYER, "PlayerA-TestRealm"), saved.RANGED[3])
+        assert.same({ "PlayerA-TestRealm" }, Assignments.CrossChainPlayers(saved))
+
+        Module.db.assignments = saved
+        Module.db.assignments.MELEE[3] = Slot(Assignments.TYPE_PLAYER, "PlayerB-TestRealm")
+        assert.same({ "PlayerA-TestRealm", "PlayerB-TestRealm" }, Assignments.CrossChainPlayers(Module.db.assignments))
+        assert.is_true(Module:ClearInterruptAssignment(Assignments.RANGED, 3))
+        assert.same({ "PlayerB-TestRealm" }, Assignments.CrossChainPlayers(Module.db.assignments))
+        assert.is_true(Module:ClearInterruptAssignment(Assignments.RANGED, 4))
+        assert.same({}, Assignments.CrossChainPlayers(Module.db.assignments))
     end)
 
     it("keeps nameplate hint settings independent of assignments", function()
