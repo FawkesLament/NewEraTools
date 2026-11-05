@@ -53,7 +53,7 @@ local function ResolveScheme(scheme)
 end
 
 ---@class InterruptIndicator: Frame
----@field SetAssignment fun(self: InterruptIndicator, sequenceNumber: number, playerName: string|nil, classFile: string|nil)
+---@field SetAssignment fun(self: InterruptIndicator, sequenceNumber: number, playerName: string|nil, classFile: string|nil, nameColor: { r: number, g: number, b: number }|nil)
 ---@field SetScale fun(self: InterruptIndicator, scale: number)
 ---@field SetNumberFontSize fun(self: InterruptIndicator, size: number)
 ---@field SetNameFontSize fun(self: InterruptIndicator, size: number)
@@ -268,14 +268,17 @@ function InterruptIndicator.Create(parent, scheme)
     local offsetY = 0
     local side = SIDE_BOTTOM
     local classFile
+    ---@type { r: number, g: number, b: number }|nil
+    local nameColor
     local playerName = ""
+    local numberText = ""
     local pointsReady = false
     local layoutGen = 0
     ---@type Frame|nil
     local anchor
 
     local function ApplyNameColor()
-        local color = classFile and Unit.GetClassColor(classFile) or WHITE
+        local color = nameColor or (classFile and Unit.GetClassColor(classFile)) or WHITE
         nameLabel:SetTextColor(color.r, color.g, color.b, 1)
     end
 
@@ -283,6 +286,11 @@ function InterruptIndicator.Create(parent, scheme)
         local size = numberFontSize * scale
         numberLabel:SetFont(FontFiles.EXPRESSWAY, size, "")
         numberLabel:SetTextColor(NUMBER_COLOR.r, NUMBER_COLOR.g, NUMBER_COLOR.b, 1)
+        -- Re-push the text after every SetFont so the deferred relayout repaints it even if
+        -- the first paint happened before the font was ready. Clear first: an identical
+        -- SetText may be skipped.
+        numberLabel:SetText("")
+        numberLabel:SetText(numberText)
     end
 
     local function EnsurePoints()
@@ -362,10 +370,12 @@ function InterruptIndicator.Create(parent, scheme)
         frame:SetPoint(point, relativeTo, relativePoint, x, y)
     end
 
-    function frame:SetAssignment(sequenceNumber, nextName, nextClassFile)
-        numberLabel:SetText(tostring(sequenceNumber))
+    function frame:SetAssignment(sequenceNumber, nextName, nextClassFile, nextNameColor)
+        numberText = tostring(sequenceNumber)
+        numberLabel:SetText(numberText)
         playerName = type(nextName) == "string" and nextName or ""
         classFile = nextClassFile
+        nameColor = nextNameColor
         RequestRelayout()
     end
 

@@ -170,4 +170,48 @@ describe("CoiledAltar", function()
             assert.equals(0, coiled:GetNameplateHintOffsetY())
         end)
     end)
+
+    describe("marked chain", function()
+        it("treats a missing or illegal saved value as melee", function()
+            assert.equals("MELEE", Module:GetMarkedChain())
+            Module.db.markedChain = nil
+            assert.equals("MELEE", Module:GetMarkedChain())
+            Module.db.markedChain = "BOTH"
+            assert.equals("MELEE", Module:GetMarkedChain())
+
+            local ns = Loader.Load()
+            ns.Modules.Start(ns.Database.Load({
+                schemaVersion = 12,
+                modules = {
+                    CoiledAltar = {
+                        markedChain = "BOTH",
+                    },
+                },
+            }))
+            local coiled = ns.Modules.Get("CoiledAltar")
+            assert.equals("MELEE", coiled:GetMarkedChain())
+            assert.equals("MELEE", coiled.db.markedChain)
+        end)
+
+        it("rejects an illegal chain and notifies encounter state only when the value changes", function()
+            local notifies = 0
+            Module.OnInterruptStateChanged = function()
+                notifies = notifies + 1
+            end
+            assert.is_false(pcall(Module.SetMarkedChain, Module, "BOTH"))
+            assert.equals("MELEE", Module:GetMarkedChain())
+            assert.equals(0, notifies)
+
+            assert.is_false(Module:SetMarkedChain("MELEE"))
+            assert.equals("MELEE", Module.db.markedChain)
+            assert.equals(0, notifies)
+
+            assert.is_true(Module:SetMarkedChain("RANGED"))
+            assert.equals("RANGED", Module:GetMarkedChain())
+            assert.equals(1, notifies)
+
+            assert.is_false(Module:SetMarkedChain("RANGED"))
+            assert.equals(1, notifies)
+        end)
+    end)
 end)

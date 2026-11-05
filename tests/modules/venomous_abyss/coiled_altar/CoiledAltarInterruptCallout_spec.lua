@@ -214,6 +214,15 @@ describe("CoiledAltar interrupt Callout", function()
             assert.is_nil(Resolve(state, "MELEE", { 1 }))
         end)
 
+        it("alerts the ranged first kick when a marked first member uses the ranged chain", function()
+            Module:SetMarkedChain("RANGED")
+            local state = WaveState({ marked = true, kicks = 0, casting = true }, { kicks = 0, casting = false })
+            local ranged = Resolve(state, "RANGED", { 1 })
+            assert.equals("RANGED", ranged.chainId)
+            assert.equals(1, ranged.round)
+            assert.is_nil(Resolve(state, "MELEE", { 1 }))
+        end)
+
         it("returns nil when the assigned current-wave shadow is dead", function()
             local state, melee, ranged = WaveState({ marked = true, kicks = 0, casting = true }, { kicks = 0, casting = true })
             state.list = { ranged }

@@ -431,4 +431,128 @@ describe("CoiledAltar interrupt nameplate indicators", function()
         assert.equals(ns.InterruptIndicator.HEIGHT * 1.5, indicators[1]:GetHeight())
         assert.equals(8, indicators[1].points[1].x)
     end)
+
+    it("applies live views without recreating unchanged indicators", function()
+        local plate = FakeFrame(nil)
+        SetEnemy("nameplate1", true)
+        Nameplate.frames.nameplate1 = plate
+        Nameplates.Apply({
+            nameplate1 = { number = 1, name = "待标记" },
+        })
+        local indicators = Indicators()
+        assert.equals(1, #indicators)
+        assert.equals("1", indicators[1].fontStrings[1]:GetText())
+        assert.equals("待标记", indicators[1].fontStrings[2]:GetText())
+        local first = indicators[1]
+
+        Nameplates.Apply({
+            nameplate1 = { number = 1, name = "待标记" },
+        })
+        assert.equals(1, #Indicators())
+        assert(first == Indicators()[1], "unchanged views must reuse the existing indicator")
+
+        Nameplates.Apply({
+            nameplate1 = { number = 2, name = "MeleeTwo" },
+        })
+        assert.equals(1, #Indicators())
+        assert(first == Indicators()[1], "bound updates must reuse the existing indicator")
+        assert.equals("2", first.fontStrings[1]:GetText())
+        assert.equals("MeleeTwo", first.fontStrings[2]:GetText())
+    end)
+
+    it("colors live indicators pale green for melee and gold when ranged or the chain is unknown", function()
+        local textures = ns.Assets.Textures
+        local ranged = FakeFrame(nil)
+        local melee = FakeFrame(nil)
+        SetEnemy("nameplate1", true)
+        SetEnemy("nameplate2", true)
+        Nameplate.frames.nameplate1 = ranged
+        Nameplate.frames.nameplate2 = melee
+        Nameplates.Apply({
+            nameplate1 = { number = 1, name = "待标记", scheme = ns.InterruptIndicator.SCHEME_GOLD },
+            nameplate2 = { number = 1, name = "MeleeOne", scheme = ns.InterruptIndicator.SCHEME_PALE_GREEN },
+        })
+        local function IndicatorOn(plate)
+            local list = Indicators()
+            for i = 1, #list do
+                if list[i].parent == plate then
+                    return list[i]
+                end
+            end
+            return nil
+        end
+        local gold = IndicatorOn(ranged)
+        local green = IndicatorOn(melee)
+        assert.equals(textures.INTERRUPT_INDICATOR_LEFT_GOLD, gold.textures[1].texture)
+        assert.equals(textures.INTERRUPT_INDICATOR_LEFT_PALE_GREEN, green.textures[1].texture)
+
+        Nameplates.Apply({
+            nameplate1 = { number = 1, name = "RangeOne", scheme = ns.InterruptIndicator.SCHEME_GOLD },
+            nameplate2 = { number = 1, name = "MeleeOne", scheme = ns.InterruptIndicator.SCHEME_PALE_GREEN },
+        })
+        assert.equals(2, #Indicators())
+        assert(gold == IndicatorOn(ranged), "ranged indicator must be reused")
+        assert(green == IndicatorOn(melee), "melee indicator must be reused")
+        assert.equals(textures.INTERRUPT_INDICATOR_LEFT_GOLD, gold.textures[1].texture)
+        assert.equals(textures.INTERRUPT_INDICATOR_CENTER_GOLD, gold.textures[2].texture)
+        assert.equals(textures.INTERRUPT_INDICATOR_LEFT_PALE_GREEN, green.textures[1].texture)
+        assert.equals(textures.INTERRUPT_INDICATOR_CENTER_PALE_GREEN, green.textures[2].texture)
+    end)
+
+    it("hides a live indicator as soon as its nameplate is removed", function()
+        local plate = FakeFrame(nil)
+        SetEnemy("nameplate1", true)
+        Nameplate.frames.nameplate1 = plate
+        Nameplates.Apply({
+            nameplate1 = { number = 1, name = "待标记" },
+        })
+        local indicator = Indicators()[1]
+        assert.is_true(indicator:IsShown())
+        Nameplate.FireRemoved("nameplate1")
+        assert.is_false(indicator:IsShown())
+        Nameplates.Apply({})
+        assert.is_false(indicator:IsShown())
+    end)
+
+    it("does not let live combat views overwrite a menu preview", function()
+        local plate = FakeFrame(nil)
+        SetEnemy("nameplate1", true)
+        Nameplate.visible[1] = { unit = "nameplate1", frame = plate }
+        Nameplate.frames.nameplate1 = plate
+        StartPreview()
+        local indicator = Indicators()[1]
+        assert.equals("24", indicator.fontStrings[1]:GetText())
+        Nameplates.Apply({
+            nameplate1 = { number = 1, name = "待标记" },
+        })
+        assert.equals("24", indicator.fontStrings[1]:GetText())
+        assert.equals("You", indicator.fontStrings[2]:GetText())
+        assert.is_true(indicator:IsShown())
+    end)
+
+    it("clears live indicators when the encounter ends without changing preview settings", function()
+        CoiledAltar:SetNameplateHintEnabled(true)
+        local plate = FakeFrame(nil)
+        SetEnemy("nameplate1", true)
+        Nameplate.frames.nameplate1 = plate
+        assert.is_true(CoiledAltar:AssignInterruptPlayer("MELEE", 1, "PlayerA"))
+        CoiledAltar:ListenForEncounter()
+        ns.Api.Encounter.FireStart(CoiledAltar.ENCOUNTER_ID, "The Coiled Altar", 16, 20)
+        Unit.SetForTests("boss3", { exists = true })
+        Unit.SetForTests("boss4", { exists = true })
+        ns.Api.Encounter.FireEngageUnit()
+        ns.Api.Timer.Advance(0)
+        Unit.SetForTests("nameplate1", { exists = true, level = 92, canAttack = true, canAssist = false })
+        ns.Api.Nameplate.FireAdded("nameplate1", plate)
+        ns.Api.Timer.Advance(0)
+        local indicators = Indicators()
+        assert.equals(1, #indicators)
+        assert.is_true(indicators[1]:IsShown())
+        assert.equals("1", indicators[1].fontStrings[1]:GetText())
+
+        ns.Api.Encounter.FireEnd(CoiledAltar.ENCOUNTER_ID, "The Coiled Altar", 16, 20, 1)
+        assert.is_false(indicators[1]:IsShown())
+        assert.is_true(CoiledAltar:IsNameplateHintEnabled())
+        assert.is_false(CoiledAltar:IsNameplateHintPreviewing())
+    end)
 end)

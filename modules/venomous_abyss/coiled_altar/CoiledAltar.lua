@@ -38,6 +38,7 @@ local SIDE_BOTTOM = "bottom"
 ---@field nameplateHint CoiledAltarNameplateHint
 ---@field mechanicReminder CoiledAltarMechanicReminder
 ---@field assignments CoiledAltarInterruptAssignments
+---@field markedChain CoiledAltarInterruptChainId
 
 ---@class CoiledAltar: Module
 ---@field db CoiledAltarSettings
@@ -49,6 +50,7 @@ local SIDE_BOTTOM = "bottom"
 ---@field OnNameplateHintShow fun(self: CoiledAltar, unit: string, number: integer, playerName: string, classFile: string|nil)|nil
 ---@field OnNameplateHintHide fun(self: CoiledAltar, unit: string)|nil
 ---@field OnNameplateHintCleared fun(self: CoiledAltar)|nil
+---@field OnNameplateHintApply fun(self: CoiledAltar, views: table<string, CoiledAltarNameplateIndicatorView>)|nil
 local CoiledAltar = ns.Modules.New("CoiledAltar", {
     defaults = {
         mechanicReminder = {
@@ -68,6 +70,8 @@ local CoiledAltar = ns.Modules.New("CoiledAltar", {
         },
         -- Encounter-wide interrupt chains. Sanitized to six slots per chain in OnInit.
         assignments = {},
+        -- Raid-marked shadows belong to this interrupt chain; the unmarked pair is the other.
+        markedChain = "MELEE",
     },
 })
 
@@ -158,11 +162,45 @@ local function SanitizeMechanicReminder(settings)
     return settings
 end
 
+---@param chainId any
+---@return CoiledAltarInterruptChainId
+local function SanitizeMarkedChain(chainId)
+    if Internals.InterruptAssignments.IsChain(chainId) then
+        return chainId
+    end
+    return Internals.InterruptAssignments.MELEE
+end
+
 function CoiledAltar:OnInit()
     self.db.mechanicReminder = SanitizeMechanicReminder(self.db.mechanicReminder)
     self.db.interruptReminder = nil
     self.db.nameplateHint = SanitizeNameplateHint(self.db.nameplateHint)
     self.db.assignments = Internals.InterruptAssignments.SanitizeSaved(self.db.assignments)
+    self.db.markedChain = SanitizeMarkedChain(self.db.markedChain)
+end
+
+---@return CoiledAltarInterruptChainId
+function CoiledAltar:GetMarkedChain()
+    return SanitizeMarkedChain(self.db.markedChain)
+end
+
+---Raid-marked shadows' interrupt chain. Display code should read Internals.MarkedChain.
+---@return CoiledAltarInterruptChainId
+function Internals.MarkedChain()
+    return CoiledAltar:GetMarkedChain()
+end
+
+---@param chainId CoiledAltarInterruptChainId
+---@return boolean changed
+function CoiledAltar:SetMarkedChain(chainId)
+    local Assignments = Internals.InterruptAssignments
+    assert(Assignments.IsChain(chainId), "Bad marked chain")
+    if self.db.markedChain == chainId then
+        return false
+    end
+    self.db.markedChain = chainId
+    Internals.NotifyEncounterState()
+    return true
 end
 
 ---@return boolean
@@ -221,6 +259,7 @@ function CoiledAltar:SetNameplateHintEnabled(enabled)
         self:SetNameplateHintPreviewing(false)
     end
     NotifyNameplateHintChanged()
+    Internals.SyncNameplateIndicators()
 end
 
 ---@return boolean

@@ -38,6 +38,7 @@ local SUCCEEDED = "SUCCEEDED"
 ---@class CoiledAltarInterruptState
 ---@field list CoiledAltarShadow[]
 ---@field plateOwner table<string, CoiledAltarShadow>
+---@field candidates table<string, boolean>  Unbound level-92 nameplates; value is whether the plate currently has a raid marker.
 ---@field curWave CoiledAltarWave|nil
 ---@field batch CoiledAltarInterruptBatch|nil
 ---@field requestFlush fun()|nil
@@ -61,15 +62,16 @@ function States.New()
     return {
         list = {},
         plateOwner = {},
+        candidates = {},
         curWave = nil,
         batch = nil,
     }
 end
 
 ---@param wave CoiledAltarWave|nil
----@return boolean w1  First member may be melee.
----@return boolean w2  Second member may be melee.
-function States.GetPossibleWorlds(wave)
+---@return boolean w1  First member may be melee when marked shadows use the melee chain.
+---@return boolean w2  Second member may be melee when marked shadows use the melee chain.
+local function PossibleWorldsForMarkedMelee(wave)
     if type(wave) ~= "table" or type(wave.members) ~= "table" then
         return true, true
     end
@@ -78,7 +80,7 @@ function States.GetPossibleWorlds(wave)
     if not first then
         return true, true
     end
-    -- A 1-add wave has no pair; marked goes to melee (W1), unmarked to ranged (W2).
+    -- A 1-add wave has no pair; the marked chain takes the add when it is marked.
     if not second then
         if first.marked == true then
             return true, false
@@ -94,6 +96,17 @@ function States.GetPossibleWorlds(wave)
         return false, true
     end
     return true, true
+end
+
+---@param wave CoiledAltarWave|nil
+---@return boolean w1  First member may be melee.
+---@return boolean w2  Second member may be melee.
+function States.GetPossibleWorlds(wave)
+    local w1, w2 = PossibleWorldsForMarkedMelee(wave)
+    if Internals.MarkedChain() == Internals.InterruptAssignments.RANGED then
+        return w2, w1
+    end
+    return w1, w2
 end
 
 ---@param unit any
@@ -225,14 +238,23 @@ local function BindPlate(state, object, plate)
     end
     object.plate = plate
     state.plateOwner[plate] = object
+    state.candidates[plate] = nil
     assert(state.plateOwner[plate] == object)
     assert(object.plate == plate)
+    assert(state.candidates[plate] == nil)
 end
 
 ---@param state CoiledAltarInterruptState
 local function RefreshLiveMarks(state)
     for i = 1, #state.list do
         state.list[i].marked = RaidTarget.GetIndex(BossTokenForListIndex(i)) ~= nil
+    end
+end
+
+---@param state CoiledAltarInterruptState
+local function RefreshCandidateMarks(state)
+    for plate in pairs(state.candidates) do
+        state.candidates[plate] = RaidTarget.GetIndex(plate) ~= nil
     end
 end
 
@@ -417,6 +439,7 @@ local function Reconcile(state, batch)
         end
     end
     RefreshLiveMarks(state)
+    RefreshCandidateMarks(state)
 end
 
 ---@param events { kind: string, unit: string, hasCastGUID: boolean }[]
@@ -574,20 +597,47 @@ function States.OnCast(state, kind, unit, hasCastGUID, hasArg3)
     }
 end
 
+---@param state CoiledAltarInterruptState
+---@param unit any
+function States.OnNameplateAdded(state, unit)
+    if Secrets.IsSecret(unit) or type(unit) ~= "string" then
+        return
+    end
+    if not Nameplate.IsUnitToken(unit) then
+        return
+    end
+    local hadOwner = state.plateOwner[unit] ~= nil
+    local wasCandidate = state.candidates[unit] ~= nil
+    UnbindPlate(state, unit)
+    state.candidates[unit] = nil
+    local added = false
+    if IsShadowPlate(unit) then
+        state.candidates[unit] = RaidTarget.GetIndex(unit) ~= nil
+        added = true
+    end
+    if hadOwner or wasCandidate or added then
+        NotifyStateChanged(state)
+    end
+end
+
 function States.OnNameplateRemoved(state, unit)
     if Secrets.IsSecret(unit) or type(unit) ~= "string" then
         return
     end
     local owner = state.plateOwner[unit]
-    if not owner then
-        return
+    if owner then
+        local batch = EnsureBatch(state)
+        if batch then
+            batch.removedOwners[#batch.removedOwners + 1] = owner
+            batch.removedPlates[unit] = true
+        end
+        UnbindPlate(state, unit)
     end
-    local batch = EnsureBatch(state)
-    if batch then
-        batch.removedOwners[#batch.removedOwners + 1] = owner
-        batch.removedPlates[unit] = true
+    local wasCandidate = state.candidates[unit] ~= nil
+    state.candidates[unit] = nil
+    if owner or wasCandidate then
+        NotifyStateChanged(state)
     end
-    UnbindPlate(state, unit)
 end
 
 function States.OnRaidTargetChanged(state)
@@ -595,6 +645,7 @@ function States.OnRaidTargetChanged(state)
         return
     end
     RefreshLiveMarks(state)
+    RefreshCandidateMarks(state)
     NotifyStateChanged(state)
 end
 
@@ -642,6 +693,9 @@ function States.Start(scope, onStateChanged)
     scope:Subscribe(Spell.OnCastSucceeded, OnCast(SUCCEEDED))
     scope:Subscribe(RaidTarget.OnChanged, function()
         States.OnRaidTargetChanged(state)
+    end)
+    scope:Subscribe(Nameplate.OnAdded, function(unit)
+        States.OnNameplateAdded(state, unit)
     end)
     scope:Subscribe(Nameplate.OnRemoved, function(unit)
         States.OnNameplateRemoved(state, unit)

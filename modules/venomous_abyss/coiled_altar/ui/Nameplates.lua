@@ -20,7 +20,7 @@ local holder
 local pool = {}
 ---@type table<string, InterruptIndicator>
 local active = {}
----@type table<string, { number: integer, name: string, classFile: string|nil }>
+---@type table<string, { number: integer, name: string, classFile: string|nil, nameColor: { r: number, g: number, b: number }|nil, scheme: string }>
 local assignments = {}
 local previewUnsubscribes = {}
 local liveUnsubscribes = {}
@@ -58,14 +58,15 @@ end
 ---@param number integer
 ---@param playerName string
 ---@param classFile string|nil
-local function Attach(indicator, nameplate, number, playerName, classFile)
+---@param nameColor { r: number, g: number, b: number }|nil
+local function Attach(indicator, nameplate, number, playerName, classFile, nameColor)
     indicator:Attach(nameplate)
     indicator:SetScale(CoiledAltar:GetNameplateHintScale())
     indicator:SetNumberFontSize(CoiledAltar:GetNameplateHintNumberFontSize())
     indicator:SetNameFontSize(CoiledAltar:GetNameplateHintNameFontSize())
     indicator:SetOffset(CoiledAltar:GetNameplateHintOffsetX(), CoiledAltar:GetNameplateHintOffsetY())
     indicator:SetSide(CoiledAltar:GetNameplateHintSide())
-    indicator:SetAssignment(number, playerName, classFile)
+    indicator:SetAssignment(number, playerName, classFile, nameColor)
 end
 
 ---@param unit string
@@ -91,15 +92,30 @@ end
 ---@param playerName string
 ---@param classFile string|nil
 ---@param scheme string|nil
-local function ShowAssignment(unit, frame, number, playerName, classFile, scheme)
+---@param nameColor { r: number, g: number, b: number }|nil
+local function ShowAssignment(unit, frame, number, playerName, classFile, scheme, nameColor)
     local indicator = active[unit]
     if not indicator then
         indicator = Acquire()
         active[unit] = indicator
-        indicator:SetColorScheme(scheme or InterruptIndicator.SCHEME_GOLD)
     end
-    assignments[unit] = { number = number, name = playerName, classFile = classFile }
-    Attach(indicator, frame, number, playerName, classFile)
+    if not scheme then
+        local current = assignments[unit]
+        if current and current.scheme then
+            scheme = current.scheme
+        else
+            scheme = InterruptIndicator.SCHEME_GOLD
+        end
+    end
+    indicator:SetColorScheme(scheme)
+    assignments[unit] = {
+        number = number,
+        name = playerName,
+        classFile = classFile,
+        nameColor = nameColor,
+        scheme = scheme,
+    }
+    Attach(indicator, frame, number, playerName, classFile, nameColor)
 end
 
 local function PreviewIdentity()
@@ -199,6 +215,54 @@ function Nameplates.Show(unit, number, playerName, classFile)
     ShowAssignment(unit, frame, number, playerName, classFile)
 end
 
+---Shows the resolved live indicators, reusing frames for unchanged units. No-op while previewing.
+---@param views table<string, CoiledAltarNameplateIndicatorView>|nil
+function Nameplates.Apply(views)
+    if previewing then
+        return
+    end
+    if type(views) ~= "table" then
+        views = {}
+    end
+    local stale = {}
+    for unit in pairs(active) do
+        if not views[unit] then
+            stale[#stale + 1] = unit
+        end
+    end
+    for i = 1, #stale do
+        HideForUnit(stale[i])
+    end
+    for unit, view in pairs(views) do
+        local frame = Nameplate.GetFrame(unit)
+        if not frame or type(view) ~= "table" or type(view.number) ~= "number" then
+            HideForUnit(unit)
+        else
+            local playerName = view.name or ""
+            local classFile = view.classFile
+            local nameColor = view.nameColor
+            local scheme = view.scheme or InterruptIndicator.SCHEME_GOLD
+            local current = assignments[unit]
+            if
+                not current
+                or current.number ~= view.number
+                or current.name ~= playerName
+                or current.classFile ~= classFile
+                or current.nameColor ~= nameColor
+                or current.scheme ~= scheme
+                or not active[unit]
+            then
+                ShowAssignment(unit, frame, view.number, playerName, classFile, scheme, nameColor)
+            end
+        end
+    end
+    if next(active) then
+        EnsureLiveWatch()
+    else
+        StopLiveWatch()
+    end
+end
+
 ---Hides the indicator on `unit`. No-op while a preview is showing.
 ---@param unit string
 function Nameplates.Hide(unit)
@@ -233,12 +297,24 @@ function Nameplates.Refresh()
         else
             local assignment = assignments[unit]
             if assignment then
-                ShowAssignment(unit, frame, assignment.number, assignment.name, assignment.classFile)
+                ShowAssignment(
+                    unit,
+                    frame,
+                    assignment.number,
+                    assignment.name,
+                    assignment.classFile,
+                    assignment.scheme,
+                    assignment.nameColor
+                )
             else
                 HideForUnit(unit)
             end
         end
     end
+end
+
+function CoiledAltar:OnNameplateHintApply(views)
+    Nameplates.Apply(views)
 end
 
 function CoiledAltar:OnNameplateHintShow(unit, number, playerName, classFile)
@@ -255,6 +331,9 @@ end
 
 function CoiledAltar:OnNameplateHintPreviewChanged()
     Nameplates.SetActive(self:IsNameplateHintPreviewing())
+    if not self:IsNameplateHintPreviewing() then
+        Internals.SyncNameplateIndicators()
+    end
 end
 
 function CoiledAltar:OnNameplateHintAppearanceChanged()

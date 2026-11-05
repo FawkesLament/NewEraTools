@@ -335,6 +335,10 @@ local function HidePlayerExtras()
     ui.playerStack:SetEntryHeight(ui.rosterGrid, 1)
 end
 
+local function RefreshMarkedChain()
+    ui.markedToggle:SetSelected(CoiledAltar:GetMarkedChain())
+end
+
 local function RefreshValidation()
     local text = lastAssignError
     if not text then
@@ -479,6 +483,7 @@ function Refresh()
     RefreshSlots()
     RefreshEditor()
     RefreshValidation()
+    RefreshMarkedChain()
     NotifyHeight()
 end
 
@@ -538,6 +543,29 @@ function Editor.Mount(host, onHeightChanged)
 
     local header = stack:AddRow(Sizes.CONTENT_SECTION_HEADER)
     Widgets.LayoutSectionHeader(header, L.COILED_ALTAR_INTERRUPT_ASSIGNMENTS)
+
+    local markedRow = stack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local markedLabel = Widgets.CreateLabel(markedRow, Fonts.BODY, L.COILED_ALTAR_MARKED_CORRESPONDS)
+    markedLabel:SetJustifyH("LEFT")
+    markedLabel:SetWordWrap(false)
+    -- FontStrings can't take mouse; a matching hit frame carries the tooltip.
+    local markedHit = CreateFrame("Frame", nil, markedRow)
+    markedHit:SetPoint("TOPLEFT", markedLabel, "TOPLEFT")
+    markedHit:SetPoint("BOTTOMRIGHT", markedLabel, "BOTTOMRIGHT")
+    markedHit:EnableMouse(true)
+    Widgets.AttachTooltip(markedHit, "ANCHOR_TOP", function(tooltip)
+        tooltip:SetText(L.COILED_ALTAR_MARKED_CORRESPONDS_TOOLTIP)
+    end)
+    local markedToggle
+    markedToggle = Widgets.CreateSegmentedControl(markedRow, {
+        { value = Assignments.MELEE, text = L.COILED_ALTAR_MARKED_SIDE_MELEE },
+        { value = Assignments.RANGED, text = L.COILED_ALTAR_MARKED_SIDE_RANGED },
+    }, function(chainId)
+        CoiledAltar:SetMarkedChain(chainId)
+        markedToggle:SetSelected(CoiledAltar:GetMarkedChain())
+    end)
+    markedLabel:SetPoint("LEFT", markedRow, "LEFT")
+    markedToggle:SetPoint("RIGHT", markedRow, "RIGHT")
 
     local descRow = stack:AddRow(DESC_MIN_HEIGHT)
     local desc = Widgets.CreateLabel(descRow, Fonts.TINY_MUTED, L.COILED_ALTAR_INTERRUPT_ASSIGNMENTS_DESC)
@@ -617,6 +645,9 @@ function Editor.Mount(host, onHeightChanged)
         chains = chains,
         validationRow = validationRow,
         validation = validation,
+        markedRow = markedRow,
+        markedLabel = markedLabel,
+        markedToggle = markedToggle,
         mode = mode,
         clear = clear,
         playerPane = playerPane,

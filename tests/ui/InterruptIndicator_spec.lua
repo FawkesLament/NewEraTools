@@ -217,6 +217,16 @@ describe("InterruptIndicator", function()
         assert.equals(0.43, color.b)
     end)
 
+    it("uses gold for custom assignment text", function()
+        local indicator = Create()
+        local gold = ns.Assets.Colors.TEXT_GOLD
+        indicator:SetAssignment(1, "点名近战", nil, gold)
+        local color = indicator.fontStrings[2].color
+        assert.equals(gold.r, color.r)
+        assert.equals(gold.g, color.g)
+        assert.equals(gold.b, color.b)
+    end)
+
     it("widens the stretchable center for longer names without resizing the caps", function()
         local indicator = Create()
         indicator:SetAssignment(1, "Al", "WARRIOR")

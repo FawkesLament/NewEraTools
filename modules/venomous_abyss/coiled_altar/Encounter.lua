@@ -9,9 +9,10 @@ local ENCOUNTER_ID = 3429
 
 CoiledAltar.ENCOUNTER_ID = ENCOUNTER_ID
 
----Refreshes interrupt presentation: Callout first, then encounter HUD consumers.
+---Refreshes interrupt presentation: Callout, nameplate indicators, then encounter HUD consumers.
 function Internals.NotifyEncounterState()
     Internals.SyncInterruptCallout()
+    Internals.SyncNameplateIndicators()
     if CoiledAltar.OnInterruptStateChanged then
         CoiledAltar:OnInterruptStateChanged()
     end

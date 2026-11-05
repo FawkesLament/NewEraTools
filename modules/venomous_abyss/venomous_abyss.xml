@@ -44,6 +44,7 @@
     <Script file="coiled_altar\InterruptStates.lua"/>
     <Script file="coiled_altar\InterruptRotation.lua"/>
     <Script file="coiled_altar\InterruptCallout.lua"/>
+    <Script file="coiled_altar\NameplateIndicators.lua"/>
     <Script file="coiled_altar\Encounter.lua"/>
     <Script file="coiled_altar\ui\InterruptRotationTracker.lua"/>
     <Script file="coiled_altar\ui\Nameplates.lua"/>

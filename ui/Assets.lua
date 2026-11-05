@@ -13,6 +13,42 @@ Assets.FontFiles = {
     EXPRESSWAY = MEDIA_PATH .. "fonts\\Expressway.ttf",
 }
 
+-- Custom font files load on first SetFont; text painted before that finishes stays blank
+-- until the string changes again. STANDARD_TEXT_FONT is already loaded.
+local fontFilesWarmed = false
+
+---Loads every bundled font file so later FontStrings can paint immediately.
+function Assets.PrewarmFontFiles()
+    if fontFilesWarmed then
+        return
+    end
+    if type(UIParent) ~= "table" and type(UIParent) ~= "userdata" then
+        return
+    end
+    if not UIParent.CreateFontString then
+        return
+    end
+    local warm = UIParent:CreateFontString(nil, "BACKGROUND")
+    if not warm or not warm.SetFont then
+        return
+    end
+    fontFilesWarmed = true
+    if warm.SetPoint then
+        warm:SetPoint("TOPLEFT", UIParent, "BOTTOMRIGHT", 100, -100)
+    end
+    if warm.SetAlpha then
+        warm:SetAlpha(0)
+    end
+    for _, path in pairs(Assets.FontFiles) do
+        warm:SetFont(path, 12, "")
+        if warm.SetText then
+            warm:SetText("0123456789")
+        end
+    end
+end
+
+Assets.PrewarmFontFiles()
+
 Assets.Textures = {
     -- A plain white square; tinted with SetVertexColor or used as a backdrop for flat fills.
     WHITE = "Interface\\Buttons\\WHITE8x8",
