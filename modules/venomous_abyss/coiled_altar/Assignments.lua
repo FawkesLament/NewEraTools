@@ -36,6 +36,24 @@ local Assignments = {
 }
 Internals.InterruptAssignments = Assignments
 
+---Only the raid leader can edit assignments; everyone else is member-view only.
+---@return boolean
+function Assignments.CanEdit()
+    return ns.Api.Group.IsPlayerRaidLeader()
+end
+
+---Picks the settings chain view. Same rules as Twin Fangs.
+---@param canEdit boolean
+---@param preferMemberView boolean
+---@return boolean showEditor
+---@return boolean preferMemberView
+function Assignments.ResolveSettingsView(canEdit, preferMemberView)
+    if not canEdit then
+        return false, false
+    end
+    return not preferMemberView, preferMemberView
+end
+
 ---@param chainId any
 ---@return boolean
 function Assignments.IsChain(chainId)

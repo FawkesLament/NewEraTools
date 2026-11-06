@@ -49,5 +49,6 @@
     <Script file="coiled_altar\ui\InterruptRotationTracker.lua"/>
     <Script file="coiled_altar\ui\Nameplates.lua"/>
     <Script file="coiled_altar\ui\Assignments.lua"/>
+    <Script file="coiled_altar\ui\MemberView.lua"/>
     <Script file="coiled_altar\CoiledAltarUI.lua"/>
 </Ui>

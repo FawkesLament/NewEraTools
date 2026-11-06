@@ -226,6 +226,42 @@ describe("CoiledAltar interrupt assignments", function()
         assert.same({}, Assignments.CrossChainPlayers(Module.db.assignments))
     end)
 
+    describe("view selection", function()
+        it("lets only the raid leader edit", function()
+            local Group = ns.Api.Group
+            assert.is_false(Assignments.CanEdit())
+
+            Group.isRaidLeader = true
+            assert.is_true(Assignments.CanEdit())
+
+            Group.isRaidLeader = false
+            Group.isLeaderOrAssistant = true
+            assert.is_false(Assignments.CanEdit())
+        end)
+
+        it("shows Member View when the player cannot edit", function()
+            local showEditor, preferMemberView = Assignments.ResolveSettingsView(false, true)
+            assert.is_false(showEditor)
+            assert.is_false(preferMemberView)
+
+            showEditor, preferMemberView = Assignments.ResolveSettingsView(true, false)
+            assert.is_true(showEditor)
+            assert.is_false(preferMemberView)
+
+            showEditor, preferMemberView = Assignments.ResolveSettingsView(true, true)
+            assert.is_false(showEditor)
+            assert.is_true(preferMemberView)
+        end)
+
+        it("does not change assignments when resolving the settings view", function()
+            assert.is_true(Module:AssignInterruptPlayer(Assignments.MELEE, 1, "PlayerA"))
+            local saved = ns.Util.DeepCopy(Module:GetInterruptAssignments())
+            Assignments.ResolveSettingsView(true, true)
+            Assignments.ResolveSettingsView(false, false)
+            assert.same(saved, Module:GetInterruptAssignments())
+        end)
+    end)
+
     it("keeps nameplate hint settings independent of assignments", function()
         Module:SetNameplateHintEnabled(true)
         Module:AssignInterruptPlayer(Assignments.MELEE, 1, "PlayerA")

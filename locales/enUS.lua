@@ -321,6 +321,12 @@ L.COILED_ALTAR_INTERRUPT_STATUS_PENDING = "Waiting for mark…"
 L.COILED_ALTAR_INTERRUPT_INDICATOR_PENDING = "Unmarked"
 L.COILED_ALTAR_INTERRUPT_STATUS_TASK = "Your Assignment #%d"
 L.COILED_ALTAR_INTERRUPT_STATUS_TASK_RANGE = "Your Assignment #%d–%d"
+L.COILED_ALTAR_INTERRUPT_RAID_ROLE_TOOLTIP =
+    "A commander can edit interrupt assignments; a member can only view the melee and ranged chains. Become raid leader to enter Commander mode."
+L.COILED_ALTAR_INTERRUPT_VIEW_MEMBER = "View My Assignment"
+L.COILED_ALTAR_INTERRUPT_VIEW_EDITOR = "Back to Editor"
+L.COILED_ALTAR_INTERRUPT_YOU = "You"
+L.COILED_ALTAR_INTERRUPT_SEQUENCE = "#%d"
 L.COILED_ALTAR_INTERRUPT_ASSIGNMENTS = "Interrupt Assignments"
 L.COILED_ALTAR_INTERRUPT_ASSIGNMENTS_DESC =
     "Assign six interrupt slots for each shadow. Select a slot, then click a raid member."
@@ -337,6 +343,7 @@ L.COILED_ALTAR_INTERRUPT_CROSS_CHAIN_RANGED =
 L.COILED_ALTAR_INTERRUPT_CROSS_CHAIN_WARNING =
     "These players are assigned to both the melee and ranged interrupt chains: %s. Correct this manually."
 L.COILED_ALTAR_INTERRUPT_TEXT_HINT = "Custom text"
+L.COILED_ALTAR_INTERRUPT_SYNC = "Sync to Raid"
 L.COILED_ALTAR_INTERRUPT_APPLY = "Apply"
 L.COILED_ALTAR_INTERRUPT_CLEAR_ALL = "Clear All"
 L.COILED_ALTAR_INTERRUPT_CLEAR_ALL_TITLE = "Clear all interrupt assignments?"

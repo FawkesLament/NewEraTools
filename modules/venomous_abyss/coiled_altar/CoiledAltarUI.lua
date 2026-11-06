@@ -18,6 +18,7 @@ local CoiledAltar = ns.Modules.Get("CoiledAltar")
 local InterruptRotationTracker = Internals.InterruptRotationTrackerUI
 
 local SCOPE_ID = "coiled_altar"
+local syncInterruptAssignments
 
 local function BeginEditPosition()
     if not CoiledAltar:IsMechanicReminderEnabled() then
@@ -61,12 +62,93 @@ local function BuildContent(content)
     local editLayout = Widgets.CreateLayoutEditButton(content.header, L.COILED_ALTAR_EDIT_POSITION, BeginEditPosition)
     content:SetHeaderAction(editLayout)
 
-    local editorHost = body:AddRow(1)
-    local editorHeight = Internals.InterruptAssignmentsUI.Mount(editorHost, function(height)
-        body:SetEntryHeight(editorHost, height)
-        content:SetContentHeight(body:GetHeight())
+    local titleRow = body:AddRow(Sizes.CONTENT_SECTION_HEADER)
+    Widgets.LayoutSectionHeader(titleRow, L.COILED_ALTAR_INTERRUPT_ASSIGNMENTS)
+    local preferMemberView = false
+    local viewSwitch = Widgets.CreateTextButton(titleRow, L.COILED_ALTAR_INTERRUPT_VIEW_MEMBER, function()
+        preferMemberView = not preferMemberView
+        if syncInterruptAssignments then
+            syncInterruptAssignments()
+        end
     end)
-    body:SetEntryHeight(editorHost, editorHeight)
+    viewSwitch:SetPoint("RIGHT", titleRow, "RIGHT")
+
+    local interruptRoleRow = body:AddRow(ns.RaidRoleModeLabel.HEIGHT)
+    local interruptRoleLabel =
+        ns.RaidRoleModeLabel.Create(interruptRoleRow, L.COILED_ALTAR_INTERRUPT_RAID_ROLE_TOOLTIP)
+    local addonCheck = Widgets.CreateButton(interruptRoleRow, L.ADDONCHECK_BUTTON, function() end, "primary")
+    local sync = Widgets.CreateButton(interruptRoleRow, L.COILED_ALTAR_INTERRUPT_SYNC, function() end, "primary")
+    sync:SetPoint("RIGHT", interruptRoleRow, "RIGHT")
+    addonCheck:SetPoint("RIGHT", sync, "LEFT", -Spacing.SMALL, 0)
+
+    local chainHost = body:Add(CreateFrame("Frame", nil, content), 1)
+    local editorMounted
+    local memberViewMounted
+    local function ApplyChainHostHeight(height)
+        body:SetEntryHeight(chainHost, height)
+        content:SetContentHeight(body:GetHeight())
+    end
+
+    local function EnsureChainEditor()
+        if editorMounted then
+            Internals.InterruptAssignmentsUI.Refresh()
+            return
+        end
+        Internals.InterruptAssignmentsUI.Mount(chainHost, ApplyChainHostHeight)
+        editorMounted = true
+    end
+
+    local function EnsureMemberView()
+        if memberViewMounted then
+            Internals.InterruptAssignmentsMemberView.Refresh()
+            return
+        end
+        Internals.InterruptAssignmentsMemberView.Mount(chainHost, ApplyChainHostHeight)
+        memberViewMounted = true
+    end
+
+    function syncInterruptAssignments()
+        ns.RaidRoleModeLabel.Update(interruptRoleLabel)
+        local canEdit = Internals.InterruptAssignments.CanEdit()
+        local showEditor
+        showEditor, preferMemberView =
+            Internals.InterruptAssignments.ResolveSettingsView(canEdit, preferMemberView)
+        viewSwitch:SetShown(canEdit)
+        if canEdit then
+            viewSwitch:SetText(
+                preferMemberView and L.COILED_ALTAR_INTERRUPT_VIEW_EDITOR or L.COILED_ALTAR_INTERRUPT_VIEW_MEMBER
+            )
+            viewSwitch:SetSize(viewSwitch:GetTextWidth() + 2 * Spacing.SMALL, Sizes.CONTROL_HEIGHT)
+        end
+        addonCheck:SetShown(showEditor)
+        sync:SetShown(showEditor)
+        body:SetEntryHeight(
+            interruptRoleRow,
+            showEditor and Sizes.CONTROL_ROW_HEIGHT or ns.RaidRoleModeLabel.HEIGHT
+        )
+        if not content:IsVisible() then
+            return
+        end
+        chainHost:Show()
+        if showEditor then
+            Internals.InterruptAssignmentsMemberView.SetShown(false)
+            EnsureChainEditor()
+            Internals.InterruptAssignmentsUI.SetShown(true)
+        else
+            Internals.InterruptAssignmentsUI.SetShown(false)
+            EnsureMemberView()
+            Internals.InterruptAssignmentsMemberView.SetShown(true)
+        end
+        content:SetContentHeight(body:GetHeight())
+    end
+
+    content:HookScript("OnShow", function()
+        if syncInterruptAssignments then
+            syncInterruptAssignments()
+        end
+    end)
+
+    syncInterruptAssignments()
 
     local reminder = FeatureSection.Create(body, {
         title = L.COILED_ALTAR_MECHANIC_REMINDER,
@@ -309,6 +391,11 @@ function CoiledAltar:OnEnable()
         build = BuildContent,
     })
     self:ListenForEncounter()
+    ns.Api.Group.OnChanged(function()
+        if syncInterruptAssignments then
+            syncInterruptAssignments()
+        end
+    end)
     InterruptRotationTracker.Ensure()
     InterruptRotationTracker.Update()
 end

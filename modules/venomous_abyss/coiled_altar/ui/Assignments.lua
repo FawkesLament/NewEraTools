@@ -471,9 +471,10 @@ local function RefreshEditor()
 end
 
 local function NotifyHeight()
-    if ui and ui.onHeightChanged then
-        ui.onHeightChanged(ui.stack:GetHeight())
+    if not ui or not ui.onHeightChanged or not ui.panel:IsShown() then
+        return
     end
+    ui.onHeightChanged(ui.stack:GetHeight())
 end
 
 function Refresh()
@@ -537,12 +538,12 @@ function Editor.Mount(host, onHeightChanged)
     editMode = MODE_PLAYER
     lastAssignError = nil
 
-    -- Stack on the host row itself. An extra top-only wrapper would have height 0 and
+    local panel = CreateFrame("Frame", nil, host)
+    panel:SetPoint("TOPLEFT")
+    panel:SetPoint("BOTTOMRIGHT")
+    -- Stack on the panel. An extra top-only wrapper would have height 0 and
     -- WoW would leave its children unplaced, which reserves space with nothing visible.
-    local stack = Layout.Stack(host, { spacing = Spacing.SMALL })
-
-    local header = stack:AddRow(Sizes.CONTENT_SECTION_HEADER)
-    Widgets.LayoutSectionHeader(header, L.COILED_ALTAR_INTERRUPT_ASSIGNMENTS)
+    local stack = Layout.Stack(panel, { spacing = Spacing.SMALL })
 
     local markedRow = stack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local markedLabel = Widgets.CreateLabel(markedRow, Fonts.BODY, L.COILED_ALTAR_MARKED_CORRESPONDS)
@@ -576,7 +577,7 @@ function Editor.Mount(host, onHeightChanged)
     desc:SetPoint("TOPRIGHT")
 
     local chainHeight = GROUP_HEADER_HEIGHT + Assignments.SLOT_COUNT * SLOT_HEIGHT
-    local chains = stack:Add(BuildChains(host), chainHeight)
+    local chains = stack:Add(BuildChains(panel), chainHeight)
 
     local validationRow = stack:AddRow(1)
     local validation = Widgets.CreateLabel(validationRow, Fonts.SMALL_MUTED)
@@ -601,7 +602,7 @@ function Editor.Mount(host, onHeightChanged)
     clear:SetPoint("RIGHT", modeRow, "RIGHT")
     mode:SetPoint("LEFT", modeRow, "LEFT")
 
-    local playerPane = stack:Add(CreateFrame("Frame", nil, host), 1)
+    local playerPane = stack:Add(CreateFrame("Frame", nil, panel), 1)
     local playerStack = Layout.Stack(playerPane, { spacing = Spacing.SMALL })
 
     local emptyHintRow = playerStack:AddRow(DESC_MIN_HEIGHT)
@@ -615,7 +616,7 @@ function Editor.Mount(host, onHeightChanged)
     local rosterGrid = playerStack:Add(CreateFrame("Frame", nil, playerPane), 1)
     rosterGrid.columns = {}
 
-    local textPane = stack:Add(CreateFrame("Frame", nil, host), Sizes.CONTROL_ROW_HEIGHT)
+    local textPane = stack:Add(CreateFrame("Frame", nil, panel), Sizes.CONTROL_ROW_HEIGHT)
     local textLabel = Widgets.CreateLabel(textPane, Fonts.BODY, L.COILED_ALTAR_INTERRUPT_TEXT_HINT)
     textLabel:SetJustifyH("LEFT")
     local apply = Widgets.CreateButton(textPane, L.COILED_ALTAR_INTERRUPT_APPLY, AssignSelectedText)
@@ -638,6 +639,7 @@ function Editor.Mount(host, onHeightChanged)
 
     ui = {
         stack = stack,
+        panel = panel,
         playerStack = playerStack,
         onHeightChanged = onHeightChanged,
         descRow = descRow,
@@ -659,9 +661,13 @@ function Editor.Mount(host, onHeightChanged)
         charCount = charCount,
     }
 
+    local previousAssignmentsChanged = CoiledAltar.OnInterruptAssignmentsChanged
     function CoiledAltar:OnInterruptAssignmentsChanged()
         lastAssignError = nil
         Refresh()
+        if previousAssignmentsChanged then
+            previousAssignmentsChanged(self)
+        end
     end
 
     Group.OnRosterChanged(function()
@@ -695,5 +701,24 @@ function Editor.Mount(host, onHeightChanged)
 end
 
 function Editor.Refresh()
+    if not ui or not ui.panel:IsShown() then
+        return
+    end
     Refresh()
+end
+
+---Shows or hides the assignment editor. Hiding also dismisses the clear-all confirm.
+---@param shown boolean
+function Editor.SetShown(shown)
+    shown = shown == true
+    if not ui then
+        return
+    end
+    if shown then
+        ui.panel:Show()
+        Editor.Refresh()
+        return
+    end
+    HideClearConfirm()
+    ui.panel:Hide()
 end
