@@ -1,4 +1,4 @@
--- Encounter-local phase state machine for Coiled Altar. Query-only; no UI.
+-- Encounter-local phase state machine for Coiled Altar. Queryable, with enter notifications; no UI.
 local _, ns = ...
 local Internals = ns.Modules.Internals("CoiledAltar")
 local EncounterTimeline = ns.Api.EncounterTimeline
@@ -28,12 +28,20 @@ local phaseStartTime = nil
 ---@type number|nil
 local p3BatchStart = nil
 local p3BatchCount = 0
+---@type fun(phase: CoiledAltarPhase, at: number)[]
+local changedListeners = {}
 
 local function ClearPhase()
     phase = nil
     phaseStartTime = nil
     p3BatchStart = nil
     p3BatchCount = 0
+end
+
+local function NotifyChanged()
+    for index = 1, #changedListeners do
+        changedListeners[index](phase, phaseStartTime)
+    end
 end
 
 ---@param nextPhase CoiledAltarPhase
@@ -43,6 +51,28 @@ local function Enter(nextPhase, at)
     phaseStartTime = at
     p3BatchStart = nil
     p3BatchCount = 0
+    NotifyChanged()
+end
+
+---Notifies after each phase enter. Does not fire when the pull is cleared.
+---@param callback fun(phase: CoiledAltarPhase, at: number)
+---@return fun()
+function Detector.OnChanged(callback)
+    assert(type(callback) == "function", "PhaseDetector.OnChanged requires a callback")
+    table.insert(changedListeners, callback)
+    local removed = false
+    return function()
+        if removed then
+            return
+        end
+        removed = true
+        for index, candidate in ipairs(changedListeners) do
+            if candidate == callback then
+                table.remove(changedListeners, index)
+                return
+            end
+        end
+    end
 end
 
 ---@return CoiledAltarPhase|nil

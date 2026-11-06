@@ -24,6 +24,10 @@ describe("CoiledAltar", function()
         assert.is_true(Module.db.mechanicReminder.interrupt)
         assert.is_false(Module:IsGhostChaseReminderEnabled())
         assert.is_false(Module.db.mechanicReminder.ghostChase)
+        assert.is_false(Module:IsOrbCarryOddReminderEnabled())
+        assert.is_false(Module.db.mechanicReminder.orbCarryOdd)
+        assert.is_false(Module:IsOrbCarryEvenReminderEnabled())
+        assert.is_false(Module.db.mechanicReminder.orbCarryEven)
         assert.is_nil(Module.db.mechanicReminder.enabled)
         assert.is_false(Module:IsNameplateHintEnabled())
         assert.is_false(Module.db.nameplateHint.enabled)
@@ -62,6 +66,40 @@ describe("CoiledAltar", function()
         local coiled = ns.Modules.Get("CoiledAltar")
         assert.is_false(coiled:IsGhostChaseReminderEnabled())
         assert.is_false(coiled.db.mechanicReminder.ghostChase)
+    end)
+
+    it("toggles and persists the orb-carry wave checkboxes independently", function()
+        Module:SetOrbCarryOddReminderEnabled(true)
+        assert.is_true(Module:IsOrbCarryOddReminderEnabled())
+        assert.is_true(Module.db.mechanicReminder.orbCarryOdd)
+        assert.is_false(Module:IsOrbCarryEvenReminderEnabled())
+
+        Module:SetOrbCarryEvenReminderEnabled(true)
+        assert.is_true(Module:IsOrbCarryEvenReminderEnabled())
+        assert.is_true(Module.db.mechanicReminder.orbCarryEven)
+        assert.is_true(Module:IsOrbCarryOddReminderEnabled())
+
+        Module:SetOrbCarryOddReminderEnabled(false)
+        assert.is_false(Module:IsOrbCarryOddReminderEnabled())
+        assert.is_false(Module.db.mechanicReminder.orbCarryOdd)
+        assert.is_true(Module:IsOrbCarryEvenReminderEnabled())
+    end)
+
+    it("fills missing orb-carry reminders from defaults", function()
+        local ns = Loader.Load()
+        ns.Modules.Start(ns.Database.Load({
+            schemaVersion = 13,
+            modules = {
+                CoiledAltar = {
+                    mechanicReminder = { interrupt = true, ghostChase = false },
+                },
+            },
+        }))
+        local coiled = ns.Modules.Get("CoiledAltar")
+        assert.is_false(coiled:IsOrbCarryOddReminderEnabled())
+        assert.is_false(coiled.db.mechanicReminder.orbCarryOdd)
+        assert.is_false(coiled:IsOrbCarryEvenReminderEnabled())
+        assert.is_false(coiled.db.mechanicReminder.orbCarryEven)
     end)
 
     it("toggles and persists the nameplate hint", function()

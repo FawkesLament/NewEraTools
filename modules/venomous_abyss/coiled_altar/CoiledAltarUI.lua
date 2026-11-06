@@ -21,6 +21,7 @@ local Spell = ns.Api.Spell
 
 local INTERRUPT_SPELL_ID = 1286399
 local GHOST_CHASE_SPELL_ID = 1285911
+local ORB_CARRY_SPELL_ID = 1282403
 local SPELL_ICON_SIZE = Sizes.ROLE_ICON
 
 ---@param parent Frame
@@ -38,10 +39,7 @@ local function CreateSpellHint(parent, spellId, labelText)
     label:SetJustifyH("LEFT")
     label:SetWordWrap(false)
     label:SetPoint("LEFT", icon, "RIGHT", Spacing.SMALL, 0)
-    hit:SetSize(
-        SPELL_ICON_SIZE + Spacing.SMALL + (label:GetStringWidth() or 0),
-        Sizes.CONTROL_ROW_HEIGHT
-    )
+    hit:SetSize(SPELL_ICON_SIZE + Spacing.SMALL + (label:GetStringWidth() or 0), Sizes.CONTROL_ROW_HEIGHT)
     hit:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetSpellByID(spellId)
@@ -137,8 +135,7 @@ local function BuildContent(content)
     viewSwitch:SetPoint("RIGHT", titleRow, "RIGHT")
 
     local interruptRoleRow = body:AddRow(ns.RaidRoleModeLabel.HEIGHT)
-    local interruptRoleLabel =
-        ns.RaidRoleModeLabel.Create(interruptRoleRow, L.COILED_ALTAR_INTERRUPT_RAID_ROLE_TOOLTIP)
+    local interruptRoleLabel = ns.RaidRoleModeLabel.Create(interruptRoleRow, L.COILED_ALTAR_INTERRUPT_RAID_ROLE_TOOLTIP)
     local addonCheck = Widgets.CreateButton(interruptRoleRow, L.ADDONCHECK_BUTTON, function()
         if not CoiledAltar:IsRaidCommander() then
             return
@@ -188,12 +185,8 @@ local function BuildContent(content)
         SetSyncStatus(kind, text)
     end
 
-    local sync = Widgets.CreateButton(
-        interruptRoleRow,
-        L.COILED_ALTAR_INTERRUPT_SYNC,
-        PublishInterruptAssignments,
-        "primary"
-    )
+    local sync =
+        Widgets.CreateButton(interruptRoleRow, L.COILED_ALTAR_INTERRUPT_SYNC, PublishInterruptAssignments, "primary")
     sync:SetPoint("RIGHT", interruptRoleRow, "RIGHT")
     addonCheck:SetPoint("RIGHT", sync, "LEFT", -Spacing.SMALL, 0)
 
@@ -230,8 +223,7 @@ local function BuildContent(content)
             HideAddonCheckPanel()
         end
         local showEditor
-        showEditor, preferMemberView =
-            Internals.InterruptAssignments.ResolveSettingsView(canEdit, preferMemberView)
+        showEditor, preferMemberView = Internals.InterruptAssignments.ResolveSettingsView(canEdit, preferMemberView)
         viewSwitch:SetShown(canEdit)
         if canEdit then
             viewSwitch:SetText(
@@ -248,10 +240,7 @@ local function BuildContent(content)
         else
             body:SetEntryHeight(syncStatusRow, 1)
         end
-        body:SetEntryHeight(
-            interruptRoleRow,
-            showEditor and Sizes.CONTROL_ROW_HEIGHT or ns.RaidRoleModeLabel.HEIGHT
-        )
+        body:SetEntryHeight(interruptRoleRow, showEditor and Sizes.CONTROL_ROW_HEIGHT or ns.RaidRoleModeLabel.HEIGHT)
         if not content:IsVisible() then
             return
         end
@@ -324,28 +313,54 @@ local function BuildContent(content)
 
     local reminderRow = reminderBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local interruptCell, ghostChaseCell = Layout.SplitRow(reminderRow, Spacing.MEDIUM)
-    AddReminderCheckbox(
-        interruptCell,
-        function()
-            return CoiledAltar:IsInterruptReminderEnabled()
-        end,
-        function(enabled)
-            CoiledAltar:SetInterruptReminderEnabled(enabled)
-        end,
-        L.COILED_ALTAR_INTERRUPT_REMINDER,
-        INTERRUPT_SPELL_ID
-    )
-    AddReminderCheckbox(
-        ghostChaseCell,
-        function()
-            return CoiledAltar:IsGhostChaseReminderEnabled()
-        end,
-        function(enabled)
-            CoiledAltar:SetGhostChaseReminderEnabled(enabled)
-        end,
-        L.COILED_ALTAR_GHOST_CHASE_REMINDER,
-        GHOST_CHASE_SPELL_ID
-    )
+    AddReminderCheckbox(interruptCell, function()
+        return CoiledAltar:IsInterruptReminderEnabled()
+    end, function(enabled)
+        CoiledAltar:SetInterruptReminderEnabled(enabled)
+    end, L.COILED_ALTAR_INTERRUPT_REMINDER, INTERRUPT_SPELL_ID)
+    AddReminderCheckbox(ghostChaseCell, function()
+        return CoiledAltar:IsGhostChaseReminderEnabled()
+    end, function(enabled)
+        CoiledAltar:SetGhostChaseReminderEnabled(enabled)
+    end, L.COILED_ALTAR_GHOST_CHASE_REMINDER, GHOST_CHASE_SPELL_ID)
+
+    ---@param cell Frame
+    ---@param isEnabled fun(): boolean
+    ---@param setEnabled fun(enabled: boolean)
+    ---@param labelText string
+    ---@return Frame
+    local function AddLabeledCheckbox(cell, isEnabled, setEnabled, labelText)
+        local group = CreateFrame("Frame", nil, cell)
+        local box = Widgets.CreateCheckbox(group)
+        box:SetChecked(isEnabled())
+        box:SetScript("OnClick", function(self)
+            setEnabled(self:GetChecked())
+            self:SetChecked(isEnabled())
+        end)
+        local label = Widgets.CreateLabel(group, Fonts.BODY, labelText)
+        label:SetJustifyH("LEFT")
+        label:SetWordWrap(false)
+        Layout.Row(group, { box, label }, Spacing.SMALL)
+        local labelWidth = label:GetStringWidth() or 0
+        box:SetHitRectInsets(0, -(labelWidth + Spacing.SMALL), 0, 0)
+        group:SetSize(Sizes.CHECKBOX + Spacing.SMALL + labelWidth, Sizes.CONTROL_ROW_HEIGHT)
+        return group
+    end
+
+    local orbRow = reminderBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local orbHint = CreateSpellHint(orbRow, ORB_CARRY_SPELL_ID, L.COILED_ALTAR_ORB_CARRY_REMINDER)
+    local oddGroup = AddLabeledCheckbox(orbRow, function()
+        return CoiledAltar:IsOrbCarryOddReminderEnabled()
+    end, function(enabled)
+        CoiledAltar:SetOrbCarryOddReminderEnabled(enabled)
+    end, L.COILED_ALTAR_ORB_CARRY_ODD_WAVE)
+    local evenGroup = AddLabeledCheckbox(orbRow, function()
+        return CoiledAltar:IsOrbCarryEvenReminderEnabled()
+    end, function(enabled)
+        CoiledAltar:SetOrbCarryEvenReminderEnabled(enabled)
+    end, L.COILED_ALTAR_ORB_CARRY_EVEN_WAVE)
+    Layout.Row(orbRow, { orbHint, oddGroup, evenGroup }, Spacing.MEDIUM)
+
     reminder:SetContentHeight(reminderBody:GetHeight())
     reminder:RefreshContentInteractive()
 
@@ -545,11 +560,7 @@ function CoiledAltar:OnEnable()
             InterruptRotationTracker.Ensure()
         end,
     })
-    ns.Callout.SetScopePreview(
-        SCOPE_ID,
-        L.COILED_ALTAR_INTERRUPT_CALLOUT,
-        CoiledAltar.INTERRUPT_CALLOUT_DURATION
-    )
+    ns.Callout.SetScopePreview(SCOPE_ID, L.COILED_ALTAR_INTERRUPT_CALLOUT, CoiledAltar.INTERRUPT_CALLOUT_DURATION)
     ns.MainPanel:RegisterSection({
         title = L.COILED_ALTAR_TITLE,
         group = ns.PanelGroups.VENOMOUS_ABYSS,
