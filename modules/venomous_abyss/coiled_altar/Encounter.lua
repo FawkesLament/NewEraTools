@@ -25,6 +25,7 @@ function CoiledAltar:ListenForEncounter()
         scope:Add(function()
             Internals.NotifyEncounterState()
         end)
+        Internals.PhaseDetector.Start(scope)
         if CoiledAltar:HasInterruptAssignments() then
             Internals.InterruptStates.Start(scope, Internals.NotifyEncounterState)
         end

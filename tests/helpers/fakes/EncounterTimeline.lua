@@ -6,11 +6,38 @@ return function(timeline, gameEvents)
     assert(type(gameEvents.Fire) == "function", "EncounterTimeline fake expects GameEvents.Fire")
 
     local states = {}
+    local infos = {}
+    local eventIDs = {}
+
+    ---@return number[]
+    function timeline.GetEventList()
+        return eventIDs
+    end
+
+    ---@param eventID number
+    ---@return table|nil
+    function timeline.GetEventInfo(eventID)
+        return infos[eventID]
+    end
 
     ---@param eventID number
     ---@return number|nil
     function timeline.GetEventState(eventID)
         return states[eventID]
+    end
+
+    ---Test helper: replace the current timeline event list used by GetEventList/GetEventInfo.
+    ---@param eventInfos table[]|nil
+    function timeline.SetEventsForTests(eventInfos)
+        infos = {}
+        eventIDs = {}
+        if type(eventInfos) ~= "table" then
+            return
+        end
+        for index, eventInfo in ipairs(eventInfos) do
+            eventIDs[index] = eventInfo.id
+            infos[eventInfo.id] = eventInfo
+        end
     end
 
     ---Test helper: set the state returned by GetEventState.
