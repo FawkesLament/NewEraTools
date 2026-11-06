@@ -55,7 +55,7 @@ local InterruptRotationTracker = ns.InterruptRotationTracker.Bind({
     label = L.COILED_ALTAR_INTERRUPT_STATUS_TITLE,
     tone = ns.StatusHUD.TONE_EMPHASIS,
     isEnabled = function()
-        return CoiledAltar:IsMechanicReminderEnabled() and CoiledAltar:IsInterruptReminderEnabled()
+        return CoiledAltar:IsInterruptReminderEnabled()
     end,
     getPosition = function()
         return CoiledAltar:GetInterruptRotationTrackerPosition()
@@ -68,7 +68,7 @@ local InterruptRotationTracker = ns.InterruptRotationTracker.Bind({
     end,
     previewState = PreviewState,
     getState = function()
-        if not CoiledAltar:IsMechanicReminderEnabled() or not CoiledAltar:IsInterruptReminderEnabled() then
+        if not CoiledAltar:IsInterruptReminderEnabled() then
             return nil
         end
         return HudState(CoiledAltar:GetInterruptStatus())

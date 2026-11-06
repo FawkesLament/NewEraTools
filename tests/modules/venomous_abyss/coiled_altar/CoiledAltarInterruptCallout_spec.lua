@@ -73,7 +73,6 @@ describe("CoiledAltar interrupt Callout", function()
     end
 
     local function EnableReminders()
-        Module:SetMechanicReminderEnabled(true)
         Module:SetInterruptReminderEnabled(true)
         BossAlert:ListenForCalloutTts()
         BossAlert:SetCalloutTtsEnabled(true)

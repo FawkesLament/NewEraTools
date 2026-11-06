@@ -3,7 +3,7 @@ local _, ns = ...
 local Database = {}
 ns.Database = Database
 
-local SCHEMA_VERSION = 12
+local SCHEMA_VERSION = 13
 
 -- migrations[n] upgrades saved data from version n - 1 to version n, in place.
 local migrations = {}
@@ -122,6 +122,16 @@ migrations[12] = function(saved)
         saved.interruptRotationTrackerPosition = position
     end
     saved.interruptStatusHudPosition = nil
+end
+
+-- Coiled Altar mechanic reminders are always on; drop the leftover section toggle.
+migrations[13] = function(saved)
+    local modules = saved.modules
+    local settings = type(modules) == "table" and modules.CoiledAltar or nil
+    local reminder = type(settings) == "table" and settings.mechanicReminder or nil
+    if type(reminder) == "table" then
+        reminder.enabled = nil
+    end
 end
 
 ---Upgrades saved variables to the current schema, creating them if missing.

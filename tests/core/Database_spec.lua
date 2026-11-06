@@ -93,7 +93,7 @@ describe("Database", function()
                 },
             })
 
-            assert.equals(12, saved.schemaVersion)
+            assert.equals(13, saved.schemaVersion)
             assert.is_nil(saved.modules.InterruptClaim)
             assert.is_true(saved.modules.CombatTimer.enabled)
         end)
@@ -183,6 +183,23 @@ describe("Database", function()
                 y = 4,
             }, saved.interruptRotationTrackerPosition)
             assert.is_nil(saved.interruptStatusHudPosition)
+        end)
+    end)
+
+    describe("Coiled Altar mechanic reminder", function()
+        it("drops the leftover section toggle and keeps the interrupt checkbox", function()
+            local saved = Database.Load({
+                schemaVersion = 12,
+                modules = {
+                    CoiledAltar = {
+                        mechanicReminder = { enabled = true, interrupt = true },
+                    },
+                },
+            })
+
+            assert.equals(13, saved.schemaVersion)
+            assert.is_nil(saved.modules.CoiledAltar.mechanicReminder.enabled)
+            assert.is_true(saved.modules.CoiledAltar.mechanicReminder.interrupt)
         end)
     end)
 end)

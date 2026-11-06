@@ -31,7 +31,6 @@ local SIDE_BOTTOM = "bottom"
 ---@field offsetY number
 
 ---@class CoiledAltarMechanicReminder
----@field enabled boolean
 ---@field interrupt boolean
 
 ---@class CoiledAltarSettings
@@ -54,9 +53,8 @@ local SIDE_BOTTOM = "bottom"
 local CoiledAltar = ns.Modules.New("CoiledAltar", {
     defaults = {
         mechanicReminder = {
-            enabled = false,
             -- When true, the interrupt callout and status HUD are shown.
-            interrupt = false,
+            interrupt = true,
         },
         nameplateHint = {
             -- When true, interrupt assignments are shown on nameplates.
@@ -155,9 +153,9 @@ end
 ---@return CoiledAltarMechanicReminder
 local function SanitizeMechanicReminder(settings)
     if type(settings) ~= "table" then
-        return { enabled = settings == true, interrupt = false }
+        return { interrupt = true }
     end
-    settings.enabled = settings.enabled == true
+    settings.enabled = nil
     settings.interrupt = settings.interrupt == true
     return settings
 end
@@ -201,21 +199,6 @@ function CoiledAltar:SetMarkedChain(chainId)
     self.db.markedChain = chainId
     Internals.NotifyEncounterState()
     return true
-end
-
----@return boolean
-function CoiledAltar:IsMechanicReminderEnabled()
-    return self.db.mechanicReminder.enabled == true
-end
-
----@param enabled boolean
-function CoiledAltar:SetMechanicReminderEnabled(enabled)
-    enabled = enabled == true
-    if self.db.mechanicReminder.enabled == enabled then
-        return
-    end
-    self.db.mechanicReminder.enabled = enabled
-    Internals.NotifyEncounterState()
 end
 
 ---@return boolean

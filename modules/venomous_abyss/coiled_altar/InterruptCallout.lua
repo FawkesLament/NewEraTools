@@ -135,7 +135,7 @@ end
 
 ---Shows or hides the interrupt Callout from the current combat state.
 function Internals.SyncInterruptCallout()
-    if not CoiledAltar:IsMechanicReminderEnabled() or not CoiledAltar:IsInterruptReminderEnabled() then
+    if not CoiledAltar:IsInterruptReminderEnabled() then
         HidePresented()
         return
     end

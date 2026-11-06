@@ -7,7 +7,6 @@ local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
 local NumberStepper = ns.NumberStepper
 local Slider = ns.Slider
-local Util = ns.Util
 local Widgets = ns.Widgets
 
 local Fonts = Assets.Fonts
@@ -21,10 +20,6 @@ local SCOPE_ID = "coiled_altar"
 local syncInterruptAssignments
 
 local function BeginEditPosition()
-    if not CoiledAltar:IsMechanicReminderEnabled() then
-        Util.Print(L.LAYOUT_EDIT_NONE)
-        return
-    end
     LayoutEditor.BeginScope(SCOPE_ID)
 end
 
@@ -153,23 +148,13 @@ local function BuildContent(content)
     local reminder = FeatureSection.Create(body, {
         title = L.COILED_ALTAR_MECHANIC_REMINDER,
         divider = true,
-        enabled = CoiledAltar:IsMechanicReminderEnabled(),
-        onEnabledChanged = function(enabled)
-            CoiledAltar:SetMechanicReminderEnabled(enabled)
-            if LayoutEditor.IsEditing() then
-                LayoutEditor.Refresh()
-            end
-        end,
+        toggle = false,
     })
     local reminderBody = Layout.Stack(reminder.content, { paddingY = Spacing.SMALL })
     local interruptRow = reminderBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local interruptBox = Widgets.CreateCheckbox(interruptRow)
     interruptBox:SetChecked(CoiledAltar:IsInterruptReminderEnabled())
     interruptBox:SetScript("OnClick", function(self)
-        if not CoiledAltar:IsMechanicReminderEnabled() then
-            self:SetChecked(CoiledAltar:IsInterruptReminderEnabled())
-            return
-        end
         CoiledAltar:SetInterruptReminderEnabled(self:GetChecked())
         self:SetChecked(CoiledAltar:IsInterruptReminderEnabled())
         if LayoutEditor.IsEditing() then
