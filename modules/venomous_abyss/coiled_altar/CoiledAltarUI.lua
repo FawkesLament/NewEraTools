@@ -16,9 +16,41 @@ local Spacing = Assets.Spacing
 
 local CoiledAltar = ns.Modules.Get("CoiledAltar")
 local InterruptRotationTracker = Internals.InterruptRotationTrackerUI
+local AddonCheckPanel = ns.AddonCheckPanel
 
 local SCOPE_ID = "coiled_altar"
 local syncInterruptAssignments
+---@type AddonCheckPanel|nil
+local addonCheckPanel
+
+local function HideAddonCheckPanel()
+    if addonCheckPanel then
+        addonCheckPanel:Hide()
+    end
+end
+
+local function EnsureAddonCheckPanel()
+    if addonCheckPanel then
+        return addonCheckPanel
+    end
+    addonCheckPanel = AddonCheckPanel.Create({
+        moduleId = CoiledAltar.ADDON_CHECK_MODULE_ID,
+        name = "NewEraToolsCoiledAltarAddonCheck",
+        title = L.ADDONCHECK_TITLE,
+        columns = CoiledAltar.AddonCheckColumns(),
+        validator = CoiledAltar.ValidateAddonCheckConfig,
+        rowHeight = 32,
+        listRows = 7,
+    })
+    return addonCheckPanel
+end
+
+local function ShowAddonCheckPanel()
+    if not CoiledAltar:IsRaidCommander() then
+        return
+    end
+    EnsureAddonCheckPanel():Show()
+end
 
 local function BeginEditPosition()
     LayoutEditor.BeginScope(SCOPE_ID)
@@ -72,7 +104,15 @@ local function BuildContent(content)
     local interruptRoleRow = body:AddRow(ns.RaidRoleModeLabel.HEIGHT)
     local interruptRoleLabel =
         ns.RaidRoleModeLabel.Create(interruptRoleRow, L.COILED_ALTAR_INTERRUPT_RAID_ROLE_TOOLTIP)
-    local addonCheck = Widgets.CreateButton(interruptRoleRow, L.ADDONCHECK_BUTTON, function() end, "primary")
+    local addonCheck = Widgets.CreateButton(interruptRoleRow, L.ADDONCHECK_BUTTON, function()
+        if not CoiledAltar:IsRaidCommander() then
+            return
+        end
+        ShowAddonCheckPanel()
+    end, "primary")
+    Widgets.AttachTooltip(addonCheck, "ANCHOR_TOP", function(tooltip)
+        tooltip:SetText(L.ADDONCHECK_BUTTON_TOOLTIP)
+    end)
     local syncStatusRow = body:AddRow(1)
     local syncStatus = Widgets.CreateLabel(syncStatusRow, Fonts.SMALL_MUTED)
     syncStatus:SetJustifyH("RIGHT")
@@ -151,6 +191,9 @@ local function BuildContent(content)
     function syncInterruptAssignments()
         ns.RaidRoleModeLabel.Update(interruptRoleLabel)
         local canEdit = Internals.InterruptAssignments.CanEdit()
+        if not canEdit then
+            HideAddonCheckPanel()
+        end
         local showEditor
         showEditor, preferMemberView =
             Internals.InterruptAssignments.ResolveSettingsView(canEdit, preferMemberView)

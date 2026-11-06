@@ -2,6 +2,9 @@ local _, ns = ...
 local Internals = ns.Modules.Internals("CoiledAltar")
 local Util = ns.Util
 
+-- Stable AddonCheck provider id; version is owned by AddonCheck, not this snapshot.
+local ADDON_CHECK_MODULE_ID = "CoiledAltar"
+
 -- The Coiled Altar, the seventh boss of The Venomous Abyss.
 -- There is no module-wide enable. Each reminder keeps its own saved settings.
 local SCALE_MIN = 0.7
@@ -87,6 +90,9 @@ CoiledAltar.OFFSET_MAX = OFFSET_MAX
 CoiledAltar.OFFSET_STEP = OFFSET_STEP
 CoiledAltar.SIDE_TOP = SIDE_TOP
 CoiledAltar.SIDE_BOTTOM = SIDE_BOTTOM
+CoiledAltar.ADDON_CHECK_MODULE_ID = ADDON_CHECK_MODULE_ID
+-- Raid leader is commander for interrupt assignments; everyone else is a member.
+ns.RaidRole.Attach(CoiledAltar)
 
 -- Session-only; the settings toggle does not show indicators until the player starts a preview.
 local nameplateHintPreviewing = false
@@ -175,6 +181,10 @@ function CoiledAltar:OnInit()
     self.db.nameplateHint = SanitizeNameplateHint(self.db.nameplateHint)
     self.db.assignments = Internals.InterruptAssignments.SanitizeSaved(self.db.assignments)
     self.db.markedChain = SanitizeMarkedChain(self.db.markedChain)
+    -- Raid members must answer config checks; register regardless of UI, role, or encounter.
+    ns.AddonCheck.Register(ADDON_CHECK_MODULE_ID, function()
+        return CoiledAltar:GetAddonCheckConfig()
+    end)
 end
 
 ---Adopts interrupt-assignment publications from the raid. Called from OnEnable.

@@ -1,5 +1,6 @@
 local _, ns = ...
 local Internals = ns.Modules.Internals("CoiledAltar")
+local Group = ns.Api.Group
 local Player = ns.Api.Player
 local Unit = ns.Api.Unit
 
@@ -339,6 +340,48 @@ end
 ---@return boolean
 function Assignments.ClearSlot(assignments, chainId, index)
     return WriteSlot(assignments, chainId, index, EmptySlot())
+end
+
+---Current character's persisted Name-Realm, resolved from the live GUID when in a raid.
+---Does not mutate saved assignments. Falls back to `Player.GetFullName` when the GUID is unknown.
+---@return string|nil
+function Assignments.ResolveLocalPlayerName()
+    local guid = Player.GetGUID()
+    if type(guid) == "string" and guid ~= "" then
+        for _, member in ipairs(Group.GetRaidMembers()) do
+            if member.guid == guid then
+                local name = Assignments.QualifyName(member.fullName or member.name)
+                if name then
+                    return name
+                end
+            end
+        end
+    end
+    return Player.GetFullName()
+end
+
+---Every player-slot this identity occupies. Custom text is ignored. Cross-chain occupancy is reported as-is.
+---@param assignments CoiledAltarInterruptAssignments|nil
+---@param identity any
+---@return { chain: CoiledAltarInterruptChainId, slot: integer }[]
+function Assignments.PlayerSlots(assignments, identity)
+    local slots = {}
+    local name = Assignments.QualifyName(identity)
+    if type(assignments) ~= "table" or not name then
+        return slots
+    end
+    for _, chainId in ipairs(Assignments.CHAIN_IDS) do
+        local chain = assignments[chainId]
+        if type(chain) == "table" then
+            for index = 1, SLOT_COUNT do
+                local slot = chain[index]
+                if type(slot) == "table" and slot.type == TYPE_PLAYER and slot.value == name then
+                    slots[#slots + 1] = { chain = chainId, slot = index }
+                end
+            end
+        end
+    end
+    return slots
 end
 
 ---Slots in one chain that belong to this player. Both chains occupied is treated as unset.
