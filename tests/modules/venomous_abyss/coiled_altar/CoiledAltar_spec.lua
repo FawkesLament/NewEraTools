@@ -22,6 +22,8 @@ describe("CoiledAltar", function()
         assert.equals("table", type(Module.db))
         assert.is_true(Module:IsInterruptReminderEnabled())
         assert.is_true(Module.db.mechanicReminder.interrupt)
+        assert.is_false(Module:IsGhostChaseReminderEnabled())
+        assert.is_false(Module.db.mechanicReminder.ghostChase)
         assert.is_nil(Module.db.mechanicReminder.enabled)
         assert.is_false(Module:IsNameplateHintEnabled())
         assert.is_false(Module.db.nameplateHint.enabled)
@@ -35,6 +37,31 @@ describe("CoiledAltar", function()
         Module:SetInterruptReminderEnabled(true)
         assert.is_true(Module:IsInterruptReminderEnabled())
         assert.is_true(Module.db.mechanicReminder.interrupt)
+    end)
+
+    it("toggles and persists the ghost-chase checkbox", function()
+        Module:SetGhostChaseReminderEnabled(false)
+        assert.is_false(Module:IsGhostChaseReminderEnabled())
+        assert.is_false(Module.db.mechanicReminder.ghostChase)
+
+        Module:SetGhostChaseReminderEnabled(true)
+        assert.is_true(Module:IsGhostChaseReminderEnabled())
+        assert.is_true(Module.db.mechanicReminder.ghostChase)
+    end)
+
+    it("fills a missing ghost-chase reminder from defaults", function()
+        local ns = Loader.Load()
+        ns.Modules.Start(ns.Database.Load({
+            schemaVersion = 13,
+            modules = {
+                CoiledAltar = {
+                    mechanicReminder = { interrupt = true },
+                },
+            },
+        }))
+        local coiled = ns.Modules.Get("CoiledAltar")
+        assert.is_false(coiled:IsGhostChaseReminderEnabled())
+        assert.is_false(coiled.db.mechanicReminder.ghostChase)
     end)
 
     it("toggles and persists the nameplate hint", function()

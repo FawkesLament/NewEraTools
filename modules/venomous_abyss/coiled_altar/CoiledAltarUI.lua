@@ -17,6 +17,41 @@ local Spacing = Assets.Spacing
 local CoiledAltar = ns.Modules.Get("CoiledAltar")
 local InterruptRotationTracker = Internals.InterruptRotationTrackerUI
 local AddonCheckPanel = ns.AddonCheckPanel
+local Spell = ns.Api.Spell
+
+local INTERRUPT_SPELL_ID = 1286399
+local GHOST_CHASE_SPELL_ID = 1285911
+local SPELL_ICON_SIZE = Sizes.ROLE_ICON
+
+---@param parent Frame
+---@param spellId integer
+---@param labelText string
+---@return Button
+local function CreateSpellHint(parent, spellId, labelText)
+    local hit = CreateFrame("Button", nil, parent)
+    hit:RegisterForClicks("LeftButtonUp")
+    local icon = hit:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(SPELL_ICON_SIZE, SPELL_ICON_SIZE)
+    icon:SetPoint("LEFT")
+    icon:SetTexture(Spell.GetTexture(spellId) or Assets.Icons.QUESTION_MARK)
+    local label = Widgets.CreateLabel(hit, Fonts.BODY, labelText)
+    label:SetJustifyH("LEFT")
+    label:SetWordWrap(false)
+    label:SetPoint("LEFT", icon, "RIGHT", Spacing.SMALL, 0)
+    hit:SetSize(
+        SPELL_ICON_SIZE + Spacing.SMALL + (label:GetStringWidth() or 0),
+        Sizes.CONTROL_ROW_HEIGHT
+    )
+    hit:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetSpellByID(spellId)
+        GameTooltip:Show()
+    end)
+    hit:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    return hit
+end
 
 local SCOPE_ID = "coiled_altar"
 local syncInterruptAssignments
@@ -264,21 +299,53 @@ local function BuildContent(content)
         toggle = false,
     })
     local reminderBody = Layout.Stack(reminder.content, { paddingY = Spacing.SMALL })
-    local interruptRow = reminderBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local interruptBox = Widgets.CreateCheckbox(interruptRow)
-    interruptBox:SetChecked(CoiledAltar:IsInterruptReminderEnabled())
-    interruptBox:SetScript("OnClick", function(self)
-        CoiledAltar:SetInterruptReminderEnabled(self:GetChecked())
-        self:SetChecked(CoiledAltar:IsInterruptReminderEnabled())
-        if LayoutEditor.IsEditing() then
-            LayoutEditor.Refresh()
-        end
-    end)
-    local interruptLabel = Widgets.CreateLabel(interruptRow, Fonts.BODY, L.COILED_ALTAR_INTERRUPT_REMINDER)
-    interruptLabel:SetJustifyH("LEFT")
-    interruptLabel:SetWordWrap(false)
-    Layout.Row(interruptRow, { interruptBox, interruptLabel }, Spacing.SMALL)
-    interruptBox:SetHitRectInsets(0, -(interruptLabel:GetStringWidth() + Spacing.SMALL), 0, 0)
+
+    ---@param cell Frame
+    ---@param isEnabled fun(): boolean
+    ---@param setEnabled fun(enabled: boolean)
+    ---@param labelText string
+    ---@param spellId integer
+    local function AddReminderCheckbox(cell, isEnabled, setEnabled, labelText, spellId)
+        local box = Widgets.CreateCheckbox(cell)
+        box:SetChecked(isEnabled())
+        box:SetScript("OnClick", function(self)
+            setEnabled(self:GetChecked())
+            self:SetChecked(isEnabled())
+            if LayoutEditor.IsEditing() then
+                LayoutEditor.Refresh()
+            end
+        end)
+        local hint = CreateSpellHint(cell, spellId, labelText)
+        hint:SetScript("OnClick", function()
+            box:Click()
+        end)
+        Layout.Row(cell, { box, hint }, Spacing.SMALL)
+    end
+
+    local reminderRow = reminderBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local interruptCell, ghostChaseCell = Layout.SplitRow(reminderRow, Spacing.MEDIUM)
+    AddReminderCheckbox(
+        interruptCell,
+        function()
+            return CoiledAltar:IsInterruptReminderEnabled()
+        end,
+        function(enabled)
+            CoiledAltar:SetInterruptReminderEnabled(enabled)
+        end,
+        L.COILED_ALTAR_INTERRUPT_REMINDER,
+        INTERRUPT_SPELL_ID
+    )
+    AddReminderCheckbox(
+        ghostChaseCell,
+        function()
+            return CoiledAltar:IsGhostChaseReminderEnabled()
+        end,
+        function(enabled)
+            CoiledAltar:SetGhostChaseReminderEnabled(enabled)
+        end,
+        L.COILED_ALTAR_GHOST_CHASE_REMINDER,
+        GHOST_CHASE_SPELL_ID
+    )
     reminder:SetContentHeight(reminderBody:GetHeight())
     reminder:RefreshContentInteractive()
 

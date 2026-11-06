@@ -35,6 +35,7 @@ local SIDE_BOTTOM = "bottom"
 
 ---@class CoiledAltarMechanicReminder
 ---@field interrupt boolean
+---@field ghostChase boolean
 
 ---@class CoiledAltarSettings
 ---@field nameplateHint CoiledAltarNameplateHint
@@ -58,6 +59,8 @@ local CoiledAltar = ns.Modules.New("CoiledAltar", {
         mechanicReminder = {
             -- When true, the interrupt callout and status HUD are shown.
             interrupt = true,
+            -- When true, a matched ENCOUNTER_WARNING shows the ghost-chase Callout.
+            ghostChase = false,
         },
         nameplateHint = {
             -- When true, interrupt assignments are shown on nameplates.
@@ -159,10 +162,11 @@ end
 ---@return CoiledAltarMechanicReminder
 local function SanitizeMechanicReminder(settings)
     if type(settings) ~= "table" then
-        return { interrupt = true }
+        return { interrupt = true, ghostChase = false }
     end
     settings.enabled = nil
     settings.interrupt = settings.interrupt == true
+    settings.ghostChase = settings.ghostChase == true
     return settings
 end
 
@@ -229,6 +233,23 @@ function CoiledAltar:SetInterruptReminderEnabled(enabled)
     end
     self.db.mechanicReminder.interrupt = enabled
     Internals.NotifyEncounterState()
+end
+
+---@return boolean
+function CoiledAltar:IsGhostChaseReminderEnabled()
+    return self.db.mechanicReminder.ghostChase == true
+end
+
+---@param enabled boolean
+function CoiledAltar:SetGhostChaseReminderEnabled(enabled)
+    enabled = enabled == true
+    if self.db.mechanicReminder.ghostChase == enabled then
+        return
+    end
+    self.db.mechanicReminder.ghostChase = enabled
+    if not enabled then
+        Internals.HideGhostChaseCallout()
+    end
 end
 
 ---@return InterruptRotationTrackerAnchor
