@@ -177,6 +177,11 @@ function CoiledAltar:OnInit()
     self.db.markedChain = SanitizeMarkedChain(self.db.markedChain)
 end
 
+---Adopts interrupt-assignment publications from the raid. Called from OnEnable.
+function CoiledAltar:ListenForInterruptSync()
+    Internals.InterruptSync.Listen()
+end
+
 ---@return CoiledAltarInterruptChainId
 function CoiledAltar:GetMarkedChain()
     return SanitizeMarkedChain(self.db.markedChain)

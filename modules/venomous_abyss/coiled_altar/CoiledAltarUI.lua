@@ -9,6 +9,7 @@ local NumberStepper = ns.NumberStepper
 local Slider = ns.Slider
 local Widgets = ns.Widgets
 
+local Colors = Assets.Colors
 local Fonts = Assets.Fonts
 local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
@@ -72,7 +73,52 @@ local function BuildContent(content)
     local interruptRoleLabel =
         ns.RaidRoleModeLabel.Create(interruptRoleRow, L.COILED_ALTAR_INTERRUPT_RAID_ROLE_TOOLTIP)
     local addonCheck = Widgets.CreateButton(interruptRoleRow, L.ADDONCHECK_BUTTON, function() end, "primary")
-    local sync = Widgets.CreateButton(interruptRoleRow, L.COILED_ALTAR_INTERRUPT_SYNC, function() end, "primary")
+    local syncStatusRow = body:AddRow(1)
+    local syncStatus = Widgets.CreateLabel(syncStatusRow, Fonts.SMALL_MUTED)
+    syncStatus:SetJustifyH("RIGHT")
+    syncStatus:SetJustifyV("TOP")
+    syncStatus:SetWordWrap(true)
+    syncStatus:SetPoint("TOPLEFT")
+    syncStatus:SetPoint("TOPRIGHT")
+    local syncStatusKind
+
+    local function SetSyncStatus(kind, text)
+        syncStatusKind = kind
+        if not text or text == "" then
+            syncStatus:SetText("")
+            body:SetEntryHeight(syncStatusRow, 1)
+            return
+        end
+        syncStatus:SetText(text)
+        if kind == "success" then
+            syncStatus:SetTextColor(Widgets.UnpackColor(Colors.SUCCESS))
+        else
+            syncStatus:SetTextColor(Widgets.UnpackColor(Colors.ERROR))
+        end
+        local width = math.max(content:GetWidth() or 0, 1)
+        syncStatus:SetWidth(width)
+        body:SetEntryHeight(syncStatusRow, math.max(syncStatus:GetStringHeight() or 0, 16))
+        content:SetContentHeight(body:GetHeight())
+    end
+
+    local function ClearSyncError()
+        if syncStatusKind == "error" then
+            SetSyncStatus(nil)
+        end
+    end
+
+    local function PublishInterruptAssignments()
+        local ok, reason, issue = Internals.InterruptSync.Publish()
+        local text, kind = Internals.InterruptSync.StatusText(ok, reason, issue)
+        SetSyncStatus(kind, text)
+    end
+
+    local sync = Widgets.CreateButton(
+        interruptRoleRow,
+        L.COILED_ALTAR_INTERRUPT_SYNC,
+        PublishInterruptAssignments,
+        "primary"
+    )
     sync:SetPoint("RIGHT", interruptRoleRow, "RIGHT")
     addonCheck:SetPoint("RIGHT", sync, "LEFT", -Spacing.SMALL, 0)
 
@@ -117,6 +163,13 @@ local function BuildContent(content)
         end
         addonCheck:SetShown(showEditor)
         sync:SetShown(showEditor)
+        if not showEditor then
+            body:SetEntryHeight(syncStatusRow, 1)
+        elseif syncStatus:GetText() ~= "" then
+            body:SetEntryHeight(syncStatusRow, math.max(syncStatus:GetStringHeight() or 0, 16))
+        else
+            body:SetEntryHeight(syncStatusRow, 1)
+        end
         body:SetEntryHeight(
             interruptRoleRow,
             showEditor and Sizes.CONTROL_ROW_HEIGHT or ns.RaidRoleModeLabel.HEIGHT
@@ -144,6 +197,23 @@ local function BuildContent(content)
     end)
 
     syncInterruptAssignments()
+
+    local previousAssignmentsChanged = CoiledAltar.OnInterruptAssignmentsChanged
+    function CoiledAltar:OnInterruptAssignmentsChanged()
+        ClearSyncError()
+        if previousAssignmentsChanged then
+            previousAssignmentsChanged(self)
+        end
+    end
+
+    local previousSetMarkedChain = CoiledAltar.SetMarkedChain
+    function CoiledAltar:SetMarkedChain(chainId)
+        local changed = previousSetMarkedChain(self, chainId)
+        if changed then
+            ClearSyncError()
+        end
+        return changed
+    end
 
     local reminder = FeatureSection.Create(body, {
         title = L.COILED_ALTAR_MECHANIC_REMINDER,
@@ -376,6 +446,7 @@ function CoiledAltar:OnEnable()
         build = BuildContent,
     })
     self:ListenForEncounter()
+    self:ListenForInterruptSync()
     ns.Api.Group.OnChanged(function()
         if syncInterruptAssignments then
             syncInterruptAssignments()

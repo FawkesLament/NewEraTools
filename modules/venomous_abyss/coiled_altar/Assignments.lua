@@ -412,6 +412,42 @@ function Assignments.HasAssignments(assignments)
     return false
 end
 
+---Whether `text` is acceptable custom slot content, including protocol delimiters.
+---Unlike SanitizeText, this does not strip `|` or rewrite the value.
+---@param text any
+---@return boolean
+function Assignments.IsValidCustomText(text)
+    if type(text) ~= "string" or text == "" then
+        return false
+    end
+    if text:find("[%z\1-\31\127]") then
+        return false
+    end
+    return Assignments.Utf8Len(text) <= TEXT_MAX_CHARS
+end
+
+---Replaces both chains in `target` from `source`. Does not notify.
+---@param target CoiledAltarInterruptAssignments
+---@param source CoiledAltarInterruptAssignments
+function Assignments.Replace(target, source)
+    local incoming = Assignments.SanitizeSaved(source)
+    if type(source) == "table" then
+        for _, chainId in ipairs(Assignments.CHAIN_IDS) do
+            local chain = source[chainId]
+            if type(chain) == "table" then
+                for index = 1, SLOT_COUNT do
+                    local slot = chain[index]
+                    if type(slot) == "table" and slot.type == TYPE_TEXT and Assignments.IsValidCustomText(slot.value) then
+                        incoming[chainId][index] = { type = TYPE_TEXT, value = slot.value }
+                    end
+                end
+            end
+        end
+    end
+    target[MELEE] = incoming[MELEE]
+    target[RANGED] = incoming[RANGED]
+end
+
 ---Empties every slot in both chains. Returns true if anything changed.
 ---@param assignments CoiledAltarInterruptAssignments
 ---@return boolean
@@ -503,4 +539,17 @@ function CoiledAltar:ClearAllInterruptAssignments()
     end
     Notify()
     return true
+end
+
+---Atomically replaces both interrupt chains and the marked-enemy side, then notifies.
+---@param assignments CoiledAltarInterruptAssignments
+---@param markedChain CoiledAltarInterruptChainId
+function CoiledAltar:ReplaceInterruptSnapshot(assignments, markedChain)
+    Assignments.Replace(self.db.assignments, assignments)
+    if Assignments.IsChain(markedChain) then
+        self.db.markedChain = markedChain
+    else
+        self.db.markedChain = MELEE
+    end
+    Notify()
 end

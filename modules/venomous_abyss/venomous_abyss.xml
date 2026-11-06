@@ -41,6 +41,7 @@
     <Script file="twin_fangs\ui\VenomRoster.lua"/>
     <Script file="coiled_altar\CoiledAltar.lua"/>
     <Script file="coiled_altar\Assignments.lua"/>
+    <Script file="coiled_altar\Sync.lua"/>
     <Script file="coiled_altar\InterruptStates.lua"/>
     <Script file="coiled_altar\InterruptRotation.lua"/>
     <Script file="coiled_altar\InterruptCallout.lua"/>
