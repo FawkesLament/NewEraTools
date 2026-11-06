@@ -5,6 +5,18 @@ local Labels = Internals.InterruptChainLabels
 
 local TwinFangs = ns.Modules.Get("TwinFangs")
 
+---@param snapshot TwinFangsInterruptStatus
+---@return integer[]
+local function AssignmentIndices(snapshot)
+    local first = snapshot.index
+    local last = snapshot.indexEnd or snapshot.index
+    local indices = {}
+    for index = first, last do
+        indices[#indices + 1] = index
+    end
+    return indices
+end
+
 ---@param snapshot TwinFangsInterruptStatus|nil
 ---@param isBackup boolean|nil
 ---@return StatusHUDState|nil
@@ -20,10 +32,8 @@ local function HudState(snapshot, isBackup)
     local detail
     if isBackup then
         detail = L.TWIN_FANGS_INTERRUPT_STATUS_BACKUP
-    elseif snapshot.indexEnd and snapshot.indexEnd > snapshot.index then
-        detail = L.TWIN_FANGS_INTERRUPT_STATUS_TASK_RANGE:format(snapshot.index, snapshot.indexEnd)
     else
-        detail = L.TWIN_FANGS_INTERRUPT_STATUS_TASK:format(snapshot.index)
+        detail = ns.InterruptRotationTracker.FormatTask(AssignmentIndices(snapshot))
     end
     return {
         title = title,

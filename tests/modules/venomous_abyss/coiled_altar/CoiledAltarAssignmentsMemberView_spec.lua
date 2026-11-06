@@ -98,6 +98,9 @@ describe("CoiledAltar interrupt assignment member view", function()
             AttachTooltip = function() end,
         }
         ns.InterruptChainView = {
+            FormatSequence = function(first)
+                return string.format("#%d", first)
+            end,
             Create = function()
                 return {
                     SetData = function(_, data)

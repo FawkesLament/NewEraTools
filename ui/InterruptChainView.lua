@@ -1,5 +1,6 @@
 ---Read-only assignment cards for one or more interrupt chains.
 local _, ns = ...
+local L = ns.L
 local Assets = ns.Assets
 local Widgets = ns.Widgets
 
@@ -18,6 +19,42 @@ local ACCENT_ALPHA = 0.9
 
 local InterruptChainView = {}
 ns.InterruptChainView = InterruptChainView
+
+---Single interrupt or a consecutive run, e.g. `#3` or `#2–4`.
+---@param first integer
+---@param last integer|nil
+---@return string
+function InterruptChainView.FormatSequence(first, last)
+    last = last or first
+    if last <= first then
+        return string.format(L.INTERRUPT_SEQUENCE, first)
+    end
+    return string.format(L.INTERRUPT_SEQUENCE_RANGE, first, last)
+end
+
+---Collapsed runs from sorted 1-based indices, e.g. `#1, #3, #5` or `#1–2, #4–6`.
+---@param indices integer[]|nil
+---@return string
+function InterruptChainView.FormatIndices(indices)
+    if type(indices) ~= "table" or not indices[1] then
+        return ""
+    end
+    local parts = {}
+    local runStart = indices[1]
+    local runEnd = indices[1]
+    for index = 2, #indices do
+        local value = indices[index]
+        if value == runEnd + 1 then
+            runEnd = value
+        else
+            parts[#parts + 1] = InterruptChainView.FormatSequence(runStart, runEnd)
+            runStart = value
+            runEnd = value
+        end
+    end
+    parts[#parts + 1] = InterruptChainView.FormatSequence(runStart, runEnd)
+    return table.concat(parts, L.INTERRUPT_SEQUENCE_JOIN)
+end
 
 ---@class InterruptChainViewEntry
 ---@field slot string|number  Displayed slot, e.g. "#1" or "#2–4".

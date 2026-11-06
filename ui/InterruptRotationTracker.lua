@@ -1,8 +1,16 @@
 local _, ns = ...
+local L = ns.L
 local Spacing = ns.Assets.Spacing
 
 local InterruptRotationTracker = {}
 ns.InterruptRotationTracker = InterruptRotationTracker
+
+---HUD assignment detail for one or more interrupt indices.
+---@param indices integer[]|nil
+---@return string
+function InterruptRotationTracker.FormatTask(indices)
+    return string.format(L.INTERRUPT_STATUS_TASK, ns.InterruptChainView.FormatIndices(indices))
+end
 
 ---@class InterruptRotationTrackerBindOptions: StatusHUDBindOptions
 ---@field getBackupState fun(): StatusHUDState|nil

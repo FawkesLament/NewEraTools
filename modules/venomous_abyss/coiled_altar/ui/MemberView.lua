@@ -73,7 +73,7 @@ local function EntryFromSlot(slot, roster, accent, playerName, index)
     local identity = Assignments.QualifyName(playerName)
     if slot.type == Assignments.TYPE_TEXT then
         return {
-            slot = string.format(L.COILED_ALTAR_INTERRUPT_SEQUENCE, index),
+            slot = ns.InterruptChainView.FormatSequence(index),
             text = slot.value or "",
             color = Colors.TEXT_GOLD,
         }
@@ -93,14 +93,14 @@ local function EntryFromSlot(slot, roster, accent, playerName, index)
             end
         end
         return {
-            slot = string.format(L.COILED_ALTAR_INTERRUPT_SEQUENCE, index),
+            slot = ns.InterruptChainView.FormatSequence(index),
             text = text,
             highlight = isYou or nil,
             color = color,
         }
     end
     return {
-        slot = string.format(L.COILED_ALTAR_INTERRUPT_SEQUENCE, index),
+        slot = ns.InterruptChainView.FormatSequence(index),
         text = L.COILED_ALTAR_INTERRUPT_SLOT_EMPTY,
         color = Colors.TEXT_MUTED,
     }

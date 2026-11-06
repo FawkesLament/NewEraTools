@@ -150,6 +150,11 @@ describe("InterruptChainView", function()
     before_each(function()
         originalCreateFrame = CreateFrame
         ns = {
+            L = {
+                INTERRUPT_SEQUENCE = "#%d",
+                INTERRUPT_SEQUENCE_RANGE = "#%d–%d",
+                INTERRUPT_SEQUENCE_JOIN = ", ",
+            },
             Assets = {
                 Templates = { BACKDROP = "BackdropTemplate" },
                 Colors = {
@@ -326,12 +331,25 @@ describe("InterruptChainView", function()
         assert.equals(1, view:GetHeight())
     end)
 
+    it("collapses consecutive interrupt indices into compact sequences", function()
+        local FormatSequence = ns.InterruptChainView.FormatSequence
+        local FormatIndices = ns.InterruptChainView.FormatIndices
+        assert.equals("#3", FormatSequence(3))
+        assert.equals("#3", FormatSequence(3, 3))
+        assert.equals("#2–4", FormatSequence(2, 4))
+        assert.equals("#1", FormatIndices({ 1 }))
+        assert.equals("#2–3", FormatIndices({ 2, 3 }))
+        assert.equals("#1, #3, #5", FormatIndices({ 1, 3, 5 }))
+        assert.equals("#1–2, #4–6", FormatIndices({ 1, 2, 4, 5, 6 }))
+        assert.equals("", FormatIndices(nil))
+        assert.equals("", FormatIndices({}))
+    end)
+
     it("does not depend on Twin Fangs or Coiled Altar", function()
         local source = Fs.ReadFile("ui/InterruptChainView.lua")
         assert.is_nil(source:find("TwinFangs"))
         assert.is_nil(source:find("CoiledAltar"))
         assert.is_nil(source:find("Modules"))
-        assert.is_nil(source:find("ns%.L"))
         assert.is_nil(source:find("ns%.Api"))
     end)
 end)

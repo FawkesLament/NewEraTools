@@ -1,6 +1,7 @@
 local Loader = require("helpers.loader")
 
 local STATUS_HUD_PATH = "ui/StatusHUD.lua"
+local INTERRUPT_CHAIN_VIEW_PATH = "ui/InterruptChainView.lua"
 local SHARED_INTERRUPT_ROTATION_TRACKER_PATH = "ui/InterruptRotationTracker.lua"
 local LABELS_PATH = "modules/venomous_abyss/twin_fangs/ui/interrupt_chain/Labels.lua"
 local INTERRUPT_ROTATION_TRACKER_PATH = "modules/venomous_abyss/twin_fangs/ui/InterruptRotationTracker.lua"
@@ -189,6 +190,7 @@ describe("TwinFangs InterruptRotationTracker", function()
             return FakeFrame()
         end
         assert(loadfile(STATUS_HUD_PATH))(Loader.ADDON_NAME, namespace)
+        assert(loadfile(INTERRUPT_CHAIN_VIEW_PATH))(Loader.ADDON_NAME, namespace)
         assert(loadfile(SHARED_INTERRUPT_ROTATION_TRACKER_PATH))(Loader.ADDON_NAME, namespace)
         assert(loadfile(LABELS_PATH))(Loader.ADDON_NAME, namespace)
         assert(loadfile(INTERRUPT_ROTATION_TRACKER_PATH))(Loader.ADDON_NAME, namespace)
@@ -242,6 +244,10 @@ describe("TwinFangs InterruptRotationTracker", function()
         return ns.Modules.Internals("TwinFangs").InterruptRotationTrackerUI
     end
 
+    local function Task(...)
+        return ns.InterruptRotationTracker.FormatTask({ ... })
+    end
+
     local function PreviewState()
         return {
             title = L.TWIN_FANGS_INTERRUPT_STATUS_REGION_ROLE:format(
@@ -249,7 +255,7 @@ describe("TwinFangs InterruptRotationTracker", function()
                 L.TWIN_FANGS_INTERRUPT_STATUS_PRIMARY
             ),
             text = L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1),
-            detail = L.TWIN_FANGS_INTERRUPT_STATUS_TASK:format(3),
+            detail = Task(3),
             progress = 1,
             maxProgress = 5,
             severity = ns.StatusHUD.SEVERITY_NORMAL,
@@ -366,7 +372,7 @@ describe("TwinFangs InterruptRotationTracker", function()
         assert.is_true(hud.shown)
         assert.equals(PrimaryTitle(L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT), hud:GetState().title)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1), hud:GetState().text)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_TASK:format(3), hud:GetState().detail)
+        assert.equals(Task(3), hud:GetState().detail)
         assert.equals(1, hud:GetState().progress)
         assert.equals(3, hud:GetState().maxProgress)
 
@@ -374,7 +380,7 @@ describe("TwinFangs InterruptRotationTracker", function()
         ns.Api.GameEvents.Fire("CHAT_MSG_PARTY")
         assert.equals(hud, binding.Ensure())
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(3), hud:GetState().text)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_TASK:format(3), hud:GetState().detail)
+        assert.equals(Task(3), hud:GetState().detail)
         assert.equals(3, hud:GetState().progress)
         assert.equals(3, hud:GetState().maxProgress)
         assert.equals(2, Module:GetInterruptCount())
@@ -397,7 +403,7 @@ describe("TwinFangs InterruptRotationTracker", function()
         assert.is_true(hud.shown)
         assert.equals(PrimaryTitle(L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT), hud:GetState().title)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1), hud:GetState().text)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_TASK:format(2), hud:GetState().detail)
+        assert.equals(Task(2), hud:GetState().detail)
         assert.equals(1, hud:GetState().progress)
         assert.equals(2, hud:GetState().maxProgress)
 
@@ -429,7 +435,7 @@ describe("TwinFangs InterruptRotationTracker", function()
         local binding = InterruptRotationTracker()
         binding.Update()
         local hud = binding.Ensure()
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_TASK_RANGE:format(2, 4), hud:GetState().detail)
+        assert.equals(Task(2, 3, 4), hud:GetState().detail)
         assert.equals(4, hud:GetState().maxProgress)
         Module:SetInterruptStatusTestMode(false)
     end)
@@ -509,7 +515,7 @@ describe("TwinFangs InterruptRotationTracker", function()
         assert.equals("TOP", backup.anchor[1])
         assert.equals("BOTTOM", backup.anchor[3])
         assert.equals(-ns.Assets.Spacing.SMALL, backup.anchor[5])
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_TASK:format(1), hud:GetState().detail)
+        assert.equals(Task(1), hud:GetState().detail)
         assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_BACKUP, backup:GetState().detail)
 
         ns.Api.GameEvents.Fire("CHAT_MSG_PARTY")

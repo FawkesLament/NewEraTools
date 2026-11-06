@@ -18,12 +18,7 @@ local function HudState(snapshot)
     if snapshot.chainId == Internals.InterruptAssignments.RANGED then
         title = L.COILED_ALTAR_INTERRUPT_CHAIN_RANGED
     end
-    local detail
-    if snapshot.indexEnd and snapshot.indexEnd > snapshot.index then
-        detail = L.COILED_ALTAR_INTERRUPT_STATUS_TASK_RANGE:format(snapshot.index, snapshot.indexEnd)
-    else
-        detail = L.COILED_ALTAR_INTERRUPT_STATUS_TASK:format(snapshot.index)
-    end
+    local detail = ns.InterruptRotationTracker.FormatTask(snapshot.indices or { snapshot.index })
     local text = L.COILED_ALTAR_INTERRUPT_STATUS_PENDING
     local progress = 0
     if not snapshot.pending then

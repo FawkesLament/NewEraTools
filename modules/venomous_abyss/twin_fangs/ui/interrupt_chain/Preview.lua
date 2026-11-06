@@ -20,10 +20,7 @@ end
 ---@param last integer
 ---@return string
 function Preview.FormatSequence(first, last)
-    if first == last then
-        return string.format(L.TWIN_FANGS_INTERRUPT_SEQUENCE, first)
-    end
-    return string.format(L.TWIN_FANGS_INTERRUPT_SEQUENCE_RANGE, first, last)
+    return ns.InterruptChainView.FormatSequence(first, last)
 end
 
 ---@return DropdownItem[]

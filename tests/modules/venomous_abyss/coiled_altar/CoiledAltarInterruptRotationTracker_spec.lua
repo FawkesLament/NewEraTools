@@ -1,6 +1,7 @@
 local Loader = require("helpers.loader")
 
 local STATUS_HUD_PATH = "ui/StatusHUD.lua"
+local INTERRUPT_CHAIN_VIEW_PATH = "ui/InterruptChainView.lua"
 local SHARED_INTERRUPT_ROTATION_TRACKER_PATH = "ui/InterruptRotationTracker.lua"
 local INTERRUPT_ROTATION_TRACKER_PATH = "modules/venomous_abyss/coiled_altar/ui/InterruptRotationTracker.lua"
 local PANEL_PATH = "modules/venomous_abyss/coiled_altar/CoiledAltarUI.lua"
@@ -188,6 +189,7 @@ describe("CoiledAltar InterruptRotationTracker", function()
             return FakeFrame()
         end
         assert(loadfile(STATUS_HUD_PATH))(Loader.ADDON_NAME, namespace)
+        assert(loadfile(INTERRUPT_CHAIN_VIEW_PATH))(Loader.ADDON_NAME, namespace)
         assert(loadfile(SHARED_INTERRUPT_ROTATION_TRACKER_PATH))(Loader.ADDON_NAME, namespace)
         assert(loadfile(INTERRUPT_ROTATION_TRACKER_PATH))(Loader.ADDON_NAME, namespace)
         local module = namespace.Modules.Get("CoiledAltar")
@@ -229,11 +231,15 @@ describe("CoiledAltar InterruptRotationTracker", function()
         return ns.Modules.Internals("CoiledAltar").InterruptRotationTrackerUI
     end
 
+    local function Task(...)
+        return ns.InterruptRotationTracker.FormatTask({ ... })
+    end
+
     local function PreviewState()
         return {
             title = L.COILED_ALTAR_INTERRUPT_CHAIN_MELEE,
             text = L.COILED_ALTAR_INTERRUPT_STATUS_ROUND:format(1),
-            detail = L.COILED_ALTAR_INTERRUPT_STATUS_TASK:format(3),
+            detail = Task(3),
             progress = 1,
             maxProgress = 6,
             severity = ns.StatusHUD.SEVERITY_NORMAL,
@@ -329,7 +335,7 @@ describe("CoiledAltar InterruptRotationTracker", function()
         assert.is_true(hud.shown)
         assert.equals(L.COILED_ALTAR_INTERRUPT_CHAIN_MELEE, hud:GetState().title)
         assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_ROUND:format(1), hud:GetState().text)
-        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_TASK:format(3), hud:GetState().detail)
+        assert.equals(Task(3), hud:GetState().detail)
         assert.equals(1, hud:GetState().progress)
         assert.equals(6, hud:GetState().maxProgress)
 
@@ -337,7 +343,7 @@ describe("CoiledAltar InterruptRotationTracker", function()
         Timer.Advance(0)
         assert.equals(hud, binding.Ensure())
         assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_ROUND:format(2), hud:GetState().text)
-        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_TASK:format(3), hud:GetState().detail)
+        assert.equals(Task(3), hud:GetState().detail)
         assert.equals(2, hud:GetState().progress)
 
         Encounter.FireEnd(Module.ENCOUNTER_ID, "The Coiled Altar", 16, 20, 1)
@@ -372,7 +378,7 @@ describe("CoiledAltar InterruptRotationTracker", function()
         assert.is_true(hud.shown)
         assert.equals(L.COILED_ALTAR_INTERRUPT_CHAIN_MELEE, hud:GetState().title)
         assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_ROUND:format(1), hud:GetState().text)
-        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_TASK:format(1), hud:GetState().detail)
+        assert.equals(Task(1, 3), hud:GetState().detail)
         assert.same({ 1, 3 }, Module:GetInterruptStatus().indices)
         assert.equals(1, hud:GetState().progress)
 
@@ -380,7 +386,7 @@ describe("CoiledAltar InterruptRotationTracker", function()
         Timer.Advance(0)
         assert.equals(hud, binding.Ensure())
         assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_PENDING, hud:GetState().text)
-        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_TASK:format(1), hud:GetState().detail)
+        assert.equals(Task(1, 3), hud:GetState().detail)
         assert.equals(0, hud:GetState().progress)
         assert.equals(6, hud:GetState().maxProgress)
 
@@ -418,7 +424,37 @@ describe("CoiledAltar InterruptRotationTracker", function()
         Module:SetInterruptReminderEnabled(true)
         assert.is_true(hud.shown)
         assert.equals(L.COILED_ALTAR_INTERRUPT_CHAIN_RANGED, hud:GetState().title)
-        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_TASK_RANGE:format(2, 3), hud:GetState().detail)
+        assert.equals(Task(2, 3), hud:GetState().detail)
+        assert.equals(1, hud:GetState().progress)
+        assert.equals(6, hud:GetState().maxProgress)
+    end)
+
+    it("lists every assigned interrupt when the slots are not consecutive", function()
+        local Player = ns.Api.Player
+        local Unit = ns.Api.Unit
+        local RaidTarget = ns.Api.RaidTarget
+        local Encounter = ns.Api.Encounter
+        local Timer = ns.Api.Timer
+        Module:AssignInterruptPlayer("RANGED", 1, Player.GetFullName())
+        Module:AssignInterruptPlayer("RANGED", 3, Player.GetFullName())
+        Module:AssignInterruptPlayer("RANGED", 5, Player.GetFullName())
+        Module:SetMechanicReminderEnabled(true)
+        Module:SetInterruptReminderEnabled(true)
+        Module:ListenForEncounter()
+        Encounter.FireStart(Module.ENCOUNTER_ID, "The Coiled Altar", 16, 20)
+        RaidTarget.indices.boss3 = 1
+        for i = 3, 5 do
+            Unit.SetForTests("boss" .. i, { exists = i < 5 })
+        end
+        Encounter.FireEngageUnit()
+        Timer.Advance(0)
+
+        local binding = InterruptRotationTracker()
+        local hud = binding.Ensure()
+        assert.is_true(hud.shown)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_CHAIN_RANGED, hud:GetState().title)
+        assert.equals(Task(1, 3, 5), hud:GetState().detail)
+        assert.same({ 1, 3, 5 }, Module:GetInterruptStatus().indices)
         assert.equals(1, hud:GetState().progress)
         assert.equals(6, hud:GetState().maxProgress)
     end)
