@@ -38,6 +38,7 @@ local SIDE_BOTTOM = "bottom"
 ---@field ghostChase boolean
 ---@field orbCarryOdd boolean
 ---@field orbCarryEven boolean
+---@field orbCarryP3 boolean
 
 ---@class CoiledAltarSettings
 ---@field nameplateHint CoiledAltarNameplateHint
@@ -63,10 +64,12 @@ local CoiledAltar = ns.Modules.New("CoiledAltar", {
             interrupt = true,
             -- When true, a matched ENCOUNTER_WARNING shows the ghost-chase Callout.
             ghostChase = false,
-            -- When true, odd-wave orb-carry reminders are shown.
+            -- When true, P1 odd-wave orb-carry reminders are shown.
             orbCarryOdd = false,
-            -- When true, even-wave orb-carry reminders are shown.
+            -- When true, P1 even-wave orb-carry reminders are shown.
             orbCarryEven = false,
+            -- When true, P3 orb-carry reminders are shown.
+            orbCarryP3 = false,
         },
         nameplateHint = {
             -- When true, interrupt assignments are shown on nameplates.
@@ -168,13 +171,14 @@ end
 ---@return CoiledAltarMechanicReminder
 local function SanitizeMechanicReminder(settings)
     if type(settings) ~= "table" then
-        return { interrupt = true, ghostChase = false, orbCarryOdd = false, orbCarryEven = false }
+        return { interrupt = true, ghostChase = false, orbCarryOdd = false, orbCarryEven = false, orbCarryP3 = false }
     end
     settings.enabled = nil
     settings.interrupt = settings.interrupt == true
     settings.ghostChase = settings.ghostChase == true
     settings.orbCarryOdd = settings.orbCarryOdd == true
     settings.orbCarryEven = settings.orbCarryEven == true
+    settings.orbCarryP3 = settings.orbCarryP3 == true
     return settings
 end
 
@@ -291,6 +295,23 @@ function CoiledAltar:SetOrbCarryEvenReminderEnabled(enabled)
     self.db.mechanicReminder.orbCarryEven = enabled
     if not enabled then
         Internals.HideOrbCarryCallout("even")
+    end
+end
+
+---@return boolean
+function CoiledAltar:IsOrbCarryP3ReminderEnabled()
+    return self.db.mechanicReminder.orbCarryP3 == true
+end
+
+---@param enabled boolean
+function CoiledAltar:SetOrbCarryP3ReminderEnabled(enabled)
+    enabled = enabled == true
+    if self.db.mechanicReminder.orbCarryP3 == enabled then
+        return
+    end
+    self.db.mechanicReminder.orbCarryP3 = enabled
+    if not enabled then
+        Internals.HideOrbCarryCallout("p3")
     end
 end
 

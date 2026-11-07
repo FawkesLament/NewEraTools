@@ -1,4 +1,4 @@
--- Matches Sever timeline events to odd/even orb-carry waves and shows a timed Callout.
+-- Matches Sever timeline events to P1 odd/even waves or P3 anchors and shows a timed Callout.
 local _, ns = ...
 local Internals = ns.Modules.Internals("CoiledAltar")
 local CalloutManager = ns.CalloutManager
@@ -30,10 +30,12 @@ local P3_ANCHORS = {
     164.444,
 }
 
+---@alias CoiledAltarOrbCarryKind "odd"|"even"|"p3"
+
 ---@type CalloutManagerHandle|nil
 local presented = nil
----@type "odd"|"even"|nil
-local presentedParity = nil
+---@type CoiledAltarOrbCarryKind|nil
+local presentedKind = nil
 ---@type ResourceScope|nil
 local reminderScope = nil
 ---@type { duration: number, receivedAt: number }[]
@@ -48,12 +50,12 @@ local function HidePresented()
         presented:Dismiss()
         presented = nil
     end
-    presentedParity = nil
+    presentedKind = nil
 end
 
----@param parity "odd"|"even"|nil
-function Internals.HideOrbCarryCallout(parity)
-    if parity ~= nil and presentedParity ~= parity then
+---@param kind CoiledAltarOrbCarryKind|nil
+function Internals.HideOrbCarryCallout(kind)
+    if kind ~= nil and presentedKind ~= kind then
         return
     end
     HidePresented()
@@ -94,22 +96,16 @@ function Internals.MatchOrbCarryP3Anchor(predictedTime)
     return nil
 end
 
----@param anchorIndex integer
----@return "odd"|"even"
-function Internals.OrbCarryWaveForAnchor(anchorIndex)
-    if anchorIndex % 2 == 1 then
-        return "odd"
-    end
-    return "even"
-end
-
----@param parity "odd"|"even"
+---@param kind CoiledAltarOrbCarryKind
 ---@return boolean
-local function IsParityEnabled(parity)
-    if parity == "odd" then
+local function IsKindEnabled(kind)
+    if kind == "odd" then
         return CoiledAltar:IsOrbCarryOddReminderEnabled()
     end
-    return CoiledAltar:IsOrbCarryEvenReminderEnabled()
+    if kind == "even" then
+        return CoiledAltar:IsOrbCarryEvenReminderEnabled()
+    end
+    return CoiledAltar:IsOrbCarryP3ReminderEnabled()
 end
 
 local function ResetReminderScope()
@@ -139,14 +135,14 @@ local function ClaimOccurrence(occurrenceKey, deadline)
     return true
 end
 
----@param parity "odd"|"even"
+---@param kind CoiledAltarOrbCarryKind
 ---@param deadline number
-local function ShowReminder(parity, deadline)
-    if not IsParityEnabled(parity) then
+local function ShowReminder(kind, deadline)
+    if not IsKindEnabled(kind) then
         return
     end
     HidePresented()
-    presentedParity = parity
+    presentedKind = kind
     presented = CalloutManager.Show({
         source = CALLOUT_SOURCE,
         text = L.COILED_ALTAR_ORB_CARRY_CALLOUT,
@@ -155,12 +151,12 @@ local function ShowReminder(parity, deadline)
     })
 end
 
----@param parity "odd"|"even"
+---@param kind CoiledAltarOrbCarryKind
 ---@param duration number
 ---@param occurrenceKey string
 ---@param receivedAt number
-local function ScheduleReminder(parity, duration, occurrenceKey, receivedAt)
-    if not IsParityEnabled(parity) then
+local function ScheduleReminder(kind, duration, occurrenceKey, receivedAt)
+    if not IsKindEnabled(kind) then
         return
     end
     local now = Timer.GetTime()
@@ -174,14 +170,14 @@ local function ScheduleReminder(parity, duration, occurrenceKey, receivedAt)
     local reminderStart = deadline - REMINDER_LEAD
     local delay = reminderStart - now
     if delay <= 0 then
-        ShowReminder(parity, deadline)
+        ShowReminder(kind, deadline)
         return
     end
     if not reminderScope then
         return
     end
     reminderScope:After(delay, function()
-        ShowReminder(parity, deadline)
+        ShowReminder(kind, deadline)
     end)
 end
 
@@ -207,8 +203,7 @@ local function TryScheduleP3(duration, receivedAt, p3StartTime)
         return
     end
     p3Used[anchorIndex] = true
-    local parity = Internals.OrbCarryWaveForAnchor(anchorIndex)
-    ScheduleReminder(parity, duration, PHASE_P3 .. "-" .. tostring(anchorIndex), receivedAt)
+    ScheduleReminder("p3", duration, PHASE_P3 .. "-" .. tostring(anchorIndex), receivedAt)
 end
 
 ---@param p3StartTime number
