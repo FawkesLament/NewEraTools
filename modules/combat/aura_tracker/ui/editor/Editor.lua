@@ -59,6 +59,16 @@ local function EnsureEditorHeaderClip(scroll)
     return clip
 end
 
+---The overlay lives on the shared page host, so it must be hidden with the settings body.
+local function HideEditorHeaderOverlay()
+    if UI.editorHeader then
+        UI.editorHeader:Hide()
+    end
+    if UI.editorHeaderClip then
+        UI.editorHeaderClip:Hide()
+    end
+end
+
 ---Keeps the selected-aura header in place once it reaches the top of the page.
 function UI.SyncEditorHeaderPosition()
     local header = UI.editorHeader
@@ -66,15 +76,17 @@ function UI.SyncEditorHeaderPosition()
     local container = UI.settingsContainer
     local clip = UI.editorHeaderClip
     if not header or not placeholder or not container or not clip or not UI.contentBody or not UI.editorStack then
+        HideEditorHeaderOverlay()
         return
     end
+    -- Hide with the page, not with scroll. Switching modules does not move the shared scroll child.
     if not UI.editorHost or not UI.editorHost:IsShown() or not container:IsVisible() then
-        header:Hide()
+        HideEditorHeaderOverlay()
         return
     end
     local scroll = clip.scroll
     if not scroll then
-        header:Hide()
+        HideEditorHeaderOverlay()
         return
     end
     -- Page title sits outside the scroll viewport, so pin against the editor stack only.
@@ -91,6 +103,7 @@ function UI.SyncEditorHeaderPosition()
         UI.editorHeaderBackground:SetShown(pinned)
     end
     header:SetAlpha(container:GetAlpha())
+    clip:Show()
     header:Show()
 end
 

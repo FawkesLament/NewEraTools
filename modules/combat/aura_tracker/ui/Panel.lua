@@ -217,6 +217,9 @@ local function Build(containerFrame)
         UI.editorHeader:Hide()
         UI.editorHeader:SetParent(nil)
     end
+    if UI.editorHeaderClip then
+        UI.editorHeaderClip:Hide()
+    end
     UI.editorHeader = nil
     UI.editorHeaderPlaceholder = nil
     UI.editorHeaderBackground = nil
@@ -247,22 +250,15 @@ local function Build(containerFrame)
     local height = BuildContent(containerFrame)
     containerFrame:SetContentHeight(height)
     containerFrame:RefreshContentInteractive()
-    -- Fires when this page is shown, including each time the main panel opens on it.
+    -- Overlay is parented to the shared page host. Hide it with this page's body, not the
+    -- scroll child (that parent stays shown when switching modules).
     containerFrame:HookScript("OnShow", function()
         UI.SelectFirstTrackerEnabledForCurrentPlayer()
         UI.SyncEditorHeaderPosition()
     end)
-    local section = containerFrame:GetParent()
-    if section then
-        section:HookScript("OnShow", function()
-            UI.SyncEditorHeaderPosition()
-        end)
-        section:HookScript("OnHide", function()
-            if UI.editorHeader then
-                UI.editorHeader:Hide()
-            end
-        end)
-    end
+    containerFrame:HookScript("OnHide", function()
+        UI.SyncEditorHeaderPosition()
+    end)
     return height
 end
 
