@@ -10,6 +10,7 @@
     <Script file="Encounter.lua"/>
     <Script file="EncounterTimeline.lua"/>
     <Script file="Secrets.lua"/>
+    <Script file="Equipment.lua"/>
     <Script file="Combat.lua"/>
     <Script file="Binding.lua"/>
     <Script file="CombatLog.lua"/>

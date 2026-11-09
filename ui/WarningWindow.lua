@@ -39,12 +39,33 @@ ns.WarningWindow = WarningWindow
 ---@field position FloatingWindowPosition|nil  Initial anchor on the screen.
 ---@field onClick fun()|nil  Left-click when the press was not a drag.
 ---@field onPositionChanged fun(position: FloatingWindowPosition)|nil  After the player finishes dragging.
----@field draggable boolean|nil  Whether dragging starts enabled. Defaults to false.
+---@field draggable boolean|nil  Whether dragging starts enabled. Defaults to true.
 ---@field closable boolean|nil  Whether a close button is shown. Defaults to false.
 ---@field onClose fun()|nil  Called when the close button is clicked.
 
 ---@class WarningWindow: FloatingWindow
 ---@field SetWarningText fun(self: WarningWindow, title: string, hint: string, footer: string|nil)
+
+---@return number
+local function MainPanelScale()
+    local mainPanel = ns.MainPanel
+    if mainPanel and mainPanel.GetScale then
+        return mainPanel.GetScale()
+    end
+    return 1
+end
+
+---Follows the header slider. MainPanel loads after this file, so resolve at Create time.
+---@param frame WarningWindow
+local function ListenForScale(frame)
+    local mainPanel = ns.MainPanel
+    if not mainPanel or not mainPanel.OnScaleChanged then
+        return
+    end
+    mainPanel.OnScaleChanged(function(scale)
+        frame:SetWindowScale(scale)
+    end)
+end
 
 ---Creates a compact amber warning overlay (icon + title + hint + optional footer/action).
 ---@param options WarningWindowOptions
@@ -58,11 +79,16 @@ function WarningWindow.Create(options)
         assert(type(options.onAction) == "function", "WarningWindow.Create action requires onAction")
     end
 
+    local scale = options.scale
+    if type(scale) ~= "number" then
+        scale = MainPanelScale()
+    end
+
     local frame = FloatingWindow.Create({
         name = options.name,
-        scale = options.scale,
+        scale = scale,
         position = options.position,
-        draggable = options.draggable == true,
+        draggable = options.draggable ~= false,
         dragEntireFrame = true,
         onClick = options.onClick,
         onPositionChanged = options.onPositionChanged,
@@ -162,5 +188,6 @@ function WarningWindow.Create(options)
 
     ApplyFooter(options.footer)
     ResizeToContent()
+    ListenForScale(frame)
     return frame
 end

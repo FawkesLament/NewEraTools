@@ -1,4 +1,5 @@
 local _, ns = ...
+local L = ns.L
 local Assets = ns.Assets
 local Layout = ns.Layout
 local Widgets = ns.Widgets
@@ -29,7 +30,9 @@ ActionRow.HEIGHT = math.max(Sizes.CONTROL_HEIGHT, TEXT_HEIGHT) + 2 * Spacing.SMA
 ---@class ActionRowOptions
 ---@field title string
 ---@field description string
----@field buttons ActionRowButton[]  Left to right. Each stays as wide as its label.
+---@field buttons ActionRowButton[]|nil  Left to right. Each stays as wide as its label. May be empty when a toggle is present.
+---@field enabled boolean|nil  When `onEnabledChanged` is set, the On/Off starting state. Defaults to true.
+---@field onEnabledChanged fun(enabled: boolean)|nil  Shows an On/Off control at the far right of the action cell.
 
 ---@param label FontString
 ---@param fallback number
@@ -42,15 +45,24 @@ local function StringHeight(label, fallback)
     return fallback
 end
 
----Title and description on the left, content-sized buttons on the right.
+---Title and description on the left, content-sized buttons (and optional On/Off) on the right.
 ---`row` should be `ActionRow.HEIGHT` tall (for example `stack:AddRow(ActionRow.HEIGHT)`).
+---When `onEnabledChanged` is set, the toggle sits at the far right; buttons sit to its left.
 ---@param row Frame
 ---@param options ActionRowOptions
 ---@return Button[]
+---@return FontString description
 function ActionRow.Apply(row, options)
     assert(type(options) == "table" and type(options.title) == "string", "ActionRow requires a title")
     assert(type(options.description) == "string", "ActionRow requires a description")
-    assert(type(options.buttons) == "table" and #options.buttons > 0, "ActionRow requires buttons")
+    local buttonsSpec = options.buttons or {}
+    assert(type(buttonsSpec) == "table", "ActionRow buttons must be a list")
+    local hasToggle = options.onEnabledChanged ~= nil
+    if hasToggle then
+        assert(type(options.onEnabledChanged) == "function", "ActionRow toggle requires onEnabledChanged")
+    else
+        assert(#buttonsSpec > 0, "ActionRow requires buttons")
+    end
 
     local textCell, actionCell = Layout.SplitRow(row, Spacing.XLARGE)
 
@@ -85,7 +97,7 @@ function ActionRow.Apply(row, options)
 
     ---@type Button[]
     local buttons = {}
-    for index, spec in ipairs(options.buttons) do
+    for index, spec in ipairs(buttonsSpec) do
         assert(type(spec.text) == "string" and type(spec.onClick) == "function", "ActionRow button is incomplete")
         local button
         if spec.layout then
@@ -98,17 +110,32 @@ function ActionRow.Apply(row, options)
     end
 
     -- Right-align the group so the labels keep the width CreateButton measured.
-    local nextButton
+    -- Toggle is rightmost, matching FeatureSection (header action, then On/Off).
+    local nextControl
+    if hasToggle then
+        local enabled = options.enabled ~= false
+        local toggle
+        toggle = Widgets.CreateSegmentedControl(actionCell, {
+            { value = true, text = L.FEATURE_ON },
+            { value = false, text = L.FEATURE_OFF },
+        }, function(value)
+            toggle:SetSelected(value)
+            options.onEnabledChanged(value)
+        end)
+        toggle:SetSelected(enabled)
+        toggle:SetPoint("RIGHT", actionCell, "RIGHT")
+        nextControl = toggle
+    end
     for index = #buttons, 1, -1 do
         local button = buttons[index]
         button:ClearAllPoints()
-        if nextButton then
-            button:SetPoint("RIGHT", nextButton, "LEFT", -Spacing.MEDIUM, 0)
+        if nextControl then
+            button:SetPoint("RIGHT", nextControl, "LEFT", -Spacing.MEDIUM, 0)
         else
             button:SetPoint("RIGHT", actionCell, "RIGHT")
         end
-        nextButton = button
+        nextControl = button
     end
 
-    return buttons
+    return buttons, description
 end

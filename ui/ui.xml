@@ -22,6 +22,7 @@
     <Script file="AddonCheckPanelModel.lua"/>
     <Script file="AddonCheckPanel.lua"/>
     <Script file="WarningWindow.lua"/>
+    <Script file="CountToast.lua"/>
     <Script file="CalloutMessage.lua"/>
     <Script file="StatusHUD.lua"/>
     <Script file="InterruptRotationTracker.lua"/>

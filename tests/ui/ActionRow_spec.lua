@@ -38,6 +38,7 @@ describe("ActionRow", function()
     before_each(function()
         originalCreateFrame = CreateFrame
         ns = {
+            L = { FEATURE_ON = "On", FEATURE_OFF = "Off" },
             Assets = {
                 Fonts = { BODY = "Body", SMALL_MUTED = "SmallMuted" },
                 FontStyles = { Body = { size = 12 }, SmallMuted = { size = 11 } },
@@ -65,6 +66,16 @@ describe("ActionRow", function()
             button.width = 72
             button.height = 22
             return button
+        end
+        function ns.Widgets.CreateSegmentedControl(parent, items, onSelect)
+            local control = Track(parent, FakeRegion())
+            control.items = items
+            control.onSelect = onSelect
+            control.kind = "toggle"
+            function control:SetSelected(value)
+                self.selected = value
+            end
+            return control
         end
         function ns.Widgets.CreateLayoutEditButton(parent, text, onClick)
             local button = Track(parent, FakeRegion())
@@ -169,5 +180,30 @@ describe("ActionRow", function()
 
         -- (44 - (12 + 2 + 11)) / 2 = 9.5
         assert.equals(-9.5, title.points.TOPLEFT.y)
+    end)
+
+    it("places an On/Off toggle to the right of the buttons", function()
+        local seen
+        local row = FakeRegion()
+        local buttons, _, actionCell = Apply(row, {
+            title = "Missing set",
+            description = "Current character set: none recorded",
+            enabled = false,
+            onEnabledChanged = function(enabled)
+                seen = enabled
+            end,
+            buttons = {
+                { text = "Preview", onClick = function() end },
+            },
+        })
+        local toggle = actionCell.children[#actionCell.children]
+        assert.equals("toggle", toggle.kind)
+        assert.equals(false, toggle.selected)
+        assert.is_true(toggle.points.RIGHT.relativeTo == actionCell)
+        assert.is_true(buttons[1].points.RIGHT.relativeTo == toggle)
+        assert.equals("LEFT", buttons[1].points.RIGHT.relativePoint)
+        toggle.onSelect(true)
+        assert.equals(true, seen)
+        assert.equals(true, toggle.selected)
     end)
 end)
