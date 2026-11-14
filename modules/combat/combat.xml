@@ -32,6 +32,7 @@
     <Script file="interrupt_claim\InterruptClaimUI.lua"/>
     <Script file="gear_alert\TierSets.lua"/>
     <Script file="gear_alert\TierSet.lua"/>
+    <Script file="gear_alert\LowLevel.lua"/>
     <Script file="gear_alert\GearAlert.lua"/>
     <Script file="gear_alert\GearAlertUI.lua"/>
 </Ui>

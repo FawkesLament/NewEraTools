@@ -31,7 +31,10 @@ describe("InterruptRotationTrackerAnchor", function()
         CoiledAltar:SetInterruptRotationTrackerPosition(moved)
 
         assert.same(moved, TwinFangs:GetInterruptRotationTrackerPosition())
-        assert.equals(TwinFangs:GetInterruptRotationTrackerPosition(), CoiledAltar:GetInterruptRotationTrackerPosition())
+        assert.equals(
+            TwinFangs:GetInterruptRotationTrackerPosition(),
+            CoiledAltar:GetInterruptRotationTrackerPosition()
+        )
         assert.equals(saved.interruptRotationTrackerPosition, TwinFangs:GetInterruptRotationTrackerPosition())
 
         Start(saved)
@@ -72,6 +75,9 @@ describe("InterruptRotationTrackerAnchor", function()
             { point = "TOPLEFT", relativePoint = "TOPLEFT", x = 20, y = -30 },
             CoiledAltar:GetInterruptRotationTrackerPosition()
         )
-        assert.equals(TwinFangs:GetInterruptRotationTrackerPosition(), CoiledAltar:GetInterruptRotationTrackerPosition())
+        assert.equals(
+            TwinFangs:GetInterruptRotationTrackerPosition(),
+            CoiledAltar:GetInterruptRotationTrackerPosition()
+        )
     end)
 end)

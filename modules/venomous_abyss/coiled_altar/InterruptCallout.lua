@@ -74,7 +74,7 @@ function Internals.ResolveInterruptCallout(state, assignment)
         assignedRounds[assignment.indices[index]] = true
     end
 
-        local firstMelee, secondMelee = States.GetPossibleWorlds(wave)
+    local firstMelee, secondMelee = States.GetPossibleWorlds(wave)
     local worlds = {}
     if firstMelee then
         worlds[#worlds + 1] = true
@@ -140,10 +140,8 @@ function Internals.SyncInterruptCallout()
         return
     end
 
-    local task = Internals.ResolveInterruptCallout(
-        Internals.InterruptStates.Get(),
-        Internals.LocalInterruptAssignment()
-    )
+    local task =
+        Internals.ResolveInterruptCallout(Internals.InterruptStates.Get(), Internals.LocalInterruptAssignment())
     if not task then
         HidePresented()
         return

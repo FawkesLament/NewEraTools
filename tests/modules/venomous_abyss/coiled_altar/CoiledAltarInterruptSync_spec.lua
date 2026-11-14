@@ -63,12 +63,7 @@ describe("CoiledAltar interrupt assignment sync", function()
                 payload
             )
         )
-        AddonMessage.Deliver(
-            MessageProtocolComm.PREFIX.CONTROL,
-            wire,
-            opts.channel or "RAID",
-            opts.sender or LEADER
-        )
+        AddonMessage.Deliver(MessageProtocolComm.PREFIX.CONTROL, wire, opts.channel or "RAID", opts.sender or LEADER)
     end
 
     local function DeliverBody(body, opts)

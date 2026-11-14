@@ -48,7 +48,10 @@ describe("CoiledAltar RotationTracker view", function()
             plateOwner = {},
             curWave = wave,
             disposed = false,
-        }, first, second, wave
+        },
+            first,
+            second,
+            wave
     end
 
     local function Assignment(chainId, indices)

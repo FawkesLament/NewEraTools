@@ -134,10 +134,8 @@ end
 ---@return CoiledAltarInterruptStatus|nil
 function CoiledAltar:GetInterruptStatus()
     local Assignments = Internals.InterruptAssignments
-    local view = Internals.ResolveRotationTrackerView(
-        Internals.InterruptStates.Get(),
-        Internals.LocalInterruptAssignment()
-    )
+    local view =
+        Internals.ResolveRotationTrackerView(Internals.InterruptStates.Get(), Internals.LocalInterruptAssignment())
     if view.mode == "hidden" then
         return nil
     end

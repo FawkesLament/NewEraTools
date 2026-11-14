@@ -39,3 +39,20 @@ end
 function Color.Copy(saved, color)
     saved.r, saved.g, saved.b = color.r, color.g, color.b
 end
+
+---Wraps `text` in a WoW color escape using 0–1 `color` channels.
+---@param color table
+---@param text string
+---@return string
+function Color.Wrap(color, text)
+    assert(type(text) == "string", "Bad wrap text")
+    local rgb = Color.Normalize(color)
+    assert(rgb, "Bad wrap color")
+    return string.format(
+        "|cff%02x%02x%02x%s|r",
+        math.floor(rgb.r * 255 + 0.5),
+        math.floor(rgb.g * 255 + 0.5),
+        math.floor(rgb.b * 255 + 0.5),
+        text
+    )
+end

@@ -251,12 +251,7 @@ describe("CoiledAltar AddonCheck", function()
                 )
             )
             local staleWire = assert(
-                ns.MessageProtocol.Encode(
-                    ns.MessageProtocol.TYPE_RESPONSE,
-                    AddonCheck.TOPIC,
-                    firstCorrelation,
-                    payload
-                )
+                ns.MessageProtocol.Encode(ns.MessageProtocol.TYPE_RESPONSE, AddonCheck.TOPIC, firstCorrelation, payload)
             )
             ns.Api.AddonMessage.Deliver(
                 ns.Api.MessageProtocolComm.PREFIX.CONTROL,
@@ -345,28 +340,37 @@ describe("CoiledAltar AddonCheck", function()
 
         it("treats assignment order as irrelevant when the sets match", function()
             local commander = CommanderConfig()
-            assert.is_nil(CoiledAltar.ValidateAddonCheckConfig(Peer("Alpha-TestRealm", {
-                assignments = { Slot(Assignments.MELEE, 3), Slot(Assignments.MELEE, 1) },
-            }), commander))
+            assert.is_nil(CoiledAltar.ValidateAddonCheckConfig(
+                Peer("Alpha-TestRealm", {
+                    assignments = { Slot(Assignments.MELEE, 3), Slot(Assignments.MELEE, 1) },
+                }),
+                commander
+            ))
         end)
 
         it("flags missing or extra assignments", function()
             local commander = CommanderConfig()
             assert.same(
                 { "assignments" },
-                CoiledAltar.ValidateAddonCheckConfig(Peer("Alpha-TestRealm", {
-                    assignments = { Slot(Assignments.MELEE, 1) },
-                }), commander)
+                CoiledAltar.ValidateAddonCheckConfig(
+                    Peer("Alpha-TestRealm", {
+                        assignments = { Slot(Assignments.MELEE, 1) },
+                    }),
+                    commander
+                )
             )
             assert.same(
                 { "assignments" },
-                CoiledAltar.ValidateAddonCheckConfig(Peer("Alpha-TestRealm", {
-                    assignments = {
-                        Slot(Assignments.MELEE, 1),
-                        Slot(Assignments.MELEE, 3),
-                        Slot(Assignments.MELEE, 4),
-                    },
-                }), commander)
+                CoiledAltar.ValidateAddonCheckConfig(
+                    Peer("Alpha-TestRealm", {
+                        assignments = {
+                            Slot(Assignments.MELEE, 1),
+                            Slot(Assignments.MELEE, 3),
+                            Slot(Assignments.MELEE, 4),
+                        },
+                    }),
+                    commander
+                )
             )
         end)
 
@@ -379,9 +383,12 @@ describe("CoiledAltar AddonCheck", function()
             local commander = CommanderConfig()
             assert.same(
                 { "markedChain" },
-                CoiledAltar.ValidateAddonCheckConfig(Peer("Unassigned-TestRealm", {
-                    markedChain = Assignments.RANGED,
-                }), commander)
+                CoiledAltar.ValidateAddonCheckConfig(
+                    Peer("Unassigned-TestRealm", {
+                        markedChain = Assignments.RANGED,
+                    }),
+                    commander
+                )
             )
         end)
 
@@ -389,19 +396,25 @@ describe("CoiledAltar AddonCheck", function()
             local commander = CommanderConfig()
             assert.same(
                 { "assignments", "markedChain" },
-                CoiledAltar.ValidateAddonCheckConfig(Peer("Alpha-TestRealm", {
-                    assignments = { Slot(Assignments.RANGED, 2) },
-                    markedChain = Assignments.RANGED,
-                    reminder = false,
-                }), commander)
+                CoiledAltar.ValidateAddonCheckConfig(
+                    Peer("Alpha-TestRealm", {
+                        assignments = { Slot(Assignments.RANGED, 2) },
+                        markedChain = Assignments.RANGED,
+                        reminder = false,
+                    }),
+                    commander
+                )
             )
         end)
 
         it("does not warn when only the interrupt reminder differs", function()
             local commander = CommanderConfig()
-            assert.is_nil(CoiledAltar.ValidateAddonCheckConfig(Peer("Unassigned-TestRealm", {
-                reminder = false,
-            }), commander))
+            assert.is_nil(CoiledAltar.ValidateAddonCheckConfig(
+                Peer("Unassigned-TestRealm", {
+                    reminder = false,
+                }),
+                commander
+            ))
         end)
 
         it("flags malformed responses", function()
@@ -409,22 +422,31 @@ describe("CoiledAltar AddonCheck", function()
             assert.same({ "assignments", "markedChain" }, CoiledAltar.ValidateAddonCheckConfig(nil, commander))
             assert.same(
                 { "assignments" },
-                CoiledAltar.ValidateAddonCheckConfig(Peer("Alpha-TestRealm", {
-                    player = "",
-                    assignments = { Slot(Assignments.MELEE, 1), Slot(Assignments.MELEE, 3) },
-                }), commander)
+                CoiledAltar.ValidateAddonCheckConfig(
+                    Peer("Alpha-TestRealm", {
+                        player = "",
+                        assignments = { Slot(Assignments.MELEE, 1), Slot(Assignments.MELEE, 3) },
+                    }),
+                    commander
+                )
             )
             assert.same(
                 { "assignments" },
-                CoiledAltar.ValidateAddonCheckConfig(Peer("Alpha-TestRealm", {
-                    assignments = { { chain = "front", slot = 1 } },
-                }), commander)
+                CoiledAltar.ValidateAddonCheckConfig(
+                    Peer("Alpha-TestRealm", {
+                        assignments = { { chain = "front", slot = 1 } },
+                    }),
+                    commander
+                )
             )
             assert.same(
                 { "markedChain" },
-                CoiledAltar.ValidateAddonCheckConfig(Peer("Unassigned-TestRealm", {
-                    markedChain = "both",
-                }), commander)
+                CoiledAltar.ValidateAddonCheckConfig(
+                    Peer("Unassigned-TestRealm", {
+                        markedChain = "both",
+                    }),
+                    commander
+                )
             )
         end)
 

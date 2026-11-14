@@ -2,26 +2,84 @@ return function()
     local Equipment = {
         seasonID = 18,
         slots = {},
+        bags = {},
         armorSlots = { 1, 3, 5, 10, 7 },
+        gearSlots = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 },
+        averageItemLevel = nil,
         requestItemCalls = {},
         requestSeasonCalls = 0,
         changedCallbacks = {},
         itemInfoCallbacks = {},
         getSlotScanCalls = 0,
+        slotNames = {
+            [1] = "Head",
+            [2] = "Neck",
+            [3] = "Shoulder",
+            [5] = "Chest",
+            [6] = "Waist",
+            [7] = "Legs",
+            [8] = "Feet",
+            [9] = "Wrist",
+            [10] = "Hands",
+            [11] = "Finger",
+            [12] = "Finger",
+            [13] = "Trinket",
+            [14] = "Trinket",
+            [15] = "Back",
+            [16] = "Main Hand",
+            [17] = "Off Hand",
+        },
     }
 
     function Equipment.GetArmorSlots()
         return Equipment.armorSlots
     end
 
+    function Equipment.GetGearSlots()
+        return Equipment.gearSlots
+    end
+
+    function Equipment.GetAverageItemLevel()
+        return Equipment.averageItemLevel
+    end
+
     ---@param slot integer
-    ---@param data { status: string, itemID: integer|nil, setID: integer|nil }|nil
+    ---@return string|nil
+    function Equipment.GetSlotName(slot)
+        return Equipment.slotNames[slot]
+    end
+
+    ---@param slot integer
+    ---@return string|nil
+    function Equipment.GetSlotLink(slot)
+        local data = Equipment.slots[slot]
+        if type(data) == "table" and type(data.link) == "string" and data.link ~= "" then
+            return data.link
+        end
+        return nil
+    end
+
+    ---@param slot integer
+    ---@param data { status: string, itemID: integer|nil, name: string|nil, link: string|nil, setID: integer|nil, itemLevel: number|nil }|nil
     function Equipment.SetSlotForTests(slot, data)
         Equipment.slots[slot] = data
     end
 
     function Equipment.ClearSlotsForTests()
         Equipment.slots = {}
+    end
+
+    function Equipment.ClearBagsForTests()
+        Equipment.bags = {}
+    end
+
+    ---@param data { status: string, itemID: integer|nil, itemLevel: number|nil, slots: integer[] }
+    function Equipment.SetBagItemForTests(data)
+        Equipment.bags[#Equipment.bags + 1] = data
+    end
+
+    function Equipment.GetBagScans()
+        return Equipment.bags
     end
 
     ---Fills armor slots with `count` pieces of `setID`, then empty remaining slots.
@@ -62,7 +120,9 @@ return function()
             slot = slot,
             status = data.status,
             itemID = data.itemID,
+            name = data.name,
             setID = data.setID,
+            itemLevel = data.itemLevel,
         }
     end
 

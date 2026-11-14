@@ -42,7 +42,10 @@ describe("CoiledAltar interrupt Callout", function()
             plateOwner = {},
             curWave = wave,
             disposed = false,
-        }, first, second, wave
+        },
+            first,
+            second,
+            wave
     end
 
     local function SetBossCount(count)
@@ -223,7 +226,10 @@ describe("CoiledAltar interrupt Callout", function()
         end)
 
         it("returns nil when the assigned current-wave shadow is dead", function()
-            local state, melee, ranged = WaveState({ marked = true, kicks = 0, casting = true }, { kicks = 0, casting = true })
+            local state, melee, ranged = WaveState(
+                { marked = true, kicks = 0, casting = true },
+                { kicks = 0, casting = true }
+            )
             state.list = { ranged }
             assert.is_nil(Resolve(state, "MELEE", { 1 }))
             local other = Resolve(state, "RANGED", { 1 })

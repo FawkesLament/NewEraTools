@@ -440,12 +440,8 @@ end
 ---@param payload string
 ---@return boolean
 local function PayloadFits(payload)
-    return MessageProtocol.Encode(
-        MessageProtocol.TYPE_EVENT,
-        Sync.TOPIC,
-        MessageProtocol.EVENT_CORRELATION_ID,
-        payload
-    ) ~= nil
+    return MessageProtocol.Encode(MessageProtocol.TYPE_EVENT, Sync.TOPIC, MessageProtocol.EVENT_CORRELATION_ID, payload)
+        ~= nil
 end
 
 ---Wraps a snapshot body into one or more feature payloads. Splits only at slot boundaries.

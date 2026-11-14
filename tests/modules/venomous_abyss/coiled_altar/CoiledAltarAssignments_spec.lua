@@ -197,7 +197,10 @@ describe("CoiledAltar interrupt assignments", function()
         assert.is_true(Module:AssignInterruptText(Assignments.MELEE, 2, "点名近战"))
         assert.is_true(Module:AssignInterruptPlayer(Assignments.RANGED, 1, "点名近战"))
         assert.same(Slot(Assignments.TYPE_TEXT, "点名近战"), Module:GetInterruptSlot(Assignments.MELEE, 2))
-        assert.same(Slot(Assignments.TYPE_PLAYER, "点名近战-TestRealm"), Module:GetInterruptSlot(Assignments.RANGED, 1))
+        assert.same(
+            Slot(Assignments.TYPE_PLAYER, "点名近战-TestRealm"),
+            Module:GetInterruptSlot(Assignments.RANGED, 1)
+        )
         assert.same({}, Assignments.CrossChainPlayers(Module:GetInterruptAssignments()))
     end)
 

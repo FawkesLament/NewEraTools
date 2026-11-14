@@ -1,10 +1,11 @@
-describe("CountToast", function()
+describe("AlertToast", function()
     local ns, originalCreateFrame, created, lastWindow, scaleListener
 
     local function FakeTexture()
-        local texture = { points = {} }
-        function texture:SetColorTexture()
+        local texture = { points = {}, shown = true }
+        function texture:SetColorTexture(r, g, b, a)
             self.filled = true
+            self.color = { r = r, g = g, b = b, a = a }
         end
         function texture:SetHeight(height)
             self.height = height
@@ -19,11 +20,18 @@ describe("CountToast", function()
         function texture:ClearAllPoints()
             self.points = {}
         end
+        function texture:Show()
+            self.shown = true
+        end
+        function texture:Hide()
+            self.shown = false
+        end
+        lastWindow.textures[#lastWindow.textures + 1] = texture
         return texture
     end
 
     local function FakeLabel()
-        local label = { text = "", points = {}, font = {} }
+        local label = { text = "", points = {}, font = {}, shown = true }
         function label:SetFont(path, size, flags)
             self.font = { path = path, size = size, flags = flags }
         end
@@ -32,23 +40,31 @@ describe("CountToast", function()
         end
         function label:SetTextColor() end
         function label:SetShadowOffset() end
-        function label:SetJustifyH() end
+        function label:SetJustifyH(value)
+            self.justifyH = value
+        end
         function label:SetJustifyV() end
         function label:SetShadowColor() end
         function label:SetWordWrap() end
+        function label:SetMaxLines(value)
+            self.maxLines = value
+        end
+        function label:SetWidth(width)
+            self.width = width
+        end
         function label:SetPoint(...)
             self.points[#self.points + 1] = { ... }
         end
         function label:ClearAllPoints()
             self.points = {}
         end
-        if not lastWindow.title then
-            lastWindow.title = label
-        elseif not lastWindow.message then
-            lastWindow.message = label
-        else
-            lastWindow.count = label
+        function label:Show()
+            self.shown = true
         end
+        function label:Hide()
+            self.shown = false
+        end
+        lastWindow.labels[#lastWindow.labels + 1] = label
         return label
     end
 
@@ -58,8 +74,12 @@ describe("CountToast", function()
             shown = false,
             options = options,
             size = {},
+            labels = {},
+            textures = {},
             header = {
-                SetHeight = function() end,
+                SetHeight = function(self, height)
+                    self.height = height
+                end,
             },
         }
         function frame:CreateTexture()
@@ -101,10 +121,8 @@ describe("CountToast", function()
 
     local function CreateOptions(overrides)
         local options = {
-            name = "NewEraToolsCountToast",
-            title = "Check",
-            message = "Incomplete",
-            count = "3/4",
+            name = "NewEraToolsAlertToast",
+            title = "Gear Alert",
         }
         for key, value in pairs(overrides or {}) do
             options[key] = value
@@ -123,7 +141,13 @@ describe("CountToast", function()
                 FontFiles = { EXPRESSWAY = "Interface\\AddOns\\NewEraTools\\media\\fonts\\Expressway.ttf" },
                 Textures = { WHITE = "white" },
                 Templates = { BACKDROP = "BackdropTemplate" },
-                Colors = {},
+                Colors = {
+                    BG = { r = 0.07, g = 0.08, b = 0.09, a = 0.95 },
+                    BORDER_FAINT = { r = 1, g = 1, b = 1, a = 0.08 },
+                    TEXT = { r = 1, g = 1, b = 1 },
+                    TEXT_MUTED = { r = 0.55, g = 0.57, b = 0.60 },
+                    WARNING = { r = 0.95, g = 0.64, b = 0.27 },
+                },
                 Sizes = { CLOSE_BUTTON = 22 },
                 Spacing = { SMALL = 4, MEDIUM = 8, LARGE = 12 },
             },
@@ -138,6 +162,10 @@ describe("CountToast", function()
                         SetPoint = function() end,
                         ClearAllPoints = function() end,
                         SetFrameLevel = function() end,
+                        SetSize = function(self, width, height)
+                            self.size = { width = width, height = height }
+                        end,
+                        SetScript = function() end,
                         GetRegions = function()
                             return
                         end,
@@ -157,7 +185,7 @@ describe("CountToast", function()
                 end,
             },
         }
-        assert(loadfile("ui/CountToast.lua"))("NewEraTools", ns)
+        assert(loadfile("ui/AlertToast.lua"))("NewEraTools", ns)
     end)
 
     after_each(function()
@@ -165,37 +193,54 @@ describe("CountToast", function()
     end)
 
     it("rejects incomplete Create options", function()
-        assert.is_false(pcall(ns.CountToast.Create))
-        assert.is_false(pcall(ns.CountToast.Create, { title = "x" }))
-        assert.is_false(pcall(ns.CountToast.Create, { title = "x", message = "y" }))
+        assert.is_false(pcall(ns.AlertToast.Create))
+        assert.is_false(pcall(ns.AlertToast.Create, {}))
+        assert.is_false(pcall(ns.AlertToast.Create, { title = 1 }))
     end)
 
-    it("applies caller strings and updates them in place", function()
-        local toast = ns.CountToast.Create(CreateOptions())
+    it("sizes the card to the current row count", function()
+        local toast = ns.AlertToast.Create(CreateOptions())
         assert.equals(1, created)
-        assert.equals("Check", lastWindow.title.text)
-        assert.equals("Incomplete", lastWindow.message.text)
-        assert.equals("3/4", lastWindow.count.text)
-        assert.is_true(lastWindow.options.draggable)
-        assert.is_true(lastWindow.options.dragEntireFrame)
-        assert.is_nil(lastWindow.options.closable)
+        assert.equals("Gear Alert", lastWindow.labels[1].text)
+        assert.equals(320, lastWindow.size.width)
+        assert.equals(41, lastWindow.size.height)
+        assert.equals(28, lastWindow.header.height)
+        assert.equals(20, lastWindow.closeButton.size.width)
 
-        toast:SetToastText("Next", "Still incomplete", "2/4")
+        toast:SetRows({
+            { left = "Four-piece incomplete", right = "Active 3/4 pieces" },
+        })
         assert.equals(1, created)
-        assert.equals("Next", lastWindow.title.text)
-        assert.equals("Still incomplete", lastWindow.message.text)
-        assert.equals("2/4", lastWindow.count.text)
+        assert.equals("Four-piece incomplete", lastWindow.labels[2].text)
+        assert.equals("Active 3/4 pieces", lastWindow.labels[3].text)
+        assert.equals(65, lastWindow.size.height)
+
+        toast:SetRows({
+            { left = "A", right = "1" },
+            { left = "B", right = "2" },
+        })
+        assert.equals("A", lastWindow.labels[2].text)
+        assert.equals("B", lastWindow.labels[4].text)
+        assert.equals(89, lastWindow.size.height)
+        assert.is_true(lastWindow.labels[4].shown)
+
+        toast:SetRows({
+            { left = "Only", right = "one" },
+        })
+        assert.equals("Only", lastWindow.labels[2].text)
+        assert.is_false(lastWindow.labels[4].shown)
+        assert.equals(65, lastWindow.size.height)
     end)
 
-    it("rejects non-string toast text", function()
-        local toast = ns.CountToast.Create(CreateOptions())
-        assert.is_false(pcall(toast.SetToastText, toast, nil, "m", "c"))
-        assert.is_false(pcall(toast.SetToastText, toast, "t", nil, "c"))
-        assert.is_false(pcall(toast.SetToastText, toast, "t", "m", 3))
+    it("rejects non-string row text", function()
+        local toast = ns.AlertToast.Create(CreateOptions())
+        assert.is_false(pcall(toast.SetRows, toast, nil))
+        assert.is_false(pcall(toast.SetRows, toast, { { left = "t" } }))
+        assert.is_false(pcall(toast.SetRows, toast, { { left = "t", right = 3 } }))
     end)
 
     it("hides on close and can be shown again", function()
-        local toast = ns.CountToast.Create(CreateOptions())
+        local toast = ns.AlertToast.Create(CreateOptions())
         toast:Show()
         lastWindow.closeOnClick()
         assert.is_false(lastWindow.shown)
@@ -206,7 +251,7 @@ describe("CountToast", function()
 
     it("notifies the caller after a drag", function()
         local saved
-        ns.CountToast.Create(CreateOptions({
+        ns.AlertToast.Create(CreateOptions({
             onPositionChanged = function(position)
                 saved = position
             end,
@@ -223,14 +268,14 @@ describe("CountToast", function()
     end)
 
     it("opens at the main panel scale and follows the slider", function()
-        ns.CountToast.Create(CreateOptions())
+        ns.AlertToast.Create(CreateOptions())
         assert.equals(1.25, lastWindow.options.scale)
         scaleListener(0.8)
         assert.equals(0.8, lastWindow.scale)
     end)
 
     it("keeps an explicit scale at create, then follows the slider", function()
-        ns.CountToast.Create(CreateOptions({ scale = 1.1 }))
+        ns.AlertToast.Create(CreateOptions({ scale = 1.1 }))
         assert.equals(1.1, lastWindow.options.scale)
         scaleListener(0.9)
         assert.equals(0.9, lastWindow.scale)
@@ -244,7 +289,7 @@ describe("CountToast", function()
             end,
             ApplyPosition = function() end,
         }
-        ns.CountToast.Create(CreateOptions())
+        ns.AlertToast.Create(CreateOptions())
         assert.is_false(registered)
     end)
 end)

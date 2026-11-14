@@ -227,9 +227,7 @@ function Internals.ResolveNameplateIndicators(state, chains)
     end
 
     local ambiguous = #unboundPlates > unboundMembers
-    local bothMembersMarked = memberCount == 2
-        and members[1].marked == true
-        and members[2].marked == true
+    local bothMembersMarked = memberCount == 2 and members[1].marked == true and members[2].marked == true
     local anyMemberMarked = false
     for i = 1, memberCount do
         if members[i].marked == true then

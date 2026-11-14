@@ -480,7 +480,11 @@ function Assignments.Replace(target, source)
             if type(chain) == "table" then
                 for index = 1, SLOT_COUNT do
                     local slot = chain[index]
-                    if type(slot) == "table" and slot.type == TYPE_TEXT and Assignments.IsValidCustomText(slot.value) then
+                    if
+                        type(slot) == "table"
+                        and slot.type == TYPE_TEXT
+                        and Assignments.IsValidCustomText(slot.value)
+                    then
                         incoming[chainId][index] = { type = TYPE_TEXT, value = slot.value }
                     end
                 end

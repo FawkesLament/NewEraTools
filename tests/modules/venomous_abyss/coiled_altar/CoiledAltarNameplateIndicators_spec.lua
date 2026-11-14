@@ -72,7 +72,10 @@ describe("CoiledAltar nameplate interrupt indicators", function()
             candidates = {},
             curWave = wave,
             disposed = false,
-        }, first, second, wave
+        },
+            first,
+            second,
+            wave
     end
 
     local function Resolve(state)

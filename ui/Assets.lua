@@ -118,6 +118,8 @@ Assets.Colors = {
     BORDER = { r = 0.180, g = 0.196, b = 0.231, a = 1 },
     -- Softer edge for compact floating overlays.
     BORDER_SUBTLE = { r = 0.55, g = 0.58, b = 0.65, a = 0.55 },
+    -- 1px white hairline for compact cards (toast edge / split).
+    BORDER_FAINT = { r = 1, g = 1, b = 1, a = 0.08 },
     -- Amber edge for warning overlays.
     BORDER_WARNING = { r = 0.90, g = 0.70, b = 0.25, a = 0.75 },
     HOVER = { r = 1, g = 1, b = 1, a = 0.06 },

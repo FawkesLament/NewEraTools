@@ -165,13 +165,16 @@ describe("tier-set detection", function()
             local history = { [18] = { hadFourPiece = true } }
             Internals.CheckMissing(history, Internals.Evaluate(Scan(CURRENT_SET, 3)))
             assert.is_true(history[18].hadFourPiece)
-            assert.equals(1, (function()
-                local count = 0
-                for _ in pairs(history) do
-                    count = count + 1
-                end
-                return count
-            end)())
+            assert.equals(
+                1,
+                (function()
+                    local count = 0
+                    for _ in pairs(history) do
+                        count = count + 1
+                    end
+                    return count
+                end)()
+            )
         end)
     end)
 
@@ -209,7 +212,7 @@ describe("tier-set detection", function()
             Equipment.FireChanged()
             assert.equals(0, Equipment.getSlotScanCalls)
             Timer.Advance(GearAlert.SCAN_DELAY)
-            assert.equals(#Equipment.armorSlots, Equipment.getSlotScanCalls)
+            assert.equals(#Equipment.armorSlots + #Equipment.gearSlots, Equipment.getSlotScanCalls)
         end)
 
         it("keeps learning history while notifications are disabled", function()
@@ -223,12 +226,12 @@ describe("tier-set detection", function()
 
         it("alerts in a current-expansion raid when four pieces were previously confirmed", function()
             EnterRaid()
-            assert.same({ type = "MISSING_TIER_SET", equipped = 3, required = 4 }, MissingSetReadyToAlert())
+            assert.same({ { type = "MISSING_TIER_SET", equipped = 3, required = 4 } }, MissingSetReadyToAlert())
         end)
 
         it("alerts in a current-expansion Mythic dungeon", function()
             EnterDungeon()
-            assert.same({ type = "MISSING_TIER_SET", equipped = 3, required = 4 }, MissingSetReadyToAlert())
+            assert.same({ { type = "MISSING_TIER_SET", equipped = 3, required = 4 } }, MissingSetReadyToAlert())
         end)
 
         it("does not pop the warning outside a current-expansion raid or Mythic dungeon", function()

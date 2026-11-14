@@ -21,14 +21,21 @@ local ITEM_RETRY_LIMIT = 5
 
 ---@class GearAlertPayload
 ---@field type string
----@field equipped number
----@field required number
+---@field equipped number|nil
+---@field required number|nil
+---@field itemLevel number|nil
+---@field averageItemLevel number|nil
+---@field itemLink string|nil  Equipped item link for low-level rows.
+---@field slot integer|nil
+---@field slotName string|nil  Localized inventory slot label for empty-slot rows.
 
 ---@class GearAlert: Module
 local GearAlert = ns.Modules.New("GearAlert", {
     defaults = {
         -- When true, the four-piece set subfeature is on.
         fourPieceCheckEnabled = true,
+        -- When true, the low-level item subfeature is on.
+        lowLevelCheckEnabled = true,
         ---@type GearAlertPosition
         position = {
             point = DEFAULT_POSITION.point,
@@ -52,7 +59,7 @@ local lastState
 local wantAlert = false
 ---@type fun(text: string)|nil
 local statusListener
----@type fun(finding: GearAlertPayload|nil)|nil
+---@type fun(findings: GearAlertPayload[]|nil)|nil
 local findingListener
 
 ---Factory default anchor. A new table every call so callers cannot mutate saved data.
@@ -74,6 +81,16 @@ end
 ---@param enabled boolean
 function GearAlert:SetFourPieceCheckEnabled(enabled)
     self.db.fourPieceCheckEnabled = enabled == true
+end
+
+---@return boolean
+function GearAlert:IsLowLevelCheckEnabled()
+    return self.db.lowLevelCheckEnabled == true
+end
+
+---@param enabled boolean
+function GearAlert:SetLowLevelCheckEnabled(enabled)
+    self.db.lowLevelCheckEnabled = enabled == true
 end
 
 ---@return GearAlertPosition
@@ -142,7 +159,7 @@ function GearAlert:SetStatusListener(callback)
     statusListener = callback
 end
 
----@param callback fun(finding: GearAlertPayload|nil)|nil
+---@param callback fun(findings: GearAlertPayload[]|nil)|nil
 function GearAlert:SetFindingListener(callback)
     findingListener = callback
 end
@@ -174,22 +191,44 @@ local function IsEligibleInstance()
     return Instance.IsCurrentExpansionDungeon(info.instanceID)
 end
 
+---@param list table|nil
 ---@return boolean
-local function ScanHasPending(scan)
-    for _, slot in ipairs(scan.slots) do
-        if slot.status == "pending" then
+local function ListHasPending(list)
+    if type(list) ~= "table" then
+        return false
+    end
+    for _, entry in ipairs(list) do
+        if entry.status == "pending" then
             return true
         end
     end
     return false
 end
 
+---@return boolean
+local function ScanHasPending(scan)
+    if type(scan) ~= "table" then
+        return false
+    end
+    return ListHasPending(scan.slots) or ListHasPending(scan.bags)
+end
+
 local function RequestPendingItems(scan)
-    for _, slot in ipairs(scan.slots) do
-        if slot.status == "pending" then
-            Equipment.RequestItem(slot.itemID)
+    if type(scan) ~= "table" then
+        return
+    end
+    local function Request(list)
+        if type(list) ~= "table" then
+            return
+        end
+        for _, entry in ipairs(list) do
+            if entry.status == "pending" then
+                Equipment.RequestItem(entry.itemID)
+            end
         end
     end
+    Request(scan.slots)
+    Request(scan.bags)
 end
 
 local function CancelRetry()
@@ -206,12 +245,14 @@ local function ApplyScan(token, retries)
         return
     end
     local scan = Internals.CollectScan()
+    local gearScan = Internals.CollectGearScan()
     local state = Internals.Evaluate(scan)
     lastState = state
     Internals.RecordHistory(GearAlert:GetTierSetHistory(), state)
     NotifyStatus()
-    if ScanHasPending(scan) and retries < ITEM_RETRY_LIMIT then
+    if (ScanHasPending(scan) or ScanHasPending(gearScan)) and retries < ITEM_RETRY_LIMIT then
         RequestPendingItems(scan)
+        RequestPendingItems(gearScan)
         pendingRetry = Timer.NewTimer(ITEM_RETRY_DELAY, function()
             pendingRetry = nil
             ApplyScan(token, retries + 1)
@@ -227,11 +268,23 @@ local function ApplyScan(token, retries)
         return
     end
     Instance.RefreshCaches()
-    local finding = Internals.CheckMissing(GearAlert:GetTierSetHistory(), state)
-    if finding and not IsEligibleInstance() then
-        finding = nil
+    local findings = {}
+    if GearAlert:IsLowLevelCheckEnabled() then
+        local lowLevel = Internals.CheckLowLevel(Internals.EvaluateLowLevel(gearScan))
+        for index = 1, #lowLevel do
+            findings[#findings + 1] = lowLevel[index]
+        end
     end
-    findingListener(finding)
+    if GearAlert:IsFourPieceCheckEnabled() then
+        local missing = Internals.CheckMissing(GearAlert:GetTierSetHistory(), state)
+        if missing then
+            findings[#findings + 1] = missing
+        end
+    end
+    if #findings == 0 or not IsEligibleInstance() then
+        findings = nil
+    end
+    findingListener(findings)
 end
 
 local function CancelPendingScan()
@@ -284,6 +337,7 @@ end
 
 function GearAlert:OnInit()
     self.db.fourPieceCheckEnabled = self.db.fourPieceCheckEnabled ~= false
+    self.db.lowLevelCheckEnabled = self.db.lowLevelCheckEnabled ~= false
     if not Position.IsValid(self.db.position) then
         self.db.position = GearAlert.DefaultPosition()
     end

@@ -5,9 +5,14 @@ describe("Equipment production", function()
         saved.GetInventorySlotInfo = GetInventorySlotInfo
         saved.GetInventoryItemLink = GetInventoryItemLink
         saved.GetInventoryItemID = GetInventoryItemID
+        saved.GetAverageItemLevel = GetAverageItemLevel
+        saved.GetDetailedItemLevelInfo = GetDetailedItemLevelInfo
         saved.C_Item = C_Item
+        saved.C_Container = C_Container
         saved.C_MythicPlus = C_MythicPlus
+        saved.NUM_BAG_SLOTS = NUM_BAG_SLOTS
         saved.issecretvalue = issecretvalue
+        saved.HEADSLOT = _G.HEADSLOT
     end
 
     local function Load()
@@ -48,7 +53,11 @@ describe("Equipment production", function()
             return nil
         end
         C_Item = nil
+        C_Container = nil
         C_MythicPlus = nil
+        NUM_BAG_SLOTS = 4
+        GetAverageItemLevel = nil
+        GetDetailedItemLevelInfo = nil
         issecretvalue = nil
     end)
 
@@ -56,9 +65,14 @@ describe("Equipment production", function()
         GetInventorySlotInfo = saved.GetInventorySlotInfo
         GetInventoryItemLink = saved.GetInventoryItemLink
         GetInventoryItemID = saved.GetInventoryItemID
+        GetAverageItemLevel = saved.GetAverageItemLevel
+        GetDetailedItemLevelInfo = saved.GetDetailedItemLevelInfo
         C_Item = saved.C_Item
+        C_Container = saved.C_Container
         C_MythicPlus = saved.C_MythicPlus
+        NUM_BAG_SLOTS = saved.NUM_BAG_SLOTS
         issecretvalue = saved.issecretvalue
+        _G.HEADSLOT = saved.HEADSLOT
     end)
 
     it("reads an equipped set item once item info is cached", function()
@@ -70,22 +84,7 @@ describe("Equipment production", function()
         C_Item = {
             GetItemInfo = function(item)
                 if item == "item:271531" then
-                    return "Chest",
-                        nil,
-                        nil,
-                        nil,
-                        nil,
-                        nil,
-                        nil,
-                        nil,
-                        nil,
-                        nil,
-                        nil,
-                        nil,
-                        nil,
-                        nil,
-                        11,
-                        2057
+                    return "Chest", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, 11, 2057
                 end
             end,
             GetItemIDForItemInfo = function()
@@ -96,7 +95,54 @@ describe("Equipment production", function()
         local scan = Equipment.GetSlotScan(1)
         assert.equals("ready", scan.status)
         assert.equals(271531, scan.itemID)
+        assert.equals("Chest", scan.name)
         assert.equals(2057, scan.setID)
+    end)
+
+    it("prefers the detailed item level of an equipped item", function()
+        GetInventoryItemLink = function(_, slot)
+            if slot == 1 then
+                return "item:271531"
+            end
+        end
+        GetDetailedItemLevelInfo = function(item)
+            if item == "item:271531" then
+                return 684
+            end
+        end
+        C_Item = {
+            GetItemInfo = function(item)
+                if item == "item:271531" then
+                    return "Chest", nil, nil, 600
+                end
+            end,
+            GetItemIDForItemInfo = function()
+                return 271531
+            end,
+        }
+        local Equipment = Load()
+        local scan = Equipment.GetSlotScan(1)
+        assert.equals("ready", scan.status)
+        assert.equals(684, scan.itemLevel)
+    end)
+
+    it("returns the equipped average item level", function()
+        GetAverageItemLevel = function()
+            return 700.4, 689.2, 650
+        end
+        local Equipment = Load()
+        assert.equals(689.2, Equipment.GetAverageItemLevel())
+    end)
+
+    it("does not inspect a secret average item level", function()
+        issecretvalue = function()
+            return true
+        end
+        GetAverageItemLevel = function()
+            return 700, 689
+        end
+        local Equipment = Load()
+        assert.is_nil(Equipment.GetAverageItemLevel())
     end)
 
     it("marks uncached items pending instead of empty", function()
@@ -115,6 +161,47 @@ describe("Equipment production", function()
         assert.is_nil(scan.setID)
     end)
 
+    it("maps a bag item to the inventory slots it can fill", function()
+        C_Container = {
+            GetContainerNumSlots = function(bag)
+                if bag == 0 then
+                    return 1
+                end
+                return 0
+            end,
+            GetContainerItemLink = function(bag, slot)
+                if bag == 0 and slot == 1 then
+                    return "item:12345"
+                end
+            end,
+            GetContainerItemID = function()
+                return 12345
+            end,
+        }
+        C_Item = {
+            GetItemInfo = function(item)
+                if item == "item:12345" then
+                    return "Helm", nil, nil, 700, nil, nil, nil, nil, "INVTYPE_HEAD"
+                end
+            end,
+            GetItemIDForItemInfo = function()
+                return 12345
+            end,
+        }
+        GetDetailedItemLevelInfo = function(item)
+            if item == "item:12345" then
+                return 710
+            end
+        end
+        local Equipment = Load()
+        local scans = Equipment.GetBagScans()
+        assert.equals(1, #scans)
+        assert.equals("ready", scans[1].status)
+        assert.equals(12345, scans[1].itemID)
+        assert.equals(710, scans[1].itemLevel)
+        assert.same({ 1 }, scans[1].slots)
+    end)
+
     it("does not inspect secret inventory values", function()
         issecretvalue = function(value)
             return value == "secret-link"
@@ -126,6 +213,24 @@ describe("Equipment production", function()
         local scan = Equipment.GetSlotScan(1)
         assert.equals("secret", scan.status)
         assert.is_nil(scan.setID)
+    end)
+
+    it("returns the equipped item link for a slot", function()
+        GetInventoryItemLink = function(unit, slot)
+            if unit == "player" and slot == 1 then
+                return "|cffffffff|Hitem:11|h[Helm]|h|r"
+            end
+        end
+        local Equipment = Load()
+        assert.equals("|cffffffff|Hitem:11|h[Helm]|h|r", Equipment.GetSlotLink(1))
+        assert.is_nil(Equipment.GetSlotLink(2))
+    end)
+
+    it("returns the inventory slot label from the client global", function()
+        _G.HEADSLOT = "Head"
+        local Equipment = Load()
+        assert.equals("Head", Equipment.GetSlotName(1))
+        assert.is_nil(Equipment.GetSlotName(99))
     end)
 
     it("returns the Mythic+ season when the client has one", function()

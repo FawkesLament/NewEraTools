@@ -56,4 +56,3 @@ describe("Assets.PrewarmFontFiles", function()
         assert.equals(1, #UIParent.fontStrings)
     end)
 end)
-
