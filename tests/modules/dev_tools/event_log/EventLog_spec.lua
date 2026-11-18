@@ -50,18 +50,19 @@ describe("EventLog", function()
         issecretvalue = savedIsSecret
     end)
 
-    it("starts off with an empty log", function()
+    it("starts off with no saved logs", function()
         assert.is_false(Module:IsEnabled())
+        assert.equals(1, Module:GetMaxLogs())
+        assert.same({}, Module:GetSavedLogs())
         assert.same({}, Module:GetLines())
-        assert.equals("", Module:GetLogText())
-        assert.is_nil(Module:GetSavedLog())
+        assert.is_nil(Module:GetLogText())
     end)
 
     it("does not record while disabled", function()
         StartEncounter()
         GameEvents.Fire("INSTANCE_ENCOUNTER_ENGAGE_UNIT")
         assert.same({}, Module:GetLines())
-        assert.is_nil(Module:GetSavedLog())
+        assert.same({}, Module:GetSavedLogs())
     end)
 
     it("does not record until the next encounter start after enabling", function()
@@ -124,11 +125,12 @@ describe("EventLog", function()
             }, Module:GetLines())
         end)
 
-        it("clears previous lines when a new encounter starts", function()
+        it("replaces the only log when a new encounter starts with the default limit", function()
             GameEvents.Fire("ENCOUNTER_WARNING", { text = "first" })
             Timer.now = 40
             StartEncounter()
             GameEvents.Fire("ENCOUNTER_STATE_CHANGED", 2)
+            assert.equals(1, #Module:GetSavedLogs())
             assert.same({ "ENCOUNTER_STATE_CHANGED 0.000 2" }, Module:GetLines())
         end)
 
@@ -154,36 +156,123 @@ describe("EventLog", function()
             assert.same({ "ENCOUNTER_TIMELINE_EVENT_REMOVED 0.000 9" }, Module:GetLines())
         end)
 
-        it("saves encounter ID and wall-clock start time", function()
+        it("saves encounter identity, ISO start time, and duration once the encounter ends", function()
             ns.Api.Client.calendarTime = {
                 year = 2026,
-                month = 11,
+                month = 1,
                 monthDay = 2,
-                hour = 18,
-                minute = 53,
+                hour = 8,
+                minute = 3,
                 second = 4,
             }
-            Encounter.FireStart(3134, "Boss", 16, 20)
+            Timer.now = 100
+            Encounter.FireStart(3134, "Coiled Altar", 16, 20)
             GameEvents.Fire("INSTANCE_ENCOUNTER_ENGAGE_UNIT")
+            local saved = Module:GetSavedLogs()
+            assert.equals(1, #saved)
+            local id = saved[1].id
             assert.same({
+                id = id,
                 encounterID = 3134,
-                startedAt = "26-11-02-18:53:04",
-            }, Module:GetSavedLog())
-            assert.equals("INSTANCE_ENCOUNTER_ENGAGE_UNIT 0.000", Module:GetLogText())
+                encounterName = "Coiled Altar",
+                startedAt = "2026-01-02T08:03:04",
+            }, saved[1])
+            assert.equals("INSTANCE_ENCOUNTER_ENGAGE_UNIT 0.000", Module:GetLogText(id))
+
+            Timer.now = 372.5
             EndEncounter()
-            assert.same({
-                encounterID = 3134,
-                startedAt = "26-11-02-18:53:04",
-            }, Module:GetSavedLog())
+            assert.equals(272.5, Module:GetSavedLogs()[1].duration)
         end)
 
-        it("notifies when a new log is saved", function()
+        it("leaves the encounter name unset when the game hides it", function()
+            Encounter.FireStart(7, Secret(), 16, 20)
+            assert.is_nil(Module:GetSavedLogs()[1].encounterName)
+            assert.equals(7, Module:GetSavedLogs()[1].encounterID)
+        end)
+
+        it("stamps the duration when disabled mid-encounter", function()
+            Timer.now = 25
+            Module:SetEnabled(false)
+            assert.equals(15, Module:GetSavedLogs()[1].duration)
+        end)
+
+        it("notifies when a log starts and when it finishes", function()
             local seen = 0
             function Module:OnSavedLogChanged()
                 seen = seen + 1
             end
             Encounter.FireStart(2, "Boss", 16, 20)
             assert.equals(1, seen)
+            EndEncounter()
+            assert.equals(2, seen)
+            EndEncounter()
+            assert.equals(2, seen)
+        end)
+    end)
+
+    describe("with several logs kept", function()
+        local function Pull(encounterID, marker)
+            Encounter.FireStart(encounterID, "Boss " .. encounterID, 16, 20)
+            GameEvents.Fire("ENCOUNTER_STATE_CHANGED", marker)
+            Timer.now = Timer.now + 30
+            Encounter.FireEnd(encounterID, "Boss " .. encounterID, 16, 20, 1)
+        end
+
+        local function SavedIDs()
+            local ids = {}
+            for i, saved in ipairs(Module:GetSavedLogs()) do
+                ids[i] = saved.encounterID
+            end
+            return ids
+        end
+
+        before_each(function()
+            Module:SetEnabled(true)
+            Module:SetMaxLogs(3)
+        end)
+
+        it("lists logs newest first, each with its own lines", function()
+            Pull(1, "a")
+            Pull(2, "b")
+            assert.same({ 2, 1 }, SavedIDs())
+            local saved = Module:GetSavedLogs()
+            assert.equals("ENCOUNTER_STATE_CHANGED 0.000 b", Module:GetLogText(saved[1].id))
+            assert.equals("ENCOUNTER_STATE_CHANGED 0.000 a", Module:GetLogText(saved[2].id))
+        end)
+
+        it("drops the oldest log when a new encounter starts with the list full", function()
+            Pull(1, "a")
+            local oldestID = Module:GetSavedLogs()[1].id
+            Pull(2, "b")
+            Pull(3, "c")
+            Pull(4, "d")
+            assert.same({ 4, 3, 2 }, SavedIDs())
+            assert.is_nil(Module:GetLogText(oldestID))
+        end)
+
+        it("drops the oldest logs right away when the limit is lowered", function()
+            Pull(1, "a")
+            Pull(2, "b")
+            Pull(3, "c")
+            local seen = 0
+            function Module:OnSavedLogChanged()
+                seen = seen + 1
+            end
+            Module:SetMaxLogs(1)
+            assert.same({ 3 }, SavedIDs())
+            assert.equals(1, seen)
+            Module:SetMaxLogs(5)
+            assert.same({ 3 }, SavedIDs())
+            assert.equals(1, seen)
+        end)
+
+        it("keeps the limit within 1 to 20 whole logs", function()
+            Module:SetMaxLogs(0)
+            assert.equals(1, Module:GetMaxLogs())
+            Module:SetMaxLogs(99)
+            assert.equals(20, Module:GetMaxLogs())
+            Module:SetMaxLogs(4.4)
+            assert.equals(4, Module:GetMaxLogs())
         end)
     end)
 end)

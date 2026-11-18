@@ -5,6 +5,7 @@ local GameEvents = ns.Api.GameEvents
 local Secrets = ns.Api.Secrets
 local Timer = ns.Api.Timer
 local Unit = ns.Api.Unit
+local Util = ns.Util
 
 local SECRET_TEXT = "<secret>"
 
@@ -43,29 +44,44 @@ local ENEMY_UNIT_EVENTS = {
     UNIT_FACTION = true,
 }
 
+local MAX_LOGS_MIN = 1
+local MAX_LOGS_MAX = 20
+local MAX_LOGS_STEP = 1
+
 ---@class EventLog: Module
----@field OnSavedLogChanged fun(self: EventLog)|nil  Defined by the UI; called when the saved log identity changes.
+---@field OnSavedLogChanged fun(self: EventLog)|nil  Defined by the UI; called when the saved log list changes.
 local EventLog = ns.Modules.New("EventLog", {
     defaults = {
         enabled = false,
+        maxLogs = 1,
     },
 })
 
----@class EventLogSaved
----@field encounterID number
----@field startedAt string
+EventLog.MAX_LOGS_MIN = MAX_LOGS_MIN
+EventLog.MAX_LOGS_MAX = MAX_LOGS_MAX
+EventLog.MAX_LOGS_STEP = MAX_LOGS_STEP
 
----@type string[]
-local lines = {}
+---@class EventLogSaved
+---@field id integer  Unique for the session; stable while the log is kept.
+---@field encounterID number
+---@field encounterName string|nil  Nil when the game did not provide a readable name.
+---@field startedAt string  Local wall-clock start, `YYYY-MM-DDTHH:MM:SS`.
+---@field duration number|nil  Seconds; nil while the encounter is still being recorded.
+
+---@class EventLogRecord: EventLogSaved
+---@field lines string[]
+
+---Newest first.
+---@type EventLogRecord[]
+local logs = {}
+local nextLogID = 1
 local listening = false
 ---@type number|nil
 local encounterStart
+---@type EventLogRecord|nil
+local recording
 ---@type ResourceScope|nil
 local sessionScope
----@type number|nil
-local savedEncounterID
----@type string|nil
-local savedStartedAt
 
 local function NotifySavedLogChanged()
     if EventLog.OnSavedLogChanged then
@@ -83,11 +99,11 @@ end
 local function FormatStartTime()
     local clock = Client.GetCalendarTime()
     if type(clock) ~= "table" then
-        return "00-00-00-00:00:00"
+        return "0000-00-00T00:00:00"
     end
     return string.format(
-        "%02d-%02d-%02d-%02d:%02d:%02d",
-        ClockField(clock.year) % 100,
+        "%04d-%02d-%02dT%02d:%02d:%02d",
+        ClockField(clock.year),
         ClockField(clock.month),
         ClockField(clock.monthDay),
         ClockField(clock.hour),
@@ -176,18 +192,56 @@ local function SubscribeLoggedEvents(callback)
     end
 end
 
+---Stops recording and stamps the duration on the log being recorded.
+---@return boolean  True when a recording was finished.
 local function StopSession()
     local scope = sessionScope
+    local record = recording
+    local startTime = encounterStart
     sessionScope = nil
     encounterStart = nil
+    recording = nil
     if scope then
         scope:Dispose()
     end
+    if not record or not startTime then
+        return false
+    end
+    record.duration = math.max(Timer.GetTime() - startTime, 0)
+    return true
+end
+
+local function EndEncounter()
+    if StopSession() then
+        NotifySavedLogChanged()
+    end
+end
+
+---Drops the oldest logs beyond `limit`.
+---@param limit integer
+---@return boolean  True when any log was removed.
+local function TrimLogs(limit)
+    local trimmed = false
+    while #logs > limit do
+        logs[#logs] = nil
+        trimmed = true
+    end
+    return trimmed
+end
+
+---@param name any
+---@return string|nil
+local function ReadableName(name)
+    if Secrets.IsSecret(name) or type(name) ~= "string" or name == "" then
+        return nil
+    end
+    return name
 end
 
 local function OnLoggedEvent(event, ...)
     local startTime = encounterStart
-    if not startTime then
+    local record = recording
+    if not startTime or not record then
         return
     end
     local fields = { event, string.format("%.3f", Timer.GetTime() - startTime) }
@@ -195,19 +249,32 @@ local function OnLoggedEvent(event, ...)
     for i = 1, #payload do
         fields[#fields + 1] = payload[i]
     end
-    lines[#lines + 1] = table.concat(fields, " ")
+    record.lines[#record.lines + 1] = table.concat(fields, " ")
 end
 
 ---@param encounterID number|nil
-local function BeginEncounter(encounterID)
-    StopSession()
+---@param encounterName any
+local function BeginEncounter(encounterID, encounterName)
+    local stopped = StopSession()
     if not EventLog:IsEnabled() then
+        if stopped then
+            NotifySavedLogChanged()
+        end
         return
     end
-    lines = {}
+    ---@type EventLogRecord
+    local record = {
+        id = nextLogID,
+        encounterID = tonumber(encounterID) or 0,
+        encounterName = ReadableName(encounterName),
+        startedAt = FormatStartTime(),
+        lines = {},
+    }
+    nextLogID = nextLogID + 1
+    table.insert(logs, 1, record)
+    TrimLogs(EventLog:GetMaxLogs())
+    recording = record
     encounterStart = Timer.GetTime()
-    savedEncounterID = tonumber(encounterID) or 0
-    savedStartedAt = FormatStartTime()
     local scope = ns.ResourceScope.New()
     sessionScope = scope
     scope:Subscribe(SubscribeLoggedEvents, OnLoggedEvent)
@@ -215,6 +282,20 @@ local function BeginEncounter(encounterID)
         scope:Dispose()
     end
     NotifySavedLogChanged()
+end
+
+---@param id integer|nil
+---@return EventLogRecord|nil
+local function FindLog(id)
+    if id == nil then
+        return logs[1]
+    end
+    for i = 1, #logs do
+        if logs[i].id == id then
+            return logs[i]
+        end
+    end
+    return nil
 end
 
 ---@return boolean
@@ -230,32 +311,60 @@ function EventLog:SetEnabled(enabled)
     end
     self.db.enabled = enabled
     if not enabled then
-        StopSession()
+        EndEncounter()
     end
 end
 
----Current encounter log lines. Cleared when a new encounter starts while enabled.
+---How many logs are kept; the oldest is dropped when a new encounter starts with the list full.
+---@return integer
+function EventLog:GetMaxLogs()
+    return Util.Snap(tonumber(self.db.maxLogs) or MAX_LOGS_MIN, MAX_LOGS_MIN, MAX_LOGS_MAX, MAX_LOGS_STEP)
+end
+
+---Lowering the limit drops the oldest logs right away.
+---@param value number
+function EventLog:SetMaxLogs(value)
+    local limit = Util.Snap(tonumber(value) or MAX_LOGS_MIN, MAX_LOGS_MIN, MAX_LOGS_MAX, MAX_LOGS_STEP)
+    self.db.maxLogs = limit
+    if TrimLogs(limit) then
+        NotifySavedLogChanged()
+    end
+end
+
+---Saved logs, newest first. The returned entries are copies.
+---@return EventLogSaved[]
+function EventLog:GetSavedLogs()
+    local out = {}
+    for i = 1, #logs do
+        local record = logs[i]
+        out[i] = {
+            id = record.id,
+            encounterID = record.encounterID,
+            encounterName = record.encounterName,
+            startedAt = record.startedAt,
+            duration = record.duration,
+        }
+    end
+    return out
+end
+
+---Lines of a saved log. Empty when the log does not exist.
+---@param id integer|nil  Defaults to the newest log.
 ---@return string[]
-function EventLog:GetLines()
-    return lines
+function EventLog:GetLines(id)
+    local record = FindLog(id)
+    return record and record.lines or {}
 end
 
----Log lines joined for the viewer. Empty when nothing has been recorded yet.
----@return string
-function EventLog:GetLogText()
-    return table.concat(lines, "\n")
-end
-
----Identity of the last recorded encounter, or nil when no log has been saved.
----@return EventLogSaved|nil
-function EventLog:GetSavedLog()
-    if savedEncounterID == nil or savedStartedAt == nil then
+---Log lines joined for the viewer, or nil when the log does not exist.
+---@param id integer|nil  Defaults to the newest log.
+---@return string|nil
+function EventLog:GetLogText(id)
+    local record = FindLog(id)
+    if not record then
         return nil
     end
-    return {
-        encounterID = savedEncounterID,
-        startedAt = savedStartedAt,
-    }
+    return table.concat(record.lines, "\n")
 end
 
 ---Registers encounter start/end listeners once. Called from OnEnable.
@@ -265,5 +374,5 @@ function EventLog:StartListening()
     end
     listening = true
     Encounter.OnStart(BeginEncounter)
-    Encounter.OnEnd(StopSession)
+    Encounter.OnEnd(EndEncounter)
 end
