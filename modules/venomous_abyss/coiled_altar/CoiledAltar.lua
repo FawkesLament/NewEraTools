@@ -7,16 +7,16 @@ local ADDON_CHECK_MODULE_ID = "CoiledAltar"
 
 -- The Coiled Altar, the seventh boss of The Venomous Abyss.
 -- There is no module-wide enable. Each reminder keeps its own saved settings.
-local SCALE_MIN = 0.7
-local SCALE_MAX = 1.5
+local SCALE_MIN = 0.8
+local SCALE_MAX = 1.8
 local SCALE_STEP = 0.05
-local NUMBER_FONT_SIZE = 14
+local NUMBER_FONT_SIZE = 13
 local NUMBER_FONT_SIZE_MIN = 8
-local NUMBER_FONT_SIZE_MAX = 24
+local NUMBER_FONT_SIZE_MAX = 16
 local NUMBER_FONT_SIZE_STEP = 1
-local NAME_FONT_SIZE = 11
+local NAME_FONT_SIZE = 14
 local NAME_FONT_SIZE_MIN = 8
-local NAME_FONT_SIZE_MAX = 20
+local NAME_FONT_SIZE_MAX = 16
 local NAME_FONT_SIZE_STEP = 1
 local OFFSET_MIN = -100
 local OFFSET_MAX = 100

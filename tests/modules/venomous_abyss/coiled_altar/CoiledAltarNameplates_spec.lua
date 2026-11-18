@@ -41,6 +41,12 @@ local function FakeFrame(parent)
         function texture:SetTexture(path)
             self.texture = path
         end
+        function texture:SetColorTexture(r, g, b, a)
+            self.color = { r = r, g = g, b = b, a = a }
+        end
+        function texture:SetVertexColor(r, g, b, a)
+            self.color = { r = r, g = g, b = b, a = a }
+        end
         function texture:SetSnapToPixelGrid() end
         function texture:SetTexelSnappingBias() end
         self.textures[#self.textures + 1] = texture
@@ -189,6 +195,17 @@ describe("CoiledAltar interrupt nameplate indicators", function()
         math.random = originalRandom
     end)
 
+    local GOLD_FILL = { r = 1.0, g = 0.78, b = 0.0, a = 1.0 }
+    local GREEN_FILL = { r = 0.56, g = 0.90, b = 0.56, a = 1.0 }
+
+    local function AssertFill(indicator, expected)
+        local color = indicator.textures[2].color
+        assert.equals(expected.r, color.r)
+        assert.equals(expected.g, color.g)
+        assert.equals(expected.b, color.b)
+        assert.equals(expected.a, color.a)
+    end
+
     local function StartPreview()
         CoiledAltar:SetNameplateHintEnabled(true)
         CoiledAltar:SetNameplateHintPreviewing(true)
@@ -260,24 +277,21 @@ describe("CoiledAltar interrupt nameplate indicators", function()
         Nameplate.FireAdded("nameplate1", plateA)
         Nameplate.FireAdded("nameplate2", plateB)
         local indicators = Indicators()
-        local textures = ns.Assets.Textures
-        assert.equals(textures.INTERRUPT_INDICATOR_LEFT_PALE_GREEN, indicators[1].textures[1].texture)
-        assert.equals(textures.INTERRUPT_INDICATOR_CENTER_PALE_GREEN, indicators[1].textures[2].texture)
-        assert.equals(textures.INTERRUPT_INDICATOR_RIGHT_PALE_GREEN, indicators[1].textures[3].texture)
-        assert.equals(textures.INTERRUPT_INDICATOR_LEFT_GOLD, indicators[2].textures[1].texture)
+        AssertFill(indicators[1], GREEN_FILL)
+        AssertFill(indicators[2], GOLD_FILL)
         assert.equals(2, index)
 
         Nameplate.FireAdded("nameplate1", plateA)
         CoiledAltar:SetNameplateHintScale(1.25)
         assert.equals(2, index)
-        assert.equals(textures.INTERRUPT_INDICATOR_LEFT_PALE_GREEN, indicators[1].textures[1].texture)
-        assert.equals(textures.INTERRUPT_INDICATOR_LEFT_GOLD, indicators[2].textures[1].texture)
+        AssertFill(indicators[1], GREEN_FILL)
+        AssertFill(indicators[2], GOLD_FILL)
 
         Nameplate.FireRemoved("nameplate1")
         local recycled = FakeFrame(nil)
         Nameplate.FireAdded("nameplate1", recycled)
         assert.equals(3, index)
-        assert.equals(textures.INTERRUPT_INDICATOR_LEFT_PALE_GREEN, indicators[1].textures[1].texture)
+        AssertFill(indicators[1], GREEN_FILL)
     end)
 
     it("uses the gold scheme for live assignments", function()
@@ -289,9 +303,8 @@ describe("CoiledAltar interrupt nameplate indicators", function()
         SetEnemy("nameplate1", true)
         Nameplate.frames.nameplate1 = plate
         Nameplate.FireAdded("nameplate1", plate)
-        local textures = ns.Assets.Textures
         local indicator = Indicators()[1]
-        assert.equals(textures.INTERRUPT_INDICATOR_LEFT_PALE_GREEN, indicator.textures[1].texture)
+        AssertFill(indicator, GREEN_FILL)
 
         CoiledAltar:SetNameplateHintPreviewing(false)
         math.random = function()
@@ -299,9 +312,7 @@ describe("CoiledAltar interrupt nameplate indicators", function()
         end
         Nameplates.Show("nameplate1", 4, "Rdu", "MAGE")
         assert.equals(1, #Indicators())
-        assert.equals(textures.INTERRUPT_INDICATOR_LEFT_GOLD, indicator.textures[1].texture)
-        assert.equals(textures.INTERRUPT_INDICATOR_CENTER_GOLD, indicator.textures[2].texture)
-        assert.equals(textures.INTERRUPT_INDICATOR_RIGHT_GOLD, indicator.textures[3].texture)
+        AssertFill(indicator, GOLD_FILL)
     end)
 
     it("does not create extra indicators when the same unit is added twice", function()
@@ -352,13 +363,13 @@ describe("CoiledAltar interrupt nameplate indicators", function()
         Nameplate.FireAdded("nameplate1", plate)
         local indicator = Indicators()[1]
         local defaultHeight = indicator:GetHeight()
-        CoiledAltar:SetNameplateHintNumberFontSize(18)
+        CoiledAltar:SetNameplateHintNumberFontSize(16)
         CoiledAltar:SetNameplateHintNameFontSize(9)
-        assert.equals(18, indicator.fontStrings[1].font.size)
+        assert.equals(16, indicator.fontStrings[1].font.size)
         assert.equals(9, indicator.fontStrings[2].font.size)
         CoiledAltar:SetNameplateHintScale(1.5)
         assert.equals(defaultHeight * 1.5, indicator:GetHeight())
-        assert.equals(27, indicator.fontStrings[1].font.size)
+        assert.equals(24, indicator.fontStrings[1].font.size)
         assert.equals(13.5, indicator.fontStrings[2].font.size)
         CoiledAltar:SetNameplateHintOffsetX(10)
         CoiledAltar:SetNameplateHintOffsetY(-6)
@@ -461,7 +472,6 @@ describe("CoiledAltar interrupt nameplate indicators", function()
     end)
 
     it("colors live indicators pale green for melee and gold when ranged or the chain is unknown", function()
-        local textures = ns.Assets.Textures
         local ranged = FakeFrame(nil)
         local melee = FakeFrame(nil)
         SetEnemy("nameplate1", true)
@@ -483,8 +493,8 @@ describe("CoiledAltar interrupt nameplate indicators", function()
         end
         local gold = IndicatorOn(ranged)
         local green = IndicatorOn(melee)
-        assert.equals(textures.INTERRUPT_INDICATOR_LEFT_GOLD, gold.textures[1].texture)
-        assert.equals(textures.INTERRUPT_INDICATOR_LEFT_PALE_GREEN, green.textures[1].texture)
+        AssertFill(gold, GOLD_FILL)
+        AssertFill(green, GREEN_FILL)
 
         Nameplates.Apply({
             nameplate1 = { number = 1, name = "RangeOne", scheme = ns.InterruptIndicator.SCHEME_GOLD },
@@ -493,10 +503,8 @@ describe("CoiledAltar interrupt nameplate indicators", function()
         assert.equals(2, #Indicators())
         assert(gold == IndicatorOn(ranged), "ranged indicator must be reused")
         assert(green == IndicatorOn(melee), "melee indicator must be reused")
-        assert.equals(textures.INTERRUPT_INDICATOR_LEFT_GOLD, gold.textures[1].texture)
-        assert.equals(textures.INTERRUPT_INDICATOR_CENTER_GOLD, gold.textures[2].texture)
-        assert.equals(textures.INTERRUPT_INDICATOR_LEFT_PALE_GREEN, green.textures[1].texture)
-        assert.equals(textures.INTERRUPT_INDICATOR_CENTER_PALE_GREEN, green.textures[2].texture)
+        AssertFill(gold, GOLD_FILL)
+        AssertFill(green, GREEN_FILL)
     end)
 
     it("hides a live indicator as soon as its nameplate is removed", function()

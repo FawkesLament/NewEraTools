@@ -40,6 +40,12 @@ local function FakeFrame(parent)
         function texture:SetTexture(path)
             self.texture = path
         end
+        function texture:SetColorTexture(r, g, b, a)
+            self.color = { r = r, g = g, b = b, a = a }
+        end
+        function texture:SetVertexColor(r, g, b, a)
+            self.color = { r = r, g = g, b = b, a = a }
+        end
         function texture:SetSnapToPixelGrid(enabled)
             self.snapToPixelGrid = enabled == true
         end
@@ -154,44 +160,58 @@ describe("InterruptIndicator", function()
         return Indicator.Create(nil)
     end
 
-    it("applies pale-green slice textures when that scheme is selected", function()
+    local GOLD_FILL = { r = 1.0, g = 0.78, b = 0.0, a = 1.0 }
+    local GREEN_FILL = { r = 0.56, g = 0.90, b = 0.56, a = 1.0 }
+
+    local function AssertColor(actual, expected)
+        assert.equals(expected.r, actual.r)
+        assert.equals(expected.g, actual.g)
+        assert.equals(expected.b, actual.b)
+        assert.equals(expected.a, actual.a)
+    end
+
+    it("applies pale-green badge fill when that scheme is selected", function()
         local indicator = Indicator.Create(nil, Indicator.SCHEME_PALE_GREEN)
-        local left, center, right = indicator.textures[1], indicator.textures[2], indicator.textures[3]
-        assert.equals(ns.Assets.Textures.INTERRUPT_INDICATOR_LEFT_PALE_GREEN, left.texture)
-        assert.equals(ns.Assets.Textures.INTERRUPT_INDICATOR_CENTER_PALE_GREEN, center.texture)
-        assert.equals(ns.Assets.Textures.INTERRUPT_INDICATOR_RIGHT_PALE_GREEN, right.texture)
+        local border, fill = indicator.textures[1], indicator.textures[2]
+        assert.equals(ns.Assets.Textures.INTERRUPT_INDICATOR_BADGE_BORDER, border.texture)
+        assert.equals(ns.Assets.Textures.INTERRUPT_INDICATOR_BADGE_FILL, fill.texture)
+        AssertColor(border.color, { r = 0, g = 0, b = 0, a = 0.95 })
+        AssertColor(fill.color, GREEN_FILL)
 
         indicator:SetColorScheme(Indicator.SCHEME_GOLD)
-        assert.equals(ns.Assets.Textures.INTERRUPT_INDICATOR_LEFT_GOLD, left.texture)
-        assert.equals(ns.Assets.Textures.INTERRUPT_INDICATOR_CENTER_GOLD, center.texture)
-        assert.equals(ns.Assets.Textures.INTERRUPT_INDICATOR_RIGHT_GOLD, right.texture)
+        AssertColor(border.color, { r = 0, g = 0, b = 0, a = 0.95 })
+        AssertColor(fill.color, GOLD_FILL)
     end)
 
-    it("builds a three-slice chip that ignores mouse input", function()
+    it("builds a square badge chip that ignores mouse input", function()
         local indicator = Create()
-        local left, center, right = indicator.textures[1], indicator.textures[2], indicator.textures[3]
+        local border, fill = indicator.textures[1], indicator.textures[2]
         local number = indicator.fontStrings[1]
         local name = indicator.fontStrings[2]
         assert.is_false(indicator.mouseEnabled)
-        assert.equals(ns.Assets.Textures.INTERRUPT_INDICATOR_LEFT_GOLD, left.texture)
-        assert.equals(ns.Assets.Textures.INTERRUPT_INDICATOR_CENTER_GOLD, center.texture)
-        assert.equals(ns.Assets.Textures.INTERRUPT_INDICATOR_RIGHT_GOLD, right.texture)
+        assert.equals(ns.Assets.Textures.INTERRUPT_INDICATOR_BADGE_BORDER, border.texture)
+        assert.equals(ns.Assets.Textures.INTERRUPT_INDICATOR_BADGE_FILL, fill.texture)
+        AssertColor(border.color, { r = 0, g = 0, b = 0, a = 0.95 })
+        AssertColor(fill.color, GOLD_FILL)
         assert.equals(Indicator.HEIGHT, indicator:GetHeight())
-        assert.equals(left:GetHeight(), center:GetHeight())
-        assert.equals(center:GetHeight(), right:GetHeight())
+        assert.equals(Indicator.HEIGHT, border:GetWidth())
+        assert.equals(Indicator.HEIGHT, border:GetHeight())
         assert.equals("CENTER", number.justifyH)
         assert.equals("MIDDLE", number.justifyV)
         assert.is_false(number.wordWrap)
         assert.is_false(name.wordWrap)
-        assert.equals(true, number.allPoints == left)
-        assert.equals(false, left.snapToPixelGrid)
-        assert.equals(0, left.texelSnappingBias)
+        assert.equals(true, number.allPoints == border)
+        assert.equals(true, fill.allPoints == border)
+        assert.equals(false, border.snapToPixelGrid)
+        assert.equals(0, border.texelSnappingBias)
+        assert.equals(false, fill.snapToPixelGrid)
         assert.equals(ns.Assets.FontFiles.EXPRESSWAY, number.font.path)
         assert.equals(Indicator.NUMBER_FONT_SIZE, number.font.size)
         assert.equals("", number.font.flags)
         assert.equals(Indicator.NUMBER_COLOR.r, number.color.r)
         assert.equals(Indicator.NUMBER_COLOR.g, number.color.g)
         assert.equals(Indicator.NUMBER_COLOR.b, number.color.b)
+        assert.equals("OUTLINE", name.font.flags)
     end)
 
     it("scales independent number and name font sizes with the chip", function()
@@ -227,24 +247,21 @@ describe("InterruptIndicator", function()
         assert.equals(gold.b, color.b)
     end)
 
-    it("widens the stretchable center for longer names without resizing the caps", function()
+    it("widens the chip for longer names without resizing the square badge", function()
         local indicator = Create()
         indicator:SetAssignment(1, "Al", "WARRIOR")
-        local left = indicator.textures[1]
-        local center = indicator.textures[2]
-        local right = indicator.textures[3]
-        local shortCenter = center:GetWidth()
-        local leftWidth = left:GetWidth()
-        local rightWidth = right:GetWidth()
+        local badge = indicator.textures[1]
+        local badgeWidth = badge:GetWidth()
+        local badgeHeight = badge:GetHeight()
         local shortTotal = indicator:GetWidth()
 
         indicator:SetAssignment(1, "LongerName", "WARRIOR")
-        assert.equals(leftWidth, left:GetWidth())
-        assert.equals(rightWidth, right:GetWidth())
-        assert.is_true(center:GetWidth() > shortCenter)
+        assert.equals(badgeWidth, badge:GetWidth())
+        assert.equals(badgeHeight, badge:GetHeight())
+        assert.equals(badge:GetWidth(), badge:GetHeight())
         assert.is_true(indicator:GetWidth() > shortTotal)
         assert.equals(Indicator.HEIGHT, indicator:GetHeight())
-        assert.equals(left:GetHeight(), right:GetHeight())
+        assert.equals(Indicator.HEIGHT + 5 + indicator.fontStrings[2]:GetUnboundedStringWidth(), indicator:GetWidth())
     end)
 
     it("truncates names that exceed the maximum width", function()
@@ -253,8 +270,8 @@ describe("InterruptIndicator", function()
         local name = indicator.fontStrings[2]:GetText()
         assert.is_true(#name < 40)
         assert.equals("…", name:sub(-3))
-        local maxCenter = Indicator.MAX_NAME_WIDTH + 10
-        assert.is_true(indicator.textures[2]:GetWidth() <= maxCenter)
+        local maxWidth = Indicator.HEIGHT + 5 + Indicator.MAX_NAME_WIDTH
+        assert.is_true(indicator:GetWidth() <= maxWidth)
     end)
 
     it("keeps the full name when measured width is not plausible", function()
@@ -269,25 +286,23 @@ describe("InterruptIndicator", function()
             end
             indicator:SetAssignment(1, "Rdu", "MAGE")
             assert.equals("Rdu", name:GetText())
-            assert.is_true(indicator.textures[2]:GetWidth() > 18)
+            assert.is_true(indicator:GetWidth() > Indicator.HEIGHT)
         end
         MeasureWrong(0)
         MeasureWrong(8)
         MeasureWrong(1000)
     end)
 
-    it("scales the chip uniformly without changing cap proportions", function()
+    it("scales the square badge uniformly", function()
         local indicator = Create()
         indicator:SetAssignment(24, "Rdu", "MAGE")
-        local left = indicator.textures[1]
-        local right = indicator.textures[3]
-        local ratio = left:GetWidth() / right:GetWidth()
+        local badge = indicator.textures[1]
+        assert.equals(badge:GetWidth(), badge:GetHeight())
         indicator:SetScale(1.5)
         assert.equals(Indicator.HEIGHT * 1.5, indicator:GetHeight())
-        assert.equals(left:GetHeight(), indicator:GetHeight())
-        assert.equals(right:GetHeight(), indicator:GetHeight())
-        local scaledRatio = left:GetWidth() / right:GetWidth()
-        assert.is_true(math.abs(ratio - scaledRatio) < 1e-6)
+        assert.equals(badge:GetHeight(), indicator:GetHeight())
+        assert.equals(badge:GetWidth(), badge:GetHeight())
+        assert.equals(true, indicator.textures[2].allPoints == badge)
     end)
 
     it("anchors below a nameplate, or its cast bar when that child exists", function()

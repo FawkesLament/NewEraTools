@@ -6,16 +6,11 @@ local Unit = ns.Api.Unit
 local FontFiles = Assets.FontFiles
 local Textures = Assets.Textures
 
--- Cropped 3-slice art (media/icons/interrupt_indicator_*.tga), height 64.
--- Gold is the default scheme; pale-green variants keep the same slice sizes.
-local TEXTURE_HEIGHT = 64
-local LEFT_TEXTURE_WIDTH = 94
-local RIGHT_TEXTURE_WIDTH = 34
--- Compact nameplate size; caps keep their texture aspect at this height.
-local HEIGHT = 24
+-- Compact square badge at scale 1; the name floats beside it with no background.
+local HEIGHT = 18
 -- Gap from the nameplate (or its cast bar) before saved offsets.
 local GAP = 1
--- Sequence number on the left cap. Names stay on the locale UI face for CJK.
+-- Sequence number on the badge. Names stay on the locale UI face for CJK.
 local NUMBER_FONT_SIZE = 14
 local NAME_FONT_SIZE = 11
 local NAME_PAD = 5
@@ -30,23 +25,15 @@ local SIDE_BOTTOM = "bottom"
 local SCHEME_GOLD = "gold"
 local SCHEME_PALE_GREEN = "pale_green"
 
-local SCHEME_TEXTURES = {
-    [SCHEME_GOLD] = {
-        left = Textures.INTERRUPT_INDICATOR_LEFT_GOLD,
-        center = Textures.INTERRUPT_INDICATOR_CENTER_GOLD,
-        right = Textures.INTERRUPT_INDICATOR_RIGHT_GOLD,
-    },
-    [SCHEME_PALE_GREEN] = {
-        left = Textures.INTERRUPT_INDICATOR_LEFT_PALE_GREEN,
-        center = Textures.INTERRUPT_INDICATOR_CENTER_PALE_GREEN,
-        right = Textures.INTERRUPT_INDICATOR_RIGHT_PALE_GREEN,
-    },
+local SCHEME_COLORS = {
+    [SCHEME_GOLD] = { r = 1.0, g = 0.78, b = 0.0, a = 1.0 },
+    [SCHEME_PALE_GREEN] = { r = 0.56, g = 0.90, b = 0.56, a = 1.0 },
 }
 
 ---@param scheme string|nil
 ---@return string
 local function ResolveScheme(scheme)
-    if SCHEME_TEXTURES[scheme] then
+    if SCHEME_COLORS[scheme] then
         return scheme
     end
     return SCHEME_GOLD
@@ -222,7 +209,7 @@ local function PrepareSlice(texture)
     end
 end
 
----Compact three-slice interrupt assignment chip. Does not receive mouse input.
+---Compact square-badge interrupt assignment chip. Does not receive mouse input.
 ---@param parent Frame|nil
 ---@param scheme "gold"|"pale_green"|nil
 ---@return InterruptIndicator
@@ -231,20 +218,18 @@ function InterruptIndicator.Create(parent, scheme)
     frame:EnableMouse(false)
     scheme = ResolveScheme(scheme)
 
-    local left = frame:CreateTexture(nil, "ARTWORK")
-    PrepareSlice(left)
+    local badgeBorder = frame:CreateTexture(nil, "BACKGROUND")
+    PrepareSlice(badgeBorder)
+    badgeBorder:SetTexture(Textures.INTERRUPT_INDICATOR_BADGE_BORDER)
 
-    local center = frame:CreateTexture(nil, "ARTWORK")
-    PrepareSlice(center)
-
-    local right = frame:CreateTexture(nil, "ARTWORK")
-    PrepareSlice(right)
+    local badgeBg = frame:CreateTexture(nil, "ARTWORK")
+    PrepareSlice(badgeBg)
+    badgeBg:SetTexture(Textures.INTERRUPT_INDICATOR_BADGE_FILL)
 
     local function ApplyScheme()
-        local textures = SCHEME_TEXTURES[scheme]
-        left:SetTexture(textures.left)
-        center:SetTexture(textures.center)
-        right:SetTexture(textures.right)
+        badgeBorder:SetVertexColor(0, 0, 0, 0.95)
+        local c = SCHEME_COLORS[scheme]
+        badgeBg:SetVertexColor(c.r, c.g, c.b, 1)
     end
 
     ApplyScheme()
@@ -258,8 +243,8 @@ function InterruptIndicator.Create(parent, scheme)
     nameLabel:SetJustifyH("LEFT")
     nameLabel:SetJustifyV("MIDDLE")
     nameLabel:SetWordWrap(false)
-    nameLabel:SetShadowOffset(0, 0)
-    nameLabel:SetShadowColor(0, 0, 0, 0)
+    nameLabel:SetShadowOffset(1, -1)
+    nameLabel:SetShadowColor(0, 0, 0, 1)
 
     local scale = 1
     local numberFontSize = NUMBER_FONT_SIZE
@@ -298,17 +283,15 @@ function InterruptIndicator.Create(parent, scheme)
             return
         end
         pointsReady = true
-        left:SetPoint("TOPLEFT", frame, "TOPLEFT")
-        center:SetPoint("TOPLEFT", left, "TOPRIGHT")
-        right:SetPoint("TOPLEFT", center, "TOPRIGHT")
-        numberLabel:SetAllPoints(left)
+        badgeBorder:SetPoint("TOPLEFT", frame, "TOPLEFT")
+        badgeBg:SetAllPoints(badgeBorder)
+        numberLabel:SetAllPoints(badgeBorder)
     end
 
     local function Relayout()
         EnsurePoints()
         local height = HEIGHT * scale
-        local leftWidth = LEFT_TEXTURE_WIDTH * height / TEXTURE_HEIGHT
-        local rightWidth = RIGHT_TEXTURE_WIDTH * height / TEXTURE_HEIGHT
+        local badgeWidth = height
         local pad = NAME_PAD * scale
         local maxNameWidth = MAX_NAME_WIDTH * scale
         ApplyNumberFont()
@@ -323,16 +306,13 @@ function InterruptIndicator.Create(parent, scheme)
         if nameWidth < MIN_NAME_WIDTH * scale then
             nameWidth = MIN_NAME_WIDTH * scale
         end
-        local centerWidth = nameWidth + pad * 2
-        left:SetSize(leftWidth, height)
-        center:SetSize(centerWidth, height)
-        right:SetSize(rightWidth, height)
+        badgeBorder:SetSize(badgeWidth, height)
         nameLabel:ClearAllPoints()
         -- One horizontal anchor only: a LEFT+RIGHT pair makes retail ellipsize the name.
-        nameLabel:SetPoint("LEFT", center, "LEFT", pad, 0)
-        nameLabel:SetPoint("TOP", center, "TOP")
-        nameLabel:SetPoint("BOTTOM", center, "BOTTOM")
-        frame:SetSize(leftWidth + centerWidth + rightWidth, height)
+        nameLabel:SetPoint("LEFT", badgeBorder, "RIGHT", pad, 0)
+        nameLabel:SetPoint("TOP", frame, "TOP")
+        nameLabel:SetPoint("BOTTOM", frame, "BOTTOM")
+        frame:SetSize(badgeWidth + pad + nameWidth, height)
         ApplyNameColor()
     end
 
@@ -415,7 +395,7 @@ function InterruptIndicator.Create(parent, scheme)
         ApplyAnchor()
     end
 
-    ---Swaps the three-slice art. Unknown values fall back to gold.
+    ---Swaps the badge fill. Unknown values fall back to gold.
     ---@param nextScheme "gold"|"pale_green"|nil
     function frame:SetColorScheme(nextScheme)
         nextScheme = ResolveScheme(nextScheme)
