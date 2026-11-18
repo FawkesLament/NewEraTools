@@ -1,5 +1,25 @@
 describe("CalloutMessage", function()
-    local ns, Timer, originalCreateFrame, lastLabel
+    local ns, Timer, originalCreateFrame, originalDamageTextFont, labels, messageLabel, timerLabel
+
+    local function FakeTexture()
+        local texture = { shown = true }
+        function texture:SetColorTexture() end
+        function texture:SetGradient() end
+        function texture:SetGradientAlpha() end
+        function texture:SetVertexColor() end
+        function texture:ClearAllPoints() end
+        function texture:SetPoint() end
+        function texture:SetSize() end
+        function texture:SetHeight() end
+        function texture:SetWidth() end
+        function texture:Hide()
+            self.shown = false
+        end
+        function texture:Show()
+            self.shown = true
+        end
+        return texture
+    end
 
     local function FakeFrame()
         local frame = { shown = false, scripts = {} }
@@ -41,21 +61,38 @@ describe("CalloutMessage", function()
                 y = y,
             }
         end
+        function frame:CreateTexture()
+            return FakeTexture()
+        end
         return frame
     end
 
     local function FakeLabel()
-        local label = {}
+        local label = { shown = true }
         function label:SetJustifyH() end
         function label:SetJustifyV() end
         function label:SetWordWrap() end
         function label:ClearAllPoints() end
         function label:SetPoint() end
+        function label:SetShadowColor() end
+        function label:SetShadowOffset() end
+        function label:Hide()
+            self.shown = false
+        end
+        function label:Show()
+            self.shown = true
+        end
         function label:SetText(text)
             self.text = text
         end
         function label:GetText()
             return self.text
+        end
+        function label:GetStringWidth()
+            if not self.text then
+                return 0
+            end
+            return #self.text * 10
         end
         function label:SetFont(path, size, flags)
             self.font = { path = path, size = size, flags = flags }
@@ -68,8 +105,12 @@ describe("CalloutMessage", function()
 
     before_each(function()
         originalCreateFrame = CreateFrame
+        originalDamageTextFont = DAMAGE_TEXT_FONT
+        DAMAGE_TEXT_FONT = "Fonts\\skurri.ttf"
         Timer = dofile("tests/helpers/fakes/Timer.lua")()
-        lastLabel = nil
+        labels = {}
+        messageLabel = nil
+        timerLabel = nil
         ns = {
             Assets = {
                 Fonts = { CALLOUT = "Callout" },
@@ -85,8 +126,14 @@ describe("CalloutMessage", function()
             Api = { Timer = Timer },
             Widgets = {
                 CreateLabel = function()
-                    lastLabel = FakeLabel()
-                    return lastLabel
+                    local label = FakeLabel()
+                    labels[#labels + 1] = label
+                    if #labels % 2 == 1 then
+                        messageLabel = label
+                    else
+                        timerLabel = label
+                    end
+                    return label
                 end,
             },
             LayoutEditor = {
@@ -102,6 +149,7 @@ describe("CalloutMessage", function()
 
     after_each(function()
         CreateFrame = originalCreateFrame
+        DAMAGE_TEXT_FONT = originalDamageTextFont
     end)
 
     local function NewCallout(overrides)
@@ -156,7 +204,7 @@ describe("CalloutMessage", function()
         local frame = NewCallout()
         frame:SetMessage("Soak", { duration = 3 })
         assert.is_true(frame.shown)
-        assert.equals("Soak", lastLabel.text)
+        assert.equals("Soak", messageLabel.text)
         Timer.Advance(3)
         assert.is_false(frame.shown)
     end)
@@ -175,7 +223,7 @@ describe("CalloutMessage", function()
         frame:SetMessage("Second", { duration = 5 })
         Timer.Advance(2)
         assert.is_true(frame.shown)
-        assert.equals("Second", lastLabel.text)
+        assert.equals("Second", messageLabel.text)
         Timer.Advance(3)
         assert.is_false(frame.shown)
     end)
@@ -183,48 +231,52 @@ describe("CalloutMessage", function()
     it("does not append a countdown unless appendTimer is true", function()
         local frame = NewCallout()
         frame:SetMessage("Soak", { duration = 8, appendTimer = false })
-        assert.equals("Soak", lastLabel.text)
+        assert.equals("Soak", messageLabel.text)
         frame:SetMessage("Soak", { duration = 8, appendTimer = "yes" })
-        assert.equals("Soak", lastLabel.text)
+        assert.equals("Soak", messageLabel.text)
         Tick(frame)
-        assert.equals("Soak", lastLabel.text)
+        assert.equals("Soak", messageLabel.text)
     end)
 
-    it("wraps the message body before appending the countdown", function()
+    it("wraps the message body and keeps the countdown on a separate label", function()
         local frame = NewCallout({ wrap = "Go %s drop" })
         frame:SetMessage("X", { duration = 15, appendTimer = true })
-        assert.equals("Go X drop (15)", lastLabel.text)
+        assert.equals("Go X drop", messageLabel.text)
+        assert.equals("15", timerLabel.text)
     end)
 
     it("uses whole seconds at 10 or more remaining and tenths below 10", function()
         local frame = NewCallout()
         frame:SetMessage("Soak", { duration = 10.2, appendTimer = true })
-        assert.equals("Soak (11)", lastLabel.text)
+        assert.equals("Soak", messageLabel.text)
+        assert.equals("11", timerLabel.text)
 
         Timer.Advance(0.2)
         Tick(frame)
-        assert.equals("Soak (10)", lastLabel.text)
+        assert.equals("10", timerLabel.text)
 
         Timer.Advance(0.01)
         Tick(frame)
-        assert.equals("Soak (9.9)", lastLabel.text)
+        assert.equals("9.9", timerLabel.text)
     end)
 
     it("floors tenths so the countdown never rounds up", function()
         local frame = NewCallout()
-        frame:SetMessage("Soak", { duration = 4.39, appendTimer = true })
-        assert.equals("Soak (4.3)", lastLabel.text)
+        frame:SetMessage("Soak", { duration = 2.39, appendTimer = true })
+        assert.equals("Soak", messageLabel.text)
+        assert.equals("2.3", timerLabel.text)
 
         Timer.Advance(0.1)
         Tick(frame)
-        assert.equals("Soak (4.2)", lastLabel.text)
+        assert.equals("2.2", timerLabel.text)
     end)
 
     it("counts down to the given expiry time instead of a rounded duration", function()
         Timer.Advance(10)
         local frame = NewCallout()
-        frame:SetMessage("Soak", { expiresAt = 14.3, appendTimer = true })
-        assert.equals("Soak (4.3)", lastLabel.text)
+        frame:SetMessage("Soak", { expiresAt = 12.3, appendTimer = true })
+        assert.equals("Soak", messageLabel.text)
+        assert.equals("2.3", timerLabel.text)
 
         Timer.Advance(4.3)
         assert.is_false(frame.shown)
@@ -255,15 +307,17 @@ describe("CalloutMessage", function()
             end
             return message, remaining
         end)
-        assert.equals("Prepare (4.2)", lastLabel.text)
+        assert.equals("Prepare", messageLabel.text)
+        assert.equals("4.2", timerLabel.text)
         remaining = 0
         Tick(frame)
-        assert.equals("Now (2.0)", lastLabel.text)
+        assert.equals("Now", messageLabel.text)
+        assert.equals("2.0", timerLabel.text)
         frame:ShowSampledPreview(function()
             return nil
         end)
         Tick(frame)
-        assert.equals("", lastLabel.text)
+        assert.equals("", messageLabel.text)
         assert.is_true(frame.shown)
     end)
 
@@ -283,18 +337,21 @@ describe("CalloutMessage", function()
             }))
             .Ensure()
         registered.onEditBegin()
-        assert.equals("Enter (4.2)", lastLabel.text)
+        assert.equals("Enter", messageLabel.text)
+        assert.equals("4.2", timerLabel.text)
     end)
 
     it("preview loops the countdown instead of hiding", function()
         local frame = NewCallout()
         frame:ShowPreview("Soak", 2, true)
-        assert.equals("Soak (2.0)", lastLabel.text)
+        assert.equals("Soak", messageLabel.text)
+        assert.equals("2.0", timerLabel.text)
         Timer.Advance(2)
         assert.is_true(frame.shown)
         Tick(frame)
         assert.is_true(frame.shown)
-        assert.equals("Soak (2.0)", lastLabel.text)
+        assert.equals("Soak", messageLabel.text)
+        assert.equals("2.0", timerLabel.text)
     end)
 
     it("rejects incomplete Bind options", function()
@@ -332,7 +389,8 @@ describe("CalloutMessage", function()
             }))
             .Ensure()
         registered.onEditBegin()
-        assert.equals("Boss (7.0)", lastLabel.text)
+        assert.equals("Boss", messageLabel.text)
+        assert.equals("7.0", timerLabel.text)
     end)
 
     it("Bind registers as common-scope only when global is true", function()
@@ -357,7 +415,8 @@ describe("CalloutMessage", function()
             end,
         }))
         bound.Update()
-        assert.equals("Soak (4.3)", lastLabel.text)
+        assert.equals("Soak", messageLabel.text)
+        assert.equals("4.3", timerLabel.text)
 
         Timer.Advance(4.3)
         assert.is_false(bound.Ensure().shown)
@@ -366,12 +425,14 @@ describe("CalloutMessage", function()
     it("uses the existing CALLOUT look when appearance is unset", function()
         local frame = NewCallout()
         assert.equals(1, frame:GetScale())
-        assert.equals("Fonts\\ARHei.ttf", lastLabel.font.path)
-        assert.equals(56, lastLabel.font.size)
-        assert.equals("THICKOUTLINE", lastLabel.font.flags)
-        assert.equals(0.945, lastLabel.color.r)
-        assert.equals(0.643, lastLabel.color.g)
-        assert.equals(0.267, lastLabel.color.b)
+        assert.equals("Fonts\\ARHei.ttf", messageLabel.font.path)
+        assert.equals(56, messageLabel.font.size)
+        assert.equals("THICKOUTLINE", messageLabel.font.flags)
+        assert.equals(0.945, messageLabel.color.r)
+        assert.equals(0.643, messageLabel.color.g)
+        assert.equals(0.267, messageLabel.color.b)
+        assert.equals("Fonts\\skurri.ttf", timerLabel.font.path)
+        assert.equals(67, timerLabel.font.size)
     end)
 
     it("SetAppearance updates live callouts and later creates", function()
@@ -383,15 +444,19 @@ describe("CalloutMessage", function()
             fontColor = { r = 0, g = 1, b = 0 },
         })
         assert.equals(1.2, first.scale)
-        assert.equals("Fonts\\FRIZQT__.TTF", lastLabel.font.path)
-        assert.equals(40, lastLabel.font.size)
-        assert.equals(0, lastLabel.color.r)
-        assert.equals(1, lastLabel.color.g)
+        assert.equals("Fonts\\FRIZQT__.TTF", messageLabel.font.path)
+        assert.equals(56, messageLabel.font.size)
+        assert.equals(0, messageLabel.color.r)
+        assert.equals(1, messageLabel.color.g)
+        assert.equals("Fonts\\skurri.ttf", timerLabel.font.path)
+        assert.equals(40, timerLabel.font.size)
 
         local second = NewCallout()
         assert.equals(1.2, second.scale)
-        assert.equals("Fonts\\FRIZQT__.TTF", lastLabel.font.path)
-        assert.equals(40, lastLabel.font.size)
+        assert.equals("Fonts\\FRIZQT__.TTF", messageLabel.font.path)
+        assert.equals(56, messageLabel.font.size)
+        assert.equals("Fonts\\skurri.ttf", timerLabel.font.path)
+        assert.equals(40, timerLabel.font.size)
     end)
 
     it("keeps the visual center fixed when scale changes", function()

@@ -9,24 +9,29 @@ local CALLOUT_SCALE_MIN = 0.8
 local CALLOUT_SCALE_MAX = 1.5
 local CALLOUT_SCALE_STEP = 0.05
 
-local CALLOUT_FONT_SIZE_MIN = 24
-local CALLOUT_FONT_SIZE_MAX = 80
-local CALLOUT_FONT_SIZE_STEP = 1
+local CALLOUT_COUNTDOWN_FONT_SIZE_MIN = 24
+local CALLOUT_COUNTDOWN_FONT_SIZE_MAX = 80
+local CALLOUT_COUNTDOWN_FONT_SIZE_STEP = 1
 
 local function CalloutStyle()
     return Assets.FontStyles[Assets.Fonts.CALLOUT]
 end
 
-local function DefaultCalloutFontColor()
+local function DefaultCalloutAlertFontColor()
     local color = CalloutStyle().color
     return { r = color.r, g = color.g, b = color.b }
 end
 
+---@return number
+local function DefaultCalloutCountdownFontSize()
+    return 50
+end
+
 ---@class BossAlertCallout
 ---@field scale number
----@field font string
----@field fontSize number
----@field fontColor RgbColor
+---@field alertFont string
+---@field countdownFontSize number
+---@field alertFontColor RgbColor
 ---@field tts boolean
 
 ---A fresh callout-feature record, including a new color table, on every call.
@@ -35,10 +40,10 @@ local function NewCalloutSettings()
     return {
         -- Scale of the callout message. 1 matches the existing HUD.
         scale = 1,
-        font = SharedMedia.FONT_DEFAULT,
-        -- Point size of the callout face. Matches Assets.Fonts.CALLOUT.
-        fontSize = CalloutStyle().size,
-        fontColor = DefaultCalloutFontColor(),
+        alertFont = SharedMedia.FONT_DEFAULT,
+        -- Point size of the countdown. The alert body uses the CALLOUT face size and the scale slider.
+        countdownFontSize = DefaultCalloutCountdownFontSize(),
+        alertFontColor = DefaultCalloutAlertFontColor(),
         -- When true, a new callout message is spoken with the client's TTS voice.
         tts = false,
     }
@@ -55,10 +60,10 @@ local BossAlert = ns.Modules.New("BossAlert", {
 BossAlert.CALLOUT_SCALE_MIN = CALLOUT_SCALE_MIN
 BossAlert.CALLOUT_SCALE_MAX = CALLOUT_SCALE_MAX
 BossAlert.CALLOUT_SCALE_STEP = CALLOUT_SCALE_STEP
-BossAlert.CALLOUT_FONT_SIZE_MIN = CALLOUT_FONT_SIZE_MIN
-BossAlert.CALLOUT_FONT_SIZE_MAX = CALLOUT_FONT_SIZE_MAX
-BossAlert.CALLOUT_FONT_SIZE_STEP = CALLOUT_FONT_SIZE_STEP
-BossAlert.CALLOUT_FONT_DEFAULT = SharedMedia.FONT_DEFAULT
+BossAlert.CALLOUT_COUNTDOWN_FONT_SIZE_MIN = CALLOUT_COUNTDOWN_FONT_SIZE_MIN
+BossAlert.CALLOUT_COUNTDOWN_FONT_SIZE_MAX = CALLOUT_COUNTDOWN_FONT_SIZE_MAX
+BossAlert.CALLOUT_COUNTDOWN_FONT_SIZE_STEP = CALLOUT_COUNTDOWN_FONT_SIZE_STEP
+BossAlert.CALLOUT_ALERT_FONT_DEFAULT = SharedMedia.FONT_DEFAULT
 
 local function NotifyCalloutAppearanceChanged()
     if BossAlert.OnCalloutAppearanceChanged then
@@ -76,13 +81,13 @@ local function CalloutSettings(self)
     return settings
 end
 
-local function SanitizeCalloutFontColor(settings)
-    local fontColor = Color.Normalize(settings.fontColor) or DefaultCalloutFontColor()
-    if type(settings.fontColor) ~= "table" then
-        settings.fontColor = { r = fontColor.r, g = fontColor.g, b = fontColor.b }
+local function SanitizeCalloutAlertFontColor(settings)
+    local alertFontColor = Color.Normalize(settings.alertFontColor) or DefaultCalloutAlertFontColor()
+    if type(settings.alertFontColor) ~= "table" then
+        settings.alertFontColor = { r = alertFontColor.r, g = alertFontColor.g, b = alertFontColor.b }
         return
     end
-    Color.Copy(settings.fontColor, fontColor)
+    Color.Copy(settings.alertFontColor, alertFontColor)
 end
 
 ---@return number
@@ -103,8 +108,8 @@ function BossAlert:SetCalloutScale(scale)
 end
 
 ---@return string
-function BossAlert:GetCalloutFont()
-    local font = CalloutSettings(self).font
+function BossAlert:GetCalloutAlertFont()
+    local font = CalloutSettings(self).alertFont
     if type(font) ~= "string" or font == "" then
         return SharedMedia.FONT_DEFAULT
     end
@@ -112,51 +117,56 @@ function BossAlert:GetCalloutFont()
 end
 
 ---@param font string
-function BossAlert:SetCalloutFont(font)
-    assert(type(font) == "string" and font ~= "", "Bad callout font")
+function BossAlert:SetCalloutAlertFont(font)
+    assert(type(font) == "string" and font ~= "", "Bad callout alert font")
     local settings = CalloutSettings(self)
-    if settings.font == font then
+    if settings.alertFont == font then
         return
     end
-    settings.font = font
+    settings.alertFont = font
     NotifyCalloutAppearanceChanged()
 end
 
 ---@return number
-function BossAlert:GetCalloutFontSize()
+function BossAlert:GetCalloutCountdownFontSize()
     return Util.Snap(
-        CalloutSettings(self).fontSize,
-        CALLOUT_FONT_SIZE_MIN,
-        CALLOUT_FONT_SIZE_MAX,
-        CALLOUT_FONT_SIZE_STEP
+        CalloutSettings(self).countdownFontSize,
+        CALLOUT_COUNTDOWN_FONT_SIZE_MIN,
+        CALLOUT_COUNTDOWN_FONT_SIZE_MAX,
+        CALLOUT_COUNTDOWN_FONT_SIZE_STEP
     )
 end
 
 ---@param size number
-function BossAlert:SetCalloutFontSize(size)
-    assert(type(size) == "number", "Bad callout font size")
-    size = Util.Snap(size, CALLOUT_FONT_SIZE_MIN, CALLOUT_FONT_SIZE_MAX, CALLOUT_FONT_SIZE_STEP)
+function BossAlert:SetCalloutCountdownFontSize(size)
+    assert(type(size) == "number", "Bad callout countdown font size")
+    size = Util.Snap(
+        size,
+        CALLOUT_COUNTDOWN_FONT_SIZE_MIN,
+        CALLOUT_COUNTDOWN_FONT_SIZE_MAX,
+        CALLOUT_COUNTDOWN_FONT_SIZE_STEP
+    )
     local settings = CalloutSettings(self)
-    if settings.fontSize == size then
+    if settings.countdownFontSize == size then
         return
     end
-    settings.fontSize = size
+    settings.countdownFontSize = size
     NotifyCalloutAppearanceChanged()
 end
 
 ---@return RgbColor
-function BossAlert:GetCalloutFontColor()
-    return Color.Normalize(CalloutSettings(self).fontColor) or DefaultCalloutFontColor()
+function BossAlert:GetCalloutAlertFontColor()
+    return Color.Normalize(CalloutSettings(self).alertFontColor) or DefaultCalloutAlertFontColor()
 end
 
 ---@param color RgbColor
-function BossAlert:SetCalloutFontColor(color)
+function BossAlert:SetCalloutAlertFontColor(color)
     local next = Color.Normalize(color)
-    assert(next ~= nil, "Bad callout font color")
+    assert(next ~= nil, "Bad callout alert font color")
     local settings = CalloutSettings(self)
-    local saved = settings.fontColor
+    local saved = settings.alertFontColor
     if type(saved) ~= "table" then
-        settings.fontColor = { r = next.r, g = next.g, b = next.b }
+        settings.alertFontColor = { r = next.r, g = next.g, b = next.b }
         NotifyCalloutAppearanceChanged()
         return
     end
@@ -167,22 +177,22 @@ function BossAlert:SetCalloutFontColor(color)
     NotifyCalloutAppearanceChanged()
 end
 
----File path for the selected face. Unset or "default" keeps the existing CALLOUT face.
+---File path for the selected alert-body face. Unset or "default" keeps the existing CALLOUT face.
 ---@return string
-function BossAlert:GetCalloutFontPath()
-    return SharedMedia.ResolveFontPath(self:GetCalloutFont()) or CalloutStyle().path
+function BossAlert:GetCalloutAlertFontPath()
+    return SharedMedia.ResolveFontPath(self:GetCalloutAlertFont()) or CalloutStyle().path
 end
 
 function BossAlert:ResetCalloutAppearance()
     local settings = CalloutSettings(self)
     local defaults = NewCalloutSettings()
     settings.scale = defaults.scale
-    settings.font = defaults.font
-    settings.fontSize = defaults.fontSize
-    if type(settings.fontColor) ~= "table" then
-        settings.fontColor = defaults.fontColor
+    settings.alertFont = defaults.alertFont
+    settings.countdownFontSize = defaults.countdownFontSize
+    if type(settings.alertFontColor) ~= "table" then
+        settings.alertFontColor = defaults.alertFontColor
     else
-        Color.Copy(settings.fontColor, defaults.fontColor)
+        Color.Copy(settings.alertFontColor, defaults.alertFontColor)
     end
     NotifyCalloutAppearanceChanged()
 end
@@ -242,11 +252,11 @@ end
 ---Resolved callout look for CalloutMessage. Unset fields match the existing CALLOUT setup.
 ---@return CalloutMessageAppearance
 function BossAlert:GetCalloutAppearance()
-    local color = self:GetCalloutFontColor()
+    local color = self:GetCalloutAlertFontColor()
     return {
         scale = self:GetCalloutScale(),
-        fontPath = self:GetCalloutFontPath(),
-        fontSize = self:GetCalloutFontSize(),
+        fontPath = self:GetCalloutAlertFontPath(),
+        fontSize = self:GetCalloutCountdownFontSize(),
         fontColor = { r = color.r, g = color.g, b = color.b },
     }
 end
@@ -254,15 +264,15 @@ end
 function BossAlert:OnInit()
     local settings = CalloutSettings(self)
     settings.scale = Util.Snap(tonumber(settings.scale) or 1, CALLOUT_SCALE_MIN, CALLOUT_SCALE_MAX, CALLOUT_SCALE_STEP)
-    if type(settings.font) ~= "string" or settings.font == "" then
-        settings.font = SharedMedia.FONT_DEFAULT
+    if type(settings.alertFont) ~= "string" or settings.alertFont == "" then
+        settings.alertFont = SharedMedia.FONT_DEFAULT
     end
-    settings.fontSize = Util.Snap(
-        tonumber(settings.fontSize) or CalloutStyle().size,
-        CALLOUT_FONT_SIZE_MIN,
-        CALLOUT_FONT_SIZE_MAX,
-        CALLOUT_FONT_SIZE_STEP
+    settings.countdownFontSize = Util.Snap(
+        tonumber(settings.countdownFontSize) or DefaultCalloutCountdownFontSize(),
+        CALLOUT_COUNTDOWN_FONT_SIZE_MIN,
+        CALLOUT_COUNTDOWN_FONT_SIZE_MAX,
+        CALLOUT_COUNTDOWN_FONT_SIZE_STEP
     )
-    SanitizeCalloutFontColor(settings)
+    SanitizeCalloutAlertFontColor(settings)
     settings.tts = settings.tts == true
 end

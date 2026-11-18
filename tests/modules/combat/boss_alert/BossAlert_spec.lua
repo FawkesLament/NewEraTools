@@ -21,9 +21,9 @@ describe("BossAlert", function()
         assert.is_false(BossAlert == nil)
         assert.equals("table", type(BossAlert.db.callout))
         AssertNear(1, BossAlert:GetCalloutScale())
-        assert.equals(ns.SharedMedia.FONT_DEFAULT, BossAlert:GetCalloutFont())
-        assert.equals(ns.Assets.FontStyles[ns.Assets.Fonts.CALLOUT].size, BossAlert:GetCalloutFontSize())
-        local color = BossAlert:GetCalloutFontColor()
+        assert.equals(ns.SharedMedia.FONT_DEFAULT, BossAlert:GetCalloutAlertFont())
+        assert.equals(50, BossAlert:GetCalloutCountdownFontSize())
+        local color = BossAlert:GetCalloutAlertFontColor()
         local expected = ns.Assets.FontStyles[ns.Assets.Fonts.CALLOUT].color
         assert.equals(expected.r, color.r)
         assert.equals(expected.g, color.g)
@@ -52,67 +52,67 @@ describe("BossAlert", function()
 
     describe("callout font", function()
         it("stores a typeface id", function()
-            BossAlert:SetCalloutFont("Custom Font")
-            assert.equals("Custom Font", BossAlert:GetCalloutFont())
+            BossAlert:SetCalloutAlertFont("Custom Font")
+            assert.equals("Custom Font", BossAlert:GetCalloutAlertFont())
         end)
 
         it("falls back to the built-in default when unset", function()
-            BossAlert.db.callout.font = ""
-            assert.equals(ns.SharedMedia.FONT_DEFAULT, BossAlert:GetCalloutFont())
-            BossAlert.db.callout.font = nil
-            assert.equals(ns.SharedMedia.FONT_DEFAULT, BossAlert:GetCalloutFont())
+            BossAlert.db.callout.alertFont = ""
+            assert.equals(ns.SharedMedia.FONT_DEFAULT, BossAlert:GetCalloutAlertFont())
+            BossAlert.db.callout.alertFont = nil
+            assert.equals(ns.SharedMedia.FONT_DEFAULT, BossAlert:GetCalloutAlertFont())
         end)
 
         it("rejects an empty typeface", function()
-            assert.is_false(pcall(BossAlert.SetCalloutFont, BossAlert, ""))
-            assert.equals(ns.SharedMedia.FONT_DEFAULT, BossAlert:GetCalloutFont())
+            assert.is_false(pcall(BossAlert.SetCalloutAlertFont, BossAlert, ""))
+            assert.equals(ns.SharedMedia.FONT_DEFAULT, BossAlert:GetCalloutAlertFont())
         end)
 
         it("uses the existing CALLOUT face when the typeface is unset", function()
-            assert.equals(ns.Assets.FontStyles[ns.Assets.Fonts.CALLOUT].path, BossAlert:GetCalloutFontPath())
+            assert.equals(ns.Assets.FontStyles[ns.Assets.Fonts.CALLOUT].path, BossAlert:GetCalloutAlertFontPath())
         end)
     end)
 
     describe("callout font size", function()
         it("is saved and snapped to the step", function()
-            BossAlert:SetCalloutFontSize(40.4)
-            assert.equals(40, BossAlert:GetCalloutFontSize())
+            BossAlert:SetCalloutCountdownFontSize(40.4)
+            assert.equals(40, BossAlert:GetCalloutCountdownFontSize())
         end)
 
         it("clamps to the allowed range", function()
-            BossAlert:SetCalloutFontSize(2)
-            assert.equals(BossAlert.CALLOUT_FONT_SIZE_MIN, BossAlert:GetCalloutFontSize())
-            BossAlert:SetCalloutFontSize(200)
-            assert.equals(BossAlert.CALLOUT_FONT_SIZE_MAX, BossAlert:GetCalloutFontSize())
+            BossAlert:SetCalloutCountdownFontSize(2)
+            assert.equals(BossAlert.CALLOUT_COUNTDOWN_FONT_SIZE_MIN, BossAlert:GetCalloutCountdownFontSize())
+            BossAlert:SetCalloutCountdownFontSize(200)
+            assert.equals(BossAlert.CALLOUT_COUNTDOWN_FONT_SIZE_MAX, BossAlert:GetCalloutCountdownFontSize())
         end)
 
         it("rejects non-numbers", function()
-            local defaultSize = ns.Assets.FontStyles[ns.Assets.Fonts.CALLOUT].size
-            assert.is_false(pcall(BossAlert.SetCalloutFontSize, BossAlert, "big"))
-            assert.equals(defaultSize, BossAlert:GetCalloutFontSize())
+            local defaultSize = 50
+            assert.is_false(pcall(BossAlert.SetCalloutCountdownFontSize, BossAlert, "big"))
+            assert.equals(defaultSize, BossAlert:GetCalloutCountdownFontSize())
         end)
     end)
 
     describe("callout font color", function()
         it("stores a normalized RGB color", function()
-            BossAlert:SetCalloutFontColor({ r = 0.2, g = 0.4, b = 0.8 })
-            local color = BossAlert:GetCalloutFontColor()
+            BossAlert:SetCalloutAlertFontColor({ r = 0.2, g = 0.4, b = 0.8 })
+            local color = BossAlert:GetCalloutAlertFontColor()
             assert.equals(0.2, color.r)
             assert.equals(0.4, color.g)
             assert.equals(0.8, color.b)
         end)
 
         it("clamps out-of-range channels", function()
-            BossAlert:SetCalloutFontColor({ r = 2, g = -1, b = 0.5 })
-            local color = BossAlert:GetCalloutFontColor()
+            BossAlert:SetCalloutAlertFontColor({ r = 2, g = -1, b = 0.5 })
+            local color = BossAlert:GetCalloutAlertFontColor()
             assert.equals(1, color.r)
             assert.equals(0, color.g)
             assert.equals(0.5, color.b)
         end)
 
         it("rejects an incomplete color", function()
-            assert.is_false(pcall(BossAlert.SetCalloutFontColor, BossAlert, nil))
-            assert.is_false(pcall(BossAlert.SetCalloutFontColor, BossAlert, { r = 1, g = 1 }))
+            assert.is_false(pcall(BossAlert.SetCalloutAlertFontColor, BossAlert, nil))
+            assert.is_false(pcall(BossAlert.SetCalloutAlertFontColor, BossAlert, { r = 1, g = 1 }))
         end)
     end)
 
@@ -124,19 +124,19 @@ describe("BossAlert", function()
             end
             BossAlert:SetCalloutScale(1.1)
             BossAlert:SetCalloutScale(1.1)
-            BossAlert:SetCalloutFontSize(40)
-            BossAlert:SetCalloutFontSize(40)
-            BossAlert:SetCalloutFont("Custom Font")
-            BossAlert:SetCalloutFont("Custom Font")
-            BossAlert:SetCalloutFontColor({ r = 1, g = 0, b = 0 })
-            BossAlert:SetCalloutFontColor({ r = 1, g = 0, b = 0 })
+            BossAlert:SetCalloutCountdownFontSize(40)
+            BossAlert:SetCalloutCountdownFontSize(40)
+            BossAlert:SetCalloutAlertFont("Custom Font")
+            BossAlert:SetCalloutAlertFont("Custom Font")
+            BossAlert:SetCalloutAlertFontColor({ r = 1, g = 0, b = 0 })
+            BossAlert:SetCalloutAlertFontColor({ r = 1, g = 0, b = 0 })
             assert.equals(4, seen)
         end)
 
         it("resolves the look CalloutMessage should apply", function()
             BossAlert:SetCalloutScale(1.1)
-            BossAlert:SetCalloutFontSize(40)
-            BossAlert:SetCalloutFontColor({ r = 0, g = 1, b = 0 })
+            BossAlert:SetCalloutCountdownFontSize(40)
+            BossAlert:SetCalloutAlertFontColor({ r = 0, g = 1, b = 0 })
             local appearance = BossAlert:GetCalloutAppearance()
             AssertNear(1.1, appearance.scale)
             assert.equals(ns.Assets.FontStyles[ns.Assets.Fonts.CALLOUT].path, appearance.fontPath)
@@ -154,16 +154,16 @@ describe("BossAlert", function()
                 seen = seen + 1
             end
             BossAlert:SetCalloutScale(1.2)
-            BossAlert:SetCalloutFont("Custom Font")
-            BossAlert:SetCalloutFontSize(40)
-            BossAlert:SetCalloutFontColor({ r = 0, g = 1, b = 0 })
+            BossAlert:SetCalloutAlertFont("Custom Font")
+            BossAlert:SetCalloutCountdownFontSize(40)
+            BossAlert:SetCalloutAlertFontColor({ r = 0, g = 1, b = 0 })
             seen = 0
             BossAlert:ResetCalloutAppearance()
             assert.equals(1, seen)
             AssertNear(1, BossAlert:GetCalloutScale())
-            assert.equals(ns.SharedMedia.FONT_DEFAULT, BossAlert:GetCalloutFont())
-            assert.equals(ns.Assets.FontStyles[ns.Assets.Fonts.CALLOUT].size, BossAlert:GetCalloutFontSize())
-            local color = BossAlert:GetCalloutFontColor()
+            assert.equals(ns.SharedMedia.FONT_DEFAULT, BossAlert:GetCalloutAlertFont())
+            assert.equals(50, BossAlert:GetCalloutCountdownFontSize())
+            local color = BossAlert:GetCalloutAlertFontColor()
             local expected = ns.Assets.FontStyles[ns.Assets.Fonts.CALLOUT].color
             assert.equals(expected.r, color.r)
             assert.equals(expected.g, color.g)
@@ -260,9 +260,9 @@ describe("BossAlert", function()
                 BossAlert = {
                     callout = {
                         scale = 9,
-                        font = "",
-                        fontSize = 2,
-                        fontColor = { r = 5, g = -2, b = 0.3 },
+                        alertFont = "",
+                        countdownFontSize = 2,
+                        alertFontColor = { r = 5, g = -2, b = 0.3 },
                         tts = "yes",
                     },
                 },
@@ -270,9 +270,9 @@ describe("BossAlert", function()
         }))
         BossAlert = ns.Modules.Get("BossAlert")
         AssertNear(BossAlert.CALLOUT_SCALE_MAX, BossAlert:GetCalloutScale())
-        assert.equals(ns.SharedMedia.FONT_DEFAULT, BossAlert:GetCalloutFont())
-        assert.equals(BossAlert.CALLOUT_FONT_SIZE_MIN, BossAlert:GetCalloutFontSize())
-        local color = BossAlert:GetCalloutFontColor()
+        assert.equals(ns.SharedMedia.FONT_DEFAULT, BossAlert:GetCalloutAlertFont())
+        assert.equals(BossAlert.CALLOUT_COUNTDOWN_FONT_SIZE_MIN, BossAlert:GetCalloutCountdownFontSize())
+        local color = BossAlert:GetCalloutAlertFontColor()
         assert.equals(1, color.r)
         assert.equals(0, color.g)
         assert.equals(0.3, color.b)

@@ -6,6 +6,7 @@ globals = { "NewEraToolsDB", "NewEraToolsAPI" }
 -- Frame and widget API: allowed in ui/, modules/**/ui/, and modules/**/*UI.lua.
 local WIDGET_API = {
     "ColorPickerFrame",
+    "CreateColor",
     "CreateFont",
     "CreateFrame",
     "GameTooltip",
@@ -133,5 +134,5 @@ files["services/SharedMedia.lua"] = { read_globals = { "LibStub" } }
 files["modules/combat/aura_tracker/Media.lua"] = { read_globals = { "LibStub" } }
 files["modules/combat/aura_tracker/Profile.lua"] = { read_globals = { "debugprofilestop" } }
 files["tests"] = { std = "+busted" }
-files["tests/ui"] = { std = "+busted", globals = { "CreateFrame" } }
+files["tests/ui"] = { std = "+busted", globals = { "CreateFrame", "DAMAGE_TEXT_FONT" } }
 files["tests/run.lua"] = { globals = { "assert", "describe", "it", "before_each", "after_each" } }

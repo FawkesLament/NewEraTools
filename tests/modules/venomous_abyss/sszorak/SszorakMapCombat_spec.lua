@@ -77,13 +77,15 @@ describe("Sszorak map during combat lockdown", function()
             self.wraps = self.wraps or {}
             table.insert(self.wraps, { frame = frame, script = script, preBody = preBody })
         end
+        function region:RegisterForClicks(...)
+            self.clicks = { ... }
+        end
         local function noop() end
         for _, name in ipairs({
             "AddMaskTexture",
             "ClearAllPoints",
             "EnableMouse",
             "Hide",
-            "RegisterForClicks",
             "SetAllPoints",
             "SetAttribute",
             "SetColorTexture",
@@ -245,6 +247,7 @@ describe("Sszorak map during combat lockdown", function()
             if region.protected then
                 table.insert(buttons, region)
                 assert.is_nil(region.wraps)
+                assert.same({ "AnyDown", "AnyUp" }, region.clicks)
             end
         end
         assert.is_true(#buttons >= 3)

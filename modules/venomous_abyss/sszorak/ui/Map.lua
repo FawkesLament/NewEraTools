@@ -496,9 +496,9 @@ local function CreateEdgeMarkerButton(canvas, edge, options)
     Widgets.AddHoverHighlight(button)
     if macroName then
         -- Named macros stay in sync via EditMacro; the button only needs the stable name.
-        -- Down only: an up click would run the macro a second time, and a secure pre-click cannot
-        -- read addon state during lockdown.
-        button:RegisterForClicks("AnyDown")
+        -- Both edges: SecureActionButtonTemplate only runs the action on the edge matching
+        -- ActionButtonUseKeyDown. Down-only misses the click when that CVar is 0.
+        button:RegisterForClicks("AnyDown", "AnyUp")
         button:SetAttribute("type", "macro")
         button:SetAttribute("macro", macroName)
         button:SetAttribute("sszEdge", edge)

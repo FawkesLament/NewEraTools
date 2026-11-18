@@ -16,6 +16,7 @@ local RLToolbar = ns.Modules.Get("RLToolbar")
 
 local BUTTON_SIZE = 28
 local ICON_SIZE = 18
+local COUNTDOWN_LABEL_SIZE = 18
 local CLOSE_MARK_PAD = 4
 local CLOSE_MARK_THICKNESS = 2
 local PRESS_ALPHA = 0.16
@@ -135,7 +136,9 @@ local function CreateToolbarButton(parent, spec)
     elseif spec.closeMark then
         CreateCloseMark(button, accent)
     elseif spec.label then
-        local label = Widgets.CreateLabel(button, Fonts.EMPHASIS, spec.label)
+        local label = Widgets.CreateLabel(button, Fonts.OVERLAY_DIGIT, spec.label)
+        local digitStyle = Assets.FontStyles[Fonts.OVERLAY_DIGIT]
+        label:SetFont(digitStyle.path or STANDARD_TEXT_FONT, COUNTDOWN_LABEL_SIZE, digitStyle.flags or "OUTLINE")
         -- Fill the button so LEFT-default font strings cannot sit off-center.
         label:SetJustifyH("CENTER")
         label:SetJustifyV("MIDDLE")

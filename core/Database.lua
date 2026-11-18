@@ -3,7 +3,7 @@ local _, ns = ...
 local Database = {}
 ns.Database = Database
 
-local SCHEMA_VERSION = 13
+local SCHEMA_VERSION = 15
 
 -- migrations[n] upgrades saved data from version n - 1 to version n, in place.
 local migrations = {}
@@ -132,6 +132,41 @@ migrations[13] = function(saved)
     if type(reminder) == "table" then
         reminder.enabled = nil
     end
+end
+
+-- Boss Alert fontSize used to size the alert body; the countdown was 1.2x that. Store countdown size.
+migrations[14] = function(saved)
+    local modules = saved.modules
+    local settings = type(modules) == "table" and modules.BossAlert or nil
+    local callout = type(settings) == "table" and settings.callout or nil
+    if type(callout) ~= "table" then
+        return
+    end
+    local size = tonumber(callout.fontSize)
+    if not size then
+        return
+    end
+    callout.fontSize = math.floor(size * 1.2 + 0.5)
+end
+
+local function RenameCalloutKey(callout, from, to)
+    if callout[to] == nil and callout[from] ~= nil then
+        callout[to] = callout[from]
+    end
+    callout[from] = nil
+end
+
+-- Boss Alert callout keys: alert body face/color vs countdown size.
+migrations[15] = function(saved)
+    local modules = saved.modules
+    local settings = type(modules) == "table" and modules.BossAlert or nil
+    local callout = type(settings) == "table" and settings.callout or nil
+    if type(callout) ~= "table" then
+        return
+    end
+    RenameCalloutKey(callout, "font", "alertFont")
+    RenameCalloutKey(callout, "fontSize", "countdownFontSize")
+    RenameCalloutKey(callout, "fontColor", "alertFontColor")
 end
 
 ---Upgrades saved variables to the current schema, creating them if missing.

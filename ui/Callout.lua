@@ -7,6 +7,8 @@ local Callout = ns.Modules.New("Callout")
 ns.Callout = Callout
 
 Callout.LAYOUT_ID = "Callout:1"
+-- Looping countdown while the common HUD layout is being edited.
+local GLOBAL_PREVIEW_DURATION = 15
 
 ---@class CalloutScopePreview
 ---@field text any|fun(): any
@@ -104,7 +106,10 @@ local binding = ns.CalloutMessage.Bind({
     end,
     previewDuration = function()
         local preview = ActivePreview()
-        return preview and preview.duration
+        if preview then
+            return preview.duration
+        end
+        return GLOBAL_PREVIEW_DURATION
     end,
     hasPreviewTick = function()
         local preview = ActivePreview()

@@ -33,6 +33,7 @@ describe("RLToolbar UI", function()
     local function FakeLabel(text)
         local label = { text = text }
         function label:SetPoint() end
+        function label:SetFont() end
         function label:SetTextColor() end
         function label:SetJustifyH() end
         function label:SetJustifyV() end

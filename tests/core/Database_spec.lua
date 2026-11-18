@@ -93,7 +93,7 @@ describe("Database", function()
                 },
             })
 
-            assert.equals(13, saved.schemaVersion)
+            assert.equals(15, saved.schemaVersion)
             assert.is_nil(saved.modules.InterruptClaim)
             assert.is_true(saved.modules.CombatTimer.enabled)
         end)
@@ -197,9 +197,66 @@ describe("Database", function()
                 },
             })
 
-            assert.equals(13, saved.schemaVersion)
+            assert.equals(15, saved.schemaVersion)
             assert.is_nil(saved.modules.CoiledAltar.mechanicReminder.enabled)
             assert.is_true(saved.modules.CoiledAltar.mechanicReminder.interrupt)
+        end)
+    end)
+
+    describe("Boss Alert callout font size", function()
+        it("converts the old alert-body size into the countdown size", function()
+            local saved = Database.Load({
+                schemaVersion = 13,
+                modules = {
+                    BossAlert = {
+                        callout = { fontSize = 40, scale = 1.1 },
+                    },
+                },
+            })
+
+            assert.equals(15, saved.schemaVersion)
+            assert.equals(48, saved.modules.BossAlert.callout.countdownFontSize)
+            assert.is_nil(saved.modules.BossAlert.callout.fontSize)
+            assert.equals(1.1, saved.modules.BossAlert.callout.scale)
+        end)
+
+        it("leaves callout settings alone when fontSize is unset", function()
+            local saved = Database.Load({
+                schemaVersion = 13,
+                modules = {
+                    BossAlert = {
+                        callout = { scale = 1 },
+                    },
+                },
+            })
+
+            assert.is_nil(saved.modules.BossAlert.callout.fontSize)
+            assert.is_nil(saved.modules.BossAlert.callout.countdownFontSize)
+            assert.equals(1, saved.modules.BossAlert.callout.scale)
+        end)
+
+        it("renames callout appearance keys", function()
+            local saved = Database.Load({
+                schemaVersion = 14,
+                modules = {
+                    BossAlert = {
+                        callout = {
+                            font = "Custom Font",
+                            fontSize = 48,
+                            fontColor = { r = 0, g = 1, b = 0 },
+                        },
+                    },
+                },
+            })
+
+            local callout = saved.modules.BossAlert.callout
+            assert.equals("Custom Font", callout.alertFont)
+            assert.equals(48, callout.countdownFontSize)
+            assert.equals(0, callout.alertFontColor.r)
+            assert.equals(1, callout.alertFontColor.g)
+            assert.is_nil(callout.font)
+            assert.is_nil(callout.fontSize)
+            assert.is_nil(callout.fontColor)
         end)
     end)
 end)
