@@ -67,13 +67,15 @@ describe("ActionRow", function()
             button.height = 22
             return button
         end
-        function ns.Widgets.CreateSegmentedControl(parent, items, onSelect)
+        function ns.Widgets.CreateToggleSwitch(parent, onToggle)
             local control = Track(parent, FakeRegion())
-            control.items = items
-            control.onSelect = onSelect
+            control.onToggle = onToggle
             control.kind = "toggle"
-            function control:SetSelected(value)
-                self.selected = value
+            function control:SetChecked(value)
+                self.checked = value == true
+            end
+            function control:IsChecked()
+                return self.checked == true
             end
             return control
         end
@@ -198,12 +200,12 @@ describe("ActionRow", function()
         })
         local toggle = actionCell.children[#actionCell.children]
         assert.equals("toggle", toggle.kind)
-        assert.equals(false, toggle.selected)
+        assert.equals(false, toggle.checked)
         assert.is_true(toggle.points.RIGHT.relativeTo == actionCell)
         assert.is_true(buttons[1].points.RIGHT.relativeTo == toggle)
         assert.equals("LEFT", buttons[1].points.RIGHT.relativePoint)
-        toggle.onSelect(true)
+        toggle.onToggle(true)
         assert.equals(true, seen)
-        assert.equals(true, toggle.selected)
+        assert.equals(true, toggle.checked)
     end)
 end)

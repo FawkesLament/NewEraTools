@@ -1,5 +1,4 @@
 local _, ns = ...
-local L = ns.L
 local Assets = ns.Assets
 local Layout = ns.Layout
 local Widgets = ns.Widgets
@@ -17,12 +16,13 @@ ns.FeatureSection = FeatureSection
 
 ---@class FeatureSectionOptions
 ---@field title string  Shown in the header to the left of the On/Off toggle.
----@field titleFont string|nil  Font object name from Assets.Fonts. Defaults to SUBTITLE when `divider` is set, otherwise BODY.
+---@field titleFont string|nil  Font object name from Assets.Fonts. Defaults to SUBTITLE on cards; nested non-cards use SUBTITLE with `divider`, otherwise BODY.
 ---@field tooltip string|nil  Shown when hovering the title.
 ---@field enabled boolean|nil  Whether the feature starts enabled. Defaults to true.
 ---@field toggle boolean|nil  When false, the header has no On/Off control. Defaults to true.
 ---@field onEnabledChanged fun(enabled: boolean)|nil  After the enabled state changes via the toggle or SetEnabled.
 ---@field divider boolean|nil  Draw a line under the title row, as a subsection header does.
+---@field card boolean|nil  Draw a raised card chrome. Defaults to true at the top level and false when nested in another FeatureSection.
 ---@field spacingBefore number|nil  Gap above this section in the stack; defaults to the stack's spacing.
 ---@field onStackHeightChanged fun(stackHeight: number)|nil  After the stack's total height changes.
 
@@ -70,6 +70,67 @@ function FeatureSection.SetSubtreeInteractive(frame, enabled)
     end
 end
 
+---True when an ancestor frame is a FeatureSection (the frame itself is not checked).
+---@param frame Frame
+---@return boolean
+local function IsNestedInFeatureSection(frame)
+    local ancestor = frame
+    while ancestor do
+        ancestor = ancestor.GetParent and ancestor:GetParent()
+        if ancestor and ancestor.isFeatureSection then
+            return true
+        end
+    end
+    return false
+end
+
+---@param texture Texture
+local function SnapHairline(texture)
+    if texture.SetSnapToPixelGrid then
+        texture:SetSnapToPixelGrid(true)
+        texture:SetTexelSnappingBias(0)
+    end
+end
+
+---@param parent Frame
+---@param color table
+---@return Texture[]
+local function CreateCardBorder(parent, color)
+    local r, g, b, a = Widgets.UnpackColor(color)
+    local thickness = Sizes.BORDER
+    local edges = {
+        { height = thickness, p1 = "TOPLEFT", p2 = "TOPRIGHT" },
+        { height = thickness, p1 = "BOTTOMLEFT", p2 = "BOTTOMRIGHT" },
+        { width = thickness, p1 = "TOPLEFT", p2 = "BOTTOMLEFT" },
+        { width = thickness, p1 = "TOPRIGHT", p2 = "BOTTOMRIGHT" },
+    }
+    ---@type Texture[]
+    local textures = {}
+    for index, spec in ipairs(edges) do
+        local texture = parent:CreateTexture(nil, "BORDER")
+        if spec.width then
+            texture:SetWidth(spec.width)
+        else
+            texture:SetHeight(spec.height)
+        end
+        texture:SetPoint(spec.p1)
+        texture:SetPoint(spec.p2)
+        texture:SetColorTexture(r, g, b, a)
+        SnapHairline(texture)
+        textures[index] = texture
+    end
+    return textures
+end
+
+---@param textures Texture[]
+---@param color table
+local function SetTexturesColor(textures, color)
+    local r, g, b, a = Widgets.UnpackColor(color)
+    for _, texture in ipairs(textures) do
+        texture:SetColorTexture(r, g, b, a)
+    end
+end
+
 ---Creates a feature block parented to `stack.container` and mounted in `stack` immediately.
 ---SetContentHeight keeps that stack entry in sync. The frame parent is always the stack container.
 ---@param stack LayoutStack
@@ -84,10 +145,25 @@ function FeatureSection.Create(stack, options)
     assert(type(options) == "table" and type(options.title) == "string", "FeatureSection requires a title")
 
     local parent = stack.container
+    local isCard = options.card
+    if isCard == nil then
+        isCard = not IsNestedInFeatureSection(parent)
+    end
+
     local section = CreateFrame("Frame", nil, parent) --[[@as FeatureSection]]
     section.isFeatureSection = true
-    local inner = Layout.Stack(section)
+
+    -- Stack spacing is applied even when an entry's height is 0, so card mode keeps
+    -- default spacing at 0 and only opens a gap once content is taller than 0.
+    local inner = Layout.Stack(section, isCard and {
+        paddingX = Spacing.LARGE,
+        paddingY = Spacing.MEDIUM,
+    } or nil)
     local header = inner:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local headerGap
+    if isCard then
+        headerGap = inner:AddRow(0)
+    end
     local content = inner:Add(CreateFrame("Frame", nil, section), 0)
     section.content = content
 
@@ -97,6 +173,15 @@ function FeatureSection.Create(stack, options)
     local contentHeight = 0
     local toggle
     local headerAction
+    local cardBorders
+    local headerDivider
+
+    if isCard then
+        local bg = section:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        bg:SetColorTexture(Widgets.UnpackColor(Colors.FEATURE_CARD_BG))
+        cardBorders = CreateCardBorder(section, Colors.FEATURE_CARD_BORDER)
+    end
 
     local function NotifyHeight()
         stack:SetEntryHeight(section, inner:GetHeight())
@@ -118,6 +203,14 @@ function FeatureSection.Create(stack, options)
         end
     end
 
+    local function ApplyCardChrome()
+        if not isCard then
+            return
+        end
+        local active = enabled and parentFeatureEnabled
+        SetTexturesColor(cardBorders, active and Colors.FEATURE_CARD_BORDER or Colors.FEATURE_CARD_BORDER_DISABLED)
+    end
+
     local function ApplyContentInteractive()
         local interactive = enabled and parentFeatureEnabled
         content:SetAlpha(enabled and 1 or DISABLED_ALPHA)
@@ -127,14 +220,28 @@ function FeatureSection.Create(stack, options)
             toggle:SetEnabled(parentFeatureEnabled)
             toggle:SetAlpha(1)
         end
+        ApplyCardChrome()
     end
 
     local function ApplyContentHeight()
+        if headerGap then
+            inner:SetEntryHeight(headerGap, contentHeight > 0 and Spacing.SMALL or 0)
+        end
         inner:SetEntryHeight(content, contentHeight)
+        if isCard and headerDivider then
+            headerDivider:SetShown(contentHeight > 0)
+        end
         NotifyHeight()
     end
 
-    local titleFont = options.titleFont or (options.divider and Fonts.SUBTITLE or Fonts.BODY)
+    local titleFont = options.titleFont
+    if not titleFont then
+        if isCard or options.divider then
+            titleFont = Fonts.SUBTITLE
+        else
+            titleFont = Fonts.BODY
+        end
+    end
     assert(type(titleFont) == "string", "FeatureSection titleFont must be a font object name")
     local title = Widgets.CreateLabel(header, titleFont, options.title)
     title:SetJustifyH("LEFT")
@@ -152,22 +259,23 @@ function FeatureSection.Create(stack, options)
     end
 
     if options.toggle ~= false then
-        toggle = Widgets.CreateSegmentedControl(header, {
-            { value = true, text = L.FEATURE_ON },
-            { value = false, text = L.FEATURE_OFF },
-        }, function(value)
+        toggle = Widgets.CreateToggleSwitch(header, function(value)
             section:SetEnabled(value)
         end)
         toggle:SetPoint("RIGHT", header, "RIGHT")
-        toggle:SetSelected(enabled)
+        toggle:SetChecked(enabled)
     end
 
-    if options.divider then
-        local divider = header:CreateTexture(nil, "ARTWORK")
-        divider:SetHeight(1)
-        divider:SetPoint("BOTTOMLEFT")
-        divider:SetPoint("BOTTOMRIGHT")
-        divider:SetColorTexture(Widgets.UnpackColor(Colors.DIVIDER))
+    if isCard or options.divider then
+        headerDivider = header:CreateTexture(nil, "ARTWORK")
+        headerDivider:SetHeight(Sizes.BORDER)
+        headerDivider:SetPoint("BOTTOMLEFT")
+        headerDivider:SetPoint("BOTTOMRIGHT")
+        headerDivider:SetColorTexture(Widgets.UnpackColor(Colors.DIVIDER))
+        SnapHairline(headerDivider)
+        if isCard then
+            headerDivider:Hide()
+        end
     end
 
     function section:IsEnabled()
@@ -182,7 +290,7 @@ function FeatureSection.Create(stack, options)
         end
         enabled = value
         if toggle then
-            toggle:SetSelected(enabled)
+            toggle:SetChecked(enabled)
         end
         ApplyContentInteractive()
         if options.onEnabledChanged then

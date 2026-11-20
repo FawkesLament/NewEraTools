@@ -32,11 +32,18 @@ local BACKDROP = {
 ---@alias ButtonVariant "primary"|"secondary"|"warning"|"accent"
 
 local BUTTON_STYLES = {
-    primary = { fill = Colors.ACCENT, border = Colors.ACCENT, font = Fonts.ON_ACCENT },
-    secondary = { fill = Colors.SURFACE_RAISED, border = Colors.BORDER, font = Fonts.BODY },
+    primary = { fill = Colors.MENU_ACCENT, border = Colors.MENU_ACCENT, font = Fonts.ON_ACCENT },
+    secondary = { fill = Colors.SURFACE_RAISED, border = Colors.BORDER, font = Fonts.SUBTITLE },
     warning = { fill = Colors.WARNING, border = Colors.WARNING, font = Fonts.ON_ACCENT },
-    -- Dark fill with a turquoise edge. Quieter than a solid accent bar.
-    accent = { fill = Colors.SURFACE_RAISED, border = Colors.ACCENT, font = Fonts.BODY },
+    -- Dark fill with a teal edge. Quieter than a solid accent bar.
+    accent = { fill = Colors.SURFACE_RAISED, border = Colors.MENU_ACCENT, font = Fonts.SUBTITLE },
+    -- SegmentedControl selected: tinted well + accent edge. Not used by CreateButton.
+    segmentSelected = {
+        fill = Colors.SEGMENT_SELECTED_FILL,
+        border = Colors.MENU_ACCENT,
+        font = Fonts.SUBTITLE,
+        textColor = Colors.TEXT_PRIMARY,
+    },
 }
 
 -- Pressed wash over an accent button. Light enough that the label stays readable.
@@ -141,11 +148,69 @@ function Widgets.LayoutSectionHeader(row, title)
     return label
 end
 
+---@param texture Texture
+local function SnapHairline(texture)
+    if texture.SetSnapToPixelGrid then
+        texture:SetSnapToPixelGrid(true)
+        texture:SetTexelSnappingBias(0)
+    end
+end
+
+---@param parent Frame
+---@param color table
+---@return Texture[]
+local function CreatePixelBorder(parent, color)
+    local r, g, b, a = Widgets.UnpackColor(color)
+    local thickness = Sizes.BORDER
+    local edges = {
+        { height = thickness, p1 = "TOPLEFT", p2 = "TOPRIGHT" },
+        { height = thickness, p1 = "BOTTOMLEFT", p2 = "BOTTOMRIGHT" },
+        { width = thickness, p1 = "TOPLEFT", p2 = "BOTTOMLEFT" },
+        { width = thickness, p1 = "TOPRIGHT", p2 = "BOTTOMRIGHT" },
+    }
+    ---@type Texture[]
+    local textures = {}
+    for index, spec in ipairs(edges) do
+        local texture = parent:CreateTexture(nil, "BORDER")
+        if spec.width then
+            texture:SetWidth(spec.width)
+        else
+            texture:SetHeight(spec.height)
+        end
+        texture:SetPoint(spec.p1)
+        texture:SetPoint(spec.p2)
+        texture:SetColorTexture(r, g, b, a)
+        SnapHairline(texture)
+        textures[index] = texture
+    end
+    return textures
+end
+
+---@param textures Texture[]
+---@param color table
+local function SetTexturesColor(textures, color)
+    local r, g, b, a = Widgets.UnpackColor(color)
+    for _, texture in ipairs(textures) do
+        texture:SetColorTexture(r, g, b, a)
+    end
+end
+
 local function ApplyButtonStyle(button, variant)
     local style = BUTTON_STYLES[variant]
     Widgets.ApplyBackdrop(button, style.fill, style.border)
     button:SetNormalFontObject(style.font)
     button:SetDisabledFontObject(style.font)
+    local label = button.GetFontString and button:GetFontString()
+    if label then
+        local color = style.textColor
+        if not color then
+            local fontStyle = Assets.FontStyles[style.font]
+            color = fontStyle and fontStyle.color
+        end
+        if color then
+            label:SetTextColor(Widgets.UnpackColor(color))
+        end
+    end
 end
 
 ---Backdrop button with hover highlight and fade-on-disable. Callers that size the button themselves use this.
@@ -189,7 +254,7 @@ local function AddButtonGlyph(button, text, glyph)
     end
 
     local glyphLabel = Widgets.CreateLabel(button, Fonts.BODY, glyph)
-    glyphLabel:SetTextColor(Widgets.UnpackColor(Colors.ACCENT))
+    glyphLabel:SetTextColor(Widgets.UnpackColor(Colors.MENU_ACCENT))
     local caption = Widgets.CreateLabel(button, Fonts.BODY, text)
     caption:SetTextColor(Widgets.UnpackColor(Colors.TEXT))
 
@@ -216,7 +281,7 @@ local function ApplyAccentEnabled(button, enabled)
         button:SetDisabledFontObject(Fonts.MUTED)
         button.accentWash:Hide()
     end
-    local mark = enabled and Colors.ACCENT or Colors.TEXT_MUTED
+    local mark = enabled and Colors.MENU_ACCENT or Colors.TEXT_MUTED
     local caption = enabled and Colors.TEXT or Colors.TEXT_MUTED
     if button.accentGlyph then
         button.accentGlyph:SetTextColor(Widgets.UnpackColor(mark))
@@ -230,7 +295,7 @@ end
 ---@param parent Frame
 ---@param text string
 ---@param onClick fun(button: Button)
----@param variant ButtonVariant|nil  "primary" fills with accent. "accent" keeps the dark fill and a turquoise edge. "warning" is amber. Defaults to "secondary".
+---@param variant ButtonVariant|nil  "primary" fills with menu accent. "accent" keeps the dark fill and a teal edge. "warning" is amber. Defaults to "secondary".
 ---@param glyph string|nil  Small mark drawn before the label. Used with "accent".
 ---@return Button
 function Widgets.CreateButton(parent, text, onClick, variant, glyph)
@@ -241,7 +306,7 @@ function Widgets.CreateButton(parent, text, onClick, variant, glyph)
     if variant == "accent" then
         local wash = button:CreateTexture(nil, "ARTWORK")
         wash:SetAllPoints()
-        local r, g, b = Widgets.UnpackColor(Colors.ACCENT)
+        local r, g, b = Widgets.UnpackColor(Colors.MENU_ACCENT)
         wash:SetColorTexture(r, g, b, ACCENT_PRESS_ALPHA)
         wash:Hide()
         button.accentWash = wash
@@ -303,7 +368,7 @@ function Widgets.CreateLayoutEditButton(parent, text, onClick)
     end
 
     local icon = CreateLayoutMoveIcon(button)
-    local caption = Widgets.CreateLabel(button, Fonts.BODY, text)
+    local caption = Widgets.CreateLabel(button, Fonts.SUBTITLE, text)
     caption:SetJustifyH("LEFT")
     local gap = Spacing.SMALL
     local clusterWidth = Sizes.LAYOUT_EDIT_ICON + gap + caption:GetStringWidth()
@@ -326,7 +391,7 @@ function Widgets.CreateTextButton(parent, text, onClick, font)
     Widgets.EnsureFonts()
     local button = CreateFrame("Button", nil, parent)
     button:SetNormalFontObject(font or Fonts.LINK)
-    button:SetHighlightFontObject(Fonts.BODY)
+    button:SetHighlightFontObject(Fonts.SUBTITLE)
     button:SetDisabledFontObject(Fonts.MUTED)
     button:SetText(text)
     button:SetSize(button:GetTextWidth() + 2 * Spacing.SMALL, Sizes.CONTROL_HEIGHT)
@@ -343,9 +408,10 @@ end
 ---@field SetSelected fun(self: SegmentedControl, value: any)  Highlights the segment holding `value`.
 ---@field SetItems fun(self: SegmentedControl, items: SegmentedControlItem[])  Updates labels/values; same count as create.
 ---@field SetEnabled fun(self: SegmentedControl, enabled: boolean)  Enables or disables every segment button.
+---@field IsEnabled fun(self: SegmentedControl): boolean
 ---@field SetSegmentEnabled fun(self: SegmentedControl, value: any, enabled: boolean)  Locks one segment by its value.
 
----Creates a row of joined, equally wide buttons of which one is selected at a time.
+---Creates a grooved, equally wide segmented control. One inset thumb marks the selection.
 ---Clicking a segment calls `onSelect`; the caller then calls SetSelected to show the new choice.
 ---A segment with `disabled` stays greyed out when the control is enabled, and ignores clicks.
 ---@param parent Frame
@@ -353,69 +419,149 @@ end
 ---@param onSelect fun(value: any)
 ---@return SegmentedControl
 function Widgets.CreateSegmentedControl(parent, items, onSelect)
+    Widgets.EnsureFonts()
+    local INSET = Sizes.TOGGLE_THUMB_INSET
     local control = CreateFrame("Frame", nil, parent) --[[@as SegmentedControl]]
     local segments = {}
     local selectedValue
     local controlEnabled = true
     local baseLevel = control:GetFrameLevel() + 1
 
+    local track = control:CreateTexture(nil, "BACKGROUND")
+    track:SetAllPoints()
+    track:SetColorTexture(Widgets.UnpackColor(Colors.TOGGLE_TRACK_OFF))
+    SnapHairline(track)
+    CreatePixelBorder(control, Colors.TOGGLE_TRACK_OFF_BORDER)
+
+    local thumb = CreateFrame("Frame", nil, control)
+    thumb:SetFrameLevel(baseLevel)
+    local thumbFill = thumb:CreateTexture(nil, "BACKGROUND")
+    thumbFill:SetAllPoints()
+    thumbFill:SetColorTexture(Widgets.UnpackColor(Colors.SEGMENT_THUMB_BG))
+    SnapHairline(thumbFill)
+    CreatePixelBorder(thumb, Colors.SEGMENT_THUMB_BORDER)
+    thumb:Hide()
+
+    local function CanHover(segment)
+        return controlEnabled and segment.segmentEnabled ~= false and segment.value ~= selectedValue
+    end
+
+    local function ApplySegmentAppearance(segment)
+        local hover = segment.hover
+        if CanHover(segment) and segment.hovered then
+            hover:Show()
+            segment.label:SetTextColor(Widgets.UnpackColor(Colors.TEXT_HEADING))
+        else
+            hover:Hide()
+            if segment.segmentEnabled == false then
+                segment.label:SetTextColor(Widgets.UnpackColor(Colors.TEXT_HINT))
+            elseif segment.value == selectedValue then
+                segment.label:SetTextColor(Widgets.UnpackColor(Colors.TEXT_PRIMARY))
+            else
+                segment.label:SetTextColor(Widgets.UnpackColor(Colors.TEXT_BODY))
+            end
+        end
+    end
+
+    local function ApplyThumb()
+        local selected
+        for _, segment in ipairs(segments) do
+            if segment.value == selectedValue then
+                selected = segment
+                break
+            end
+        end
+        if not selected then
+            thumb:Hide()
+            return
+        end
+        thumb:ClearAllPoints()
+        thumb:SetPoint("TOPLEFT", selected, "TOPLEFT")
+        thumb:SetPoint("BOTTOMRIGHT", selected, "BOTTOMRIGHT")
+        thumb:Show()
+    end
+
+    local function ApplySelection()
+        ApplyThumb()
+        for _, segment in ipairs(segments) do
+            ApplySegmentAppearance(segment)
+        end
+    end
+
     local function Relayout()
         local segmentWidth = 0
         for _, segment in ipairs(segments) do
             segmentWidth = math.max(segmentWidth, segment:GetTextWidth() + Sizes.SEGMENT_TEXT_PADDING)
         end
-        -- Neighbors overlap by one border width so the dividers between segments stay 1px wide.
-        local step = segmentWidth - Sizes.BORDER
+        local segmentHeight = Sizes.CONTROL_HEIGHT - INSET * 2
         for index, segment in ipairs(segments) do
-            segment:SetSize(segmentWidth, Sizes.CONTROL_HEIGHT)
+            segment:SetSize(segmentWidth, segmentHeight)
             segment:ClearAllPoints()
-            segment:SetPoint("LEFT", control, "LEFT", (index - 1) * step, 0)
+            segment:SetPoint("LEFT", control, "LEFT", INSET + (index - 1) * segmentWidth, 0)
         end
-        control:SetSize(#segments * step + Sizes.BORDER, Sizes.CONTROL_HEIGHT)
+        control:SetSize(#segments * segmentWidth + INSET * 2, Sizes.CONTROL_HEIGHT)
+        ApplyThumb()
     end
 
-    local function ApplySelection()
-        for _, segment in ipairs(segments) do
-            local isSelected = segment.value == selectedValue
-            ApplyButtonStyle(segment, isSelected and "primary" or "secondary")
-            -- Keeps the selected segment's accent border above its neighbors' borders.
-            segment:SetFrameLevel(isSelected and baseLevel + 1 or baseLevel)
-        end
-    end
-
-    ---FeatureSection re-enables descendants. The wrapper keeps a locked segment disabled.
+    ---FeatureSection already dims inactive content; keep this control opaque.
     ---@param segment Button
     local function ApplySegmentState(segment)
-        segment:SetEnabled(controlEnabled)
-        if not controlEnabled then
-            -- Parent FeatureSections already dim inactive content; don't stack another fade.
-            segment:SetAlpha(1)
-        end
+        segment:SetAlpha(1)
+        ApplySegmentAppearance(segment)
     end
 
     for _, item in ipairs(items) do
-        -- Declare before CreateFlatButton so the click closure captures the local, not a global
+        -- Declare before CreateFrame so the click closure captures the local, not a global
         -- (Lua 5.1: a local is not in scope on the RHS of its own declaration).
         local segment
-        segment = Widgets.CreateFlatButton(control, "secondary", function()
-            if segment.segmentEnabled == false then
+        segment = CreateFrame("Button", nil, control)
+        segment:SetFrameLevel(baseLevel + 1)
+        local hover = segment:CreateTexture(nil, "BACKGROUND")
+        hover:SetAllPoints()
+        hover:SetColorTexture(Widgets.UnpackColor(Colors.HOVER))
+        hover:Hide()
+        local label = Widgets.CreateLabel(segment, Fonts.BODY, item.text)
+        label:SetJustifyH("CENTER")
+        label:SetJustifyV("MIDDLE")
+        label:SetAllPoints()
+        segment.hover = hover
+        segment.label = label
+        segment.value = item.value
+        segment.segmentEnabled = item.disabled ~= true
+        segment.hovered = false
+        function segment:SetText(text)
+            self.label:SetText(text)
+        end
+        function segment:GetTextWidth()
+            return self.label:GetStringWidth()
+        end
+        -- FeatureSection walks descendants with SetEnabled. Never fade here: locked
+        -- segments use TEXT_HINT, and a disabled parent already owns the dim.
+        function segment:SetEnabled()
+            self:SetAlpha(1)
+            ApplySegmentAppearance(self)
+        end
+        function segment:IsEnabled()
+            return true
+        end
+        segment:SetScript("OnEnter", function()
+            segment.hovered = true
+            ApplySegmentAppearance(segment)
+        end)
+        segment:SetScript("OnLeave", function()
+            segment.hovered = false
+            ApplySegmentAppearance(segment)
+        end)
+        segment:SetScript("OnClick", function()
+            if not controlEnabled or segment.segmentEnabled == false then
                 return
             end
             onSelect(segment.value)
         end)
-        segment:SetText(item.text)
-        segment.value = item.value
-        segment.segmentEnabled = item.disabled ~= true
-        local rawSetEnabled = segment.SetEnabled
-        function segment:SetEnabled(enabled)
-            rawSetEnabled(self, enabled == true and self.segmentEnabled ~= false)
-        end
-        if item.disabled then
-            segment:SetEnabled(true)
-        end
         segments[#segments + 1] = segment
     end
     Relayout()
+    ApplySelection()
 
     function control:SetSelected(value)
         selectedValue = value
@@ -450,13 +596,97 @@ function Widgets.CreateSegmentedControl(parent, items, onSelect)
         end
     end
 
+    function control:IsEnabled()
+        return controlEnabled
+    end
+
     function control:SetEnabled(enabled)
         controlEnabled = enabled == true
+        self:SetAlpha(1)
         for _, segment in ipairs(segments) do
             ApplySegmentState(segment)
         end
     end
     return control
+end
+
+---@class ToggleSwitch: Button
+---@field SetChecked fun(self: ToggleSwitch, checked: boolean)
+---@field IsChecked fun(self: ToggleSwitch): boolean
+---@field SetEnabled fun(self: ToggleSwitch, enabled: boolean)
+---@field IsEnabled fun(self: ToggleSwitch): boolean
+
+---Creates a compact On/Off switch. Clicking calls `onToggle(not checked)`; the caller then
+---calls SetChecked to show the new state (same controlled pattern as CreateSegmentedControl).
+---@param parent Frame
+---@param onToggle fun(checked: boolean)
+---@return ToggleSwitch
+function Widgets.CreateToggleSwitch(parent, onToggle)
+    local checked = false
+    local enabled = true
+    local button = CreateFrame("Button", nil, parent) --[[@as ToggleSwitch]]
+    button:SetSize(Sizes.TOGGLE_WIDTH, Sizes.TOGGLE_HEIGHT)
+
+    local track = button:CreateTexture(nil, "BACKGROUND")
+    track:SetAllPoints()
+    SnapHairline(track)
+    local borders = CreatePixelBorder(button, Colors.TOGGLE_TRACK_OFF_BORDER)
+
+    local inset = Sizes.TOGGLE_THUMB_INSET
+    local thumbSize = Sizes.TOGGLE_HEIGHT - 2 * inset
+    local thumb = button:CreateTexture(nil, "ARTWORK")
+    thumb:SetSize(thumbSize, thumbSize)
+    SnapHairline(thumb)
+    Widgets.AddHoverHighlight(button)
+
+    local function ApplyVisual()
+        if checked then
+            track:SetColorTexture(Widgets.UnpackColor(Colors.MENU_ACCENT))
+            SetTexturesColor(borders, Colors.MENU_ACCENT)
+            thumb:SetColorTexture(Widgets.UnpackColor(Colors.TOGGLE_THUMB_ON))
+            thumb:ClearAllPoints()
+            thumb:SetPoint("RIGHT", button, "RIGHT", -inset, 0)
+        else
+            track:SetColorTexture(Widgets.UnpackColor(Colors.TOGGLE_TRACK_OFF))
+            SetTexturesColor(borders, Colors.TOGGLE_TRACK_OFF_BORDER)
+            thumb:SetColorTexture(Widgets.UnpackColor(Colors.TOGGLE_THUMB_OFF))
+            thumb:ClearAllPoints()
+            thumb:SetPoint("LEFT", button, "LEFT", inset, 0)
+        end
+    end
+
+    function button:IsChecked()
+        return checked
+    end
+
+    function button:SetChecked(value)
+        checked = value == true
+        ApplyVisual()
+    end
+
+    function button:IsEnabled()
+        return enabled
+    end
+
+    function button:SetEnabled(isEnabled)
+        enabled = isEnabled == true
+        if enabled then
+            self:Enable()
+        else
+            self:Disable()
+        end
+        self:SetAlpha(enabled and 1 or DISABLED_ALPHA)
+    end
+
+    button:SetScript("OnClick", function()
+        if not enabled then
+            return
+        end
+        onToggle(not checked)
+    end)
+
+    ApplyVisual()
+    return button
 end
 
 ---@class ExpandButton: Button
@@ -487,7 +717,7 @@ function Widgets.CreateExpandButton(parent, onClick)
         strokes[index] = stroke
     end
 
-    local label = Widgets.CreateLabel(button, Fonts.BODY)
+    local label = Widgets.CreateLabel(button, Fonts.SUBTITLE)
     label:SetPoint("LEFT", arrow, "RIGHT", Spacing.SMALL, 0)
 
     function button:SetExpanded(expanded)
@@ -573,7 +803,7 @@ function Widgets.CreateCheckbox(parent)
     local fill = box:CreateTexture(nil, "ARTWORK")
     fill:SetPoint("TOPLEFT", Sizes.CHECKBOX_FILL_INSET, -Sizes.CHECKBOX_FILL_INSET)
     fill:SetPoint("BOTTOMRIGHT", -Sizes.CHECKBOX_FILL_INSET, Sizes.CHECKBOX_FILL_INSET)
-    fill:SetColorTexture(Widgets.UnpackColor(Colors.ACCENT))
+    fill:SetColorTexture(Widgets.UnpackColor(Colors.MENU_ACCENT))
     box:SetCheckedTexture(fill)
     -- FeatureSection uses SetEnabled; CheckButton only has Enable/Disable natively.
     function box:SetEnabled(enabled)
@@ -600,7 +830,7 @@ function Widgets.CreateNumberBox(parent, maxDigits, options)
     Widgets.EnsureFonts()
     local box = CreateFrame("EditBox", nil, parent, Assets.Templates.BACKDROP)
     Widgets.ApplyBackdrop(box, Colors.SURFACE, Colors.BORDER)
-    box:SetFontObject(Fonts.BODY)
+    box:SetFontObject(Fonts.SUBTITLE)
     local letterCount = maxDigits
     if signed then
         letterCount = letterCount + 1
@@ -618,7 +848,7 @@ function Widgets.CreateNumberBox(parent, maxDigits, options)
     box:SetScript("OnEnterPressed", box.ClearFocus)
     box:SetScript("OnEscapePressed", box.ClearFocus)
     box:SetScript("OnEditFocusGained", function(self)
-        self:SetBackdropBorderColor(Widgets.UnpackColor(Colors.ACCENT))
+        self:SetBackdropBorderColor(Widgets.UnpackColor(Colors.MENU_ACCENT))
     end)
     box:SetScript("OnEditFocusLost", function(self)
         self:SetBackdropBorderColor(Widgets.UnpackColor(Colors.BORDER))

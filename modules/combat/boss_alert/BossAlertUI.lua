@@ -47,7 +47,7 @@ local function BuildContent(content)
     local body = Layout.Stack(content, {
         paddingX = Spacing.SMALL,
         paddingY = Spacing.SMALL,
-        spacing = Spacing.SMALL,
+        spacing = Spacing.MEDIUM,
     })
 
     local callout = FeatureSection.Create(body, {

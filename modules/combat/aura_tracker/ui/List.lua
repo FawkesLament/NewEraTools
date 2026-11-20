@@ -298,7 +298,7 @@ local function PaintRow(row, isActive)
     Widgets.ApplyBackdrop(
         row.frame,
         selected and Colors.SURFACE_RAISED or Colors.SURFACE,
-        selected and Colors.ACCENT or Colors.BORDER
+        selected and Colors.MENU_ACCENT or Colors.BORDER
     )
     row.enableBox:SetChecked(enabled)
     UI.ApplySpellIcon(row.spellIcon, spellId)

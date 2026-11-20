@@ -46,8 +46,8 @@ function Dropdown.Create(parent, items, onSelect)
     local catcher
     local label
     Widgets.EnsureFonts()
-    local measure = dropdown:CreateFontString(nil, "OVERLAY", Fonts.BODY)
-    measure:SetFontObject(Fonts.BODY)
+    local measure = dropdown:CreateFontString(nil, "OVERLAY", Fonts.SUBTITLE)
+    measure:SetFontObject(Fonts.SUBTITLE)
     measure:Hide()
 
     local function CloseMenu()
@@ -227,7 +227,7 @@ function Dropdown.Create(parent, items, onSelect)
         rawTriggerSetEnabled(self, enabled == true and dropdownEnabled)
     end
 
-    label = Widgets.CreateLabel(trigger, Fonts.BODY)
+    label = Widgets.CreateLabel(trigger, Fonts.SUBTITLE)
     label:SetJustifyH("CENTER")
     label:SetWordWrap(false)
     label:SetPoint("LEFT", Spacing.MEDIUM, 0)

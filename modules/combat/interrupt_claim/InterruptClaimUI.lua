@@ -445,7 +445,7 @@ end
 local function RefreshMarkerSelection()
     local selected = InterruptClaim:GetMarkIndex()
     for index, cell in ipairs(markerCells) do
-        Widgets.ApplyBackdrop(cell, Colors.SURFACE, index == selected and Colors.ACCENT or Colors.BORDER)
+        Widgets.ApplyBackdrop(cell, Colors.SURFACE, index == selected and Colors.MENU_ACCENT or Colors.BORDER)
     end
 end
 
@@ -499,7 +499,7 @@ local function CreateAnnounceBox(parent)
     local box = CreateFrame("EditBox", nil, parent, Assets.Templates.BACKDROP)
     Widgets.ApplyBackdrop(box, Colors.SURFACE, Colors.BORDER)
     Widgets.EnsureFonts()
-    box:SetFontObject(Fonts.BODY)
+    box:SetFontObject(Fonts.SUBTITLE)
     box:SetHeight(Sizes.INPUT_HEIGHT)
     box:SetAutoFocus(false)
     box:SetMaxLetters(InterruptClaim.ANNOUNCE_MAX_CHARS)
@@ -508,7 +508,7 @@ local function CreateAnnounceBox(parent)
     box:SetScript("OnEnterPressed", box.ClearFocus)
     box:SetScript("OnEscapePressed", box.ClearFocus)
     box:SetScript("OnEditFocusGained", function(self)
-        self:SetBackdropBorderColor(Widgets.UnpackColor(Colors.ACCENT))
+        self:SetBackdropBorderColor(Widgets.UnpackColor(Colors.MENU_ACCENT))
     end)
     box:SetScript("OnEditFocusLost", function(self)
         self:SetBackdropBorderColor(Widgets.UnpackColor(Colors.BORDER))
@@ -601,7 +601,7 @@ local function BuildContent(content)
     local body = Layout.Stack(content, {
         paddingX = Spacing.SMALL,
         paddingY = Spacing.SMALL,
-        spacing = Spacing.SMALL,
+        spacing = Spacing.MEDIUM,
     })
 
     local clickRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)

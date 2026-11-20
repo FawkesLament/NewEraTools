@@ -16,7 +16,7 @@ local HEADER_GAP = Spacing.XLARGE
 local DESC_GAP = Spacing.LARGE
 local HEADER_OFFSET = Sizes.FLOATING_HEADER_HEIGHT + HEADER_GAP
 -- Two lines so the English hint can wrap.
-local DESC_HEIGHT = Assets.FontStyles[Fonts.HEADER].size * 2 + Spacing.TINY
+local DESC_HEIGHT = Assets.FontStyles[Fonts.MUTED].size * 2 + Spacing.TINY
 local WINDOW_HEIGHT = 200 + 2 * Sizes.FLOATING_HEADER_PAD
 local TEXT_INSET = Spacing.SMALL
 local SCROLL_GUTTER = Sizes.SCROLL_BAR_WIDTH + Spacing.SMALL
@@ -100,7 +100,7 @@ local function ApplyText(text)
     local textHeight = measure:GetStringHeight()
     if not textHeight or textHeight < 1 then
         local _, fontSize = box:GetFont()
-        textHeight = LineCount(payloadText) * (fontSize or Assets.FontStyles[Fonts.BODY].size)
+        textHeight = LineCount(payloadText) * (fontSize or Assets.FontStyles[Fonts.SUBTITLE].size)
     end
     box:SetHeight(math.max(textHeight + TEXT_INSET * 2, scroll:GetHeight()))
     box:SetText(payloadText)
@@ -142,7 +142,7 @@ local function Ensure()
     local stack = Layout.Stack(body, { spacing = DESC_GAP })
 
     local descRow = stack:AddRow(DESC_HEIGHT)
-    local desc = Widgets.CreateLabel(descRow, Fonts.HEADER, L.TWIN_FANGS_INTERRUPT_MACRO_DESC)
+    local desc = Widgets.CreateLabel(descRow, Fonts.MUTED, L.TWIN_FANGS_INTERRUPT_MACRO_DESC)
     desc:SetJustifyH("LEFT")
     desc:SetJustifyV("TOP")
     desc:SetWordWrap(true)
@@ -162,13 +162,13 @@ local function Ensure()
     box = CreateFrame("EditBox", nil, scroll)
     box:SetMultiLine(true)
     box:SetAutoFocus(false)
-    box:SetFontObject(Fonts.BODY)
+    box:SetFontObject(Fonts.SUBTITLE)
     box:SetTextColor(Widgets.UnpackColor(Colors.TEXT))
     box:SetTextInsets(TEXT_INSET, TEXT_INSET, TEXT_INSET, TEXT_INSET)
     box:SetMaxLetters(0)
     scroll:SetScrollChild(box)
 
-    measure = window:CreateFontString(nil, "ARTWORK", Fonts.BODY)
+    measure = window:CreateFontString(nil, "ARTWORK", Fonts.SUBTITLE)
     measure:Hide()
     measure:SetWordWrap(true)
     measure:SetNonSpaceWrap(true)

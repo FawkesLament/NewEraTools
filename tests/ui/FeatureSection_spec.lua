@@ -80,6 +80,16 @@ local function FakeFrame(parent)
         self.parent = parent
     end
 
+    function frame:GetParent()
+        return self.parent
+    end
+
+    function frame:SetAllPoints(relativeTo)
+        local target = relativeTo or self.parent
+        self:SetPoint("TOPLEFT", target, "TOPLEFT")
+        self:SetPoint("BOTTOMRIGHT", target, "BOTTOMRIGHT")
+    end
+
     function frame:Enable()
         self.enabled = true
     end
@@ -89,10 +99,14 @@ local function FakeFrame(parent)
     end
 
     function frame:CreateTexture()
-        local texture = FakeFrame(self)
+        -- Textures are not frames and must not appear in GetChildren.
+        local texture = FakeFrame()
+        texture.parent = self
         self.textures = self.textures or {}
         table.insert(self.textures, texture)
         function texture:SetColorTexture() end
+        function texture:SetSnapToPixelGrid() end
+        function texture:SetTexelSnappingBias() end
         return texture
     end
 
@@ -135,9 +149,18 @@ describe("FeatureSection", function()
         local ns = {
             L = { FEATURE_ON = "On", FEATURE_OFF = "Off" },
             Assets = {
-                Sizes = { CONTROL_ROW_HEIGHT = 32, CONTROL_HEIGHT = 24, BORDER = 1 },
-                Spacing = { SMALL = 4, MEDIUM = 8 },
-                Colors = { DIVIDER = { 1, 1, 1, 1 } },
+                Sizes = {
+                    CONTROL_ROW_HEIGHT = 32,
+                    CONTROL_HEIGHT = 24,
+                    BORDER = 1,
+                },
+                Spacing = { SMALL = 4, MEDIUM = 8, LARGE = 12 },
+                Colors = {
+                    DIVIDER = { r = 1, g = 1, b = 1, a = 1 },
+                    FEATURE_CARD_BG = { r = 0.1, g = 0.1, b = 0.1, a = 1 },
+                    FEATURE_CARD_BORDER = { r = 0.2, g = 0.2, b = 0.2, a = 1 },
+                    FEATURE_CARD_BORDER_DISABLED = { r = 0.15, g = 0.15, b = 0.15, a = 1 },
+                },
                 Fonts = { BODY = "Body", SUBTITLE = "Subtitle" },
             },
         }
@@ -152,22 +175,27 @@ describe("FeatureSection", function()
             end
             return label
         end
-        function Widgets.CreateSegmentedControl(parent, items, onSelect)
+        function Widgets.CreateToggleSwitch(parent, onToggle)
             local control = FakeFrame(parent)
-            control.items = items
-            control.onSelect = onSelect
-            function control:SetSelected(value)
-                self.selected = value
+            control.onToggle = onToggle
+            function control:SetChecked(value)
+                self.checked = value == true
+            end
+            function control:IsChecked()
+                return self.checked == true
             end
             function control:SetEnabled(enabled)
                 self.enabled = enabled == true
             end
-            control:SetSize(80, 24)
+            function control:IsEnabled()
+                return self.enabled ~= false
+            end
+            control:SetSize(40, 20)
             return control
         end
         function Widgets.AttachTooltip() end
         function Widgets.UnpackColor(color)
-            return color[1], color[2], color[3], color[4]
+            return color.r, color.g, color.b, color.a
         end
 
         assert(loadfile("ui/FeatureSection.lua"))(Loader.ADDON_NAME, ns)
@@ -195,8 +223,9 @@ describe("FeatureSection", function()
 
     it("starts with only the header height until content is measured", function()
         local section, stack = CreateSection()
-        assert.equals(32, section:GetHeight())
-        assert.equals(32, stack:GetHeight())
+        -- Card paddingY (8) around the 32px header; no content gap while height is 0.
+        assert.equals(48, section:GetHeight())
+        assert.equals(48, stack:GetHeight())
     end)
 
     it("parents to stack.container and keeps that entry in sync", function()
@@ -211,19 +240,20 @@ describe("FeatureSection", function()
         })
 
         assert.is_true(section.parent == host)
-        assert.equals(32, stack:GetHeight())
-        assert.equals(32, stackHeights[#stackHeights])
+        assert.equals(48, stack:GetHeight())
+        assert.equals(48, stackHeights[#stackHeights])
 
         section:SetContentHeight(100)
-        assert.equals(132, section:GetHeight())
-        assert.equals(132, stack:GetHeight())
-        assert.equals(132, stackHeights[#stackHeights])
+        assert.equals(152, section:GetHeight())
+        assert.equals(152, stack:GetHeight())
+        assert.equals(152, stackHeights[#stackHeights])
     end)
 
     it("grows when content height is set", function()
         local section = CreateSection()
         section:SetContentHeight(100)
-        assert.equals(132, section:GetHeight())
+        -- paddingY 8 + header 32 + content gap 4 + content 100 + paddingY 8
+        assert.equals(152, section:GetHeight())
     end)
 
     it("dims and disables content when the feature is turned off", function()
@@ -282,19 +312,30 @@ describe("FeatureSection", function()
     end)
 
     it("draws a divider under the title when asked", function()
-        local plain = CreateSection()
+        local plain = CreateSection({ card = false })
         assert.equals(nil, plain.children[1].textures)
 
-        local section = CreateSection({ divider = true })
+        local section = CreateSection({ card = false, divider = true })
         local divider = section.children[1].textures[1]
         assert.equals(1, divider.height)
         assert.is_true(divider.points.BOTTOMLEFT ~= nil)
         assert.is_true(divider.points.BOTTOMRIGHT ~= nil)
     end)
 
+    it("keeps nested sections flat so cards are not nested", function()
+        local parent = CreateSection()
+        local nestedStack = Layout.Stack(parent.content)
+        local nested = FeatureSection.Create(nestedStack, {
+            title = "Show Remaining Time",
+        })
+        assert.equals(32, nested:GetHeight())
+        nested:SetContentHeight(40)
+        assert.equals(72, nested:GetHeight())
+    end)
+
     it("accepts an optional title tooltip", function()
         local section = CreateSection({ tooltip = "Click the vents" })
-        assert.equals(32, section:GetHeight())
+        assert.equals(48, section:GetHeight())
     end)
 
     it("can omit the On/Off toggle and stay enabled", function()
@@ -302,7 +343,7 @@ describe("FeatureSection", function()
         local header = section.children[1]
         local toggle
         for _, child in ipairs(header.children) do
-            if child.items then
+            if child.SetChecked then
                 toggle = child
             end
         end

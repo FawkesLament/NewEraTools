@@ -124,6 +124,7 @@ function WarningWindow.Create(options)
 
     local hintRow = stack:AddRow(HINT_ROW_HEIGHT)
     local hint = Widgets.CreateLabel(hintRow, Fonts.BODY, options.hint)
+    hint:SetTextColor(Widgets.UnpackColor(Colors.TEXT))
     hint:SetJustifyH("LEFT")
     hint:SetWordWrap(false)
     hint:SetPoint("LEFT", hintRow, "LEFT")

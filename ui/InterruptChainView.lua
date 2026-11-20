@@ -124,6 +124,7 @@ local function CreateAssignmentCard(parent)
     card.accent = AddAccentBar(card, Colors.ACCENT)
 
     local title = Widgets.CreateLabel(card, Fonts.BODY)
+    title:SetTextColor(Widgets.UnpackColor(Colors.TEXT))
     title:SetJustifyH("LEFT")
     title:SetJustifyV("MIDDLE")
     title:SetHeight(CARD_HEADER)

@@ -104,7 +104,7 @@ local function CreateTextBox(parent, maxLetters)
     local box = CreateFrame("EditBox", nil, parent, Assets.Templates.BACKDROP)
     Widgets.ApplyBackdrop(box, Colors.SURFACE, Colors.BORDER)
     Widgets.EnsureFonts()
-    box:SetFontObject(Fonts.BODY)
+    box:SetFontObject(Fonts.SUBTITLE)
     box:SetHeight(Sizes.INPUT_HEIGHT)
     box:SetAutoFocus(false)
     box:SetMaxLetters(maxLetters)
@@ -113,7 +113,7 @@ local function CreateTextBox(parent, maxLetters)
     box:SetScript("OnEnterPressed", box.ClearFocus)
     box:SetScript("OnEscapePressed", box.ClearFocus)
     box:SetScript("OnEditFocusGained", function(self)
-        self:SetBackdropBorderColor(Widgets.UnpackColor(Colors.ACCENT))
+        self:SetBackdropBorderColor(Widgets.UnpackColor(Colors.MENU_ACCENT))
     end)
     box:SetScript("OnEditFocusLost", function(self)
         self:SetBackdropBorderColor(Widgets.UnpackColor(Colors.BORDER))
@@ -136,7 +136,7 @@ local function BuildChain(parent)
     title:SetJustifyH("LEFT")
     title:SetPoint("TOPLEFT")
     title:SetPoint("TOPRIGHT")
-    title:SetTextColor(Widgets.UnpackColor(Colors.ACCENT))
+    title:SetTextColor(Widgets.UnpackColor(Colors.MENU_ACCENT))
 
     local slots = {}
     for index = 1, Assignments.SLOT_COUNT do
@@ -152,7 +152,7 @@ local function BuildChain(parent)
         number:SetJustifyH("CENTER")
         number:SetWidth(SEQUENCE_WIDTH)
         number:SetPoint("LEFT", slot, "LEFT", Spacing.TINY, 0)
-        number:SetTextColor(Widgets.UnpackColor(Colors.ACCENT))
+        number:SetTextColor(Widgets.UnpackColor(Colors.MENU_ACCENT))
         slot.number = number
 
         local name = Widgets.CreateLabel(slot, Fonts.BODY)
@@ -271,7 +271,7 @@ local function RefreshSlots()
             slot.name:SetPoint("RIGHT", slot, "RIGHT", -Spacing.SMALL, 0)
         end
         local selected = selectedIndex == index
-        Widgets.ApplyBackdrop(slot, Colors.SURFACE_RAISED, selected and Colors.ACCENT or Colors.BORDER)
+        Widgets.ApplyBackdrop(slot, Colors.SURFACE_RAISED, selected and Colors.MENU_ACCENT or Colors.BORDER)
     end
 end
 
@@ -339,7 +339,7 @@ local function RefreshRoster()
             local onSlot = assigned and assigned.type == Assignments.TYPE_PLAYER and assigned.value == identity
             button:SetAlpha(1)
             button.name:SetTextColor(Widgets.UnpackColor(ClassColor(member.classFile)))
-            Widgets.ApplyBackdrop(button, Colors.SURFACE, onSlot and Colors.ACCENT or Colors.BORDER)
+            Widgets.ApplyBackdrop(button, Colors.SURFACE, onSlot and Colors.MENU_ACCENT or Colors.BORDER)
             button:Show()
         end
         for extra = #list + 1, #column.buttons do

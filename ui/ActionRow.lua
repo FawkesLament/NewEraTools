@@ -1,5 +1,4 @@
 local _, ns = ...
-local L = ns.L
 local Assets = ns.Assets
 local Layout = ns.Layout
 local Widgets = ns.Widgets
@@ -115,14 +114,11 @@ function ActionRow.Apply(row, options)
     if hasToggle then
         local enabled = options.enabled ~= false
         local toggle
-        toggle = Widgets.CreateSegmentedControl(actionCell, {
-            { value = true, text = L.FEATURE_ON },
-            { value = false, text = L.FEATURE_OFF },
-        }, function(value)
-            toggle:SetSelected(value)
+        toggle = Widgets.CreateToggleSwitch(actionCell, function(value)
+            toggle:SetChecked(value)
             options.onEnabledChanged(value)
         end)
-        toggle:SetSelected(enabled)
+        toggle:SetChecked(enabled)
         toggle:SetPoint("RIGHT", actionCell, "RIGHT")
         nextControl = toggle
     end

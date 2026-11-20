@@ -524,7 +524,7 @@ local function RefreshPlayerRows(editor)
             row.guid = entry.guid
             row.number:SetText(entry.sequence)
             local numberColor = entry.count > Preview.MIN_COUNT and Colors.TEXT_GOLD
-                or (REGION_ACCENTS[selectedRegion] or Colors.ACCENT)
+                or (REGION_ACCENTS[selectedRegion] or Colors.MENU_ACCENT)
             row.number:SetTextColor(Widgets.UnpackColor(numberColor))
             local member = Chain.GetMember(session, entry.player)
             row.name:SetText(Labels.DisplayName(session.roster, entry.player))

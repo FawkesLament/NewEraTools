@@ -71,14 +71,14 @@ function Slider.Create(parent, minValue, maxValue, step, allowMouseWheelOrOption
 
     local thumb = slider:CreateTexture(nil, "OVERLAY")
     thumb:SetSize(Sizes.SLIDER_THUMB_WIDTH, Sizes.SLIDER_THUMB_HEIGHT)
-    thumb:SetColorTexture(Widgets.UnpackColor(Colors.ACCENT))
+    thumb:SetColorTexture(Widgets.UnpackColor(Colors.MENU_ACCENT))
     slider:SetThumbTexture(thumb)
 
     local fill = slider:CreateTexture(nil, "ARTWORK")
     fill:SetHeight(Sizes.SLIDER_TRACK)
     fill:SetPoint("LEFT")
     fill:SetPoint("RIGHT", thumb, "CENTER")
-    fill:SetColorTexture(Widgets.UnpackColor(Colors.ACCENT))
+    fill:SetColorTexture(Widgets.UnpackColor(Colors.MENU_ACCENT))
 
     if allowMouseWheel then
         slider:EnableMouseWheel(true)

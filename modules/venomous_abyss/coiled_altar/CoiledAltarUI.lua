@@ -117,24 +117,28 @@ local function BuildContent(content)
     local body = Layout.Stack(content, {
         paddingX = Spacing.SMALL,
         paddingY = Spacing.SMALL,
-        spacing = Spacing.SMALL,
+        spacing = Spacing.MEDIUM,
     })
 
     local editLayout = Widgets.CreateLayoutEditButton(content.header, L.COILED_ALTAR_EDIT_POSITION, BeginEditPosition)
     content:SetHeaderAction(editLayout)
 
-    local titleRow = body:AddRow(Sizes.CONTENT_SECTION_HEADER)
-    Widgets.LayoutSectionHeader(titleRow, L.COILED_ALTAR_INTERRUPT_ASSIGNMENTS)
+    local assignments = FeatureSection.Create(body, {
+        title = L.COILED_ALTAR_INTERRUPT_ASSIGNMENTS,
+        divider = true,
+        toggle = false,
+    })
     local preferMemberView = false
-    local viewSwitch = Widgets.CreateTextButton(titleRow, L.COILED_ALTAR_INTERRUPT_VIEW_MEMBER, function()
+    local viewSwitch = Widgets.CreateTextButton(assignments, L.COILED_ALTAR_INTERRUPT_VIEW_MEMBER, function()
         preferMemberView = not preferMemberView
         if syncInterruptAssignments then
             syncInterruptAssignments()
         end
     end)
-    viewSwitch:SetPoint("RIGHT", titleRow, "RIGHT")
+    assignments:SetHeaderAction(viewSwitch)
 
-    local interruptRoleRow = body:AddRow(ns.RaidRoleModeLabel.HEIGHT)
+    local assignmentsBody = Layout.Stack(assignments.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
+    local interruptRoleRow = assignmentsBody:AddRow(ns.RaidRoleModeLabel.HEIGHT)
     local interruptRoleLabel = ns.RaidRoleModeLabel.Create(interruptRoleRow, L.COILED_ALTAR_INTERRUPT_RAID_ROLE_TOOLTIP)
     local addonCheck = Widgets.CreateButton(interruptRoleRow, L.ADDONCHECK_BUTTON, function()
         if not CoiledAltar:IsRaidCommander() then
@@ -145,7 +149,7 @@ local function BuildContent(content)
     Widgets.AttachTooltip(addonCheck, "ANCHOR_TOP", function(tooltip)
         tooltip:SetText(L.ADDONCHECK_BUTTON_TOOLTIP)
     end)
-    local syncStatusRow = body:AddRow(1)
+    local syncStatusRow = assignmentsBody:AddRow(1)
     local syncStatus = Widgets.CreateLabel(syncStatusRow, Fonts.SMALL_MUTED)
     syncStatus:SetJustifyH("RIGHT")
     syncStatus:SetJustifyV("TOP")
@@ -154,11 +158,18 @@ local function BuildContent(content)
     syncStatus:SetPoint("TOPRIGHT")
     local syncStatusKind
 
+    local function NotifyAssignmentsHeight()
+        assignments:SetContentHeight(assignmentsBody:GetHeight())
+        content:SetContentHeight(body:GetHeight())
+        assignments:RefreshContentInteractive()
+    end
+
     local function SetSyncStatus(kind, text)
         syncStatusKind = kind
         if not text or text == "" then
             syncStatus:SetText("")
-            body:SetEntryHeight(syncStatusRow, 1)
+            assignmentsBody:SetEntryHeight(syncStatusRow, 1)
+            NotifyAssignmentsHeight()
             return
         end
         syncStatus:SetText(text)
@@ -167,10 +178,10 @@ local function BuildContent(content)
         else
             syncStatus:SetTextColor(Widgets.UnpackColor(Colors.ERROR))
         end
-        local width = math.max(content:GetWidth() or 0, 1)
+        local width = math.max(assignments.content:GetWidth() or 0, 1)
         syncStatus:SetWidth(width)
-        body:SetEntryHeight(syncStatusRow, math.max(syncStatus:GetStringHeight() or 0, 16))
-        content:SetContentHeight(body:GetHeight())
+        assignmentsBody:SetEntryHeight(syncStatusRow, math.max(syncStatus:GetStringHeight() or 0, 16))
+        NotifyAssignmentsHeight()
     end
 
     local function ClearSyncError()
@@ -190,12 +201,12 @@ local function BuildContent(content)
     sync:SetPoint("RIGHT", interruptRoleRow, "RIGHT")
     addonCheck:SetPoint("RIGHT", sync, "LEFT", -Spacing.SMALL, 0)
 
-    local chainHost = body:Add(CreateFrame("Frame", nil, content), 1)
+    local chainHost = assignmentsBody:Add(CreateFrame("Frame", nil, assignments.content), 1)
     local editorMounted
     local memberViewMounted
     local function ApplyChainHostHeight(height)
-        body:SetEntryHeight(chainHost, height)
-        content:SetContentHeight(body:GetHeight())
+        assignmentsBody:SetEntryHeight(chainHost, height)
+        NotifyAssignmentsHeight()
     end
 
     local function EnsureChainEditor()
@@ -234,14 +245,18 @@ local function BuildContent(content)
         addonCheck:SetShown(showEditor)
         sync:SetShown(showEditor)
         if not showEditor then
-            body:SetEntryHeight(syncStatusRow, 1)
+            assignmentsBody:SetEntryHeight(syncStatusRow, 1)
         elseif syncStatus:GetText() ~= "" then
-            body:SetEntryHeight(syncStatusRow, math.max(syncStatus:GetStringHeight() or 0, 16))
+            assignmentsBody:SetEntryHeight(syncStatusRow, math.max(syncStatus:GetStringHeight() or 0, 16))
         else
-            body:SetEntryHeight(syncStatusRow, 1)
+            assignmentsBody:SetEntryHeight(syncStatusRow, 1)
         end
-        body:SetEntryHeight(interruptRoleRow, showEditor and Sizes.CONTROL_ROW_HEIGHT or ns.RaidRoleModeLabel.HEIGHT)
+        assignmentsBody:SetEntryHeight(
+            interruptRoleRow,
+            showEditor and Sizes.CONTROL_ROW_HEIGHT or ns.RaidRoleModeLabel.HEIGHT
+        )
         if not content:IsVisible() then
+            NotifyAssignmentsHeight()
             return
         end
         chainHost:Show()
@@ -254,7 +269,7 @@ local function BuildContent(content)
             EnsureMemberView()
             Internals.InterruptAssignmentsMemberView.SetShown(true)
         end
-        content:SetContentHeight(body:GetHeight())
+        NotifyAssignmentsHeight()
     end
 
     content:HookScript("OnShow", function()

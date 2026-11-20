@@ -103,7 +103,7 @@ local function CreateGroupHeader(sidebar, group)
     line:SetHeight(Sizes.BORDER)
     line:SetPoint("LEFT", label, "RIGHT", Spacing.MEDIUM, 0)
     line:SetPoint("RIGHT", -Spacing.LARGE, 0)
-    line:SetColorTexture(Widgets.UnpackColor(Colors.DIVIDER))
+    line:SetColorTexture(Widgets.UnpackColor(Colors.MENU_DIVIDER))
 
     return header
 end
@@ -121,7 +121,7 @@ local function CreateNavButton(sidebar, def)
     accent:SetPoint("TOPLEFT")
     accent:SetPoint("BOTTOMLEFT")
     accent:SetWidth(Sizes.NAV_ACCENT_WIDTH)
-    accent:SetColorTexture(Widgets.UnpackColor(Colors.ACCENT))
+    accent:SetColorTexture(Widgets.UnpackColor(Colors.MENU_ACCENT_GOLD))
     button.accent = accent
 
     local label = Widgets.CreateLabel(button, Fonts.BODY, def.title)
@@ -137,7 +137,7 @@ end
 local function SetNavSelected(button, isSelected)
     button.selected:SetShown(isSelected)
     button.accent:SetShown(isSelected)
-    button.label:SetTextColor(Widgets.UnpackColor(isSelected and Colors.TEXT or Colors.TEXT_MUTED))
+    button.label:SetTextColor(Widgets.UnpackColor(isSelected and Colors.TEXT_HEADING or Colors.TEXT_HINT))
 end
 
 local function CreateSection(frame, def)
@@ -176,7 +176,7 @@ local function CreateSection(frame, def)
     divider:SetHeight(1)
     divider:SetPoint("BOTTOMLEFT")
     divider:SetPoint("BOTTOMRIGHT")
-    divider:SetColorTexture(Widgets.UnpackColor(Colors.DIVIDER))
+    divider:SetColorTexture(Widgets.UnpackColor(Colors.MENU_DIVIDER))
 
     local body = CreateFrame("Frame", nil, frame.content)
     body:SetPoint("TOPLEFT")
@@ -236,24 +236,21 @@ local function CreateSection(frame, def)
     end
 
     if def.onEnabledChanged then
-        -- Declare before CreateSegmentedControl so the click closure captures the local
+        -- Declare before CreateToggleSwitch so the click closure captures the local
         -- (Lua 5.1: a local is not in scope on the RHS of its own declaration).
-        toggle = Widgets.CreateSegmentedControl(header, {
-            { value = true, text = L.FEATURE_ON },
-            { value = false, text = L.FEATURE_OFF },
-        }, function(value)
+        toggle = Widgets.CreateToggleSwitch(header, function(value)
             value = value == true
             if enabled == value then
                 ApplyContentInteractive()
                 return
             end
             enabled = value
-            toggle:SetSelected(enabled)
+            toggle:SetChecked(enabled)
             ApplyContentInteractive()
             def.onEnabledChanged(enabled)
         end)
         toggle:SetPoint("RIGHT", header, "TOPRIGHT", 0, titleBandCenterY)
-        toggle:SetSelected(enabled)
+        toggle:SetChecked(enabled)
 
         function body:RefreshContentInteractive()
             ApplyContentInteractive()
@@ -398,7 +395,7 @@ end
 
 local function CreateDivider(parent)
     local divider = parent:CreateTexture(nil, "BORDER")
-    divider:SetColorTexture(Widgets.UnpackColor(Colors.DIVIDER))
+    divider:SetColorTexture(Widgets.UnpackColor(Colors.MENU_DIVIDER))
     return divider
 end
 
@@ -419,7 +416,7 @@ end
 ---Scale slider + label; parented to a chrome frame so the whole group can hide when collapsed.
 ---Typed entry is off: rescaling moves the control under the cursor, so a textbox is a poor fit.
 local function CreateScaleControl(frame, chrome, anchorRight)
-    local value = Widgets.CreateLabel(chrome, Fonts.SMALL_MUTED)
+    local value = Widgets.CreateLabel(chrome, Fonts.SUBTITLE)
     value:SetWidth(Sizes.SLIDER_VALUE_WIDTH)
     value:SetJustifyH("RIGHT")
     value:SetPoint("RIGHT", anchorRight, "LEFT", -Spacing.MEDIUM, 0)
@@ -464,6 +461,10 @@ local function CreateHeader(frame)
     header:SetPoint("TOPLEFT", Sizes.BORDER, -Sizes.BORDER)
     header:SetPoint("TOPRIGHT", -Sizes.BORDER, -Sizes.BORDER)
     header:SetHeight(Sizes.HEADER_HEIGHT)
+    local titleBar = header:CreateTexture(nil, "BACKGROUND")
+    titleBar:SetAllPoints()
+    titleBar:SetColorTexture(Widgets.UnpackColor(Colors.MENU_TITLE_BAR))
+
     header:EnableMouse(true)
     header:RegisterForDrag("LeftButton")
     header:SetScript("OnDragStart", function()
@@ -523,7 +524,7 @@ local function CreateBody(frame, header)
     body:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -Sizes.BORDER)
     body:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -Sizes.BORDER, Sizes.BORDER)
 
-    local sidebar = Widgets.CreateSurface(body, Colors.SURFACE)
+    local sidebar = Widgets.CreateSurface(body, Colors.MENU_SIDEBAR)
     sidebar:SetPoint("TOPLEFT")
     sidebar:SetPoint("BOTTOMLEFT")
     sidebar:SetWidth(SIDEBAR_WIDTH)
@@ -570,7 +571,12 @@ local function CreateBody(frame, header)
 end
 
 local function CreatePanel()
-    local frame = Widgets.CreateSurface(UIParent, Colors.BG, Colors.BORDER, ns.ADDON_NAME .. "Panel")
+    local frame = Widgets.CreateSurface(
+        UIParent,
+        Colors.MENU_CONTENT,
+        Colors.MENU_WINDOW_BORDER,
+        ns.ADDON_NAME .. "Panel"
+    )
     frame:SetSize(PANEL_WIDTH, PANEL_HEIGHT)
     frame:SetScale(Util.Snap(MainPanel.db.scale, SCALE_MIN, SCALE_MAX, SCALE_STEP))
     frame:SetPoint("CENTER")

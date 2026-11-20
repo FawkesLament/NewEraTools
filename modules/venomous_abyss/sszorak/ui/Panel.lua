@@ -6,6 +6,7 @@ local Assets = ns.Assets
 local Chat = ns.Api.Chat
 local Combat = ns.Api.Combat
 local AddonCheckPanel = ns.AddonCheckPanel
+local FeatureSection = ns.FeatureSection
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
 local Slider = ns.Slider
@@ -44,6 +45,10 @@ local addonCheckButton
 local syncRow
 local mapSection
 local mapBody
+local basicSection
+local basicBody
+local markersSection
+local markersBody
 local roleLabel
 local roleStatus
 ---@type AddonCheckPanel|nil
@@ -127,7 +132,7 @@ local function ShowPicker(anchor, edge)
     local current = Sszorak:GetEdgeMarker(edge)
     for _, cell in ipairs(picker.cells) do
         local owner = Sszorak:FindEdgeWithMarker(cell.marker)
-        Widgets.ApplyBackdrop(cell, Colors.SURFACE, cell.marker == current and Colors.ACCENT or Colors.BORDER)
+        Widgets.ApplyBackdrop(cell, Colors.SURFACE, cell.marker == current and Colors.MENU_ACCENT or Colors.BORDER)
         cell:SetAlpha((owner and owner ~= edge) and PICKER_IN_USE_ALPHA or 1)
     end
 
@@ -146,16 +151,20 @@ local function UpdateResetButton()
     resetButton:SetShown(Sszorak:IsMapEnabled() and not Sszorak:IsDefaultEdgeMarkers())
 end
 
----Shows or collapses a commander-only stack row and refreshes the section height.
+---Shows or collapses a commander-only row inside a FeatureSection and refreshes heights.
+---@param section FeatureSection|nil
+---@param sectionBody LayoutStack|nil
 ---@param row Frame|nil
 ---@param shown boolean
-local function SetCommanderRowShown(row, shown)
-    if not row or not mapBody or not mapSection then
+local function SetCommanderRowShown(section, sectionBody, row, shown)
+    if not row or not section or not sectionBody or not mapBody or not mapSection then
         return
     end
-    mapBody:SetEntryHeight(row, shown and Sizes.CONTROL_ROW_HEIGHT or 0)
+    sectionBody:SetEntryHeight(row, shown and Sizes.CONTROL_ROW_HEIGHT or 0)
     row:SetShown(shown)
+    section:SetContentHeight(sectionBody:GetHeight())
     mapSection:SetContentHeight(mapBody:GetHeight())
+    section:RefreshContentInteractive()
 end
 
 ---Macro status beside the create button: green when macros exist, red on create failure, empty otherwise.
@@ -196,8 +205,8 @@ local function UpdateCommanderControls()
     if roleLabel then
         ns.RaidRoleModeLabel.Update(roleLabel)
     end
-    SetCommanderRowShown(createMacrosRow, isCommander)
-    SetCommanderRowShown(syncRow, isCommander)
+    SetCommanderRowShown(basicSection, basicBody, createMacrosRow, isCommander)
+    SetCommanderRowShown(markersSection, markersBody, syncRow, isCommander)
     if not isCommander then
         HideAddonCheckPanel()
     end
@@ -338,6 +347,10 @@ local function ResetBuiltControls()
     addonCheckButton = nil
     syncRow = nil
     mapBody = nil
+    basicSection = nil
+    basicBody = nil
+    markersSection = nil
+    markersBody = nil
     roleLabel = nil
     roleStatus = nil
 end
@@ -370,10 +383,14 @@ local function BuildMapContent(content)
     local roleRow = body:AddRow(ns.RaidRoleModeLabel.HEIGHT)
     roleLabel = ns.RaidRoleModeLabel.Create(roleRow, L.SSZORAK_RAID_ROLE_MODE_TOOLTIP)
 
-    -- A. Basic Settings
-    Widgets.LayoutSectionHeader(body:AddRow(Sizes.CONTENT_SECTION_HEADER), L.SSZORAK_SECTION_BASIC)
+    basicSection = FeatureSection.Create(body, {
+        title = L.SSZORAK_SECTION_BASIC,
+        divider = true,
+        toggle = false,
+    })
+    basicBody = Layout.Stack(basicSection.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
 
-    createMacrosRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    createMacrosRow = basicBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local macrosCell, addonCheckCell = Layout.SplitRow(createMacrosRow, Spacing.MEDIUM)
     createMacrosButton = Widgets.CreateButton(macrosCell, L.SSZORAK_CREATE_MACROS, function()
         if not Sszorak:IsMapEnabled() or not Sszorak:IsRaidCommander() then
@@ -411,7 +428,7 @@ local function BuildMapContent(content)
     end)
     addonCheckButton:SetPoint("LEFT", addonCheckCell, "LEFT")
 
-    local groupRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local groupRow = basicBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local groupCell
     groupCell, modeCell = Layout.SplitRow(groupRow, Spacing.MEDIUM)
     local groupLabel = Widgets.CreateLabel(groupCell, Fonts.BODY, L.SSZORAK_GROUP_LABEL)
@@ -433,20 +450,25 @@ local function BuildMapContent(content)
 
     -- The right cell stays empty until jailbreak is registered. A later registration fills it in place.
     RefreshCalloutModeControl()
+    basicSection:SetContentHeight(basicBody:GetHeight())
+    basicSection:RefreshContentInteractive()
 
-    -- B. Marker Configuration
-    local markersHeader = body:AddRow(Sizes.CONTENT_SECTION_HEADER, Spacing.LARGE)
-    Widgets.LayoutSectionHeader(markersHeader, L.SSZORAK_SECTION_MARKERS)
-    resetButton = Widgets.CreateTextButton(markersHeader, L.SSZORAK_MARKERS_RESET, function()
+    markersSection = FeatureSection.Create(body, {
+        title = L.SSZORAK_SECTION_MARKERS,
+        divider = true,
+        toggle = false,
+    })
+    resetButton = Widgets.CreateTextButton(markersSection, L.SSZORAK_MARKERS_RESET, function()
         if not Sszorak:IsMapEnabled() then
             return
         end
         Sszorak:ResetEdgeMarkers()
     end)
-    resetButton:SetPoint("RIGHT", markersHeader, "RIGHT")
+    markersSection:SetHeaderAction(resetButton)
     UpdateResetButton()
 
-    local editorRow = body:AddRow(Map.GetArenaRowHeight(EDITOR_ARENA_SIZE))
+    markersBody = Layout.Stack(markersSection.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
+    local editorRow = markersBody:AddRow(Map.GetArenaRowHeight(EDITOR_ARENA_SIZE))
     local editorArena = Map.CreateArenaRow(editorRow, { size = EDITOR_ARENA_SIZE, onEdgeMarkerClick = ShowPicker })
     local function CenterEditorArena()
         local width = editorRow:GetWidth()
@@ -458,20 +480,26 @@ local function BuildMapContent(content)
     editorRow:SetScript("OnSizeChanged", CenterEditorArena)
     CenterEditorArena()
 
-    local hintRow = body:AddRow(HINT_ROW_HEIGHT)
+    local hintRow = markersBody:AddRow(HINT_ROW_HEIGHT)
     local hint = Widgets.CreateLabel(hintRow, Fonts.SMALL_MUTED, L.SSZORAK_MARKERS_HINT)
     hint:SetJustifyH("LEFT")
     hint:SetPoint("LEFT", hintRow, "LEFT")
     hint:SetPoint("RIGHT", hintRow, "RIGHT")
 
-    syncRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    syncRow = markersBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local syncButton = Widgets.CreateButton(syncRow, L.SSZORAK_BROADCAST, function()
         Sszorak:BroadcastEdgeMarkers()
     end, "primary")
     syncButton:SetPoint("RIGHT", syncRow, "RIGHT")
+    markersSection:SetContentHeight(markersBody:GetHeight())
+    markersSection:RefreshContentInteractive()
 
-    -- C. UI Tools
-    Widgets.LayoutSectionHeader(body:AddRow(Sizes.CONTENT_SECTION_HEADER, Spacing.LARGE), L.SSZORAK_SECTION_TOOLS)
+    local tools = FeatureSection.Create(body, {
+        title = L.SSZORAK_SECTION_TOOLS,
+        divider = true,
+        toggle = false,
+    })
+    local toolsBody = Layout.Stack(tools.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
 
     ---Label, flexible slider, value box, and optional suffix, filling one half of a row.
     ---@param cell Frame
@@ -512,7 +540,7 @@ local function BuildMapContent(content)
         end)
     end
 
-    local sliderRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local sliderRow = toolsBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local scaleCell, rotationCell = Layout.SplitRow(sliderRow, Spacing.MEDIUM)
 
     local scaleLabel = Widgets.CreateLabel(scaleCell, Fonts.BODY, L.SSZORAK_MAP_SCALE)
@@ -554,6 +582,8 @@ local function BuildMapContent(content)
         Window.ApplyRotation()
     end)
     PlaceHalfSlider(rotationCell, rotationLabel, rotationSlider)
+    tools:SetContentHeight(toolsBody:GetHeight())
+    tools:RefreshContentInteractive()
 
     return body:GetHeight()
 end

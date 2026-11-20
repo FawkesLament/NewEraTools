@@ -16,7 +16,7 @@ RaidRoleModeLabel.HEIGHT = 16
 ---@param text string
 ---@return string
 local function AccentText(text)
-    local r, g, b = Widgets.UnpackColor(Colors.ACCENT)
+    local r, g, b = Widgets.UnpackColor(Colors.MENU_ACCENT)
     return string.format(
         "|cff%02x%02x%02x%s|r",
         math.floor(r * 255 + 0.5),

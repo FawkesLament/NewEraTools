@@ -169,7 +169,7 @@ local function EnsureWindow()
     window:SetToplevel(true)
     ListenForScale()
 
-    titleLabel = Widgets.CreateLabel(window.header, Fonts.BODY)
+    titleLabel = Widgets.CreateLabel(window.header, Fonts.TITLE)
     titleLabel:SetJustifyH("LEFT")
     titleLabel:SetWordWrap(false)
     titleLabel:SetPoint("LEFT", Sizes.FLOATING_HEADER_PAD, 0)

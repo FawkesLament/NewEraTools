@@ -101,51 +101,119 @@ Assets.Glyphs = {
     SORT_DESC = "▼",
 }
 
+---Copies RGB from `c` and returns a new table. Never mutates the source color.
+---@param c { r: number, g: number, b: number }
+---@param a number
+---@return { r: number, g: number, b: number, a: number }
+local function WithAlpha(c, a)
+    return { r = c.r, g = c.g, b = c.b, a = a }
+end
+
+-- Shared RGB bases. Domain tokens copy or wrap these; do not mutate Palette entries.
+local Palette = {
+    OVERLAY_DARK = { r = 0.071, g = 0.075, b = 0.090, a = 1 },
+    BORDER_BASE = { r = 0.180, g = 0.196, b = 0.231, a = 1 },
+    -- Matte gold (#C9A65C); matches the NEW ERA logo and menu structure marks.
+    GOLD = { r = 0.788, g = 0.651, b = 0.361, a = 1 },
+    -- Restrained teal (#329490); menu interactive controls only.
+    TEAL = { r = 0.196, g = 0.580, b = 0.565, a = 1 },
+    -- Bright cyan kept for StatusHUD / layout-edit / combat overlays.
+    CYAN_BRIGHT = { r = 0.310, g = 0.765, b = 0.710, a = 1 },
+    VIOLET = { r = 0.620, g = 0.500, b = 0.860, a = 1 },
+    BLACK = { r = 0, g = 0, b = 0, a = 1 },
+    WHITE = { r = 1, g = 1, b = 1, a = 1 },
+}
+
 Assets.Colors = {
-    BG = { r = 0.071, g = 0.075, b = 0.090, a = 0.95 },
-    -- For windows left open over the game world, which should stay visible through them.
-    BG_TRANSLUCENT = { r = 0.071, g = 0.075, b = 0.090, a = 0.6 },
-    -- No fill; for HUD overlays that should only show their own content.
-    TRANSPARENT = { r = 0, g = 0, b = 0, a = 0 },
-    -- Slightly more see-through than BG_TRANSLUCENT; for warning overlays.
-    BG_WARNING = { r = 0.071, g = 0.075, b = 0.090, a = 0.8 },
+    -- 1. Menu Window & Surfaces
+    -- Main settings window only. Do not reuse on HUD / overlays (those keep BG / SURFACE).
+    -- Title/sidebar paints are opaque so they do not composite over MENU_CONTENT.
+    MENU_TITLE_BAR = { r = 0.055, g = 0.067, b = 0.086, a = 1 },
+    MENU_SIDEBAR = { r = 0.075, g = 0.090, b = 0.118, a = 1 },
+    -- Outer window fill and the right-hand content floor (only semi-transparent layer).
+    MENU_CONTENT = { r = 0.094, g = 0.110, b = 0.141, a = 0.96 },
+    -- 1px outer edge: brighter than MENU_TITLE_BAR, quieter than BORDER.
+    MENU_WINDOW_BORDER = { r = 0.145, g = 0.160, b = 0.192, a = 0.85 },
+    -- Title/sidebar/content seams; luminance does the real split.
+    MENU_DIVIDER = WithAlpha(Palette.WHITE, 0.06),
+    -- FeatureSection card: brighter than MENU_CONTENT, and brighter than SURFACE so nested
+    -- info boxes (SURFACE) read as inset wells instead of blending into the card.
+    FEATURE_CARD_BG = { r = 0.125, g = 0.149, b = 0.192, a = 1 },
+    FEATURE_CARD_BORDER = { r = 0.220, g = 0.238, b = 0.280, a = 1 },
+    FEATURE_CARD_BORDER_DISABLED = { r = 0.155, g = 0.168, b = 0.198, a = 0.85 },
+    FEATURE_CARD_ACCENT = WithAlpha(Palette.GOLD, 1),
+    FEATURE_CARD_ACCENT_DISABLED = { r = 0.275, g = 0.290, b = 0.325, a = 1 },
     SURFACE = { r = 0.102, g = 0.110, b = 0.133, a = 1 },
     SURFACE_RAISED = { r = 0.137, g = 0.149, b = 0.180, a = 1 },
-    BORDER = { r = 0.180, g = 0.196, b = 0.231, a = 1 },
-    -- Softer edge for compact floating overlays.
-    BORDER_SUBTLE = { r = 0.55, g = 0.58, b = 0.65, a = 0.55 },
-    -- 1px white hairline for compact cards (toast edge / split).
-    BORDER_FAINT = { r = 1, g = 1, b = 1, a = 0.08 },
-    -- Amber edge for warning overlays.
-    BORDER_WARNING = { r = 0.90, g = 0.70, b = 0.25, a = 0.75 },
-    HOVER = { r = 1, g = 1, b = 1, a = 0.06 },
+    BORDER = WithAlpha(Palette.BORDER_BASE, 1),
+    DIVIDER = WithAlpha(Palette.BORDER_BASE, 1),
+    HOVER = WithAlpha(Palette.WHITE, 0.06),
+
+    -- 2. Accents & Interactive Controls
+    -- Bright cyan: StatusHUD, layout-edit chrome, and combat overlays.
+    ACCENT = WithAlpha(Palette.CYAN_BRIGHT, 1),
+    MENU_ACCENT_GOLD = WithAlpha(Palette.GOLD, 1),
+    -- Teal: settings-window toggles, sliders, checkboxes, buttons, and selected wells.
+    MENU_ACCENT = WithAlpha(Palette.TEAL, 1),
+    -- ToggleSwitch: on = accent track + near-white thumb; off = inset well + muted thumb.
+    TOGGLE_THUMB_ON = { r = 0.98, g = 0.99, b = 1, a = 1 },
+    TOGGLE_THUMB_OFF = { r = 0.42, g = 0.45, b = 0.50, a = 1 },
+    TOGGLE_TRACK_OFF = { r = 0.055, g = 0.060, b = 0.078, a = 1 },
+    TOGGLE_TRACK_OFF_BORDER = { r = 0.145, g = 0.155, b = 0.180, a = 1 },
+    -- SegmentedControl selected: ~22% MENU_ACCENT mixed into SURFACE_RAISED.
+    SEGMENT_SELECTED_FILL = { r = 0.150, g = 0.244, b = 0.265, a = 1 },
+    -- SegmentedControl thumb: one step brighter than FEATURE_CARD_BG, no teal tint.
+    SEGMENT_THUMB_BG = { r = 0.196, g = 0.227, b = 0.282, a = 1 },
+    SEGMENT_THUMB_BORDER = { r = 0.290, g = 0.329, b = 0.396, a = 1 },
+    TEXT_ON_ACCENT = { r = Palette.OVERLAY_DARK.r, g = Palette.OVERLAY_DARK.g, b = Palette.OVERLAY_DARK.b },
+
+    -- 3. Typography
     TEXT = { r = 0.902, g = 0.910, b = 0.922 },
+    -- Menu settings typography (L1–L4). HUD overlays keep TEXT / TEXT_MUTED.
+    TEXT_PRIMARY = { r = 0.96, g = 0.97, b = 0.98 },
+    TEXT_HEADING = { r = 0.88, g = 0.90, b = 0.94 },
+    TEXT_BODY = { r = 0.68, g = 0.72, b = 0.78 },
+    TEXT_HINT = { r = 0.48, g = 0.52, b = 0.58 },
     TEXT_MUTED = { r = 0.545, g = 0.565, b = 0.604 },
     -- Light gold for prominent readouts (e.g. combat timers).
     TEXT_GOLD = { r = 0.93, g = 0.82, b = 0.48 },
-    TEXT_ON_ACCENT = { r = 0.071, g = 0.075, b = 0.090 },
-    ACCENT = { r = 0.310, g = 0.765, b = 0.710, a = 1 },
+
+    -- 4. Semantic Status
+    SUCCESS = { r = 0.35, g = 0.80, b = 0.40 },
+    WARNING = { r = 0.945, g = 0.643, b = 0.267, a = 1 },
+    ERROR = { r = 0.898, g = 0.282, b = 0.302 },
+
+    -- 5. Layout Edit Mode & World Overlays / HUD
+    BG = WithAlpha(Palette.OVERLAY_DARK, 0.95),
+    -- For windows left open over the game world, which should stay visible through them.
+    BG_TRANSLUCENT = WithAlpha(Palette.OVERLAY_DARK, 0.6),
+    -- Slightly more see-through than BG_TRANSLUCENT; for warning overlays.
+    BG_WARNING = WithAlpha(Palette.OVERLAY_DARK, 0.8),
+    -- No fill; for HUD overlays that should only show their own content.
+    TRANSPARENT = WithAlpha(Palette.BLACK, 0),
+    -- Softer edge for compact floating overlays.
+    BORDER_SUBTLE = { r = 0.55, g = 0.58, b = 0.65, a = 0.55 },
+    -- 1px white hairline for compact cards (toast edge / split).
+    BORDER_FAINT = WithAlpha(Palette.WHITE, 0.08),
+    -- Amber edge for warning overlays.
+    BORDER_WARNING = { r = 0.90, g = 0.70, b = 0.25, a = 0.75 },
+    -- Subtle outline / label for layout edit mode previews.
+    LAYOUT_EDIT_OUTLINE = WithAlpha(Palette.CYAN_BRIGHT, 0.55),
+    LAYOUT_EDIT_OUTLINE_SELECTED = WithAlpha(Palette.CYAN_BRIGHT, 1),
+    LAYOUT_EDIT_LABEL = WithAlpha(Palette.CYAN_BRIGHT, 0.9),
+    -- Full-screen veil behind editable elements (one static texture; no per-frame work).
+    LAYOUT_EDIT_DIMMER = WithAlpha(Palette.BLACK, 0.55),
     -- StatusHUD emphasis (primary / cyan) and standby (backup / violet) card edges.
-    STATUS_HUD_EMPHASIS_BORDER = { r = 0.310, g = 0.765, b = 0.710, a = 0.72 },
+    STATUS_HUD_EMPHASIS_BORDER = WithAlpha(Palette.CYAN_BRIGHT, 0.72),
     -- Top-row region (#E2E8F0) and role accents: primary #86D9FF, backup #C5ACF5.
     STATUS_HUD_REGION = { r = 0.886, g = 0.910, b = 0.941 },
     STATUS_HUD_EMPHASIS_ROLE = { r = 0.525, g = 0.851, b = 1 },
     STATUS_HUD_STANDBY_ROLE = { r = 0.773, g = 0.675, b = 0.961 },
-    STATUS_HUD_STANDBY = { r = 0.620, g = 0.500, b = 0.860, a = 1 },
-    STATUS_HUD_STANDBY_BORDER = { r = 0.620, g = 0.500, b = 0.860, a = 0.40 },
+    STATUS_HUD_STANDBY = WithAlpha(Palette.VIOLET, 1),
+    STATUS_HUD_STANDBY_BORDER = WithAlpha(Palette.VIOLET, 0.40),
     STATUS_HUD_STANDBY_TEXT = { r = 0.780, g = 0.800, b = 0.840 },
     STATUS_HUD_STANDBY_EMPTY = { r = 0.220, g = 0.200, b = 0.280, a = 1 },
-    STATUS_HUD_STANDBY_BG = { r = 0.071, g = 0.075, b = 0.090, a = 0.48 },
-    SUCCESS = { r = 0.35, g = 0.80, b = 0.40 },
-    WARNING = { r = 0.945, g = 0.643, b = 0.267, a = 1 },
-    ERROR = { r = 0.898, g = 0.282, b = 0.302 },
-    DIVIDER = { r = 0.180, g = 0.196, b = 0.231, a = 1 },
-    -- Subtle outline / label for layout edit mode previews.
-    LAYOUT_EDIT_OUTLINE = { r = 0.310, g = 0.765, b = 0.710, a = 0.55 },
-    LAYOUT_EDIT_OUTLINE_SELECTED = { r = 0.310, g = 0.765, b = 0.710, a = 1 },
-    LAYOUT_EDIT_LABEL = { r = 0.310, g = 0.765, b = 0.710, a = 0.9 },
-    -- Full-screen veil behind editable elements (one static texture; no per-frame work).
-    LAYOUT_EDIT_DIMMER = { r = 0, g = 0, b = 0, a = 0.55 },
+    STATUS_HUD_STANDBY_BG = WithAlpha(Palette.OVERLAY_DARK, 0.48),
 }
 
 -- Shared game textures used by floating overlays.
@@ -169,11 +237,22 @@ local FONT_PREFIX = ns.ADDON_NAME .. "Font"
 
 -- Names of font objects created by ns.Widgets on first use.
 Assets.Fonts = {
+    -- Menu / Settings UI
     TITLE = FONT_PREFIX .. "Title",
     HEADER = FONT_PREFIX .. "Header",
     NAV_GROUP = FONT_PREFIX .. "NavGroup",
-    BODY = FONT_PREFIX .. "Body",
     SUBTITLE = FONT_PREFIX .. "Subtitle",
+    BODY = FONT_PREFIX .. "Body",
+    MUTED = FONT_PREFIX .. "Muted",
+    SMALL_MUTED = FONT_PREFIX .. "SmallMuted",
+    ON_ACCENT = FONT_PREFIX .. "OnAccent",
+    LINK = FONT_PREFIX .. "Link",
+    -- Same size as LINK; bright red for destructive text actions.
+    LINK_DANGER = FONT_PREFIX .. "LinkDanger",
+    GLYPH = FONT_PREFIX .. "Glyph",
+    -- Larger +/- on stepper buttons; body text stays at 12.
+    STEPPER = FONT_PREFIX .. "Stepper",
+    -- World Overlays & HUD
     -- Larger body face for copyable generated text (e.g. interrupt macros).
     PAYLOAD = FONT_PREFIX .. "Payload",
     -- Slightly larger with an outline; for short emphasized spans (e.g. marker names).
@@ -185,30 +264,30 @@ Assets.Fonts = {
     -- Persistent StatusHUD card: same ARHei face as CALLOUT, smaller sizes.
     STATUS_HUD_TITLE = FONT_PREFIX .. "StatusHudTitle",
     STATUS_HUD_TEXT = FONT_PREFIX .. "StatusHudText",
-    MUTED = FONT_PREFIX .. "Muted",
-    SMALL_MUTED = FONT_PREFIX .. "SmallMuted",
     -- One step below SMALL_MUTED; for quiet footnotes on overlays.
     TINY_MUTED = FONT_PREFIX .. "TinyMuted",
-    ON_ACCENT = FONT_PREFIX .. "OnAccent",
     -- Larger on-accent face for the layout-edit Done control.
     LAYOUT_EDIT_DONE = FONT_PREFIX .. "LayoutEditDone",
-    LINK = FONT_PREFIX .. "Link",
-    -- Same size as LINK; bright red for destructive text actions.
-    LINK_DANGER = FONT_PREFIX .. "LinkDanger",
-    GLYPH = FONT_PREFIX .. "Glyph",
-    -- Larger +/- on stepper buttons; body text stays at 12.
-    STEPPER = FONT_PREFIX .. "Stepper",
     -- Outlined damage-number face (伤害数字 / DAMAGE_TEXT_FONT). Default for numeric overlays.
     OVERLAY_DIGIT = FONT_PREFIX .. "OverlayDigit",
 }
 
 -- Default face is the game's locale font (CJK-safe). Styles may set `path` for a fixed face.
 Assets.FontStyles = {
-    [Assets.Fonts.TITLE] = { size = 14, color = Assets.Colors.TEXT },
-    [Assets.Fonts.HEADER] = { size = 13, color = Assets.Colors.TEXT_MUTED },
-    [Assets.Fonts.NAV_GROUP] = { size = 12, color = Assets.Colors.ACCENT },
-    [Assets.Fonts.BODY] = { size = 12, color = Assets.Colors.TEXT },
-    [Assets.Fonts.SUBTITLE] = { size = 13, color = Assets.Colors.TEXT_MUTED },
+    -- Menu / Settings UI
+    [Assets.Fonts.TITLE] = { size = 16, color = Assets.Colors.TEXT_PRIMARY },
+    [Assets.Fonts.HEADER] = { size = 16, color = Assets.Colors.TEXT_PRIMARY },
+    [Assets.Fonts.NAV_GROUP] = { size = 12, color = Assets.Colors.TEXT_HINT },
+    [Assets.Fonts.SUBTITLE] = { size = 13, color = Assets.Colors.TEXT_HEADING },
+    [Assets.Fonts.BODY] = { size = 12, color = Assets.Colors.TEXT_BODY },
+    [Assets.Fonts.MUTED] = { size = 12, color = Assets.Colors.TEXT_HINT },
+    [Assets.Fonts.SMALL_MUTED] = { size = 11, color = Assets.Colors.TEXT_HINT },
+    [Assets.Fonts.ON_ACCENT] = { size = 12, color = Assets.Colors.TEXT_ON_ACCENT },
+    [Assets.Fonts.LINK] = { size = 12, color = Assets.Colors.MENU_ACCENT },
+    [Assets.Fonts.LINK_DANGER] = { size = 12, color = Assets.Colors.ERROR },
+    [Assets.Fonts.GLYPH] = { size = 18, color = Assets.Colors.TEXT_MUTED },
+    [Assets.Fonts.STEPPER] = { size = 18, color = Assets.Colors.TEXT_HEADING },
+    -- World Overlays & HUD
     [Assets.Fonts.EMPHASIS] = { size = 14, color = Assets.Colors.TEXT, flags = "OUTLINE" },
     [Assets.Fonts.DISPLAY] = { size = 32, color = Assets.Colors.TEXT_GOLD, flags = "OUTLINE" },
     -- Amber + thick outline, ARHei for CJK raid-warning style callouts.
@@ -230,15 +309,8 @@ Assets.FontStyles = {
         color = Assets.Colors.TEXT,
         flags = "THICKOUTLINE",
     },
-    [Assets.Fonts.MUTED] = { size = 12, color = Assets.Colors.TEXT_MUTED },
-    [Assets.Fonts.SMALL_MUTED] = { size = 11, color = Assets.Colors.TEXT_MUTED },
     [Assets.Fonts.TINY_MUTED] = { size = 10, color = Assets.Colors.TEXT_MUTED },
-    [Assets.Fonts.ON_ACCENT] = { size = 12, color = Assets.Colors.TEXT_ON_ACCENT },
     [Assets.Fonts.LAYOUT_EDIT_DONE] = { size = 16, color = Assets.Colors.TEXT_ON_ACCENT },
-    [Assets.Fonts.LINK] = { size = 12, color = Assets.Colors.ACCENT },
-    [Assets.Fonts.LINK_DANGER] = { size = 12, color = Assets.Colors.ERROR },
-    [Assets.Fonts.GLYPH] = { size = 18, color = Assets.Colors.TEXT_MUTED },
-    [Assets.Fonts.STEPPER] = { size = 18, color = Assets.Colors.TEXT },
     [Assets.Fonts.OVERLAY_DIGIT] = {
         path = DAMAGE_TEXT_FONT,
         size = 22,
@@ -287,6 +359,10 @@ Assets.Sizes = {
     CHECKBOX = 12,
     -- Gap between the checkbox border and its checked fill.
     CHECKBOX_FILL_INSET = 2,
+    -- Compact header On/Off switch; 2px shorter than CONTROL_HEIGHT so it sits centered in the row.
+    TOGGLE_WIDTH = 40,
+    TOGGLE_HEIGHT = 20,
+    TOGGLE_THUMB_INSET = 2,
     ROLE_ICON = 14,
     BUTTON_MIN_WIDTH = 64,
     BUTTON_TEXT_PADDING = 20,

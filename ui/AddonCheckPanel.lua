@@ -350,13 +350,13 @@ function AddonCheckPanel.Create(options)
         end
         row = CreateFrame("Frame", nil, scrollChild)
         row:SetHeight(rowHeight)
-        row.party = CreateCell(row, Fonts.BODY)
+        row.party = CreateCell(row, Fonts.SUBTITLE)
         row.party:SetJustifyH("CENTER")
-        row.name = CreateCell(row, Fonts.BODY)
-        row.version = CreateCell(row, Fonts.BODY)
+        row.name = CreateCell(row, Fonts.SUBTITLE)
+        row.version = CreateCell(row, Fonts.SUBTITLE)
         row.config = {}
         for i = 1, #columns do
-            row.config[i] = CreateCell(row, Fonts.BODY)
+            row.config[i] = CreateCell(row, Fonts.SUBTITLE)
         end
         row.status = CreateStatusCell(row)
         local cells = { row.party, row.name, row.version }

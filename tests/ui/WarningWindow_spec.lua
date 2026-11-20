@@ -71,6 +71,7 @@ describe("WarningWindow", function()
                     BG_WARNING = { r = 0, g = 0, b = 0, a = 1 },
                     BORDER_WARNING = { r = 1, g = 1, b = 0, a = 1 },
                     WARNING = { r = 1, g = 1, b = 0, a = 1 },
+                    TEXT = { r = 0.9, g = 0.91, b = 0.92 },
                 },
                 Fonts = { BODY = "Body", TINY_MUTED = "Tiny" },
                 Sizes = { CLOSE_BUTTON = 22, FLOATING_HEADER_PAD = 12, CONTROL_HEIGHT = 22 },
