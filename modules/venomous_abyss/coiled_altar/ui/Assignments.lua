@@ -16,6 +16,7 @@ local Spacing = Assets.Spacing
 
 local CoiledAltar = ns.Modules.Get("CoiledAltar")
 local Assignments = Internals.InterruptAssignments
+local ACTIVE_CHAIN = Assignments.ACTIVE_CHAIN
 
 local MODE_PLAYER = "player"
 local MODE_TEXT = "text"
@@ -26,18 +27,11 @@ local ROSTER_ROW_HEIGHT = 20
 local GROUP_COLUMNS = 4
 local DESC_MIN_HEIGHT = 16
 
-local CHAIN_ACCENTS = {
-    [Assignments.MELEE] = Colors.ACCENT,
-    [Assignments.RANGED] = Colors.STATUS_HUD_STANDBY,
-}
-
 local Editor = {}
 Internals.InterruptAssignmentsUI = Editor
 
-local selectedChain = Assignments.MELEE
 local selectedIndex = 1
 local editMode = MODE_PLAYER
-local lastAssignError
 local ui
 local confirmWindow
 local Refresh
@@ -98,25 +92,9 @@ local function EditorRoster()
     }
 end
 
----@param occupiedChain CoiledAltarInterruptChainId|nil
----@return string
-local function CrossChainAssignText(occupiedChain)
-    if occupiedChain == Assignments.MELEE then
-        return L.COILED_ALTAR_INTERRUPT_CROSS_CHAIN_MELEE
-    end
-    return L.COILED_ALTAR_INTERRUPT_CROSS_CHAIN_RANGED
-end
-
 ---@param name string
 local function TryAssignPlayer(name)
-    local ok, err, occupiedChain = CoiledAltar:AssignInterruptPlayer(selectedChain, selectedIndex, name)
-    if ok then
-        return
-    end
-    if err == "CROSS_CHAIN" then
-        lastAssignError = CrossChainAssignText(occupiedChain)
-        Refresh()
-    end
+    CoiledAltar:AssignInterruptPlayer(ACTIVE_CHAIN, selectedIndex, name)
 end
 
 ---@param parent Frame
@@ -151,20 +129,14 @@ local function CreateTextBox(parent, maxLetters)
 end
 
 ---@param parent Frame
----@param chainId CoiledAltarInterruptChainId
 ---@return Frame
-local function BuildChain(parent, chainId)
+local function BuildChain(parent)
     local chain = CreateFrame("Frame", nil, parent)
-    local title = Widgets.CreateLabel(chain, Fonts.BODY)
+    local title = Widgets.CreateLabel(chain, Fonts.BODY, L.COILED_ALTAR_INTERRUPT_STATUS_TITLE)
     title:SetJustifyH("LEFT")
     title:SetPoint("TOPLEFT")
     title:SetPoint("TOPRIGHT")
-    title:SetTextColor(Widgets.UnpackColor(CHAIN_ACCENTS[chainId] or Colors.TEXT))
-    if chainId == Assignments.MELEE then
-        title:SetText(L.COILED_ALTAR_INTERRUPT_CHAIN_MELEE)
-    else
-        title:SetText(L.COILED_ALTAR_INTERRUPT_CHAIN_RANGED)
-    end
+    title:SetTextColor(Widgets.UnpackColor(Colors.ACCENT))
 
     local slots = {}
     for index = 1, Assignments.SLOT_COUNT do
@@ -180,7 +152,7 @@ local function BuildChain(parent, chainId)
         number:SetJustifyH("CENTER")
         number:SetWidth(SEQUENCE_WIDTH)
         number:SetPoint("LEFT", slot, "LEFT", Spacing.TINY, 0)
-        number:SetTextColor(Widgets.UnpackColor(CHAIN_ACCENTS[chainId] or Colors.TEXT))
+        number:SetTextColor(Widgets.UnpackColor(Colors.ACCENT))
         slot.number = number
 
         local name = Widgets.CreateLabel(slot, Fonts.BODY)
@@ -190,7 +162,7 @@ local function BuildChain(parent, chainId)
         slot.name = name
 
         local clear = Widgets.CreateTextButton(slot, Assets.Glyphs.CLOSE, function()
-            CoiledAltar:ClearInterruptAssignment(chainId, index)
+            CoiledAltar:ClearInterruptAssignment(ACTIVE_CHAIN, index)
         end, Fonts.LINK_DANGER)
         clear:SetPoint("RIGHT", slot, "RIGHT", -Spacing.TINY, 0)
         clear:SetFrameLevel(slot:GetFrameLevel() + 1)
@@ -198,10 +170,8 @@ local function BuildChain(parent, chainId)
         slot.clear = clear
 
         slot:SetScript("OnClick", function()
-            selectedChain = chainId
             selectedIndex = index
-            lastAssignError = nil
-            local assigned = CoiledAltar:GetInterruptSlot(chainId, index)
+            local assigned = CoiledAltar:GetInterruptSlot(ACTIVE_CHAIN, index)
             if assigned and assigned.type == Assignments.TYPE_TEXT then
                 editMode = MODE_TEXT
             else
@@ -213,18 +183,6 @@ local function BuildChain(parent, chainId)
     end
     chain.slots = slots
     return chain
-end
-
----@param parent Frame
----@return Frame
-local function BuildChains(parent)
-    local row = CreateFrame("Frame", nil, parent)
-    local left, right = Layout.SplitRow(row, Spacing.MEDIUM)
-    row.melee = BuildChain(left, Assignments.MELEE)
-    row.ranged = BuildChain(right, Assignments.RANGED)
-    row.melee:SetAllPoints(left)
-    row.ranged:SetAllPoints(right)
-    return row
 end
 
 ---@param members RaidMember[]
@@ -294,38 +252,27 @@ local function EnsureRosterButton(column, index)
         end
         TryAssignPlayer(self.member.fullName or self.member.name)
     end)
-    Widgets.AttachTooltip(button, "ANCHOR_TOP", function(tooltip)
-        if not button.blocked or not button.blockedText then
-            return
-        end
-        local r, g, b = Widgets.UnpackColor(Colors.ERROR)
-        tooltip:AddLine(button.blockedText, r, g, b)
-    end)
     column.buttons[index] = button
     return button
 end
 
 local function RefreshSlots()
     local roster = EditorRoster()
-    local function Paint(chainFrame, chainId)
-        for index, slot in ipairs(chainFrame.slots) do
-            local assigned = CoiledAltar:GetInterruptSlot(chainId, index) or { type = Assignments.TYPE_EMPTY }
-            local text, color = SlotDisplay(assigned, roster)
-            slot.name:SetText(text)
-            slot.name:SetTextColor(Widgets.UnpackColor(color))
-            local occupied = assigned.type == Assignments.TYPE_PLAYER or assigned.type == Assignments.TYPE_TEXT
-            slot.clear:SetShown(occupied)
-            if occupied then
-                slot.name:SetPoint("RIGHT", slot.clear, "LEFT", -Spacing.TINY, 0)
-            else
-                slot.name:SetPoint("RIGHT", slot, "RIGHT", -Spacing.SMALL, 0)
-            end
-            local selected = selectedChain == chainId and selectedIndex == index
-            Widgets.ApplyBackdrop(slot, Colors.SURFACE_RAISED, selected and Colors.ACCENT or Colors.BORDER)
+    for index, slot in ipairs(ui.chain.slots) do
+        local assigned = CoiledAltar:GetInterruptSlot(ACTIVE_CHAIN, index) or { type = Assignments.TYPE_EMPTY }
+        local text, color = SlotDisplay(assigned, roster)
+        slot.name:SetText(text)
+        slot.name:SetTextColor(Widgets.UnpackColor(color))
+        local occupied = assigned.type == Assignments.TYPE_PLAYER or assigned.type == Assignments.TYPE_TEXT
+        slot.clear:SetShown(occupied)
+        if occupied then
+            slot.name:SetPoint("RIGHT", slot.clear, "LEFT", -Spacing.TINY, 0)
+        else
+            slot.name:SetPoint("RIGHT", slot, "RIGHT", -Spacing.SMALL, 0)
         end
+        local selected = selectedIndex == index
+        Widgets.ApplyBackdrop(slot, Colors.SURFACE_RAISED, selected and Colors.ACCENT or Colors.BORDER)
     end
-    Paint(ui.chains.melee, Assignments.MELEE)
-    Paint(ui.chains.ranged, Assignments.RANGED)
 end
 
 local function HidePlayerExtras()
@@ -333,33 +280,6 @@ local function HidePlayerExtras()
     ui.rosterGrid:Hide()
     ui.playerStack:SetEntryHeight(ui.emptyHintRow, 1)
     ui.playerStack:SetEntryHeight(ui.rosterGrid, 1)
-end
-
-local function RefreshMarkedChain()
-    ui.markedToggle:SetSelected(CoiledAltar:GetMarkedChain())
-end
-
-local function RefreshValidation()
-    local text = lastAssignError
-    if not text then
-        local names = Assignments.CrossChainPlayers(CoiledAltar:GetInterruptAssignments())
-        if #names > 0 then
-            local shown = {}
-            for index, name in ipairs(names) do
-                shown[index] = ShortName(name)
-            end
-            text = string.format(L.COILED_ALTAR_INTERRUPT_CROSS_CHAIN_WARNING, table.concat(shown, "、"))
-        end
-    end
-    if text then
-        ui.validation:SetText(text)
-        ui.validation:SetTextColor(Widgets.UnpackColor(Colors.ERROR))
-        ui.validation:SetWidth(math.max(ui.desc:GetWidth() or 0, 1))
-        ui.stack:SetEntryHeight(ui.validationRow, math.max(ui.validation:GetStringHeight() or 0, DESC_MIN_HEIGHT))
-        return
-    end
-    ui.validation:SetText("")
-    ui.stack:SetEntryHeight(ui.validationRow, 1)
 end
 
 local function RefreshRoster()
@@ -414,25 +334,17 @@ local function RefreshRoster()
             button:ClearAllPoints()
             button:SetPoint("TOPLEFT", column, "TOPLEFT", 0, yOffset)
             button:SetPoint("TOPRIGHT", column, "TOPRIGHT", 0, yOffset)
-            local assigned = CoiledAltar:GetInterruptSlot(selectedChain, selectedIndex)
+            local assigned = CoiledAltar:GetInterruptSlot(ACTIVE_CHAIN, selectedIndex)
             local identity = Assignments.QualifyName(member.fullName or member.name)
             local onSlot = assigned and assigned.type == Assignments.TYPE_PLAYER and assigned.value == identity
-            local opposite = Assignments.OppositeChain(selectedChain)
-            local blocked = opposite
-                and Assignments.ChainHasPlayer(CoiledAltar:GetInterruptAssignments(), opposite, identity)
-            button.blocked = blocked
-            button.blockedText = blocked and CrossChainAssignText(opposite) or nil
-            button:SetAlpha(blocked and 0.4 or 1)
-            local nameColor = blocked and Colors.TEXT_MUTED or ClassColor(member.classFile)
-            button.name:SetTextColor(Widgets.UnpackColor(nameColor))
+            button:SetAlpha(1)
+            button.name:SetTextColor(Widgets.UnpackColor(ClassColor(member.classFile)))
             Widgets.ApplyBackdrop(button, Colors.SURFACE, onSlot and Colors.ACCENT or Colors.BORDER)
             button:Show()
         end
         for extra = #list + 1, #column.buttons do
             column.buttons[extra]:Hide()
             column.buttons[extra].member = nil
-            column.buttons[extra].blocked = nil
-            column.buttons[extra].blockedText = nil
         end
     end
     for extra = #order + 1, #grid.columns do
@@ -448,7 +360,7 @@ local function RefreshEditor()
     ui.playerPane:SetShown(editMode == MODE_PLAYER)
     ui.textPane:SetShown(editMode == MODE_TEXT)
 
-    local assigned = CoiledAltar:GetInterruptSlot(selectedChain, selectedIndex)
+    local assigned = CoiledAltar:GetInterruptSlot(ACTIVE_CHAIN, selectedIndex)
     ui.clear:SetEnabled(CoiledAltar:HasInterruptAssignments())
 
     if editMode == MODE_TEXT then
@@ -483,14 +395,12 @@ function Refresh()
     end
     RefreshSlots()
     RefreshEditor()
-    RefreshValidation()
-    RefreshMarkedChain()
     NotifyHeight()
 end
 
 local function AssignSelectedText()
     local text = ui.textBox:GetText() or ""
-    CoiledAltar:AssignInterruptText(selectedChain, selectedIndex, text)
+    CoiledAltar:AssignInterruptText(ACTIVE_CHAIN, selectedIndex, text)
 end
 
 local function HideClearConfirm()
@@ -533,10 +443,8 @@ end
 ---@param onHeightChanged fun(height: number)
 ---@return number
 function Editor.Mount(host, onHeightChanged)
-    selectedChain = Assignments.MELEE
     selectedIndex = 1
     editMode = MODE_PLAYER
-    lastAssignError = nil
 
     local panel = CreateFrame("Frame", nil, host)
     panel:SetPoint("TOPLEFT")
@@ -544,29 +452,6 @@ function Editor.Mount(host, onHeightChanged)
     -- Stack on the panel. An extra top-only wrapper would have height 0 and
     -- WoW would leave its children unplaced, which reserves space with nothing visible.
     local stack = Layout.Stack(panel, { spacing = Spacing.SMALL })
-
-    local markedRow = stack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local markedLabel = Widgets.CreateLabel(markedRow, Fonts.BODY, L.COILED_ALTAR_MARKED_CORRESPONDS)
-    markedLabel:SetJustifyH("LEFT")
-    markedLabel:SetWordWrap(false)
-    -- FontStrings can't take mouse; a matching hit frame carries the tooltip.
-    local markedHit = CreateFrame("Frame", nil, markedRow)
-    markedHit:SetPoint("TOPLEFT", markedLabel, "TOPLEFT")
-    markedHit:SetPoint("BOTTOMRIGHT", markedLabel, "BOTTOMRIGHT")
-    markedHit:EnableMouse(true)
-    Widgets.AttachTooltip(markedHit, "ANCHOR_TOP", function(tooltip)
-        tooltip:SetText(L.COILED_ALTAR_MARKED_CORRESPONDS_TOOLTIP)
-    end)
-    local markedToggle
-    markedToggle = Widgets.CreateSegmentedControl(markedRow, {
-        { value = Assignments.MELEE, text = L.COILED_ALTAR_MARKED_SIDE_MELEE },
-        { value = Assignments.RANGED, text = L.COILED_ALTAR_MARKED_SIDE_RANGED },
-    }, function(chainId)
-        CoiledAltar:SetMarkedChain(chainId)
-        markedToggle:SetSelected(CoiledAltar:GetMarkedChain())
-    end)
-    markedLabel:SetPoint("LEFT", markedRow, "LEFT")
-    markedToggle:SetPoint("RIGHT", markedRow, "RIGHT")
 
     local descRow = stack:AddRow(DESC_MIN_HEIGHT)
     local desc = Widgets.CreateLabel(descRow, Fonts.TINY_MUTED, L.COILED_ALTAR_INTERRUPT_ASSIGNMENTS_DESC)
@@ -577,15 +462,7 @@ function Editor.Mount(host, onHeightChanged)
     desc:SetPoint("TOPRIGHT")
 
     local chainHeight = GROUP_HEADER_HEIGHT + Assignments.SLOT_COUNT * SLOT_HEIGHT
-    local chains = stack:Add(BuildChains(panel), chainHeight)
-
-    local validationRow = stack:AddRow(1)
-    local validation = Widgets.CreateLabel(validationRow, Fonts.SMALL_MUTED)
-    validation:SetJustifyH("LEFT")
-    validation:SetJustifyV("TOP")
-    validation:SetWordWrap(true)
-    validation:SetPoint("TOPLEFT")
-    validation:SetPoint("TOPRIGHT")
+    local chain = stack:Add(BuildChain(panel), chainHeight)
 
     local modeRow = stack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local mode
@@ -594,7 +471,6 @@ function Editor.Mount(host, onHeightChanged)
         { value = MODE_TEXT, text = L.COILED_ALTAR_INTERRUPT_MODE_TEXT },
     }, function(value)
         editMode = value
-        lastAssignError = nil
         Refresh()
     end)
     local clear =
@@ -644,12 +520,7 @@ function Editor.Mount(host, onHeightChanged)
         onHeightChanged = onHeightChanged,
         descRow = descRow,
         desc = desc,
-        chains = chains,
-        validationRow = validationRow,
-        validation = validation,
-        markedRow = markedRow,
-        markedLabel = markedLabel,
-        markedToggle = markedToggle,
+        chain = chain,
         mode = mode,
         clear = clear,
         playerPane = playerPane,
@@ -663,7 +534,6 @@ function Editor.Mount(host, onHeightChanged)
 
     local previousAssignmentsChanged = CoiledAltar.OnInterruptAssignmentsChanged
     function CoiledAltar:OnInterruptAssignmentsChanged()
-        lastAssignError = nil
         Refresh()
         if previousAssignmentsChanged then
             previousAssignmentsChanged(self)
@@ -684,7 +554,6 @@ function Editor.Mount(host, onHeightChanged)
         ui.desc:SetWidth(width)
         ui.stack:SetEntryHeight(ui.descRow, math.max(ui.desc:GetStringHeight() or 0, DESC_MIN_HEIGHT))
         ui.emptyHint:SetWidth(width)
-        ui.validation:SetWidth(width)
         Refresh()
     end
 

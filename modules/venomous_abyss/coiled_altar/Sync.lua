@@ -74,31 +74,21 @@ local function SplitExact(text, sep)
     return parts
 end
 
----@param chainId CoiledAltarInterruptChainId|nil
----@return string
-local function ChainLabel(chainId)
-    if chainId == Assignments.RANGED then
-        return L.COILED_ALTAR_INTERRUPT_CHAIN_RANGED
-    end
-    return L.COILED_ALTAR_INTERRUPT_CHAIN_MELEE
-end
-
 ---@param issue CoiledAltarInterruptSyncIssue
 ---@return string
 local function IssueText(issue)
-    local chain = ChainLabel(issue.chainId)
     local index = issue.index or 0
     if issue.code == "player_missing" then
-        return string.format(L.COILED_ALTAR_INTERRUPT_SYNC_PLAYER_MISSING, chain, index)
+        return string.format(L.COILED_ALTAR_INTERRUPT_SYNC_PLAYER_MISSING, index)
     end
     if issue.code == "CROSS_CHAIN" then
-        return string.format(L.COILED_ALTAR_INTERRUPT_SYNC_CROSS_CHAIN, chain, index)
+        return string.format(L.COILED_ALTAR_INTERRUPT_SYNC_CROSS_CHAIN, index)
     end
     if issue.code == "text_too_long" or issue.code == "invalid_text" then
-        return string.format(L.COILED_ALTAR_INTERRUPT_SYNC_TEXT_TOO_LONG, chain, index, Assignments.TEXT_MAX_CHARS)
+        return string.format(L.COILED_ALTAR_INTERRUPT_SYNC_TEXT_TOO_LONG, index, Assignments.TEXT_MAX_CHARS)
     end
     if issue.code == "invalid_slot" then
-        return string.format(L.COILED_ALTAR_INTERRUPT_SYNC_INVALID_SLOT, chain, index)
+        return string.format(L.COILED_ALTAR_INTERRUPT_SYNC_INVALID_SLOT, index)
     end
     if issue.code == "invalid_marked" then
         return L.COILED_ALTAR_INTERRUPT_SYNC_INVALID_MARKED
@@ -707,8 +697,17 @@ function Sync.Publish()
         return false, block, { code = block }
     end
 
-    local assignments = CoiledAltar.db.assignments
-    local markedChain = CoiledAltar:GetMarkedChain()
+    -- Publish the single rotation in RANGED with MELEE empty and markedChain = MELEE so v1 clients
+    -- route unmarked 1-shadow waves to the synced rotation without needing an addon update.
+    local emptyMelee = {}
+    for index = 1, SLOT_COUNT do
+        emptyMelee[index] = { type = TYPE_EMPTY }
+    end
+    local assignments = {
+        [Assignments.MELEE] = emptyMelee,
+        [Assignments.RANGED] = CoiledAltar.db.assignments[Assignments.ACTIVE_CHAIN],
+    }
+    local markedChain = Assignments.MELEE
     local roster = Group.GetRaidMembers()
     local payloads, reason, issue = Sync.EncodePublication(assignments, markedChain, roster)
     if not payloads then

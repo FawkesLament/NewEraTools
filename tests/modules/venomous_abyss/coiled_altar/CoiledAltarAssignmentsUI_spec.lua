@@ -2,8 +2,8 @@ local Loader = require("helpers.loader")
 
 local EDITOR_UI_PATH = "modules/venomous_abyss/coiled_altar/ui/Assignments.lua"
 
-describe("CoiledAltar interrupt assignment editor marked-chain row", function()
-    local ns, Module, Editor, L, originalCreateFrame, markedToggle, markedLabel, labels, toggles, tooltips
+describe("CoiledAltar interrupt assignment editor", function()
+    local ns, Module, Assignments, Editor, L, originalCreateFrame, labels, toggles, textButtons
 
     local function FakeFrame(parent)
         local frame = {
@@ -149,7 +149,7 @@ describe("CoiledAltar interrupt assignment editor marked-chain row", function()
         L = ns.L
         labels = {}
         toggles = {}
-        tooltips = {}
+        textButtons = {}
         ns.Widgets = {
             UnpackColor = function(color)
                 return color.r, color.g, color.b, color.a
@@ -157,9 +157,7 @@ describe("CoiledAltar interrupt assignment editor marked-chain row", function()
             EnsureFonts = function() end,
             ApplyBackdrop = function() end,
             AddHoverHighlight = function() end,
-            AttachTooltip = function(frame, anchor, populate)
-                tooltips[#tooltips + 1] = { frame = frame, anchor = anchor, populate = populate }
-            end,
+            AttachTooltip = function() end,
             LayoutSectionHeader = function(row, title)
                 local label = row:CreateFontString()
                 label:SetText(title)
@@ -177,6 +175,7 @@ describe("CoiledAltar interrupt assignment editor marked-chain row", function()
                 local button = FakeFrame(parent)
                 button.text = text
                 button:SetScript("OnClick", onClick)
+                textButtons[#textButtons + 1] = button
                 return button
             end,
             CreateButton = function(parent, text, onClick)
@@ -205,60 +204,36 @@ describe("CoiledAltar interrupt assignment editor marked-chain row", function()
         assert(loadfile(EDITOR_UI_PATH))(Loader.ADDON_NAME, ns)
         ns.Modules.Start(ns.Database.Load(nil))
         Module = ns.Modules.Get("CoiledAltar")
+        Assignments = ns.Modules.Internals("CoiledAltar").InterruptAssignments
         Editor = ns.Modules.Internals("CoiledAltar").InterruptAssignmentsUI
         local host = FakeFrame()
         Editor.Mount(host, function() end)
         ns.Api.Timer.RunPending()
-        markedToggle = toggles[1]
-        markedLabel = nil
-        for _, label in ipairs(labels) do
-            if label:GetText() == L.COILED_ALTAR_MARKED_CORRESPONDS then
-                markedLabel = label
-                break
-            end
-        end
     end)
 
     after_each(function()
         CreateFrame = originalCreateFrame
     end)
 
-    it("starts with the melee segment selected", function()
-        assert.equals("MELEE", Module:GetMarkedChain())
-        assert.equals("MELEE", markedToggle.selected)
-        assert.equals(L.COILED_ALTAR_MARKED_CORRESPONDS, markedLabel:GetText())
-        assert.equals(L.COILED_ALTAR_MARKED_SIDE_MELEE, markedToggle.items[1].text)
-        assert.equals("MELEE", markedToggle.items[1].value)
-        assert.equals(L.COILED_ALTAR_MARKED_SIDE_RANGED, markedToggle.items[2].text)
-        assert.equals("RANGED", markedToggle.items[2].value)
-        assert(markedLabel.points.LEFT[1] == markedToggle.parent)
-        assert(markedToggle.points.RIGHT[1] == markedToggle.parent)
-        assert.equals("RIGHT", markedToggle.points.RIGHT[2])
-        local tooltip = { text = nil }
-        function tooltip:SetText(text)
-            self.text = text
+    it("renders a single interrupt rotation with no marked-chain toggle", function()
+        -- Only the player/text mode segmented control exists.
+        assert.equals(1, #toggles)
+        assert.equals("player", toggles[1].selected)
+
+        local titleCount = 0
+        for _, label in ipairs(labels) do
+            if label:GetText() == L.COILED_ALTAR_INTERRUPT_STATUS_TITLE then
+                titleCount = titleCount + 1
+            end
         end
-        tooltips[1].populate(tooltip)
-        assert.equals("ANCHOR_TOP", tooltips[1].anchor)
-        assert.equals(L.COILED_ALTAR_MARKED_CORRESPONDS_TOOLTIP, tooltip.text)
-        assert(tooltips[1].frame.points.TOPLEFT[1] == markedLabel)
-        assert(tooltips[1].frame.points.BOTTOMRIGHT[1] == markedLabel)
+        assert.equals(1, titleCount)
     end)
 
-    it("writes the selected chain and keeps the toggle in sync", function()
-        markedToggle.onSelect("RANGED")
-        assert.equals("RANGED", Module:GetMarkedChain())
-        assert.equals("RANGED", markedToggle.selected)
-
-        markedToggle.onSelect("MELEE")
-        assert.equals("MELEE", Module:GetMarkedChain())
-        assert.equals("MELEE", markedToggle.selected)
-    end)
-
-    it("refreshes the toggle when markedChain is changed outside the editor", function()
-        assert.is_true(Module:SetMarkedChain("RANGED"))
+    it("clears slots on the active chain when clicking a slot clear button", function()
+        assert.is_true(Module:AssignInterruptPlayer(Assignments.ACTIVE_CHAIN, 1, "Player-TestRealm"))
         Editor.Refresh()
-        assert.equals("RANGED", markedToggle.selected)
-        assert.equals(L.COILED_ALTAR_MARKED_CORRESPONDS, markedLabel:GetText())
+        -- First 6 text buttons are the 6 slot clear buttons.
+        textButtons[1].scripts.OnClick()
+        assert.equals(Assignments.TYPE_EMPTY, Module:GetInterruptSlot(Assignments.ACTIVE_CHAIN, 1).type)
     end)
 end)

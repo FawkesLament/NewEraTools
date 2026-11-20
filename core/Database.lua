@@ -3,7 +3,7 @@ local _, ns = ...
 local Database = {}
 ns.Database = Database
 
-local SCHEMA_VERSION = 15
+local SCHEMA_VERSION = 16
 
 -- migrations[n] upgrades saved data from version n - 1 to version n, in place.
 local migrations = {}
@@ -167,6 +167,39 @@ migrations[15] = function(saved)
     RenameCalloutKey(callout, "font", "alertFont")
     RenameCalloutKey(callout, "fontSize", "countdownFontSize")
     RenameCalloutKey(callout, "fontColor", "alertFontColor")
+end
+
+local function ChainHasEntries(chain)
+    if type(chain) ~= "table" then
+        return false
+    end
+    for index = 1, 6 do
+        local slot = chain[index]
+        if type(slot) == "table" and (slot.type == "player" or slot.type == "text") then
+            return true
+        end
+    end
+    return false
+end
+
+-- Coiled Altar now has 1 unmarked shadow per wave: keep the single rotation in RANGED with markedChain = MELEE
+-- so v1 Sync payloads remain compatible with older clients.
+migrations[16] = function(saved)
+    local modules = saved.modules
+    local settings = type(modules) == "table" and modules.CoiledAltar or nil
+    if type(settings) ~= "table" then
+        return
+    end
+    local assignments = settings.assignments
+    if type(assignments) == "table" then
+        local meleeHas = ChainHasEntries(assignments.MELEE)
+        local rangedHas = ChainHasEntries(assignments.RANGED)
+        if (not rangedHas and meleeHas) or (rangedHas and meleeHas and settings.markedChain == "RANGED") then
+            assignments.RANGED = assignments.MELEE
+        end
+        assignments.MELEE = {}
+    end
+    settings.markedChain = "MELEE"
 end
 
 ---Upgrades saved variables to the current schema, creating them if missing.

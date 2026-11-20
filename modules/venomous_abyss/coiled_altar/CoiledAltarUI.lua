@@ -273,15 +273,6 @@ local function BuildContent(content)
         end
     end
 
-    local previousSetMarkedChain = CoiledAltar.SetMarkedChain
-    function CoiledAltar:SetMarkedChain(chainId)
-        local changed = previousSetMarkedChain(self, chainId)
-        if changed then
-            ClearSyncError()
-        end
-        return changed
-    end
-
     local reminder = FeatureSection.Create(body, {
         title = L.COILED_ALTAR_MECHANIC_REMINDER,
         divider = true,

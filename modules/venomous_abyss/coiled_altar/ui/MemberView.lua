@@ -10,20 +10,14 @@ local Player = ns.Api.Player
 local Unit = ns.Api.Unit
 
 local Colors = Assets.Colors
-local Fonts = Assets.Fonts
-local Sizes = Assets.Sizes
 local Spacing = Assets.Spacing
 
 local CoiledAltar = ns.Modules.Get("CoiledAltar")
 local Assignments = Internals.InterruptAssignments
+local ACTIVE_CHAIN = Assignments.ACTIVE_CHAIN
 
 local MemberView = {}
 Internals.InterruptAssignmentsMemberView = MemberView
-
-local CHAIN_ACCENTS = {
-    [Assignments.MELEE] = Colors.ACCENT,
-    [Assignments.RANGED] = Colors.STATUS_HUD_STANDBY,
-}
 
 local ui
 local lastNotifiedHeight
@@ -106,40 +100,21 @@ local function EntryFromSlot(slot, roster, accent, playerName, index)
     }
 end
 
----@param chainId CoiledAltarInterruptChainId
 ---@param roster RaidMember[]
 ---@param playerName string|nil
 ---@return InterruptChainViewChain
-local function ChainDisplay(chainId, roster, playerName)
-    local accent = CHAIN_ACCENTS[chainId] or Colors.ACCENT
-    local title = chainId == Assignments.MELEE and L.COILED_ALTAR_INTERRUPT_CHAIN_MELEE
-        or L.COILED_ALTAR_INTERRUPT_CHAIN_RANGED
+local function ChainDisplay(roster, playerName)
+    local accent = Colors.ACCENT
     local entries = {}
     for index = 1, Assignments.SLOT_COUNT do
-        local slot = CoiledAltar:GetInterruptSlot(chainId, index) or { type = Assignments.TYPE_EMPTY }
+        local slot = CoiledAltar:GetInterruptSlot(ACTIVE_CHAIN, index) or { type = Assignments.TYPE_EMPTY }
         entries[index] = EntryFromSlot(slot, roster, accent, playerName, index)
     end
     return {
-        title = title,
+        title = L.COILED_ALTAR_INTERRUPT_STATUS_TITLE,
         accent = accent,
         entries = entries,
     }
-end
-
----@param chainId CoiledAltarInterruptChainId
----@return string
-local function MarkedSideText(chainId)
-    if chainId == Assignments.RANGED then
-        return L.COILED_ALTAR_MARKED_SIDE_RANGED
-    end
-    return L.COILED_ALTAR_MARKED_SIDE_MELEE
-end
-
-local function RefreshMarkedChain()
-    local chainId = CoiledAltar:GetMarkedChain()
-    local accent = CHAIN_ACCENTS[chainId] or Colors.ACCENT
-    ui.markedValue:SetText(MarkedSideText(chainId))
-    ui.markedValue:SetTextColor(Widgets.UnpackColor(accent))
 end
 
 local function NotifyHeight()
@@ -163,16 +138,14 @@ local function Refresh()
     ui.chainView:SetData({
         youText = L.COILED_ALTAR_INTERRUPT_YOU,
         chains = {
-            ChainDisplay(Assignments.MELEE, roster, playerName),
-            ChainDisplay(Assignments.RANGED, roster, playerName),
+            ChainDisplay(roster, playerName),
         },
     })
-    RefreshMarkedChain()
     ui.stack:SetEntryHeight(ui.cardsRow, ui.chainView:GetHeight())
     NotifyHeight()
 end
 
----Mounts the read-only melee and ranged assignment view inside a host row.
+---Mounts the read-only interrupt assignment view inside a host row.
 ---@param host Frame
 ---@param onHeightChanged fun(height: number)
 ---@return number
@@ -188,23 +161,6 @@ function MemberView.Mount(host, onHeightChanged)
     })
     lastNotifiedHeight = nil
     ui = { stack = stack, panel = panel, onHeightChanged = onHeightChanged }
-
-    local markedRow = stack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local markedLabel = Widgets.CreateLabel(markedRow, Fonts.BODY, L.COILED_ALTAR_MARKED_CORRESPONDS)
-    markedLabel:SetJustifyH("LEFT")
-    markedLabel:SetWordWrap(false)
-    local markedHit = CreateFrame("Frame", nil, markedRow)
-    markedHit:SetPoint("TOPLEFT", markedLabel, "TOPLEFT")
-    markedHit:SetPoint("BOTTOMRIGHT", markedLabel, "BOTTOMRIGHT")
-    markedHit:EnableMouse(true)
-    Widgets.AttachTooltip(markedHit, "ANCHOR_TOP", function(tooltip)
-        tooltip:SetText(L.COILED_ALTAR_MARKED_CORRESPONDS_TOOLTIP)
-    end)
-    local markedValue = Widgets.CreateLabel(markedRow, Fonts.BODY)
-    markedValue:SetJustifyH("RIGHT")
-    markedLabel:SetPoint("LEFT", markedRow, "LEFT")
-    markedValue:SetPoint("RIGHT", markedRow, "RIGHT")
-    ui.markedValue = markedValue
 
     ui.cardsRow = stack:AddRow(1)
     ui.chainView = ns.InterruptChainView.Create(ui.cardsRow)

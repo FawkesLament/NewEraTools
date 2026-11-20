@@ -39,17 +39,6 @@ local function Unwrap(value)
     return value
 end
 
----@param chainId any
----@return string|nil
-local function ChainLabel(chainId)
-    if chainId == Assignments.MELEE then
-        return L.COILED_ALTAR_MARKED_SIDE_MELEE
-    end
-    if chainId == Assignments.RANGED then
-        return L.COILED_ALTAR_MARKED_SIDE_RANGED
-    end
-end
-
 ---Sorted unique (chain, slot) pairs. Invalid input returns nil.
 ---@param value any
 ---@return CoiledAltarAddonCheckSlot[]|nil
@@ -158,15 +147,6 @@ local function ExpectedAssignments(localConfig, playerName)
     return AssignmentsForPlayer(SnapshotExpectedSlots(CoiledAltar.db and CoiledAltar.db.assignments), playerName)
 end
 
----@param marked any
----@return CoiledAltarInterruptChainId|nil
-local function NormalizeMarkedChain(marked)
-    marked = Unwrap(marked)
-    if Assignments.IsChain(marked) then
-        return marked
-    end
-end
-
 ---Live AddonCheck snapshot. Reads current settings; does not mutate them.
 ---@return CoiledAltarAddonCheckConfig
 function CoiledAltar:GetAddonCheckConfig()
@@ -185,51 +165,31 @@ function CoiledAltar:GetAddonCheckConfig()
 end
 
 ---AddonCheck panel validator: column keys to highlight, or nil when ok.
----Flags personal interrupt assignments and marked-enemy side against the commander.
+---Flags personal interrupt assignments against the commander.
 ---Does not wrap reminder; version/reminder follow the shared AddonCheck panel rules.
 ---@param config any
 ---@param localConfig any
 ---@return string[]|nil
 function CoiledAltar.ValidateAddonCheckConfig(config, localConfig)
     if type(config) ~= "table" then
-        return { "assignments", "markedChain" }
+        return { "assignments" }
     end
-    local flagged = {}
     local reported = NormalizeAssignments(config.assignments)
     local playerName = Assignments.QualifyName(config.player)
     local expected = ExpectedAssignments(localConfig, playerName)
     if not playerName or not reported then
-        flagged[#flagged + 1] = "assignments"
-    elseif not AssignmentSetsEqual(reported, expected) then
-        flagged[#flagged + 1] = "assignments"
+        return { "assignments" }
+    end
+    if not AssignmentSetsEqual(reported, expected) then
         config.assignments = {
             mismatch = true,
             expected = expected,
             reported = reported,
         }
-    else
-        config.assignments = reported
+        return { "assignments" }
     end
-
-    local reportedMarked = NormalizeMarkedChain(config.markedChain)
-    local expectedMarked = type(localConfig) == "table" and NormalizeMarkedChain(localConfig.markedChain) or nil
-    if not reportedMarked then
-        flagged[#flagged + 1] = "markedChain"
-    elseif expectedMarked and reportedMarked ~= expectedMarked then
-        flagged[#flagged + 1] = "markedChain"
-        config.markedChain = {
-            mismatch = true,
-            expected = expectedMarked,
-            reported = reportedMarked,
-        }
-    else
-        config.markedChain = reportedMarked
-    end
-
-    if #flagged == 0 then
-        return nil
-    end
-    return flagged
+    config.assignments = reported
+    return nil
 end
 
 ---@param value any
@@ -249,37 +209,11 @@ function CoiledAltar.FormatAddonCheckAssignment(value)
     if #list == 0 then
         return L.COILED_ALTAR_ADDONCHECK_UNASSIGNED
     end
-    local parts = {}
-    for _, chainId in ipairs(Assignments.CHAIN_IDS) do
-        local slots = {}
-        for index = 1, #list do
-            local item = list[index]
-            if item.chain == chainId then
-                slots[#slots + 1] = tostring(item.slot)
-            end
-        end
-        if #slots > 0 then
-            parts[#parts + 1] = string.format(
-                L.COILED_ALTAR_ADDONCHECK_CHAIN_SLOTS,
-                ChainLabel(chainId),
-                table.concat(slots, L.COILED_ALTAR_ADDONCHECK_SLOT_JOIN)
-            )
-        end
+    local slots = {}
+    for index = 1, #list do
+        slots[#slots + 1] = tostring(list[index].slot)
     end
-    return table.concat(parts, L.COILED_ALTAR_ADDONCHECK_CHAIN_JOIN)
-end
-
----@param value any
----@return string|nil
-function CoiledAltar.FormatAddonCheckMarked(value)
-    if IsMismatch(value) then
-        return string.format(
-            L.COILED_ALTAR_ADDONCHECK_MISMATCH,
-            CoiledAltar.FormatAddonCheckMarked(value.expected) or L.ADDONCHECK_EM_DASH,
-            CoiledAltar.FormatAddonCheckMarked(value.reported) or L.ADDONCHECK_EM_DASH
-        )
-    end
-    return ChainLabel(value)
+    return table.concat(slots, L.COILED_ALTAR_ADDONCHECK_SLOT_JOIN)
 end
 
 ---@param value any
@@ -301,11 +235,6 @@ function CoiledAltar.AddonCheckColumns()
             title = L.COILED_ALTAR_ADDONCHECK_COL_ASSIGNMENT,
             format = CoiledAltar.FormatAddonCheckAssignment,
             flex = 2,
-        },
-        {
-            key = "markedChain",
-            title = L.COILED_ALTAR_ADDONCHECK_COL_MARKED,
-            format = CoiledAltar.FormatAddonCheckMarked,
         },
         {
             key = "reminder",

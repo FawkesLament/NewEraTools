@@ -314,23 +314,17 @@ describe("CoiledAltar AddonCheck", function()
             LoadPanel()
         end)
 
-        it("formats empty, same-chain, and both-chain assignments", function()
+        it("formats empty and assigned slots without chain prefixes", function()
             assert.equals(L.COILED_ALTAR_ADDONCHECK_UNASSIGNED, CoiledAltar.FormatAddonCheckAssignment({}))
             assert.equals(
-                string.format(
-                    L.COILED_ALTAR_ADDONCHECK_CHAIN_SLOTS,
-                    L.COILED_ALTAR_MARKED_SIDE_MELEE,
-                    table.concat({ "1", "3" }, L.COILED_ALTAR_ADDONCHECK_SLOT_JOIN)
-                ),
+                table.concat({ "1", "3" }, L.COILED_ALTAR_ADDONCHECK_SLOT_JOIN),
                 CoiledAltar.FormatAddonCheckAssignment({
-                    Slot(Assignments.MELEE, 3),
-                    Slot(Assignments.MELEE, 1),
+                    Slot(Assignments.RANGED, 3),
+                    Slot(Assignments.RANGED, 1),
                 })
             )
             assert.equals(
-                string.format(L.COILED_ALTAR_ADDONCHECK_CHAIN_SLOTS, L.COILED_ALTAR_MARKED_SIDE_MELEE, "1")
-                    .. L.COILED_ALTAR_ADDONCHECK_CHAIN_JOIN
-                    .. string.format(L.COILED_ALTAR_ADDONCHECK_CHAIN_SLOTS, L.COILED_ALTAR_MARKED_SIDE_RANGED, "5"),
+                table.concat({ "1", "5" }, L.COILED_ALTAR_ADDONCHECK_SLOT_JOIN),
                 CoiledAltar.FormatAddonCheckAssignment({
                     Slot(Assignments.RANGED, 5),
                     Slot(Assignments.MELEE, 1),
@@ -379,23 +373,16 @@ describe("CoiledAltar AddonCheck", function()
             assert.is_nil(CoiledAltar.ValidateAddonCheckConfig(Peer("Unassigned-TestRealm"), commander))
         end)
 
-        it("flags a marked-enemy mismatch without requiring an assignment mismatch", function()
+        it("ignores markedChain differences and flags assignment mismatches", function()
             local commander = CommanderConfig()
+            assert.is_nil(CoiledAltar.ValidateAddonCheckConfig(
+                Peer("Unassigned-TestRealm", {
+                    markedChain = Assignments.RANGED,
+                }),
+                commander
+            ))
             assert.same(
-                { "markedChain" },
-                CoiledAltar.ValidateAddonCheckConfig(
-                    Peer("Unassigned-TestRealm", {
-                        markedChain = Assignments.RANGED,
-                    }),
-                    commander
-                )
-            )
-        end)
-
-        it("flags both assignment and marked-enemy mismatches", function()
-            local commander = CommanderConfig()
-            assert.same(
-                { "assignments", "markedChain" },
+                { "assignments" },
                 CoiledAltar.ValidateAddonCheckConfig(
                     Peer("Alpha-TestRealm", {
                         assignments = { Slot(Assignments.RANGED, 2) },
@@ -419,7 +406,7 @@ describe("CoiledAltar AddonCheck", function()
 
         it("flags malformed responses", function()
             local commander = CommanderConfig()
-            assert.same({ "assignments", "markedChain" }, CoiledAltar.ValidateAddonCheckConfig(nil, commander))
+            assert.same({ "assignments" }, CoiledAltar.ValidateAddonCheckConfig(nil, commander))
             assert.same(
                 { "assignments" },
                 CoiledAltar.ValidateAddonCheckConfig(
@@ -435,15 +422,6 @@ describe("CoiledAltar AddonCheck", function()
                 CoiledAltar.ValidateAddonCheckConfig(
                     Peer("Alpha-TestRealm", {
                         assignments = { { chain = "front", slot = 1 } },
-                    }),
-                    commander
-                )
-            )
-            assert.same(
-                { "markedChain" },
-                CoiledAltar.ValidateAddonCheckConfig(
-                    Peer("Unassigned-TestRealm", {
-                        markedChain = "both",
                     }),
                     commander
                 )
@@ -504,42 +482,25 @@ describe("CoiledAltar AddonCheck", function()
             local byKey = AddonCheckPanel.IndexRowsByKey(model.rows)
             assert.equals(AddonCheckPanel.Category.OK, byKey.ok.category)
             assert.equals(
-                string.format(
-                    L.COILED_ALTAR_ADDONCHECK_CHAIN_SLOTS,
-                    L.COILED_ALTAR_MARKED_SIDE_MELEE,
-                    table.concat({ "1", "3" }, L.COILED_ALTAR_ADDONCHECK_SLOT_JOIN)
-                ),
+                table.concat({ "1", "3" }, L.COILED_ALTAR_ADDONCHECK_SLOT_JOIN),
                 byKey.ok.configValues[1]
             )
-            assert.equals(L.COILED_ALTAR_MARKED_SIDE_MELEE, byKey.ok.configValues[2])
-            assert.equals(L.COILED_ALTAR_ADDONCHECK_REMINDER_ON, byKey.ok.configValues[3])
+            assert.equals(L.COILED_ALTAR_ADDONCHECK_REMINDER_ON, byKey.ok.configValues[2])
 
             assert.equals(AddonCheckPanel.Category.ATTENTION, byKey.both.category)
-            assert.same({ "assignments", "markedChain" }, byKey.both.invalidColumns)
+            assert.same({ "assignments" }, byKey.both.invalidColumns)
             assert.equals(
-                string.format(
-                    L.COILED_ALTAR_ADDONCHECK_MISMATCH,
-                    string.format(L.COILED_ALTAR_ADDONCHECK_CHAIN_SLOTS, L.COILED_ALTAR_MARKED_SIDE_RANGED, "5"),
-                    string.format(L.COILED_ALTAR_ADDONCHECK_CHAIN_SLOTS, L.COILED_ALTAR_MARKED_SIDE_MELEE, "2")
-                ),
+                string.format(L.COILED_ALTAR_ADDONCHECK_MISMATCH, "5", "2"),
                 byKey.both.configValues[1]
             )
-            assert.equals(
-                string.format(
-                    L.COILED_ALTAR_ADDONCHECK_MISMATCH,
-                    L.COILED_ALTAR_MARKED_SIDE_MELEE,
-                    L.COILED_ALTAR_MARKED_SIDE_RANGED
-                ),
-                byKey.both.configValues[2]
-            )
-            assert.equals(L.COILED_ALTAR_ADDONCHECK_REMINDER_OFF, byKey.both.configValues[3])
+            assert.equals(L.COILED_ALTAR_ADDONCHECK_REMINDER_OFF, byKey.both.configValues[2])
 
             assert.equals(AddonCheckPanel.Category.NO_RESPONSE, byKey.missing.category)
             assert.equals(L.ADDONCHECK_EM_DASH, byKey.missing.configValues[1])
 
             assert.equals(AddonCheckPanel.Category.OK, byKey.off.category)
             assert.equals(L.COILED_ALTAR_ADDONCHECK_UNASSIGNED, byKey.off.configValues[1])
-            assert.equals(L.COILED_ALTAR_ADDONCHECK_REMINDER_OFF, byKey.off.configValues[3])
+            assert.equals(L.COILED_ALTAR_ADDONCHECK_REMINDER_OFF, byKey.off.configValues[2])
         end)
     end)
 end)

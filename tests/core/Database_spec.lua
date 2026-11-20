@@ -93,7 +93,7 @@ describe("Database", function()
                 },
             })
 
-            assert.equals(15, saved.schemaVersion)
+            assert.equals(16, saved.schemaVersion)
             assert.is_nil(saved.modules.InterruptClaim)
             assert.is_true(saved.modules.CombatTimer.enabled)
         end)
@@ -197,7 +197,7 @@ describe("Database", function()
                 },
             })
 
-            assert.equals(15, saved.schemaVersion)
+            assert.equals(16, saved.schemaVersion)
             assert.is_nil(saved.modules.CoiledAltar.mechanicReminder.enabled)
             assert.is_true(saved.modules.CoiledAltar.mechanicReminder.interrupt)
         end)
@@ -214,7 +214,7 @@ describe("Database", function()
                 },
             })
 
-            assert.equals(15, saved.schemaVersion)
+            assert.equals(16, saved.schemaVersion)
             assert.equals(48, saved.modules.BossAlert.callout.countdownFontSize)
             assert.is_nil(saved.modules.BossAlert.callout.fontSize)
             assert.equals(1.1, saved.modules.BossAlert.callout.scale)
@@ -257,6 +257,71 @@ describe("Database", function()
             assert.is_nil(callout.font)
             assert.is_nil(callout.fontSize)
             assert.is_nil(callout.fontColor)
+        end)
+    end)
+
+    describe("Coiled Altar single-shadow migration", function()
+        it("moves MELEE assignments into RANGED when RANGED is empty and resets markedChain to MELEE", function()
+            local saved = Database.Load({
+                schemaVersion = 15,
+                modules = {
+                    CoiledAltar = {
+                        markedChain = "RANGED",
+                        assignments = {
+                            MELEE = {
+                                { type = "player", value = "Alice-TestRealm" },
+                            },
+                            RANGED = {},
+                        },
+                    },
+                },
+            })
+
+            local coiled = saved.modules.CoiledAltar
+            assert.equals(16, saved.schemaVersion)
+            assert.equals("MELEE", coiled.markedChain)
+            assert.same({}, coiled.assignments.MELEE)
+            assert.same({ { type = "player", value = "Alice-TestRealm" } }, coiled.assignments.RANGED)
+        end)
+
+        it("keeps RANGED when both chains are populated and markedChain was MELEE", function()
+            local saved = Database.Load({
+                schemaVersion = 15,
+                modules = {
+                    CoiledAltar = {
+                        markedChain = "MELEE",
+                        assignments = {
+                            MELEE = { { type = "player", value = "Melee-TestRealm" } },
+                            RANGED = { { type = "player", value = "Ranged-TestRealm" } },
+                        },
+                    },
+                },
+            })
+
+            local coiled = saved.modules.CoiledAltar
+            assert.equals("MELEE", coiled.markedChain)
+            assert.same({}, coiled.assignments.MELEE)
+            assert.same({ { type = "player", value = "Ranged-TestRealm" } }, coiled.assignments.RANGED)
+        end)
+
+        it("prefers MELEE when both chains are populated and markedChain was RANGED", function()
+            local saved = Database.Load({
+                schemaVersion = 15,
+                modules = {
+                    CoiledAltar = {
+                        markedChain = "RANGED",
+                        assignments = {
+                            MELEE = { { type = "player", value = "Melee-TestRealm" } },
+                            RANGED = { { type = "player", value = "Ranged-TestRealm" } },
+                        },
+                    },
+                },
+            })
+
+            local coiled = saved.modules.CoiledAltar
+            assert.equals("MELEE", coiled.markedChain)
+            assert.same({}, coiled.assignments.MELEE)
+            assert.same({ { type = "player", value = "Melee-TestRealm" } }, coiled.assignments.RANGED)
         end)
     end)
 end)

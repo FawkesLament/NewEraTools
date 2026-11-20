@@ -139,58 +139,42 @@ describe("CoiledAltar interrupt assignment member view", function()
         CreateFrame = originalCreateFrame
     end)
 
-    it("shows melee and ranged chains with slot numbers, players, text, and empty slots", function()
-        assert.is_true(Module:AssignInterruptPlayer(Assignments.MELEE, 1, "Player-TestRealm"))
-        assert.is_true(Module:AssignInterruptText(Assignments.MELEE, 2, "Kick first"))
-        assert.is_true(Module:AssignInterruptPlayer(Assignments.RANGED, 3, "Alice-TestRealm"))
+    it("shows a single chain with slot numbers, players, text, and empty slots", function()
+        assert.is_true(Module:AssignInterruptPlayer(Assignments.ACTIVE_CHAIN, 1, "Player-TestRealm"))
+        assert.is_true(Module:AssignInterruptText(Assignments.ACTIVE_CHAIN, 2, "Kick first"))
+        assert.is_true(Module:AssignInterruptPlayer(Assignments.ACTIVE_CHAIN, 3, "Alice-TestRealm"))
 
-        local melee = lastData.chains[1]
-        local ranged = lastData.chains[2]
-        assert.equals(L.COILED_ALTAR_INTERRUPT_CHAIN_MELEE, melee.title)
-        assert.equals(L.COILED_ALTAR_INTERRUPT_CHAIN_RANGED, ranged.title)
-        assert.equals(Assignments.SLOT_COUNT, #melee.entries)
-        assert.equals(Assignments.SLOT_COUNT, #ranged.entries)
-        assert.equals("#1", melee.entries[1].slot)
-        assert.equals("Player", melee.entries[1].text)
-        assert.is_true(melee.entries[1].highlight)
+        assert.equals(1, #lastData.chains)
+        local chain = lastData.chains[1]
+        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_TITLE, chain.title)
+        assert.equals(Assignments.SLOT_COUNT, #chain.entries)
+        assert.equals("#1", chain.entries[1].slot)
+        assert.equals("Player", chain.entries[1].text)
+        assert.is_true(chain.entries[1].highlight)
         assert.equals(L.COILED_ALTAR_INTERRUPT_YOU, lastData.youText)
-        assert.equals("#2", melee.entries[2].slot)
-        assert.equals("Kick first", melee.entries[2].text)
-        assert.equals(ns.Assets.Colors.TEXT_GOLD, melee.entries[2].color)
-        assert.is_nil(melee.entries[2].highlight)
-        assert.equals(L.COILED_ALTAR_INTERRUPT_SLOT_EMPTY, melee.entries[3].text)
-        assert.equals(ns.Assets.Colors.TEXT_MUTED, melee.entries[3].color)
-        assert.equals("#3", ranged.entries[3].slot)
-        assert.equals("Alice", ranged.entries[3].text)
-        assert.is_nil(ranged.entries[3].highlight)
+        assert.equals("#2", chain.entries[2].slot)
+        assert.equals("Kick first", chain.entries[2].text)
+        assert.equals(ns.Assets.Colors.TEXT_GOLD, chain.entries[2].color)
+        assert.is_nil(chain.entries[2].highlight)
+        assert.equals("#3", chain.entries[3].slot)
+        assert.equals("Alice", chain.entries[3].text)
+        assert.is_nil(chain.entries[3].highlight)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_SLOT_EMPTY, chain.entries[4].text)
+        assert.equals(ns.Assets.Colors.TEXT_MUTED, chain.entries[4].color)
     end)
 
-    it("shows the current marked-chain setting as read-only text", function()
-        local markedLabel
-        local markedValue
-        for _, label in ipairs(labels) do
-            if label:GetText() == L.COILED_ALTAR_MARKED_CORRESPONDS then
-                markedLabel = label
-            elseif label:GetText() == L.COILED_ALTAR_MARKED_SIDE_MELEE then
-                markedValue = label
-            end
-        end
-        assert.equals(L.COILED_ALTAR_MARKED_CORRESPONDS, markedLabel:GetText())
-        assert.equals("MELEE", Module:GetMarkedChain())
-        assert.equals(L.COILED_ALTAR_MARKED_SIDE_MELEE, markedValue:GetText())
-
-        assert.is_true(Module:SetMarkedChain("RANGED"))
-        MemberView.Refresh()
-        assert.equals("RANGED", Module:GetMarkedChain())
-        assert.equals(L.COILED_ALTAR_MARKED_SIDE_RANGED, markedValue:GetText())
-        assert.equals(L.COILED_ALTAR_MARKED_CORRESPONDS, markedLabel:GetText())
+    it("does not render a marked-chain row", function()
+        assert.equals(0, #labels)
     end)
 
     it("keeps the same assignment table after a member-view refresh", function()
-        assert.is_true(Module:AssignInterruptPlayer(Assignments.MELEE, 4, "Alice"))
+        assert.is_true(Module:AssignInterruptPlayer(Assignments.ACTIVE_CHAIN, 4, "Alice"))
         local saved = Module:GetInterruptAssignments()
         MemberView.Refresh()
         assert(saved == Module:GetInterruptAssignments())
-        assert.same({ type = Assignments.TYPE_PLAYER, value = "Alice-TestRealm" }, Module:GetInterruptSlot("MELEE", 4))
+        assert.same(
+            { type = Assignments.TYPE_PLAYER, value = "Alice-TestRealm" },
+            Module:GetInterruptSlot(Assignments.ACTIVE_CHAIN, 4)
+        )
     end)
 end)

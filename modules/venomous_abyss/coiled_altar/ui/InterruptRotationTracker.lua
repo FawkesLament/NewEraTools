@@ -14,10 +14,7 @@ local function HudState(snapshot)
     if not snapshot then
         return nil
     end
-    local title = L.COILED_ALTAR_INTERRUPT_CHAIN_MELEE
-    if snapshot.chainId == Internals.InterruptAssignments.RANGED then
-        title = L.COILED_ALTAR_INTERRUPT_CHAIN_RANGED
-    end
+    local title = L.COILED_ALTAR_INTERRUPT_STATUS_TITLE
     local detail = ns.InterruptRotationTracker.FormatTask(snapshot.indices or { snapshot.index })
     local text = L.COILED_ALTAR_INTERRUPT_STATUS_PENDING
     local progress = 0

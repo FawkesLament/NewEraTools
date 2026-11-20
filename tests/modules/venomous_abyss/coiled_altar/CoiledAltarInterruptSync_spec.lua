@@ -304,8 +304,9 @@ describe("CoiledAltar interrupt assignment sync", function()
             StartModule()
         end)
 
-        it("sends CONTROL events and does not send when validation or raid context fails", function()
-            assert.is_true(Module:AssignInterruptPlayer(Assignments.MELEE, 1, "P2-TestRealm"))
+        it("sends CONTROL events in v1 backward-compatible format and does not send when validation or raid context fails", function()
+            assert.is_true(Module:AssignInterruptPlayer(Assignments.ACTIVE_CHAIN, 1, "P2-TestRealm"))
+            assert.is_true(Module:AssignInterruptText(Assignments.ACTIVE_CHAIN, 2, "群断"))
             assert.is_true(Sync.Publish())
             assert.is_true(#AddonMessage.sent >= 1)
             local sent = AddonMessage.sent[1]
@@ -314,14 +315,24 @@ describe("CoiledAltar interrupt assignment sync", function()
             local decoded = assert(MessageProtocol.Decode(sent.message))
             assert.equals(Sync.TOPIC, decoded.topic)
             assert.equals(MessageProtocol.TYPE_EVENT, decoded.type)
+
+            -- Verify an old v1 client decodes markedChain = MELEE, empty MELEE, and the rotation in RANGED.
+            local part = assert(Sync.ParsePart(decoded.payload))
+            assert.equals(1, part.total)
+            local v1Snapshot = assert(Sync.ResolveSnapshot(part.chunk, ExampleRoster()))
+            assert.equals(Assignments.MELEE, v1Snapshot.markedChain)
+            for index = 1, Assignments.SLOT_COUNT do
+                assert.equals(Assignments.TYPE_EMPTY, v1Snapshot.assignments.MELEE[index].type)
+            end
+            assert.same(Slot(Assignments.TYPE_PLAYER, "P2-TestRealm"), v1Snapshot.assignments.RANGED[1])
+            assert.same(Slot(Assignments.TYPE_TEXT, "群断"), v1Snapshot.assignments.RANGED[2])
             AddonMessage.sent = {}
 
-            Module:AssignInterruptPlayer(Assignments.RANGED, 1, "P2-TestRealm")
-            Module.db.assignments.RANGED[1] = Slot(Assignments.TYPE_PLAYER, "P2-TestRealm")
+            Module.db.assignments[Assignments.ACTIVE_CHAIN][3] = Slot(Assignments.TYPE_PLAYER, "Gone-TestRealm")
             assert.is_false(Sync.Publish())
             assert.equals(0, #AddonMessage.sent)
 
-            Module.db.assignments.RANGED[1] = Slot(Assignments.TYPE_EMPTY)
+            Module.db.assignments[Assignments.ACTIVE_CHAIN][3] = Slot(Assignments.TYPE_EMPTY)
             Group.raidChatType = nil
             assert.is_false(select(1, Sync.Publish()))
             assert.equals("not_in_raid", select(2, Sync.Publish()))
@@ -429,7 +440,7 @@ describe("CoiledAltar interrupt assignment sync", function()
             local body, assignments = ExampleBody()
             DeliverBody(body)
             local saved = {
-                schemaVersion = 13,
+                schemaVersion = 16,
                 modules = {
                     CoiledAltar = {
                         assignments = Module.db.assignments,
