@@ -14,7 +14,7 @@ ns.Dropdown = Dropdown
 local DISABLED_ALPHA = 0.4
 -- Flatter down-chevron for dropdown triggers (wider tip angle than the expand-button chevron).
 local DROPDOWN_CARET = { { 1, 3 }, { 5, 5 }, { 9, 3 } }
--- Above MainPanel (DIALOG) and layout-edit chrome (FULLSCREEN_DIALOG) so popups are never covered.
+-- Above MainPanel (HIGH) and layout-edit chrome (FULLSCREEN_DIALOG) so popups are never covered.
 local DROPDOWN_MENU_STRATA = "TOOLTIP"
 
 ---@class DropdownItem

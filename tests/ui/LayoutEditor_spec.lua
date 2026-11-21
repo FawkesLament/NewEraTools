@@ -848,14 +848,14 @@ describe("LayoutEditor", function()
         local frame = RegisterElement("CombatTimer:1")
         frame.frameStrata = "MEDIUM"
         local panelFrame = FakeFrame(UIParent)
-        panelFrame.frameStrata = "DIALOG"
+        panelFrame.frameStrata = "HIGH"
         panelFrame.shown = true
         MainPanel.panelFrame = panelFrame
         assert.is_true(LayoutEditor.BeginGlobal())
         assert.equals("FULLSCREEN_DIALOG", panelFrame.frameStrata)
         assert.equals("TOOLTIP", frame.frameStrata)
         LayoutEditor.End()
-        assert.equals("DIALOG", panelFrame.frameStrata)
+        assert.equals("HIGH", panelFrame.frameStrata)
         assert.equals("MEDIUM", frame.frameStrata)
     end)
 

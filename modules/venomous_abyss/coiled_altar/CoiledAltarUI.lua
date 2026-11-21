@@ -23,7 +23,39 @@ local Spell = ns.Api.Spell
 local INTERRUPT_SPELL_ID = 1286399
 local GHOST_CHASE_SPELL_ID = 1285911
 local ORB_CARRY_SPELL_ID = 1282403
-local SPELL_ICON_SIZE = Sizes.ROLE_ICON
+-- 20px icon + 8px gap + name; matches the nameplate card's two-column rhythm.
+local SPELL_ICON_SIZE = 20
+local SPELL_ICON_CROP = 0.08
+local SPELL_HINT_GAP = 8
+local REMINDER_LABEL_WIDTH = 100
+local CHECKBOX_TEXT_GAP = 10
+local PHASE_GROUP_GAP = 20
+
+---@param holder Frame
+---@param texture Texture
+local function ApplyCroppedSpellIcon(holder, texture)
+    texture:SetAllPoints()
+    texture:SetTexCoord(SPELL_ICON_CROP, 1 - SPELL_ICON_CROP, SPELL_ICON_CROP, 1 - SPELL_ICON_CROP)
+    local r, g, b, a = Widgets.UnpackColor(Colors.BORDER)
+    local thickness = Sizes.BORDER
+    local edges = {
+        { height = thickness, p1 = "TOPLEFT", p2 = "TOPRIGHT" },
+        { height = thickness, p1 = "BOTTOMLEFT", p2 = "BOTTOMRIGHT" },
+        { width = thickness, p1 = "TOPLEFT", p2 = "BOTTOMLEFT" },
+        { width = thickness, p1 = "TOPRIGHT", p2 = "BOTTOMRIGHT" },
+    }
+    for _, spec in ipairs(edges) do
+        local edge = holder:CreateTexture(nil, "OVERLAY")
+        if spec.width then
+            edge:SetWidth(spec.width)
+        else
+            edge:SetHeight(spec.height)
+        end
+        edge:SetPoint(spec.p1)
+        edge:SetPoint(spec.p2)
+        edge:SetColorTexture(r, g, b, a)
+    end
+end
 
 ---@param parent Frame
 ---@param spellId integer
@@ -32,15 +64,18 @@ local SPELL_ICON_SIZE = Sizes.ROLE_ICON
 local function CreateSpellHint(parent, spellId, labelText)
     local hit = CreateFrame("Button", nil, parent)
     hit:RegisterForClicks("LeftButtonUp")
-    local icon = hit:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(SPELL_ICON_SIZE, SPELL_ICON_SIZE)
-    icon:SetPoint("LEFT")
+    local iconHolder = CreateFrame("Frame", nil, hit)
+    iconHolder:SetSize(SPELL_ICON_SIZE, SPELL_ICON_SIZE)
+    iconHolder:SetPoint("LEFT")
+    local icon = iconHolder:CreateTexture(nil, "ARTWORK")
     icon:SetTexture(Spell.GetTexture(spellId) or Assets.Icons.QUESTION_MARK)
+    ApplyCroppedSpellIcon(iconHolder, icon)
     local label = Widgets.CreateLabel(hit, Fonts.BODY, labelText)
     label:SetJustifyH("LEFT")
     label:SetWordWrap(false)
-    label:SetPoint("LEFT", icon, "RIGHT", Spacing.SMALL, 0)
-    hit:SetSize(SPELL_ICON_SIZE + Spacing.SMALL + (label:GetStringWidth() or 0), Sizes.CONTROL_ROW_HEIGHT)
+    label:SetWidth(REMINDER_LABEL_WIDTH - SPELL_ICON_SIZE - SPELL_HINT_GAP)
+    label:SetPoint("LEFT", iconHolder, "RIGHT", SPELL_HINT_GAP, 0)
+    hit:SetSize(REMINDER_LABEL_WIDTH, Sizes.CONTROL_ROW_HEIGHT)
     hit:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetSpellByID(spellId)
@@ -294,7 +329,7 @@ local function BuildContent(content)
         divider = true,
         toggle = false,
     })
-    local reminderBody = Layout.Stack(reminder.content, { paddingY = Spacing.SMALL })
+    local reminderBody = Layout.Stack(reminder.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
 
     ---@param cell Frame
     ---@param isEnabled fun(): boolean
@@ -315,7 +350,7 @@ local function BuildContent(content)
         hint:SetScript("OnClick", function()
             box:Click()
         end)
-        Layout.Row(cell, { box, hint }, Spacing.SMALL)
+        Layout.Row(cell, { hint, box }, 0)
     end
 
     local reminderRow = reminderBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
@@ -347,10 +382,10 @@ local function BuildContent(content)
         local label = Widgets.CreateLabel(group, Fonts.BODY, labelText)
         label:SetJustifyH("LEFT")
         label:SetWordWrap(false)
-        Layout.Row(group, { box, label }, Spacing.SMALL)
+        Layout.Row(group, { box, label }, CHECKBOX_TEXT_GAP)
         local labelWidth = label:GetStringWidth() or 0
-        box:SetHitRectInsets(0, -(labelWidth + Spacing.SMALL), 0, 0)
-        group:SetSize(Sizes.CHECKBOX + Spacing.SMALL + labelWidth, Sizes.CONTROL_ROW_HEIGHT)
+        box:SetHitRectInsets(0, -(labelWidth + CHECKBOX_TEXT_GAP), 0, 0)
+        group:SetSize(Sizes.CHECKBOX + CHECKBOX_TEXT_GAP + labelWidth, Sizes.CONTROL_ROW_HEIGHT)
         return group
     end
 
@@ -371,7 +406,11 @@ local function BuildContent(content)
     end, function(enabled)
         CoiledAltar:SetOrbCarryP3ReminderEnabled(enabled)
     end, L.COILED_ALTAR_ORB_CARRY_P3)
-    Layout.Row(orbRow, { orbHint, oddGroup, evenGroup, p3Group }, Spacing.MEDIUM)
+    Layout.Row(orbRow, { orbHint, oddGroup }, 0)
+    evenGroup:ClearAllPoints()
+    evenGroup:SetPoint("LEFT", oddGroup, "RIGHT", PHASE_GROUP_GAP, 0)
+    p3Group:ClearAllPoints()
+    p3Group:SetPoint("LEFT", evenGroup, "RIGHT", PHASE_GROUP_GAP, 0)
 
     reminder:SetContentHeight(reminderBody:GetHeight())
     reminder:RefreshContentInteractive()

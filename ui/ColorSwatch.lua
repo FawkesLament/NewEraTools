@@ -8,7 +8,7 @@ local Sizes = Assets.Sizes
 local ColorSwatch = {}
 ns.ColorSwatch = ColorSwatch
 
--- Above MainPanel (DIALOG), the layout-edit dimmer (FULLSCREEN), and edit chrome
+-- Above MainPanel (HIGH), the layout-edit dimmer (FULLSCREEN), and edit chrome
 -- (FULLSCREEN_DIALOG) so the picker stays undimmed and in front of the settings panel.
 local PICKER_STRATA = "TOOLTIP"
 local originalPickerStrata

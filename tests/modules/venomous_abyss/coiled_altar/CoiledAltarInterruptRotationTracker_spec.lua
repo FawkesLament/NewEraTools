@@ -82,6 +82,9 @@ describe("CoiledAltar InterruptRotationTracker", function()
             function texture:SetPoint() end
             function texture:SetSize() end
             function texture:SetWidth() end
+            function texture:SetTexCoord() end
+            function texture:SetAllPoints() end
+            function texture:SetColorTexture() end
             function texture:Show()
                 self.shown = true
             end

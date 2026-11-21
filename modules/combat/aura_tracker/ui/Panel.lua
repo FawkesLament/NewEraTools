@@ -129,7 +129,7 @@ local function EnsureDeleteConfirmWindow()
         -- Absorb body clicks so they don't fall through to the main panel.
         onClick = function() end,
     })
-    -- Main panel is DIALOG; keep the confirm prompt above it.
+    -- Main panel is HIGH; keep the confirm prompt above it.
     deleteConfirmWindow:SetFrameStrata("DIALOG")
     return deleteConfirmWindow
 end

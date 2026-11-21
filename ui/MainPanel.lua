@@ -625,7 +625,11 @@ local function CreatePanel()
     frame:SetSize(PANEL_WIDTH, PANEL_HEIGHT)
     frame:SetScale(Util.Snap(MainPanel.db.scale, SCALE_MIN, SCALE_MAX, SCALE_STEP))
     frame:SetPoint("CENTER")
-    frame:SetFrameStrata("DIALOG")
+    -- HIGH keeps the settings window above ordinary MEDIUM UI without competing with
+    -- Blizzard DIALOG popups (ready checks, invitations). Sharing DIALOG interleaves
+    -- child frame levels so one popup can sit partly above and partly below this window.
+    frame:SetFrameStrata("HIGH")
+    frame:SetToplevel(true)
     frame:SetClampedToScreen(true)
     frame:SetMovable(true)
     frame:EnableMouse(true)
@@ -699,6 +703,9 @@ function MainPanel:Toggle()
         panel = CreatePanel()
     end
     panel:SetShown(not panel:IsShown())
+    if panel:IsShown() then
+        panel:Raise()
+    end
 end
 
 ---Returns the settings panel frame once it has been created; nil before the first open.
