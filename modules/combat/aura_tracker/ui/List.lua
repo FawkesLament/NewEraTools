@@ -6,6 +6,7 @@ local CollapsibleSection = ns.CollapsibleSection
 local Layout = ns.Layout
 local Player = ns.Api.Player
 local Spell = ns.Api.Spell
+local Checkbox = ns.Checkbox
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
@@ -213,7 +214,7 @@ local function CreateTrackerRow(parent, trackerId)
     Widgets.ApplyBackdrop(frame, Colors.SURFACE, Colors.BORDER)
     Widgets.AddHoverHighlight(frame)
 
-    local enableBox = Widgets.CreateCheckbox(frame)
+    local enableBox = Checkbox.Create(frame)
     enableBox:SetPoint("LEFT", frame, "LEFT", Spacing.SMALL, 0)
     enableBox:SetScript("OnClick", function(self)
         if not AuraTracker:HasTracker(trackerId) or not AuraTracker:IsEnabled() then

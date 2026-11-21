@@ -51,6 +51,19 @@ describe("InterruptClaim UI", function()
                 section = def
             end,
         }
+        ns.Checkbox = {
+            Create = function()
+                local box = FakeButton()
+                function box:SetChecked() end
+                function box:GetChecked()
+                    return false
+                end
+                function box:SetScript() end
+                function box:SetHitRectInsets() end
+                function box:SetPoint() end
+                return box
+            end,
+        }
         CreateFrame = function(frameType, name, _, template)
             createCount = createCount + 1
             created = FakeButton(name)
@@ -80,7 +93,7 @@ describe("InterruptClaim UI", function()
     it("registers a combat page with a header toggle", function()
         assert.equals(ns.L.INTERRUPT_CLAIM_TITLE, section.title)
         assert.equals(ns.PanelGroups.COMBAT, section.group)
-        assert.equals(ns.L.INTERRUPT_CLAIM_HINT, section.tooltip)
+        assert.equals(ns.L.INTERRUPT_CLAIM_SUBTITLE, section.subtitle)
         assert.is_false(section.enabled)
         assert.equals("function", type(section.onEnabledChanged))
         assert.equals("function", type(section.build))

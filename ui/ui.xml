@@ -5,6 +5,7 @@
     <Script file="InterruptRotationTrackerAnchor.lua"/>
     <Script file="Color.lua"/>
     <Script file="Widgets.lua"/>
+    <Script file="Checkbox.lua"/>
     <Script file="Dropdown.lua"/>
     <Script file="Slider.lua"/>
     <Script file="NumberStepper.lua"/>

@@ -11,6 +11,7 @@ local DISABLED_ALPHA = 0.4
 -- The strokes meet at a right angle, which the tip extension in CreateExpandButton relies on.
 local CHEVRON_RIGHT = { { 3, 1 }, { 7, 5 }, { 3, 9 } }
 local CHEVRON_DOWN = { { 1, 3 }, { 5, 7 }, { 9, 3 } }
+
 -- Corner brackets in a 12px box (y grows downward). Reads as a layout frame being moved.
 local LAYOUT_MOVE_STROKES = {
     { 1, 1, 4, 1 },
@@ -789,31 +790,6 @@ function Widgets.CreateCollapseButton(parent, onClick)
     end
 
     return button
-end
-
----Creates a flat square checkbox that fills with the accent color when checked.
----@param parent Frame
----@return CheckButton
-function Widgets.CreateCheckbox(parent)
-    local box = CreateFrame("CheckButton", nil, parent, Assets.Templates.BACKDROP)
-    box:SetSize(Sizes.CHECKBOX, Sizes.CHECKBOX)
-    Widgets.ApplyBackdrop(box, Colors.SURFACE, Colors.BORDER)
-    Widgets.AddHoverHighlight(box)
-
-    local fill = box:CreateTexture(nil, "ARTWORK")
-    fill:SetPoint("TOPLEFT", Sizes.CHECKBOX_FILL_INSET, -Sizes.CHECKBOX_FILL_INSET)
-    fill:SetPoint("BOTTOMRIGHT", -Sizes.CHECKBOX_FILL_INSET, Sizes.CHECKBOX_FILL_INSET)
-    fill:SetColorTexture(Widgets.UnpackColor(Colors.MENU_ACCENT))
-    box:SetCheckedTexture(fill)
-    -- FeatureSection uses SetEnabled; CheckButton only has Enable/Disable natively.
-    function box:SetEnabled(enabled)
-        if enabled then
-            self:Enable()
-        else
-            self:Disable()
-        end
-    end
-    return box
 end
 
 ---Creates a centered numeric input box sized to fit `maxDigits`. Enter clears focus.

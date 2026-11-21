@@ -218,6 +218,20 @@ describe("TwinFangs InterruptRotationTracker", function()
         ns.Dropdown = {}
         ns.NumberStepper = {}
         ns.Slider = {}
+        ns.Checkbox = {
+            Create = function()
+                return {
+                    SetChecked = function() end,
+                    GetChecked = function()
+                        return false
+                    end,
+                    SetScript = function() end,
+                    SetHitRectInsets = function() end,
+                    SetPoint = function() end,
+                    SetEnabled = function() end,
+                }
+            end,
+        }
         ns.RaidRoleModeLabel = {}
         ns.AddonCheckPanel = {}
         ns.MainPanel = {

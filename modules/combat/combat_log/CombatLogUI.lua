@@ -64,7 +64,7 @@ function CombatLog:OnEnable()
         title = L.COMBAT_LOG_TITLE,
         headerTitle = L.COMBAT_LOG_FEATURE,
         group = ns.PanelGroups.COMBAT,
-        tooltip = L.COMBAT_LOG_HINT,
+        subtitle = L.COMBAT_LOG_SUBTITLE,
         enabled = CombatLog:IsEnabled(),
         onEnabledChanged = function(enabled)
             CombatLog:SetEnabled(enabled)

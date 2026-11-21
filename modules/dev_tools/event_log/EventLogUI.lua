@@ -172,7 +172,7 @@ function EventLog:OnEnable()
     ns.MainPanel:RegisterSection({
         title = L.EVENT_LOG_TITLE,
         group = ns.PanelGroups.DEV_TOOLS,
-        tooltip = L.EVENT_LOG_HINT,
+        subtitle = L.EVENT_LOG_SUBTITLE,
         enabled = EventLog:IsEnabled(),
         onEnabledChanged = function(enabled)
             EventLog:SetEnabled(enabled)

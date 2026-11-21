@@ -98,14 +98,16 @@ describe("AuraTracker settings list", function()
             return created
         end
 
+        ns.Checkbox = {
+            Create = function()
+                return NewFrame("CheckButton")
+            end,
+        }
         ns.Widgets = {
             ApplyBackdrop = function()
                 paints = paints + 1
             end,
             AddHoverHighlight = function() end,
-            CreateCheckbox = function()
-                return NewFrame("CheckButton")
-            end,
             CreateLabel = function()
                 return NewFrame("FontString")
             end,

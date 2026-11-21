@@ -184,6 +184,18 @@ describe("RLToolbar UI", function()
                 return FakeFrame()
             end,
         }
+        ns.Checkbox = {
+            Create = function(parent)
+                local box = FakeFrame(parent)
+                function box:SetChecked() end
+                function box:GetChecked()
+                    return false
+                end
+                function box:SetScript() end
+                function box:SetHitRectInsets() end
+                return box
+            end,
+        }
         ns.LayoutEditor = {
             Register = function(def)
                 registered = def

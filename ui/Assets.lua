@@ -62,6 +62,8 @@ Assets.Textures = {
     -- White 64x64 rounded squares; tinted with SetVertexColor (border black, fill scheme).
     INTERRUPT_INDICATOR_BADGE_BORDER = MEDIA_PATH .. "icons\\interrupt_indicator_badge_border",
     INTERRUPT_INDICATOR_BADGE_FILL = MEDIA_PATH .. "icons\\interrupt_indicator_badge_fill",
+    -- White-on-alpha handwritten checkmark (128x128); tint with SetVertexColor.
+    CHECKMARK = MEDIA_PATH .. "icons\\checkmark",
     MINIMAP_HIGHLIGHT = "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight",
     MINIMAP_BACKGROUND = "Interface\\Minimap\\UI-Minimap-Background",
     MINIMAP_BORDER = "Interface\\Minimap\\MiniMap-TrackingBorder",
@@ -357,8 +359,6 @@ Assets.Sizes = {
     CONTENT_SECTION_HEADER = 22,
     INPUT_HEIGHT = 24,
     CHECKBOX = 12,
-    -- Gap between the checkbox border and its checked fill.
-    CHECKBOX_FILL_INSET = 2,
     -- Compact header On/Off switch; 2px shorter than CONTROL_HEIGHT so it sits centered in the row.
     TOGGLE_WIDTH = 40,
     TOGGLE_HEIGHT = 20,

@@ -231,7 +231,7 @@ function CombatTimer:OnEnable()
     ns.MainPanel:RegisterSection({
         title = L.COMBAT_TIMER_TITLE,
         group = ns.PanelGroups.COMBAT,
-        tooltip = L.COMBAT_TIMER_HINT,
+        subtitle = L.COMBAT_TIMER_SUBTITLE,
         enabled = CombatTimer:IsEnabled(),
         onEnabledChanged = function(enabled)
             CombatTimer:SetEnabled(enabled)

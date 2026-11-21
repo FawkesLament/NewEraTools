@@ -5,6 +5,7 @@ local Assets = ns.Assets
 local CollapsibleSection = ns.CollapsibleSection
 local Layout = ns.Layout
 local NumberStepper = ns.NumberStepper
+local Checkbox = ns.Checkbox
 local Widgets = ns.Widgets
 local Unit = ns.Api.Unit
 
@@ -83,7 +84,7 @@ local function SyncControls(eligibleCount)
 end
 
 local function CreateMemberCheckbox(index)
-    local box = Widgets.CreateCheckbox(ui.grid)
+    local box = Checkbox.Create(ui.grid)
     -- The whole cell toggles the box, including the icon, the name, and the row's padding.
     box:SetHitRectInsets(0, -(COLUMN_WIDTH - Sizes.CHECKBOX), -ROW_PAD_Y, -ROW_PAD_Y)
 

@@ -6,6 +6,7 @@ local ColorSwatch = ns.ColorSwatch
 local Dropdown = ns.Dropdown
 local NumberStepper = ns.NumberStepper
 local Slider = ns.Slider
+local Checkbox = ns.Checkbox
 local Widgets = ns.Widgets
 local Schema = Internals.Schema
 
@@ -78,7 +79,7 @@ end
 ---@param pendingKey string|nil
 ---@return CheckButton
 function Controls.AddCheckbox(parent, text, getChecked, setChecked, pendingKey)
-    local box = Widgets.CreateCheckbox(parent)
+    local box = Checkbox.Create(parent)
     local trackerId = UI.ResolveSelectedTrackerId()
     box:SetChecked(trackerId and getChecked(trackerId) or false)
     box:SetScript("OnClick", function(self)

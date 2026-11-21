@@ -10,6 +10,7 @@ local ColorSwatch = ns.ColorSwatch
 local Dropdown = ns.Dropdown
 local NumberStepper = ns.NumberStepper
 local Slider = ns.Slider
+local Checkbox = ns.Checkbox
 local Widgets = ns.Widgets
 
 local Fonts = Assets.Fonts
@@ -135,7 +136,7 @@ local function BuildContent(content)
     groupControl:SetSelected(TwinFangs:GetSoakGroup())
     Layout.Row(groupCell, { groupLabel, groupControl }, Spacing.LARGE)
 
-    local timelineBox = Widgets.CreateCheckbox(timelineCell)
+    local timelineBox = Checkbox.Create(timelineCell)
     timelineBox:SetChecked(TwinFangs:IsSoakTimelineEnabled())
     timelineBox:SetScript("OnClick", function(self)
         if not TwinFangs:IsSoakReminderEnabled() then

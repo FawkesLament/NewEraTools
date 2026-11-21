@@ -150,7 +150,7 @@ function GearAlert:OnEnable()
     ns.MainPanel:RegisterSection({
         title = L.GEAR_ALERT_TITLE,
         group = ns.PanelGroups.COMBAT,
-        tooltip = L.GEAR_ALERT_HINT,
+        subtitle = L.GEAR_ALERT_SUBTITLE,
         build = Build,
     })
 end

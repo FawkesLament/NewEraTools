@@ -20,6 +20,9 @@ local PANEL_HEIGHT = 600
 local SIDEBAR_WIDTH = 160
 -- Title/toggle band, plus gap above the divider so the line sits clearly below the title.
 local PAGE_HEADER_HEIGHT = Sizes.CONTROL_ROW_HEIGHT + Spacing.LARGE
+-- Compact gap between the title band and an optional full-width description.
+local PAGE_HEADER_DESCRIPTION_GAP = Spacing.TINY
+local PAGE_HEADER_DESCRIPTION_FALLBACK = Assets.FontStyles[Fonts.SMALL_MUTED].size
 -- Matches FeatureSection's disabled content fade.
 local PAGE_DISABLED_ALPHA = 0.4
 local SCALE_MIN = 0.7
@@ -37,7 +40,8 @@ local SCALE_STEP = 0.05
 ---@field build fun(container: Frame): number|nil  Fills the container and returns its content height. Runs once, the first time the page is on screen.
 ---@field enabled boolean|nil  Initial On/Off when `onEnabledChanged` is set. Defaults to true.
 ---@field onEnabledChanged fun(enabled: boolean)|nil  When set, the page header shows an On/Off toggle and gates the body.
----@field tooltip string|nil  Shown when hovering the page title.
+---@field subtitle string|nil  Persistent L4 description under the page title. Empty or nil adds no extra height.
+---@field tooltip string|nil  Alias of `subtitle` for older registrations.
 
 local MainPanel = ns.Modules.New("MainPanel", {
     defaults = {
@@ -140,6 +144,27 @@ local function SetNavSelected(button, isSelected)
     button.label:SetTextColor(Widgets.UnpackColor(isSelected and Colors.TEXT_HEADING or Colors.TEXT_HINT))
 end
 
+---@param text any
+---@return boolean
+local function HasPageDescription(text)
+    return type(text) == "string" and text ~= ""
+end
+
+---Pins the shared scroll frame under the frozen page header. Header height can grow when a
+---description is present, so this must follow the active section rather than a constant offset.
+---@param frame Frame
+---@param section Frame|nil
+local function AnchorScrollFrame(frame, section)
+    local scrollFrame = frame.scrollFrame
+    scrollFrame:ClearAllPoints()
+    if section then
+        scrollFrame:SetPoint("TOPLEFT", section, "BOTTOMLEFT")
+    else
+        scrollFrame:SetPoint("TOPLEFT", 0, -PAGE_HEADER_HEIGHT)
+    end
+    scrollFrame:SetPoint("BOTTOMRIGHT")
+end
+
 local function CreateSection(frame, def)
     -- Title row lives on the page host, not the scroll child, so it stays put while the body moves.
     local section = CreateFrame("Frame", nil, frame.pageHost)
@@ -161,15 +186,38 @@ local function CreateSection(frame, def)
     title:SetPoint("LEFT", header, "TOPLEFT", 0, titleBandCenterY)
     title:SetWordWrap(false)
 
-    if def.tooltip then
-        -- FontStrings can't take mouse; a matching hit frame carries the tooltip.
-        local hit = CreateFrame("Frame", nil, header)
-        hit:SetPoint("TOPLEFT", title, "TOPLEFT")
-        hit:SetPoint("BOTTOMRIGHT", title, "BOTTOMRIGHT")
-        hit:EnableMouse(true)
-        Widgets.AttachTooltip(hit, "ANCHOR_TOP", function(tooltip)
-            tooltip:SetText(def.tooltip)
-        end)
+    local subtitle = def.subtitle or def.tooltip
+    if HasPageDescription(subtitle) then
+        local description = Widgets.CreateLabel(header, Fonts.SMALL_MUTED, subtitle)
+        description:SetJustifyH("LEFT")
+        description:SetJustifyV("TOP")
+        description:SetWordWrap(true)
+        description:SetPoint("TOPLEFT", header, "TOPLEFT", 0, -(Sizes.CONTROL_ROW_HEIGHT + PAGE_HEADER_DESCRIPTION_GAP))
+        description:SetPoint("TOPRIGHT", header, "TOPRIGHT")
+
+        local appliedHeight = PAGE_HEADER_HEIGHT
+        local function SyncPageHeaderHeight()
+            local width = header:GetWidth()
+            if type(width) == "number" and width > 0 then
+                description:SetWidth(width)
+            end
+            local descHeight = description:GetStringHeight()
+            if type(descHeight) ~= "number" or descHeight <= 0 then
+                descHeight = PAGE_HEADER_DESCRIPTION_FALLBACK
+            end
+            description:SetHeight(descHeight)
+            local height = Sizes.CONTROL_ROW_HEIGHT + PAGE_HEADER_DESCRIPTION_GAP + descHeight + Spacing.LARGE
+            if appliedHeight == height then
+                return
+            end
+            appliedHeight = height
+            header:SetHeight(height)
+            section:SetHeight(height)
+        end
+
+        header:HookScript("OnSizeChanged", SyncPageHeaderHeight)
+        section:HookScript("OnShow", SyncPageHeaderHeight)
+        SyncPageHeaderHeight()
     end
 
     local divider = header:CreateTexture(nil, "ARTWORK")
@@ -325,6 +373,7 @@ local function SelectSection(frame, section)
         frame.activeSection:Hide()
     end
     frame.activeSection = section
+    AnchorScrollFrame(frame, section)
     if section then
         section:Show()
         frame.scrollFrame:SetVerticalScroll(0)
@@ -571,12 +620,8 @@ local function CreateBody(frame, header)
 end
 
 local function CreatePanel()
-    local frame = Widgets.CreateSurface(
-        UIParent,
-        Colors.MENU_CONTENT,
-        Colors.MENU_WINDOW_BORDER,
-        ns.ADDON_NAME .. "Panel"
-    )
+    local frame =
+        Widgets.CreateSurface(UIParent, Colors.MENU_CONTENT, Colors.MENU_WINDOW_BORDER, ns.ADDON_NAME .. "Panel")
     frame:SetSize(PANEL_WIDTH, PANEL_HEIGHT)
     frame:SetScale(Util.Snap(MainPanel.db.scale, SCALE_MIN, SCALE_MAX, SCALE_STEP))
     frame:SetPoint("CENTER")
@@ -629,7 +674,8 @@ end
 ---so modules must not depend on its widgets existing before then. The container passed to it also has
 ---`container:SetContentHeight(height)` for when its content height changes later.
 ---`container.header` is the frozen title row above the scrollable body; `container.titleLabel` is
----the title on its left. An On/Off toggle, when present, occupies the header's right side.
+---the title on its left. A non-empty `subtitle` is shown as wrapping L4 text under that title.
+---An On/Off toggle, when present, occupies the header's right side.
 ---`container:SetHeaderAction(frame)` places one compact control left of that toggle, or at the
 ---header's right when there is no toggle.
 ---When `onEnabledChanged` is set, the page header shows an On/Off toggle and the container also has

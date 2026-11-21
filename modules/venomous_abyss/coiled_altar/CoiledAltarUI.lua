@@ -7,6 +7,7 @@ local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
 local NumberStepper = ns.NumberStepper
 local Slider = ns.Slider
+local Checkbox = ns.Checkbox
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
@@ -301,7 +302,7 @@ local function BuildContent(content)
     ---@param labelText string
     ---@param spellId integer
     local function AddReminderCheckbox(cell, isEnabled, setEnabled, labelText, spellId)
-        local box = Widgets.CreateCheckbox(cell)
+        local box = Checkbox.Create(cell)
         box:SetChecked(isEnabled())
         box:SetScript("OnClick", function(self)
             setEnabled(self:GetChecked())
@@ -337,7 +338,7 @@ local function BuildContent(content)
     ---@return Frame
     local function AddLabeledCheckbox(cell, isEnabled, setEnabled, labelText)
         local group = CreateFrame("Frame", nil, cell)
-        local box = Widgets.CreateCheckbox(group)
+        local box = Checkbox.Create(group)
         box:SetChecked(isEnabled())
         box:SetScript("OnClick", function(self)
             setEnabled(self:GetChecked())

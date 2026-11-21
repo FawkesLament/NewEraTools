@@ -4,6 +4,7 @@ local L = ns.L
 local CollapsibleSection = ns.CollapsibleSection
 local Layout = ns.Layout
 local WarningWindow = ns.WarningWindow
+local Checkbox = ns.Checkbox
 local Widgets = ns.Widgets
 local AuraTrackerBarUI = Internals.BarUI
 local Profile = Internals.Profile
@@ -25,7 +26,7 @@ local UI = Internals.UI
 ---@param setChecked fun(checked: boolean)
 ---@return CheckButton
 local function AddModuleCheckbox(parent, text, getChecked, setChecked)
-    local box = Widgets.CreateCheckbox(parent)
+    local box = Checkbox.Create(parent)
     box:SetChecked(getChecked())
     box:SetScript("OnClick", function(self)
         if UI.refreshingControls then
@@ -266,7 +267,7 @@ function AuraTracker:OnEnable()
     ns.MainPanel:RegisterSection({
         title = L.AURA_TRACKER_TITLE,
         group = ns.PanelGroups.COMBAT,
-        tooltip = L.AURA_TRACKER_HINT,
+        subtitle = L.AURA_TRACKER_SUBTITLE,
         enabled = AuraTracker:IsEnabled(),
         onEnabledChanged = function(enabled)
             AuraTracker:SetEnabled(enabled)

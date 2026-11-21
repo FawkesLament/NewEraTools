@@ -5,6 +5,7 @@ local FloatingWindow = ns.FloatingWindow
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
 local Slider = ns.Slider
+local Checkbox = ns.Checkbox
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
@@ -302,7 +303,7 @@ end
 ---@return CheckButton
 ---@return FontString
 local function CreateShownCheckbox(row, text, get, set)
-    local box = Widgets.CreateCheckbox(row)
+    local box = Checkbox.Create(row)
     box:SetChecked(get())
     box:SetScript("OnClick", function(self)
         if not RLToolbar:IsEnabled() then

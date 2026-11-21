@@ -6,6 +6,7 @@ local Dropdown = ns.Dropdown
 local FeatureSection = ns.FeatureSection
 local Layout = ns.Layout
 local Slider = ns.Slider
+local Checkbox = ns.Checkbox
 local Widgets = ns.Widgets
 
 local Fonts = Assets.Fonts
@@ -52,7 +53,7 @@ local function BuildContent(content)
 
     local callout = FeatureSection.Create(body, {
         title = L.BOSS_ALERT_CALLOUT,
-        tooltip = L.BOSS_ALERT_CALLOUT_TOOLTIP,
+        tooltip = L.BOSS_ALERT_CALLOUT_SUBTITLE,
         toggle = false,
         divider = true,
     })
@@ -107,7 +108,7 @@ local function BuildContent(content)
     PlaceSlider(countdownFontSizeRow, countdownFontSizeLabel, countdownFontSizeSlider)
 
     local ttsRow = calloutBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local ttsBox = Widgets.CreateCheckbox(ttsRow)
+    local ttsBox = Checkbox.Create(ttsRow)
     ttsBox:SetChecked(BossAlert:IsCalloutTtsEnabled())
     ttsBox:SetScript("OnClick", function(self)
         BossAlert:SetCalloutTtsEnabled(self:GetChecked())
@@ -153,7 +154,7 @@ function BossAlert:OnEnable()
     ns.MainPanel:RegisterSection({
         title = L.BOSS_ALERT_TITLE,
         group = ns.PanelGroups.COMBAT,
-        tooltip = L.BOSS_ALERT_CALLOUT_TOOLTIP,
+        subtitle = L.BOSS_ALERT_CALLOUT_SUBTITLE,
         build = Build,
     })
     ApplyCalloutAppearance()

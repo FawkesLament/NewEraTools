@@ -207,6 +207,20 @@ describe("CoiledAltar InterruptRotationTracker", function()
         ns.FeatureSection = {}
         ns.NumberStepper = {}
         ns.Slider = {}
+        ns.Checkbox = {
+            Create = function()
+                return {
+                    SetChecked = function() end,
+                    GetChecked = function()
+                        return false
+                    end,
+                    SetScript = function() end,
+                    SetHitRectInsets = function() end,
+                    SetPoint = function() end,
+                    SetEnabled = function() end,
+                }
+            end,
+        }
         ns.MainPanel = {
             RegisterSection = function() end,
         }

@@ -11,6 +11,7 @@ local UnitFrame = ns.Api.UnitFrame
 local Dropdown = ns.Dropdown
 local FeatureSection = ns.FeatureSection
 local Layout = ns.Layout
+local Checkbox = ns.Checkbox
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
@@ -618,7 +619,7 @@ local function BuildContent(content)
     end)
 
     local clearFocusRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local clearFocusBox = Widgets.CreateCheckbox(clearFocusRow)
+    local clearFocusBox = Checkbox.Create(clearFocusRow)
     clearFocusBox:SetChecked(InterruptClaim:IsClearFocusEnabled())
     clearFocusBox:SetScript("OnClick", function(self)
         if not InterruptClaim:IsEnabled() then
@@ -650,7 +651,7 @@ local function BuildContent(content)
     local grid = CreateFrame("Frame", nil, mark.content)
     markBody:Add(grid, BuildMarkerGrid(grid))
     local preventRow = markBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local preventBox = Widgets.CreateCheckbox(preventRow)
+    local preventBox = Checkbox.Create(preventRow)
     preventBox:SetChecked(InterruptClaim:IsPreventOverwrite())
     preventBox:SetScript("OnClick", function(self)
         if not InterruptClaim:IsEnabled() or not InterruptClaim:IsMarkEnabled() then
@@ -741,7 +742,7 @@ function InterruptClaim:OnEnable()
     ns.MainPanel:RegisterSection({
         title = L.INTERRUPT_CLAIM_TITLE,
         group = ns.PanelGroups.COMBAT,
-        tooltip = L.INTERRUPT_CLAIM_HINT,
+        subtitle = L.INTERRUPT_CLAIM_SUBTITLE,
         enabled = InterruptClaim:IsEnabled(),
         onEnabledChanged = function(enabled)
             InterruptClaim:SetEnabled(enabled)
