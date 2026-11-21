@@ -165,77 +165,22 @@ local function BuildContent(content)
         toggle = false,
     })
     local preferMemberView = false
-    local viewSwitch = Widgets.CreateTextButton(assignments, L.COILED_ALTAR_INTERRUPT_VIEW_MEMBER, function()
+    local assignmentsBody = Layout.Stack(assignments.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
+    local interruptRoleRow = assignmentsBody:AddRow(Sizes.CONTROL_HEIGHT)
+    local interruptRoleLabel = ns.RaidRoleModeLabel.Create(interruptRoleRow, L.COILED_ALTAR_INTERRUPT_RAID_ROLE_TOOLTIP)
+    local viewSwitch = Widgets.CreateTextButton(interruptRoleRow, L.COILED_ALTAR_INTERRUPT_VIEW_MEMBER, function()
         preferMemberView = not preferMemberView
         if syncInterruptAssignments then
             syncInterruptAssignments()
         end
     end)
-    assignments:SetHeaderAction(viewSwitch)
-
-    local assignmentsBody = Layout.Stack(assignments.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
-    local interruptRoleRow = assignmentsBody:AddRow(ns.RaidRoleModeLabel.HEIGHT)
-    local interruptRoleLabel = ns.RaidRoleModeLabel.Create(interruptRoleRow, L.COILED_ALTAR_INTERRUPT_RAID_ROLE_TOOLTIP)
-    local addonCheck = Widgets.CreateButton(interruptRoleRow, L.ADDONCHECK_BUTTON, function()
-        if not CoiledAltar:IsRaidCommander() then
-            return
-        end
-        ShowAddonCheckPanel()
-    end, "primary")
-    Widgets.AttachTooltip(addonCheck, "ANCHOR_TOP", function(tooltip)
-        tooltip:SetText(L.ADDONCHECK_BUTTON_TOOLTIP)
-    end)
-    local syncStatusRow = assignmentsBody:AddRow(1)
-    local syncStatus = Widgets.CreateLabel(syncStatusRow, Fonts.SMALL_MUTED)
-    syncStatus:SetJustifyH("RIGHT")
-    syncStatus:SetJustifyV("TOP")
-    syncStatus:SetWordWrap(true)
-    syncStatus:SetPoint("TOPLEFT")
-    syncStatus:SetPoint("TOPRIGHT")
-    local syncStatusKind
+    viewSwitch:SetPoint("RIGHT", interruptRoleRow, "RIGHT")
 
     local function NotifyAssignmentsHeight()
         assignments:SetContentHeight(assignmentsBody:GetHeight())
         content:SetContentHeight(body:GetHeight())
         assignments:RefreshContentInteractive()
     end
-
-    local function SetSyncStatus(kind, text)
-        syncStatusKind = kind
-        if not text or text == "" then
-            syncStatus:SetText("")
-            assignmentsBody:SetEntryHeight(syncStatusRow, 1)
-            NotifyAssignmentsHeight()
-            return
-        end
-        syncStatus:SetText(text)
-        if kind == "success" then
-            syncStatus:SetTextColor(Widgets.UnpackColor(Colors.SUCCESS))
-        else
-            syncStatus:SetTextColor(Widgets.UnpackColor(Colors.ERROR))
-        end
-        local width = math.max(assignments.content:GetWidth() or 0, 1)
-        syncStatus:SetWidth(width)
-        assignmentsBody:SetEntryHeight(syncStatusRow, math.max(syncStatus:GetStringHeight() or 0, 16))
-        NotifyAssignmentsHeight()
-    end
-
-    local function ClearSyncError()
-        if syncStatusKind == "error" then
-            SetSyncStatus(nil)
-        end
-    end
-
-    local function PublishInterruptAssignments()
-        local ok, reason, issue = Internals.InterruptSync.Publish()
-        local text, kind = Internals.InterruptSync.StatusText(ok, reason, issue)
-        SetSyncStatus(kind, text)
-    end
-
-    local sync =
-        Widgets.CreateButton(interruptRoleRow, L.COILED_ALTAR_INTERRUPT_SYNC, PublishInterruptAssignments, "primary")
-    sync:SetPoint("RIGHT", interruptRoleRow, "RIGHT")
-    addonCheck:SetPoint("RIGHT", sync, "LEFT", -Spacing.SMALL, 0)
 
     local chainHost = assignmentsBody:Add(CreateFrame("Frame", nil, assignments.content), 1)
     local editorMounted
@@ -250,7 +195,9 @@ local function BuildContent(content)
             Internals.InterruptAssignmentsUI.Refresh()
             return
         end
-        Internals.InterruptAssignmentsUI.Mount(chainHost, ApplyChainHostHeight)
+        Internals.InterruptAssignmentsUI.Mount(chainHost, ApplyChainHostHeight, {
+            onAddonCheck = ShowAddonCheckPanel,
+        })
         editorMounted = true
     end
 
@@ -278,19 +225,7 @@ local function BuildContent(content)
             )
             viewSwitch:SetSize(viewSwitch:GetTextWidth() + 2 * Spacing.SMALL, Sizes.CONTROL_HEIGHT)
         end
-        addonCheck:SetShown(showEditor)
-        sync:SetShown(showEditor)
-        if not showEditor then
-            assignmentsBody:SetEntryHeight(syncStatusRow, 1)
-        elseif syncStatus:GetText() ~= "" then
-            assignmentsBody:SetEntryHeight(syncStatusRow, math.max(syncStatus:GetStringHeight() or 0, 16))
-        else
-            assignmentsBody:SetEntryHeight(syncStatusRow, 1)
-        end
-        assignmentsBody:SetEntryHeight(
-            interruptRoleRow,
-            showEditor and Sizes.CONTROL_ROW_HEIGHT or ns.RaidRoleModeLabel.HEIGHT
-        )
+        assignmentsBody:SetEntryHeight(interruptRoleRow, Sizes.CONTROL_HEIGHT)
         if not content:IsVisible() then
             NotifyAssignmentsHeight()
             return
@@ -315,14 +250,6 @@ local function BuildContent(content)
     end)
 
     syncInterruptAssignments()
-
-    local previousAssignmentsChanged = CoiledAltar.OnInterruptAssignmentsChanged
-    function CoiledAltar:OnInterruptAssignmentsChanged()
-        ClearSyncError()
-        if previousAssignmentsChanged then
-            previousAssignmentsChanged(self)
-        end
-    end
 
     local reminder = FeatureSection.Create(body, {
         title = L.COILED_ALTAR_MECHANIC_REMINDER,

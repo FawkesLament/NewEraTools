@@ -2,6 +2,7 @@ local _, ns = ...
 local Internals = ns.Modules.Internals("CoiledAltar")
 local L = ns.L
 local Assets = ns.Assets
+local ActionFooter = ns.ActionFooter
 local Layout = ns.Layout
 local WarningWindow = ns.WarningWindow
 local Widgets = ns.Widgets
@@ -20,12 +21,16 @@ local ACTIVE_CHAIN = Assignments.ACTIVE_CHAIN
 
 local MODE_PLAYER = "player"
 local MODE_TEXT = "text"
-local SLOT_HEIGHT = Sizes.CONTROL_HEIGHT
-local SEQUENCE_WIDTH = 16
+local SLOT_HEIGHT = Sizes.CONTROL_ROW_HEIGHT
+local SEQUENCE_WIDTH = 28
 local GROUP_HEADER_HEIGHT = 16
 local ROSTER_ROW_HEIGHT = 20
 local GROUP_COLUMNS = 4
 local DESC_MIN_HEIGHT = 16
+local HEADER_HEIGHT = Sizes.CONTENT_SECTION_HEADER
+local ROW_PAD_X = Spacing.MEDIUM
+local HIGHLIGHT_ALPHA = 0.12
+local DIVIDER_COLOR = Colors.MENU_DIVIDER
 
 local Editor = {}
 Internals.InterruptAssignmentsUI = Editor
@@ -129,30 +134,40 @@ local function CreateTextBox(parent, maxLetters)
 end
 
 ---@param parent Frame
+---@param color { r: number, g: number, b: number, a: number|nil }
+---@return Texture
+local function AddRowDivider(parent, color)
+    local line = parent:CreateTexture(nil, "ARTWORK")
+    line:SetHeight(1)
+    line:SetPoint("BOTTOMLEFT")
+    line:SetPoint("BOTTOMRIGHT")
+    line:SetColorTexture(color.r, color.g, color.b, color.a or 0.06)
+    return line
+end
+
+---@param parent Frame
 ---@return Frame
 local function BuildChain(parent)
     local chain = CreateFrame("Frame", nil, parent)
-    local title = Widgets.CreateLabel(chain, Fonts.BODY, L.COILED_ALTAR_INTERRUPT_STATUS_TITLE)
-    title:SetJustifyH("LEFT")
-    title:SetPoint("TOPLEFT")
-    title:SetPoint("TOPRIGHT")
-    title:SetTextColor(Widgets.UnpackColor(Colors.MENU_ACCENT))
-
     local slots = {}
     for index = 1, Assignments.SLOT_COUNT do
         local slot = CreateFrame("Button", nil, chain, Assets.Templates.BACKDROP) --[[@as Button]]
-        Widgets.ApplyBackdrop(slot, Colors.SURFACE_RAISED, Colors.BORDER)
+        Widgets.ApplyBackdrop(slot, Colors.SURFACE, nil)
         Widgets.AddHoverHighlight(slot)
-        local y = -(GROUP_HEADER_HEIGHT + (index - 1) * SLOT_HEIGHT)
+        local y = -((index - 1) * SLOT_HEIGHT)
         slot:SetPoint("TOPLEFT", chain, "TOPLEFT", 0, y)
         slot:SetPoint("TOPRIGHT", chain, "TOPRIGHT", 0, y)
         slot:SetHeight(SLOT_HEIGHT)
 
-        local number = Widgets.CreateLabel(slot, Fonts.EMPHASIS, tostring(index))
-        number:SetJustifyH("CENTER")
+        local highlight = slot:CreateTexture(nil, "BACKGROUND")
+        highlight:SetAllPoints()
+        highlight:Hide()
+        slot.highlight = highlight
+
+        local number = Widgets.CreateLabel(slot, Fonts.BODY, ns.InterruptChainView.FormatSequence(index))
+        number:SetJustifyH("LEFT")
         number:SetWidth(SEQUENCE_WIDTH)
-        number:SetPoint("LEFT", slot, "LEFT", Spacing.TINY, 0)
-        number:SetTextColor(Widgets.UnpackColor(Colors.MENU_ACCENT))
+        number:SetPoint("LEFT", slot, "LEFT", ROW_PAD_X, 0)
         slot.number = number
 
         local name = Widgets.CreateLabel(slot, Fonts.BODY)
@@ -163,11 +178,16 @@ local function BuildChain(parent)
 
         local clear = Widgets.CreateTextButton(slot, Assets.Glyphs.CLOSE, function()
             CoiledAltar:ClearInterruptAssignment(ACTIVE_CHAIN, index)
-        end, Fonts.LINK_DANGER)
-        clear:SetPoint("RIGHT", slot, "RIGHT", -Spacing.TINY, 0)
+        end, Fonts.MUTED)
+        clear:SetHighlightFontObject(Fonts.LINK_DANGER)
+        clear:SetPoint("RIGHT", slot, "RIGHT", -ROW_PAD_X, 0)
         clear:SetFrameLevel(slot:GetFrameLevel() + 1)
         name:SetPoint("RIGHT", clear, "LEFT", -Spacing.TINY, 0)
         slot.clear = clear
+
+        if index < Assignments.SLOT_COUNT then
+            slot.divider = AddRowDivider(slot, DIVIDER_COLOR)
+        end
 
         slot:SetScript("OnClick", function()
             selectedIndex = index
@@ -264,14 +284,22 @@ local function RefreshSlots()
         slot.name:SetText(text)
         slot.name:SetTextColor(Widgets.UnpackColor(color))
         local occupied = assigned.type == Assignments.TYPE_PLAYER or assigned.type == Assignments.TYPE_TEXT
+        slot.number:SetTextColor(Widgets.UnpackColor(occupied and Colors.ACCENT or Colors.TEXT_MUTED))
         slot.clear:SetShown(occupied)
         if occupied then
             slot.name:SetPoint("RIGHT", slot.clear, "LEFT", -Spacing.TINY, 0)
         else
-            slot.name:SetPoint("RIGHT", slot, "RIGHT", -Spacing.SMALL, 0)
+            slot.name:SetPoint("RIGHT", slot, "RIGHT", -ROW_PAD_X, 0)
         end
         local selected = selectedIndex == index
-        Widgets.ApplyBackdrop(slot, Colors.SURFACE_RAISED, selected and Colors.MENU_ACCENT or Colors.BORDER)
+        Widgets.ApplyBackdrop(slot, Colors.SURFACE, selected and Colors.MENU_ACCENT or nil)
+        if selected then
+            local accent = Colors.ACCENT
+            slot.highlight:SetColorTexture(accent.r, accent.g, accent.b, HIGHLIGHT_ALPHA)
+            slot.highlight:Show()
+        else
+            slot.highlight:Hide()
+        end
     end
 end
 
@@ -398,6 +426,28 @@ function Refresh()
     NotifyHeight()
 end
 
+local function ClearSyncMessage()
+    if ui and ui.footer then
+        ui.footer:SetMessage(nil)
+    end
+end
+
+local function PublishInterruptAssignments()
+    local ok, reason, issue = Internals.InterruptSync.Publish()
+    local text, kind = Internals.InterruptSync.StatusText(ok, reason, issue)
+    if not ui or not ui.footer then
+        return
+    end
+    if not text or text == "" then
+        ui.footer:SetMessage(nil)
+        return
+    end
+    ui.footer:SetMessage({
+        text = text,
+        severity = kind == "success" and "success" or "error",
+    })
+end
+
 local function AssignSelectedText()
     local text = ui.textBox:GetText() or ""
     CoiledAltar:AssignInterruptText(ACTIVE_CHAIN, selectedIndex, text)
@@ -439,19 +489,34 @@ local function PromptClearAll()
     confirmWindow:Raise()
 end
 
+---@class CoiledAltarAssignmentsEditorActions
+---@field onAddonCheck fun()|nil
+
 ---@param host Frame
 ---@param onHeightChanged fun(height: number)
+---@param actions CoiledAltarAssignmentsEditorActions|nil
 ---@return number
-function Editor.Mount(host, onHeightChanged)
+function Editor.Mount(host, onHeightChanged, actions)
     selectedIndex = 1
     editMode = MODE_PLAYER
+    actions = actions or {}
 
-    local panel = CreateFrame("Frame", nil, host)
+    local panel = Widgets.CreateSurface(host, Colors.SURFACE, Colors.BORDER)
     panel:SetPoint("TOPLEFT")
     panel:SetPoint("BOTTOMRIGHT")
-    -- Stack on the panel. An extra top-only wrapper would have height 0 and
-    -- WoW would leave its children unplaced, which reserves space with nothing visible.
-    local stack = Layout.Stack(panel, { spacing = Spacing.SMALL })
+    local stack = Layout.Stack(panel, {
+        paddingX = Spacing.LARGE,
+        paddingY = Spacing.MEDIUM,
+        spacing = Spacing.SMALL,
+    })
+
+    local headerRow = stack:AddRow(HEADER_HEIGHT)
+    local title = Widgets.CreateLabel(headerRow, Fonts.BODY, L.COILED_ALTAR_INTERRUPT_STATUS_TITLE)
+    title:SetJustifyH("LEFT")
+    title:SetPoint("LEFT", headerRow, "LEFT")
+    local clear =
+        Widgets.CreateTextButton(headerRow, L.COILED_ALTAR_INTERRUPT_CLEAR_ALL, PromptClearAll, Fonts.LINK_DANGER)
+    clear:SetPoint("RIGHT", headerRow, "RIGHT")
 
     local descRow = stack:AddRow(DESC_MIN_HEIGHT)
     local desc = Widgets.CreateLabel(descRow, Fonts.TINY_MUTED, L.COILED_ALTAR_INTERRUPT_ASSIGNMENTS_DESC)
@@ -461,8 +526,13 @@ function Editor.Mount(host, onHeightChanged)
     desc:SetPoint("TOPLEFT")
     desc:SetPoint("TOPRIGHT")
 
-    local chainHeight = GROUP_HEADER_HEIGHT + Assignments.SLOT_COUNT * SLOT_HEIGHT
+    local chainHeight = Assignments.SLOT_COUNT * SLOT_HEIGHT
     local chain = stack:Add(BuildChain(panel), chainHeight)
+
+    local rosterDivider = stack:AddRow(1)
+    local rosterLine = rosterDivider:CreateTexture(nil, "ARTWORK")
+    rosterLine:SetAllPoints()
+    rosterLine:SetColorTexture(DIVIDER_COLOR.r, DIVIDER_COLOR.g, DIVIDER_COLOR.b, DIVIDER_COLOR.a or 0.06)
 
     local modeRow = stack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local mode
@@ -473,9 +543,6 @@ function Editor.Mount(host, onHeightChanged)
         editMode = value
         Refresh()
     end)
-    local clear =
-        Widgets.CreateTextButton(modeRow, L.COILED_ALTAR_INTERRUPT_CLEAR_ALL, PromptClearAll, Fonts.LINK_DANGER)
-    clear:SetPoint("RIGHT", modeRow, "RIGHT")
     mode:SetPoint("LEFT", modeRow, "LEFT")
 
     local playerPane = stack:Add(CreateFrame("Frame", nil, panel), 1)
@@ -513,6 +580,25 @@ function Editor.Mount(host, onHeightChanged)
         charCount:SetText(string.format("%d/%d", Assignments.Utf8Len(self:GetText() or ""), Assignments.TEXT_MAX_CHARS))
     end)
 
+    local footer = ActionFooter.Create(panel, {
+        text = L.COILED_ALTAR_INTERRUPT_SYNC,
+        onClick = PublishInterruptAssignments,
+        onHeightChanged = function(height)
+            stack:SetEntryHeight(footer, height)
+            NotifyHeight()
+        end,
+    })
+    stack:Add(footer, footer:GetHeight(), Spacing.MEDIUM)
+    local addonCheck = Widgets.CreateButton(footer, L.ADDONCHECK_BUTTON, function()
+        if actions.onAddonCheck then
+            actions.onAddonCheck()
+        end
+    end, "secondary")
+    addonCheck:SetPoint("RIGHT", footer.button, "LEFT", -Spacing.SMALL, 0)
+    Widgets.AttachTooltip(addonCheck, "ANCHOR_TOP", function(tooltip)
+        tooltip:SetText(L.ADDONCHECK_BUTTON_TOOLTIP)
+    end)
+
     ui = {
         stack = stack,
         panel = panel,
@@ -530,10 +616,13 @@ function Editor.Mount(host, onHeightChanged)
         textPane = textPane,
         textBox = textBox,
         charCount = charCount,
+        footer = footer,
+        addonCheck = addonCheck,
     }
 
     local previousAssignmentsChanged = CoiledAltar.OnInterruptAssignmentsChanged
     function CoiledAltar:OnInterruptAssignmentsChanged()
+        ClearSyncMessage()
         Refresh()
         if previousAssignmentsChanged then
             previousAssignmentsChanged(self)
@@ -550,7 +639,7 @@ function Editor.Mount(host, onHeightChanged)
         if not ui then
             return
         end
-        local width = math.max(host:GetWidth() or 0, 1)
+        local width = math.max((host:GetWidth() or 0) - 2 * Spacing.LARGE, 1)
         ui.desc:SetWidth(width)
         ui.stack:SetEntryHeight(ui.descRow, math.max(ui.desc:GetStringHeight() or 0, DESC_MIN_HEIGHT))
         ui.emptyHint:SetWidth(width)

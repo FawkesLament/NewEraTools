@@ -3,7 +3,7 @@ local Loader = require("helpers.loader")
 local MEMBER_VIEW_PATH = "modules/venomous_abyss/coiled_altar/ui/MemberView.lua"
 
 describe("CoiledAltar interrupt assignment member view", function()
-    local ns, Module, Assignments, MemberView, L, originalCreateFrame, lastData, labels
+    local ns, Module, Assignments, MemberView, L, Colors, originalCreateFrame, host
 
     local function FakeFrame(parent)
         local frame = {
@@ -14,10 +14,16 @@ describe("CoiledAltar interrupt assignment member view", function()
             hooks = {},
             points = {},
             children = {},
+            textures = {},
+            fontStrings = {},
         }
-        function frame:SetPoint() end
+        function frame:SetPoint(point, relativeTo, relativePoint, x, y)
+            self.points[point] = { relativeTo, relativePoint, x, y }
+        end
         function frame:SetAllPoints() end
-        function frame:ClearAllPoints() end
+        function frame:ClearAllPoints()
+            self.points = {}
+        end
         function frame:SetWidth(width)
             self.width = width
         end
@@ -49,6 +55,14 @@ describe("CoiledAltar interrupt assignment member view", function()
             self.hooks[name] = handler
         end
         function frame:EnableMouse() end
+        function frame:CreateTexture()
+            local texture = FakeFrame(self)
+            function texture:SetColorTexture(r, g, b, a)
+                self.color = { r = r, g = g, b = b, a = a }
+            end
+            self.textures[#self.textures + 1] = texture
+            return texture
+        end
         function frame:CreateFontString()
             local label = FakeFrame(self)
             label.text = ""
@@ -63,6 +77,7 @@ describe("CoiledAltar interrupt assignment member view", function()
             function label:SetTextColor(r, g, b, a)
                 self.color = { r = r, g = g, b = b, a = a }
             end
+            self.fontStrings[#self.fontStrings + 1] = label
             return label
         end
         if parent and parent.children then
@@ -71,13 +86,15 @@ describe("CoiledAltar interrupt assignment member view", function()
         return frame
     end
 
+    local function ColorEquals(actual, expected)
+        return actual and actual.r == expected.r and actual.g == expected.g and actual.b == expected.b
+    end
+
     before_each(function()
         originalCreateFrame = CreateFrame
         CreateFrame = function(_, _, parent)
             return FakeFrame(parent)
         end
-        lastData = nil
-        labels = {}
         ns = Loader.Load()
         ns.Widgets = {
             UnpackColor = function(color)
@@ -92,7 +109,6 @@ describe("CoiledAltar interrupt assignment member view", function()
                 if text then
                     label:SetText(text)
                 end
-                labels[#labels + 1] = label
                 return label
             end,
             AttachTooltip = function() end,
@@ -101,24 +117,14 @@ describe("CoiledAltar interrupt assignment member view", function()
             FormatSequence = function(first)
                 return string.format("#%d", first)
             end,
-            Create = function()
-                return {
-                    SetData = function(_, data)
-                        lastData = data
-                    end,
-                    GetHeight = function()
-                        return 80
-                    end,
-                }
-            end,
         }
-        assert(loadfile("ui/Layout.lua"))(Loader.ADDON_NAME, ns)
         assert(loadfile(MEMBER_VIEW_PATH))(Loader.ADDON_NAME, ns)
         ns.Modules.Start(ns.Database.Load(nil))
         Module = ns.Modules.Get("CoiledAltar")
         Assignments = ns.Modules.Internals("CoiledAltar").InterruptAssignments
         MemberView = ns.Modules.Internals("CoiledAltar").InterruptAssignmentsMemberView
         L = ns.L
+        Colors = ns.Assets.Colors
         ns.Api.Group.inGroup = true
         ns.Api.Group.members = {
             {
@@ -132,39 +138,76 @@ describe("CoiledAltar interrupt assignment member view", function()
                 classFile = "MAGE",
             },
         }
-        MemberView.Mount(FakeFrame(), function() end)
+        host = FakeFrame()
+        MemberView.Mount(host, function() end)
     end)
 
     after_each(function()
         CreateFrame = originalCreateFrame
     end)
 
-    it("shows a single chain with slot numbers, players, text, and empty slots", function()
+    local function Panel()
+        return host.children[1]
+    end
+
+    local function Title()
+        return Panel().fontStrings[1]
+    end
+
+    local function Rows()
+        local rows = {}
+        for _, child in ipairs(Panel().children) do
+            if child.height == ns.Assets.Sizes.CONTROL_ROW_HEIGHT then
+                rows[#rows + 1] = child
+            end
+        end
+        return rows
+    end
+
+    it("renders a single inset list with slot numbers, players, text, and empty slots", function()
         assert.is_true(Module:AssignInterruptPlayer(Assignments.ACTIVE_CHAIN, 1, "Player-TestRealm"))
         assert.is_true(Module:AssignInterruptText(Assignments.ACTIVE_CHAIN, 2, "Kick first"))
         assert.is_true(Module:AssignInterruptPlayer(Assignments.ACTIVE_CHAIN, 3, "Alice-TestRealm"))
 
-        assert.equals(1, #lastData.chains)
-        local chain = lastData.chains[1]
-        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_TITLE, chain.title)
-        assert.equals(Assignments.SLOT_COUNT, #chain.entries)
-        assert.equals("#1", chain.entries[1].slot)
-        assert.equals("Player", chain.entries[1].text)
-        assert.is_true(chain.entries[1].highlight)
-        assert.equals(L.COILED_ALTAR_INTERRUPT_YOU, lastData.youText)
-        assert.equals("#2", chain.entries[2].slot)
-        assert.equals("Kick first", chain.entries[2].text)
-        assert.equals(ns.Assets.Colors.TEXT_GOLD, chain.entries[2].color)
-        assert.is_nil(chain.entries[2].highlight)
-        assert.equals("#3", chain.entries[3].slot)
-        assert.equals("Alice", chain.entries[3].text)
-        assert.is_nil(chain.entries[3].highlight)
-        assert.equals(L.COILED_ALTAR_INTERRUPT_SLOT_EMPTY, chain.entries[4].text)
-        assert.equals(ns.Assets.Colors.TEXT_MUTED, chain.entries[4].color)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_TITLE, Title().text)
+        assert.equals(ns.Assets.Spacing.LARGE, Title().points.TOPLEFT[3])
+
+        local rows = Rows()
+        assert.equals(Assignments.SLOT_COUNT, #rows)
+        assert.equals("#1", rows[1].fontStrings[1].text)
+        assert.equals("Player", rows[1].fontStrings[3].text)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_YOU, rows[1].fontStrings[2].text)
+        assert.is_true(rows[1].textures[1].shown)
+        assert.is_true(rows[1].textures[2].shown)
+        assert.equals("#2", rows[2].fontStrings[1].text)
+        assert.equals("Kick first", rows[2].fontStrings[3].text)
+        assert.is_true(ColorEquals(rows[2].fontStrings[3].color, Colors.TEXT_GOLD))
+        assert.equals("#3", rows[3].fontStrings[1].text)
+        assert.equals("Alice", rows[3].fontStrings[3].text)
+        assert.equals("", rows[3].fontStrings[2].text)
+        assert.is_false(rows[3].textures[1].shown)
+        assert.is_false(rows[3].textures[2].shown)
+        assert.equals(L.COILED_ALTAR_INTERRUPT_SLOT_EMPTY, rows[4].fontStrings[3].text)
+        assert.is_true(ColorEquals(rows[4].fontStrings[1].color, Colors.TEXT_MUTED))
+        assert.is_true(ColorEquals(rows[4].fontStrings[3].color, Colors.TEXT_MUTED))
+        assert.is_true(ColorEquals(rows[1].fontStrings[1].color, Colors.ACCENT))
+        assert.equals(ns.Assets.Spacing.LARGE, rows[1].fontStrings[1].points.LEFT[3])
     end)
 
-    it("does not render a marked-chain row", function()
-        assert.equals(0, #labels)
+    it("uses a divider on every row except the last", function()
+        local rows = Rows()
+        for index = 1, Assignments.SLOT_COUNT - 1 do
+            assert.equals(3, #rows[index].textures)
+        end
+        assert.equals(2, #rows[Assignments.SLOT_COUNT].textures)
+    end)
+
+    it("does not wrap the chain in a nested assignment card", function()
+        local panel = Panel()
+        assert.is_nil(panel.template)
+        for _, child in ipairs(panel.children) do
+            assert.is_nil(child.template)
+        end
     end)
 
     it("keeps the same assignment table after a member-view refresh", function()

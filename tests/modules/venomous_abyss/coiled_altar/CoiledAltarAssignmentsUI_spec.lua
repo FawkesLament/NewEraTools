@@ -158,6 +158,9 @@ describe("CoiledAltar interrupt assignment editor", function()
             ApplyBackdrop = function() end,
             AddHoverHighlight = function() end,
             AttachTooltip = function() end,
+            CreateSurface = function(parent)
+                return FakeFrame(parent)
+            end,
             LayoutSectionHeader = function(row, title)
                 local label = row:CreateFontString()
                 label:SetText(title)
@@ -200,6 +203,22 @@ describe("CoiledAltar interrupt assignment editor", function()
                 return FakeFrame()
             end,
         }
+        ns.ActionFooter = {
+            Create = function(parent, options)
+                local footer = FakeFrame(parent)
+                footer.button = ns.Widgets.CreateButton(footer, options.text, options.onClick)
+                function footer:GetHeight()
+                    return 30
+                end
+                function footer:SetMessage() end
+                return footer
+            end,
+        }
+        ns.InterruptChainView = {
+            FormatSequence = function(first)
+                return string.format("#%d", first)
+            end,
+        }
         assert(loadfile("ui/Layout.lua"))(Loader.ADDON_NAME, ns)
         assert(loadfile(EDITOR_UI_PATH))(Loader.ADDON_NAME, ns)
         ns.Modules.Start(ns.Database.Load(nil))
@@ -232,8 +251,8 @@ describe("CoiledAltar interrupt assignment editor", function()
     it("clears slots on the active chain when clicking a slot clear button", function()
         assert.is_true(Module:AssignInterruptPlayer(Assignments.ACTIVE_CHAIN, 1, "Player-TestRealm"))
         Editor.Refresh()
-        -- First 6 text buttons are the 6 slot clear buttons.
-        textButtons[1].scripts.OnClick()
+        -- Header "clear all" is created first; slot clear buttons follow.
+        textButtons[2].scripts.OnClick()
         assert.equals(Assignments.TYPE_EMPTY, Module:GetInterruptSlot(Assignments.ACTIVE_CHAIN, 1).type)
     end)
 end)
