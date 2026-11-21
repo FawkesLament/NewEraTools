@@ -3,7 +3,7 @@ local Loader = require("helpers.loader")
 local EDITOR_UI_PATH = "modules/venomous_abyss/coiled_altar/ui/Assignments.lua"
 
 describe("CoiledAltar interrupt assignment editor", function()
-    local ns, Module, Assignments, Editor, L, originalCreateFrame, labels, toggles, textButtons
+    local ns, Module, Assignments, Editor, L, originalCreateFrame, labels, toggles, textButtons, host
 
     local function FakeFrame(parent)
         local frame = {
@@ -30,7 +30,17 @@ describe("CoiledAltar interrupt assignment editor", function()
         function frame:SetPoint(point, ...)
             self.points[point] = { ... }
         end
-        function frame:SetAllPoints() end
+        function frame:SetAllPoints(relative)
+            local target = relative or self.parent
+            self.points.ALL = { target }
+            if target then
+                self.width = target.width
+                self.height = target.height
+            end
+        end
+        function frame:GetSize()
+            return self:GetWidth(), self:GetHeight()
+        end
         function frame:SetWidth(width)
             self.width = width
         end
@@ -49,6 +59,14 @@ describe("CoiledAltar interrupt assignment editor", function()
         end
         function frame:Show()
             self.shown = true
+            if self.scripts.OnShow then
+                self.scripts.OnShow(self)
+            end
+            if self.hooks.OnShow then
+                for _, handler in ipairs(self.hooks.OnShow) do
+                    handler(self)
+                end
+            end
         end
         function frame:Hide()
             self.shown = false
@@ -225,7 +243,7 @@ describe("CoiledAltar interrupt assignment editor", function()
         Module = ns.Modules.Get("CoiledAltar")
         Assignments = ns.Modules.Internals("CoiledAltar").InterruptAssignments
         Editor = ns.Modules.Internals("CoiledAltar").InterruptAssignmentsUI
-        local host = FakeFrame()
+        host = FakeFrame()
         Editor.Mount(host, function() end)
         ns.Api.Timer.RunPending()
     end)
@@ -254,5 +272,34 @@ describe("CoiledAltar interrupt assignment editor", function()
         -- Header "clear all" is created first; slot clear buttons follow.
         textButtons[2].scripts.OnClick()
         assert.equals(Assignments.TYPE_EMPTY, Module:GetInterruptSlot(Assignments.ACTIVE_CHAIN, 1).type)
+    end)
+
+    it("fills the host and recovers size after the host width is unresolved", function()
+        local panel = host.children[1]
+        assert.is_true(panel.points.TOPLEFT[1] == host)
+        assert.is_true(panel.points.TOPRIGHT[1] == host)
+        local width, height = panel:GetSize()
+        assert.is_true(width > 0)
+        assert.is_true(height > 1)
+
+        host.width = 0
+        host.height = 1
+        panel.width = 0
+        panel.height = 0
+        for _, handler in ipairs(host.hooks.OnSizeChanged or {}) do
+            handler(host, 0, 1)
+        end
+        assert.equals(0, panel:GetWidth())
+        assert.is_true(panel:GetHeight() > 0)
+
+        host.width = 462
+        host.height = 410
+        panel.width = 0
+        for _, handler in ipairs(host.hooks.OnSizeChanged or {}) do
+            handler(host, 462, 410)
+        end
+        width, height = panel:GetSize()
+        assert.equals(462, width)
+        assert.is_true(height > 1)
     end)
 end)

@@ -310,6 +310,18 @@ local function HidePlayerExtras()
     ui.playerStack:SetEntryHeight(ui.rosterGrid, 1)
 end
 
+local function RosterLayoutWidth()
+    local gridWidth = ui.rosterGrid:GetWidth() or 0
+    if gridWidth > 0 then
+        return gridWidth
+    end
+    local hostWidth = ui.host:GetWidth() or 0
+    if hostWidth > 0 then
+        return math.max(hostWidth - 2 * Spacing.LARGE, 0)
+    end
+    return 0
+end
+
 local function RefreshRoster()
     local members = EditorRoster()
     local grid = ui.rosterGrid
@@ -326,7 +338,11 @@ local function RefreshRoster()
     ui.playerStack:SetEntryHeight(ui.emptyHintRow, 1)
 
     local order, groups = GroupedRoster(members)
-    local width = math.max(grid:GetWidth() or 0, 1)
+    local width = RosterLayoutWidth()
+    if width <= 0 then
+        grid:Show()
+        return
+    end
     local columns = math.min(GROUP_COLUMNS, math.max(#order, 1))
     local gap = Spacing.SMALL
     local columnWidth = math.max((width - gap * (columns - 1)) / columns, 1)
@@ -410,11 +426,18 @@ local function RefreshEditor()
     ui.stack:SetEntryHeight(ui.playerPane, math.max(ui.playerStack:GetHeight(), 1))
 end
 
+local function PanelHeight()
+    return math.max(ui.stack:GetHeight() or 0, 1)
+end
+
 local function NotifyHeight()
     if not ui or not ui.onHeightChanged or not ui.panel:IsShown() then
         return
     end
-    ui.onHeightChanged(ui.stack:GetHeight())
+    if ui.syncHost then
+        ui.syncHost()
+    end
+    ui.onHeightChanged(PanelHeight())
 end
 
 function Refresh()
@@ -424,6 +447,28 @@ function Refresh()
     RefreshSlots()
     RefreshEditor()
     NotifyHeight()
+end
+
+local layingOut = false
+
+local function LayoutForWidth()
+    if not ui or layingOut then
+        return
+    end
+    layingOut = true
+    if ui.syncHost then
+        ui.syncHost()
+    end
+    local hostWidth = ui.host:GetWidth() or 0
+    -- Stretch anchors can stay 0x0 until the host has a real width.
+    if hostWidth > 0 then
+        local width = math.max(hostWidth - 2 * Spacing.LARGE, 1)
+        ui.desc:SetWidth(width)
+        ui.stack:SetEntryHeight(ui.descRow, math.max(ui.desc:GetStringHeight() or 0, DESC_MIN_HEIGHT))
+        ui.emptyHint:SetWidth(width)
+        Refresh()
+    end
+    layingOut = false
 end
 
 local function ClearSyncMessage()
@@ -502,8 +547,6 @@ function Editor.Mount(host, onHeightChanged, actions)
     actions = actions or {}
 
     local panel = Widgets.CreateSurface(host, Colors.SURFACE, Colors.BORDER)
-    panel:SetPoint("TOPLEFT")
-    panel:SetPoint("BOTTOMRIGHT")
     local stack = Layout.Stack(panel, {
         paddingX = Spacing.LARGE,
         paddingY = Spacing.MEDIUM,
@@ -600,6 +643,7 @@ function Editor.Mount(host, onHeightChanged, actions)
     end)
 
     ui = {
+        host = host,
         stack = stack,
         panel = panel,
         playerStack = playerStack,
@@ -619,6 +663,7 @@ function Editor.Mount(host, onHeightChanged, actions)
         footer = footer,
         addonCheck = addonCheck,
     }
+    ui.syncHost = Layout.MountInHost(panel, host, PanelHeight)
 
     local previousAssignmentsChanged = CoiledAltar.OnInterruptAssignmentsChanged
     function CoiledAltar:OnInterruptAssignmentsChanged()
@@ -635,26 +680,12 @@ function Editor.Mount(host, onHeightChanged, actions)
         end
     end)
 
-    local function LayoutForWidth()
-        if not ui then
-            return
-        end
-        local width = math.max((host:GetWidth() or 0) - 2 * Spacing.LARGE, 1)
-        ui.desc:SetWidth(width)
-        ui.stack:SetEntryHeight(ui.descRow, math.max(ui.desc:GetStringHeight() or 0, DESC_MIN_HEIGHT))
-        ui.emptyHint:SetWidth(width)
-        Refresh()
-    end
-
-    host:HookScript("OnSizeChanged", LayoutForWidth)
+    Layout.OnWidth(host, LayoutForWidth)
     local getFrame = ns.MainPanel and ns.MainPanel.GetFrame
     local mainPanel = getFrame and ns.MainPanel:GetFrame()
     if mainPanel then
         mainPanel:HookScript("OnHide", HideClearConfirm)
     end
-    LayoutForWidth()
-    -- First show can report width 0 until the following layout pass.
-    ns.Api.Timer.After(0, LayoutForWidth)
     return stack:GetHeight()
 end
 
@@ -662,7 +693,7 @@ function Editor.Refresh()
     if not ui or not ui.panel:IsShown() then
         return
     end
-    Refresh()
+    LayoutForWidth()
 end
 
 ---Shows or hides the assignment editor. Hiding also dismisses the clear-all confirm.
@@ -674,7 +705,7 @@ function Editor.SetShown(shown)
     end
     if shown then
         ui.panel:Show()
-        Editor.Refresh()
+        LayoutForWidth()
         return
     end
     HideClearConfirm()

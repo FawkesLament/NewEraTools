@@ -104,6 +104,9 @@ local function NotifyHeight()
         return
     end
     lastNotifiedHeight = height
+    if ui.syncHost then
+        ui.syncHost()
+    end
     ui.onHeightChanged(height)
 end
 
@@ -182,8 +185,6 @@ end
 ---@return number
 function MemberView.Mount(host, onHeightChanged)
     local panel = Widgets.CreateSurface(host, Colors.SURFACE, Colors.BORDER)
-    panel:SetPoint("TOPLEFT")
-    panel:SetPoint("BOTTOMRIGHT")
 
     local stack = Layout.Stack(panel, {
         paddingX = Spacing.XLARGE,
@@ -219,6 +220,10 @@ function MemberView.Mount(host, onHeightChanged)
     ui.macroButton:SetPoint("LEFT", ui.macroRow, "LEFT")
     ui.macroRow:Hide()
 
+    ui.syncHost = Layout.MountInHost(panel, host, function()
+        return math.max(ui.stack:GetHeight() or 0, 1)
+    end)
+
     panel:HookScript("OnShow", function()
         lastNotifiedHeight = nil
         Refresh()
@@ -245,6 +250,9 @@ function MemberView.SetShown(shown)
     end
     if shown then
         ui.panel:Show()
+        if ui.syncHost then
+            ui.syncHost()
+        end
         MemberView.Refresh()
         return
     end

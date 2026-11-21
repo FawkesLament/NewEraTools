@@ -118,6 +118,7 @@ describe("CoiledAltar interrupt assignment member view", function()
                 return string.format("#%d", first)
             end,
         }
+        assert(loadfile("ui/Layout.lua"))(Loader.ADDON_NAME, ns)
         assert(loadfile(MEMBER_VIEW_PATH))(Loader.ADDON_NAME, ns)
         ns.Modules.Start(ns.Database.Load(nil))
         Module = ns.Modules.Get("CoiledAltar")

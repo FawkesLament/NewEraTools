@@ -24,9 +24,21 @@ local function FakeFrame()
         return self.width or 0
     end
 
+    function frame:GetHeight()
+        return self.height or 0
+    end
+
     function frame:HookScript(event, handler)
         self.hooks = self.hooks or {}
-        self.hooks[event] = handler
+        local previous = self.hooks[event]
+        if previous then
+            self.hooks[event] = function(...)
+                previous(...)
+                handler(...)
+            end
+        else
+            self.hooks[event] = handler
+        end
     end
 
     function frame:Show()
@@ -41,12 +53,21 @@ local function FakeFrame()
 end
 
 describe("Layout", function()
-    local Layout, originalCreateFrame
+    local Layout, originalCreateFrame, afterQueue
 
     before_each(function()
         originalCreateFrame = CreateFrame
         CreateFrame = FakeFrame
-        local ns = {}
+        afterQueue = {}
+        local ns = {
+            Api = {
+                Timer = {
+                    After = function(_, callback)
+                        afterQueue[#afterQueue + 1] = callback
+                    end,
+                },
+            },
+        }
         assert(loadfile("ui/Layout.lua"))(Loader.ADDON_NAME, ns)
         Layout = ns.Layout
     end)
@@ -155,6 +176,88 @@ describe("Layout", function()
         assert.equals(30, cells[1].width)
         assert.same({ relativeTo = row, relativePoint = "TOPLEFT", x = 46, y = 0 }, cells[2].points.TOPLEFT)
         assert.same({ relativeTo = row, relativePoint = "TOPLEFT", x = 92, y = 0 }, cells[3].points.TOPLEFT)
+    end)
+
+    describe("OnWidth", function()
+        it("runs immediately when the frame already has a width", function()
+            local frame = FakeFrame()
+            frame:SetWidth(400)
+            local seen = {}
+            Layout.OnWidth(frame, function(width)
+                seen[#seen + 1] = width
+            end)
+            assert.same({ 400 }, seen)
+            assert.equals(0, #afterQueue)
+        end)
+
+        it("retries next frame and on resize when the width is still 0", function()
+            local frame = FakeFrame()
+            local seen = {}
+            Layout.OnWidth(frame, function(width)
+                seen[#seen + 1] = width
+            end)
+            assert.same({}, seen)
+            assert.equals(1, #afterQueue)
+
+            afterQueue[1]()
+            assert.same({}, seen)
+
+            frame:SetWidth(462)
+            frame.hooks.OnSizeChanged(frame, 462)
+            assert.same({ 462 }, seen)
+        end)
+
+        it("does not invoke the callback with a non-positive width", function()
+            local frame = FakeFrame()
+            frame:SetWidth(80)
+            local seen = {}
+            Layout.OnWidth(frame, function(width)
+                seen[#seen + 1] = width
+            end)
+            frame.hooks.OnSizeChanged(frame, 0)
+            frame.hooks.OnSizeChanged(frame, -4)
+            assert.same({ 80 }, seen)
+        end)
+
+        it("does not re-enter when the callback fires OnSizeChanged with the same width", function()
+            local frame = FakeFrame()
+            frame:SetWidth(100)
+            local calls = 0
+            Layout.OnWidth(frame, function()
+                calls = calls + 1
+                frame.hooks.OnSizeChanged(frame, 100)
+            end)
+            assert.equals(1, calls)
+        end)
+    end)
+
+    describe("MountInHost", function()
+        it("stretches across the host width and uses content height", function()
+            local host = FakeFrame()
+            host:SetWidth(462)
+            host:SetHeight(1)
+            local panel = FakeFrame()
+            local sync = Layout.MountInHost(panel, host, function()
+                return 240
+            end)
+            assert.same({ relativeTo = host, relativePoint = "TOPLEFT", x = 0, y = 0 }, panel.points.TOPLEFT)
+            assert.same({ relativeTo = host, relativePoint = "TOPRIGHT", x = 0, y = 0 }, panel.points.TOPRIGHT)
+            assert.equals(240, panel.height)
+            assert.equals(462, panel.width)
+
+            host:SetWidth(0)
+            panel.width = 0
+            panel.height = 0
+            host.hooks.OnSizeChanged(host, 0, 1)
+            assert.equals(0, panel:GetWidth())
+            assert.equals(240, panel:GetHeight())
+
+            host:SetWidth(462)
+            panel.width = 0
+            sync()
+            assert.equals(462, panel:GetWidth())
+            assert.equals(240, panel:GetHeight())
+        end)
     end)
 
     it("Columns waits until the row has a width", function()

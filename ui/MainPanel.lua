@@ -344,12 +344,19 @@ local function SetSectionBodyHeight(frame, section, height)
     end
 end
 
--- Frames created under a hidden page can keep an unresolved rect until they are hidden and shown
--- again, so `build` waits until its page is on screen for the first time.
+-- Frames created under a hidden page can keep an unresolved 0x0 rect, and the scroll child starts
+-- at 1x1 until the scroll frame is sized. `build` waits until the page is visible and the scroll
+-- frame has a positive width; Layout.OnWidth retries when that width arrives.
 local function EnsureSectionBuilt(frame, section)
     if not section or section.built or not section:IsVisible() then
         return
     end
+    local scrollFrame = frame.scrollFrame
+    local width = scrollFrame and scrollFrame:GetWidth() or 0
+    if type(width) ~= "number" or width <= 0 then
+        return
+    end
+    frame.content:SetWidth(width)
     section.built = true
     local body = section.body
     local height = section.def.build and section.def.build(body)
@@ -643,8 +650,9 @@ local function CreatePanel()
     frame.content = content
     frame.pageHost = pageHost
 
-    scrollFrame:HookScript("OnSizeChanged", function(self, width)
+    Layout.OnWidth(scrollFrame, function(width)
         content:SetWidth(width)
+        EnsureSectionBuilt(frame, frame.activeSection)
     end)
 
     frame.collapse = CollapsiblePanel.Attach({
@@ -674,8 +682,9 @@ local function CreatePanel()
     return frame
 end
 
----Adds a feature settings page to the panel. `def.build` runs the first time the page is visible,
----so modules must not depend on its widgets existing before then. The container passed to it also has
+---Adds a feature settings page to the panel. `def.build` runs the first time the page is visible
+---and the scroll area has a positive width, so modules must not depend on its widgets existing
+---before then. The container passed to it also has
 ---`container:SetContentHeight(height)` for when its content height changes later.
 ---`container.header` is the frozen title row above the scrollable body; `container.titleLabel` is
 ---the title on its left. A non-empty `subtitle` is shown as wrapping L4 text under that title.

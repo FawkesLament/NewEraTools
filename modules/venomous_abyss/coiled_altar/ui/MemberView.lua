@@ -3,6 +3,7 @@ local _, ns = ...
 local Internals = ns.Modules.Internals("CoiledAltar")
 local L = ns.L
 local Assets = ns.Assets
+local Layout = ns.Layout
 local Widgets = ns.Widgets
 local Group = ns.Api.Group
 local Player = ns.Api.Player
@@ -136,6 +137,9 @@ local function NotifyHeight()
         return
     end
     lastNotifiedHeight = height
+    if ui.syncHost then
+        ui.syncHost()
+    end
     ui.onHeightChanged(height)
 end
 
@@ -238,8 +242,6 @@ end
 ---@return number
 function MemberView.Mount(host, onHeightChanged)
     local panel = Widgets.CreateSurface(host, Colors.SURFACE, Colors.BORDER)
-    panel:SetPoint("TOPLEFT")
-    panel:SetPoint("BOTTOMRIGHT")
 
     local title = Widgets.CreateLabel(panel, Fonts.BODY, L.COILED_ALTAR_INTERRUPT_STATUS_TITLE)
     title:SetJustifyH("LEFT")
@@ -258,6 +260,7 @@ function MemberView.Mount(host, onHeightChanged)
         rows = rows,
         onHeightChanged = onHeightChanged,
     }
+    ui.syncHost = Layout.MountInHost(panel, host, PanelHeight)
 
     local previousAssignmentsChanged = CoiledAltar.OnInterruptAssignmentsChanged
     function CoiledAltar:OnInterruptAssignmentsChanged()
@@ -299,6 +302,9 @@ function MemberView.SetShown(shown)
     end
     if shown then
         ui.panel:Show()
+        if ui.syncHost then
+            ui.syncHost()
+        end
         MemberView.Refresh()
         return
     end

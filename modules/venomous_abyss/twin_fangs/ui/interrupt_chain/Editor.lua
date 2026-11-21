@@ -784,6 +784,9 @@ function NotifyHeight()
         return
     end
     lastNotifiedHeight = height
+    if ui.syncHost then
+        ui.syncHost()
+    end
     ui.onHeightChanged(height)
 end
 
@@ -836,9 +839,6 @@ end
 function Editor.Mount(host, onHeightChanged)
     BindSession()
     local panel = Widgets.CreateSurface(host, Colors.SURFACE, Colors.BORDER)
-    panel:SetPoint("TOPLEFT")
-    panel:SetPoint("BOTTOMRIGHT")
-
     local stack = Layout.Stack(panel, {
         paddingX = Spacing.XLARGE,
         paddingY = Spacing.XLARGE,
@@ -902,9 +902,10 @@ function Editor.Mount(host, onHeightChanged)
         end
     end)
 
-    host:HookScript("OnSizeChanged", function()
-        LayoutShownView()
+    ui.syncHost = Layout.MountInHost(panel, host, function()
+        return math.max(ui.stack:GetHeight() or 0, 1)
     end)
+    Layout.OnWidth(host, LayoutShownView)
 
     Refresh()
     return stack:GetHeight()
@@ -944,6 +945,9 @@ function Editor.SetShown(shown)
     end
     if ui then
         ui.panel:Show()
+        if ui.syncHost then
+            ui.syncHost()
+        end
     end
     Editor.Refresh()
 end

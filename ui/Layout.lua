@@ -143,6 +143,90 @@ function Stack:GetHeight()
     return self.height
 end
 
+---Runs `callback(width)` when `frame` has a positive width: immediately, on the next frame if it
+---is still 0, and on later resizes. `callback` is never invoked with a non-positive width.
+---@param frame Frame
+---@param callback fun(width: number)
+function Layout.OnWidth(frame, callback)
+    assert(type(callback) == "function", "Layout.OnWidth requires a callback")
+    local lastWidth
+    local pending
+    local running
+
+    local function Apply(width)
+        if type(width) ~= "number" then
+            width = frame:GetWidth()
+        end
+        if type(width) ~= "number" or width <= 0 then
+            lastWidth = nil
+            return false
+        end
+        if running or lastWidth == width then
+            return true
+        end
+        running = true
+        lastWidth = width
+        callback(width)
+        running = false
+        return true
+    end
+
+    local function ScheduleRetry()
+        if pending then
+            return
+        end
+        local timer = ns.Api and ns.Api.Timer
+        if not timer or type(timer.After) ~= "function" then
+            return
+        end
+        pending = true
+        timer.After(0, function()
+            pending = false
+            Apply()
+        end)
+    end
+
+    frame:HookScript("OnSizeChanged", function(_, width)
+        if not Apply(width) then
+            ScheduleRetry()
+        end
+    end)
+    if not Apply(frame:GetWidth()) then
+        ScheduleRetry()
+    end
+end
+
+---Fills `host`'s width and keeps `panel` as tall as `getHeight()`.
+---Does not use TOPLEFT+BOTTOMRIGHT stretch, which can collapse to 0x0 when `host` is unsized.
+---@param panel Frame
+---@param host Frame
+---@param getHeight fun(): number
+---@return fun() sync
+function Layout.MountInHost(panel, host, getHeight)
+    assert(type(getHeight) == "function", "Layout.MountInHost requires getHeight")
+
+    local function Sync()
+        local height = math.max(getHeight() or 0, 1)
+        panel:ClearAllPoints()
+        panel:SetPoint("TOPLEFT", host, "TOPLEFT")
+        panel:SetPoint("TOPRIGHT", host, "TOPRIGHT")
+        panel:SetHeight(height)
+        local hostWidth = host:GetWidth() or 0
+        if hostWidth > 0 and (panel:GetWidth() or 0) <= 0 then
+            panel:SetWidth(hostWidth)
+        end
+    end
+
+    host:HookScript("OnSizeChanged", function()
+        Sync()
+    end)
+    Layout.OnWidth(host, function()
+        Sync()
+    end)
+    Sync()
+    return Sync
+end
+
 ---Lines up `widgets` left to right, vertically centered in `row`.
 ---@param row Frame
 ---@param widgets Region[]
