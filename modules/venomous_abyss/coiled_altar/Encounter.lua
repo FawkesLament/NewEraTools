@@ -28,6 +28,8 @@ function CoiledAltar:ListenForEncounter()
         Internals.PhaseDetector.Start(scope)
         Internals.StartGhostChase(scope, difficultyID)
         Internals.StartOrbCarry(scope)
+        Internals.StartSoak(scope)
+        Internals.StartVulnerability(scope)
         if CoiledAltar:HasInterruptAssignments() then
             Internals.InterruptStates.Start(scope, Internals.NotifyEncounterState)
         end

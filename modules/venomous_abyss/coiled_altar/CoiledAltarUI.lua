@@ -22,7 +22,9 @@ local Spell = ns.Api.Spell
 
 local INTERRUPT_SPELL_ID = 1286399
 local GHOST_CHASE_SPELL_ID = 1285911
+local VULNERABILITY_SPELL_ID = 1304033
 local ORB_CARRY_SPELL_ID = 1282403
+local SOAK_SPELL_ID = 1283489
 -- 20px icon + 8px gap + name; matches the nameplate card's two-column rhythm.
 local SPELL_ICON_SIZE = 20
 local SPELL_ICON_CROP = 0.08
@@ -293,6 +295,14 @@ local function BuildContent(content)
         CoiledAltar:SetGhostChaseReminderEnabled(enabled)
     end, L.COILED_ALTAR_GHOST_CHASE_REMINDER, GHOST_CHASE_SPELL_ID)
 
+    local vulnerabilityRow = reminderBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local vulnerabilityCell = Layout.SplitRow(vulnerabilityRow, Spacing.MEDIUM)
+    AddReminderCheckbox(vulnerabilityCell, function()
+        return CoiledAltar:IsVulnerabilityReminderEnabled()
+    end, function(enabled)
+        CoiledAltar:SetVulnerabilityReminderEnabled(enabled)
+    end, L.COILED_ALTAR_VULNERABILITY_REMINDER, VULNERABILITY_SPELL_ID)
+
     ---@param cell Frame
     ---@param isEnabled fun(): boolean
     ---@param setEnabled fun(enabled: boolean)
@@ -338,6 +348,56 @@ local function BuildContent(content)
     evenGroup:SetPoint("LEFT", oddGroup, "RIGHT", PHASE_GROUP_GAP, 0)
     p3Group:ClearAllPoints()
     p3Group:SetPoint("LEFT", evenGroup, "RIGHT", PHASE_GROUP_GAP, 0)
+
+    ---@param row Frame
+    ---@param lead Frame
+    ---@param groups Frame[]
+    local function PlacePhaseCheckboxes(row, lead, groups)
+        Layout.Row(row, { lead, groups[1] }, 0)
+        for i = 2, #groups do
+            groups[i]:ClearAllPoints()
+            groups[i]:SetPoint("LEFT", groups[i - 1], "RIGHT", PHASE_GROUP_GAP, 0)
+        end
+    end
+
+    -- Five soak labels do not fit beside the spell hint; wrap P3 under the checkbox column.
+    local soakP1Row = reminderBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local soakHint = CreateSpellHint(soakP1Row, SOAK_SPELL_ID, L.COILED_ALTAR_SOAK_REMINDER)
+    local soakP1Groups = {
+        AddLabeledCheckbox(soakP1Row, function()
+            return CoiledAltar:IsSoakP1FirstReminderEnabled()
+        end, function(enabled)
+            CoiledAltar:SetSoakP1FirstReminderEnabled(enabled)
+        end, L.COILED_ALTAR_SOAK_P1_FIRST),
+        AddLabeledCheckbox(soakP1Row, function()
+            return CoiledAltar:IsSoakP1SecondReminderEnabled()
+        end, function(enabled)
+            CoiledAltar:SetSoakP1SecondReminderEnabled(enabled)
+        end, L.COILED_ALTAR_SOAK_P1_SECOND),
+    }
+    PlacePhaseCheckboxes(soakP1Row, soakHint, soakP1Groups)
+
+    local soakP3Row = reminderBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local soakIndent = CreateFrame("Frame", nil, soakP3Row)
+    soakIndent:SetSize(REMINDER_LABEL_WIDTH, Sizes.CONTROL_ROW_HEIGHT)
+    local soakP3Groups = {
+        AddLabeledCheckbox(soakP3Row, function()
+            return CoiledAltar:IsSoakP3FirstReminderEnabled()
+        end, function(enabled)
+            CoiledAltar:SetSoakP3FirstReminderEnabled(enabled)
+        end, L.COILED_ALTAR_SOAK_P3_FIRST),
+        AddLabeledCheckbox(soakP3Row, function()
+            return CoiledAltar:IsSoakP3SecondReminderEnabled()
+        end, function(enabled)
+            CoiledAltar:SetSoakP3SecondReminderEnabled(enabled)
+        end, L.COILED_ALTAR_SOAK_P3_SECOND),
+        AddLabeledCheckbox(soakP3Row, function()
+            return CoiledAltar:IsSoakP3ThirdReminderEnabled()
+        end, function(enabled)
+            CoiledAltar:SetSoakP3ThirdReminderEnabled(enabled)
+        end, L.COILED_ALTAR_SOAK_P3_THIRD),
+    }
+    PlacePhaseCheckboxes(soakP3Row, soakIndent, soakP3Groups)
 
     reminder:SetContentHeight(reminderBody:GetHeight())
     reminder:RefreshContentInteractive()

@@ -413,7 +413,7 @@ describe("CoiledAltar mechanic reminder layout", function()
 
     it("keeps orb-carry phase checkboxes on the interrupt checkbox column with check-to-label clearance", function()
         local reminder = BuildPage()
-        local orbRow = reminder.content.children[2]
+        local orbRow = reminder.content.children[3]
         local orbHint = orbRow.children[1]
         local oddGroup = orbRow.children[2]
         local evenGroup = orbRow.children[3]
@@ -458,8 +458,8 @@ describe("CoiledAltar mechanic reminder layout", function()
 
     it("preserves reminder saved-variable toggles from checkbox and spell-hint clicks", function()
         BuildPage()
-        local interruptBox, ghostBox, oddBox = boxes[1], boxes[2], boxes[3]
-        assert.equals(5, #boxes)
+        local interruptBox, ghostBox, vulnBox, oddBox = boxes[1], boxes[2], boxes[3], boxes[4]
+        assert.equals(11, #boxes)
         assert.is_true(Module:IsInterruptReminderEnabled())
         assert.equals("function", type(interruptBox.scripts.OnClick))
         interruptBox:Click()
@@ -470,18 +470,73 @@ describe("CoiledAltar mechanic reminder layout", function()
 
         ghostBox:Click()
         assert.is_true(Module:IsGhostChaseReminderEnabled())
+        vulnBox:Click()
+        assert.is_true(Module:IsVulnerabilityReminderEnabled())
         oddBox:Click()
         assert.is_true(Module:IsOrbCarryOddReminderEnabled())
-        boxes[4]:Click()
-        assert.is_true(Module:IsOrbCarryEvenReminderEnabled())
         boxes[5]:Click()
+        assert.is_true(Module:IsOrbCarryEvenReminderEnabled())
+        boxes[6]:Click()
         assert.is_true(Module:IsOrbCarryP3ReminderEnabled())
+        boxes[7]:Click()
+        assert.is_true(Module:IsSoakP1FirstReminderEnabled())
+        boxes[8]:Click()
+        assert.is_true(Module:IsSoakP1SecondReminderEnabled())
+        boxes[9]:Click()
+        assert.is_true(Module:IsSoakP3FirstReminderEnabled())
+        boxes[10]:Click()
+        assert.is_true(Module:IsSoakP3SecondReminderEnabled())
+        boxes[11]:Click()
+        assert.is_true(Module:IsSoakP3ThirdReminderEnabled())
     end)
 
-    it("sizes the reminder body to two compact form rows", function()
+    it("wraps soak phase checkboxes under the interrupt checkbox column", function()
+        local reminder = BuildPage()
+        local soakP1Row = reminder.content.children[4]
+        local soakP3Row = reminder.content.children[5]
+        local soakHint = soakP1Row.children[1]
+        local p1First = soakP1Row.children[2]
+        local p1Second = soakP1Row.children[3]
+        local soakIndent = soakP3Row.children[1]
+        local p3First = soakP3Row.children[2]
+        local p3Second = soakP3Row.children[3]
+        local p1FirstAnchor = LeftAnchor(p1First)
+        local p1SecondAnchor = LeftAnchor(p1Second)
+        local p3FirstAnchor = LeftAnchor(p3First)
+        local p3SecondAnchor = LeftAnchor(p3Second)
+
+        assert.equals(100, soakHint.width)
+        assert.equals(100, soakIndent.width)
+        assert.equals(3, #soakP1Row.children)
+        assert.equals(4, #soakP3Row.children)
+        assert(p1FirstAnchor.relativeTo == soakHint, "P1 soak checkboxes should share the interrupt checkbox column")
+        assert.equals("RIGHT", p1FirstAnchor.relativePoint)
+        assert.equals(0, p1FirstAnchor.x)
+        assert(p1SecondAnchor.relativeTo == p1First, "P1 soak groups should follow one another")
+        assert.equals(20, p1SecondAnchor.x)
+        assert(p3FirstAnchor.relativeTo == soakIndent, "P3 soak checkboxes should line up under P1")
+        assert.equals("RIGHT", p3FirstAnchor.relativePoint)
+        assert.equals(0, p3FirstAnchor.x)
+        assert(p3SecondAnchor.relativeTo == p3First, "P3 soak groups should follow one another")
+        assert.equals(20, p3SecondAnchor.x)
+
+        local firstBox = p1First.children[1]
+        local firstLabel = p1First.fontStrings[1]
+        local labelAnchor = LeftAnchor(firstLabel)
+        assert(labelAnchor.relativeTo == firstBox, "phase label should sit to the right of its checkbox")
+        assert.equals(10, labelAnchor.x)
+        local labelWidth = firstLabel:GetStringWidth()
+        assert.same({ 0, -(labelWidth + 10), 0, 0 }, firstBox.hitRect)
+        assert.equals(ns.Assets.Sizes.CHECKBOX + 10 + labelWidth, p1First.width)
+    end)
+
+    it("sizes the reminder body to five compact form rows", function()
         local reminder = BuildPage()
         local rowHeight = ns.Assets.Sizes.CONTROL_ROW_HEIGHT
         local pad = ns.Assets.Spacing.SMALL
-        assert.equals(pad + rowHeight + pad + rowHeight + pad, reminder.contentHeight)
+        assert.equals(
+            pad + rowHeight + pad + rowHeight + pad + rowHeight + pad + rowHeight + pad + rowHeight + pad,
+            reminder.contentHeight
+        )
     end)
 end)

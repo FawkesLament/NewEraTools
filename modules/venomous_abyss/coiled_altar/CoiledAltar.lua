@@ -36,9 +36,15 @@ local SIDE_BOTTOM = "bottom"
 ---@class CoiledAltarMechanicReminder
 ---@field interrupt boolean
 ---@field ghostChase boolean
+---@field vulnerability boolean
 ---@field orbCarryOdd boolean
 ---@field orbCarryEven boolean
 ---@field orbCarryP3 boolean
+---@field soakP1First boolean
+---@field soakP1Second boolean
+---@field soakP3First boolean
+---@field soakP3Second boolean
+---@field soakP3Third boolean
 
 ---@class CoiledAltarSettings
 ---@field nameplateHint CoiledAltarNameplateHint
@@ -64,12 +70,20 @@ local CoiledAltar = ns.Modules.New("CoiledAltar", {
             interrupt = true,
             -- When true, a matched ENCOUNTER_WARNING shows the ghost-chase Callout.
             ghostChase = false,
+            -- When true, vulnerability reminders are shown.
+            vulnerability = false,
             -- When true, P1 odd-wave orb-carry reminders are shown.
             orbCarryOdd = false,
             -- When true, P1 even-wave orb-carry reminders are shown.
             orbCarryEven = false,
             -- When true, P3 orb-carry reminders are shown.
             orbCarryP3 = false,
+            -- When true, the matching soak (share-damage) reminder is shown.
+            soakP1First = false,
+            soakP1Second = false,
+            soakP3First = false,
+            soakP3Second = false,
+            soakP3Third = false,
         },
         nameplateHint = {
             -- When true, interrupt assignments are shown on nameplates.
@@ -171,14 +185,32 @@ end
 ---@return CoiledAltarMechanicReminder
 local function SanitizeMechanicReminder(settings)
     if type(settings) ~= "table" then
-        return { interrupt = true, ghostChase = false, orbCarryOdd = false, orbCarryEven = false, orbCarryP3 = false }
+        return {
+            interrupt = true,
+            ghostChase = false,
+            vulnerability = false,
+            orbCarryOdd = false,
+            orbCarryEven = false,
+            orbCarryP3 = false,
+            soakP1First = false,
+            soakP1Second = false,
+            soakP3First = false,
+            soakP3Second = false,
+            soakP3Third = false,
+        }
     end
     settings.enabled = nil
     settings.interrupt = settings.interrupt == true
     settings.ghostChase = settings.ghostChase == true
+    settings.vulnerability = settings.vulnerability == true
     settings.orbCarryOdd = settings.orbCarryOdd == true
     settings.orbCarryEven = settings.orbCarryEven == true
     settings.orbCarryP3 = settings.orbCarryP3 == true
+    settings.soakP1First = settings.soakP1First == true
+    settings.soakP1Second = settings.soakP1Second == true
+    settings.soakP3First = settings.soakP3First == true
+    settings.soakP3Second = settings.soakP3Second == true
+    settings.soakP3Third = settings.soakP3Third == true
     return settings
 end
 
@@ -265,6 +297,23 @@ function CoiledAltar:SetGhostChaseReminderEnabled(enabled)
 end
 
 ---@return boolean
+function CoiledAltar:IsVulnerabilityReminderEnabled()
+    return self.db.mechanicReminder.vulnerability == true
+end
+
+---@param enabled boolean
+function CoiledAltar:SetVulnerabilityReminderEnabled(enabled)
+    enabled = enabled == true
+    if self.db.mechanicReminder.vulnerability == enabled then
+        return
+    end
+    self.db.mechanicReminder.vulnerability = enabled
+    if not enabled then
+        Internals.HideVulnerabilityCallout()
+    end
+end
+
+---@return boolean
 function CoiledAltar:IsOrbCarryOddReminderEnabled()
     return self.db.mechanicReminder.orbCarryOdd == true
 end
@@ -313,6 +362,76 @@ function CoiledAltar:SetOrbCarryP3ReminderEnabled(enabled)
     if not enabled then
         Internals.HideOrbCarryCallout("p3")
     end
+end
+
+---@param key "soakP1First"|"soakP1Second"|"soakP3First"|"soakP3Second"|"soakP3Third"
+---@return boolean
+local function IsSoakReminderEnabled(self, key)
+    return self.db.mechanicReminder[key] == true
+end
+
+---@param key "soakP1First"|"soakP1Second"|"soakP3First"|"soakP3Second"|"soakP3Third"
+---@param kind "p1First"|"p1Second"|"p3First"|"p3Second"|"p3Third"
+---@param enabled boolean
+local function SetSoakReminderEnabled(self, key, kind, enabled)
+    enabled = enabled == true
+    if self.db.mechanicReminder[key] == enabled then
+        return
+    end
+    self.db.mechanicReminder[key] = enabled
+    if not enabled then
+        Internals.HideSoakCallout(kind)
+    end
+end
+
+---@return boolean
+function CoiledAltar:IsSoakP1FirstReminderEnabled()
+    return IsSoakReminderEnabled(self, "soakP1First")
+end
+
+---@param enabled boolean
+function CoiledAltar:SetSoakP1FirstReminderEnabled(enabled)
+    SetSoakReminderEnabled(self, "soakP1First", "p1First", enabled)
+end
+
+---@return boolean
+function CoiledAltar:IsSoakP1SecondReminderEnabled()
+    return IsSoakReminderEnabled(self, "soakP1Second")
+end
+
+---@param enabled boolean
+function CoiledAltar:SetSoakP1SecondReminderEnabled(enabled)
+    SetSoakReminderEnabled(self, "soakP1Second", "p1Second", enabled)
+end
+
+---@return boolean
+function CoiledAltar:IsSoakP3FirstReminderEnabled()
+    return IsSoakReminderEnabled(self, "soakP3First")
+end
+
+---@param enabled boolean
+function CoiledAltar:SetSoakP3FirstReminderEnabled(enabled)
+    SetSoakReminderEnabled(self, "soakP3First", "p3First", enabled)
+end
+
+---@return boolean
+function CoiledAltar:IsSoakP3SecondReminderEnabled()
+    return IsSoakReminderEnabled(self, "soakP3Second")
+end
+
+---@param enabled boolean
+function CoiledAltar:SetSoakP3SecondReminderEnabled(enabled)
+    SetSoakReminderEnabled(self, "soakP3Second", "p3Second", enabled)
+end
+
+---@return boolean
+function CoiledAltar:IsSoakP3ThirdReminderEnabled()
+    return IsSoakReminderEnabled(self, "soakP3Third")
+end
+
+---@param enabled boolean
+function CoiledAltar:SetSoakP3ThirdReminderEnabled(enabled)
+    SetSoakReminderEnabled(self, "soakP3Third", "p3Third", enabled)
 end
 
 ---@return InterruptRotationTrackerAnchor
