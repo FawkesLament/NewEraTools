@@ -30,8 +30,9 @@ local GLOW_WIDTH = 75
 local ICON_SIZE = 12
 local HEADER_SIZE = 12
 local PLAYHEAD_WIDTH = 12
-local PLAYHEAD_HEIGHT = 2
-local PLAYHEAD_GAP = 3
+local PLAYHEAD_HEIGHT = 6
+local PLAYHEAD_GAP = 2
+local ACCENT_IDLE_A = 0.38
 local RIM_HEIGHT = 1
 local TEXT_SHADOW_A = 0.85
 local ALPHA_WAITING = 0.88
@@ -69,6 +70,15 @@ local KEYCAP_TOP_LIFT = 0.22
 local KEYCAP_TOP_LIFT_DARK = 0.32
 local KEYCAP_BASE_LIFT_DARK = 0.10
 local KEYCAP_DARK_LUMA = 0.62
+local PULSE_DURATION = 0.65
+local PULSE_RIM_FROM = 0.30
+local PULSE_RIM_TO = 1
+local PULSE_HALO_FROM = 0.05
+local PULSE_HALO_TO = 0.42
+local PULSE_OUTSET = 2
+local PULSE_LEVEL_LIFT = 2
+local PULSE_RIM_LIFT = 0.30
+local PULSE_ALERT_RIM_LIFT = 0.15
 local RAID_TARGET_ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_%d"
 
 local MODE_WAITING = "waiting"
@@ -384,6 +394,13 @@ local function ApplyHeaderFont(label)
     ApplyHudFont(label, path, HEADER_SIZE)
 end
 
+---@param color { r: number, g: number, b: number }
+---@param alert boolean|nil
+---@return { r: number, g: number, b: number }
+local function PulseRimColor(color, alert)
+    return MixWhite(color, alert and PULSE_ALERT_RIM_LIFT or PULSE_RIM_LIFT)
+end
+
 -- Nested Create captures one table instead of exceeding Lua 5.1's 60-upvalue limit.
 local K = {
     MAX_NODES = MAX_NODES,
@@ -403,6 +420,7 @@ local K = {
     CARD_DONE_TOP_A = CARD_DONE_TOP_A,
     CARD_DONE_BOTTOM_A = CARD_DONE_BOTTOM_A,
     WASH_A = WASH_A,
+    ACCENT_IDLE_A = ACCENT_IDLE_A,
     ApplyNodeDigitFont = ApplyNodeDigitFont,
     WholeNumber = WholeNumber,
     ClampTotal = ClampTotal,
@@ -413,6 +431,16 @@ local K = {
     PaintGradient = PaintGradient,
     ClassColor = ClassColor,
     ResolveClassFile = ResolveClassFile,
+    PulseRimColor = PulseRimColor,
+    ERROR = Colors.ERROR,
+    PULSE_LEVEL_LIFT = PULSE_LEVEL_LIFT,
+    PULSE_OUTSET = PULSE_OUTSET,
+    PULSE_DURATION = PULSE_DURATION,
+    PULSE_RIM_FROM = PULSE_RIM_FROM,
+    PULSE_RIM_TO = PULSE_RIM_TO,
+    PULSE_HALO_FROM = PULSE_HALO_FROM,
+    PULSE_HALO_TO = PULSE_HALO_TO,
+    WHITE = Assets.Textures.WHITE,
 }
 
 ---@class InterruptChainHUDCreateOptions
@@ -421,6 +449,7 @@ local K = {
 ---@field width number|nil
 ---@field theme InterruptChainHUDTheme|nil
 ---@field accentColor { r: number, g: number, b: number }|nil
+---@field alert boolean|nil
 
 ---@param options InterruptChainHUDCreateOptions|nil
 ---@return InterruptChainHUD
@@ -430,6 +459,7 @@ function InterruptChainHUD.Create(options)
     local lockedWidth = options.width
     local defaultTheme = options.theme
     local defaultAccent = options.accentColor
+    local alertPulse = options.alert == true
     local width = CardWidth(4, lockedWidth)
 
     local frame = Widgets.CreateSurface(parent, Colors.TRANSPARENT, CARD_BORDER, options.name)
@@ -504,10 +534,67 @@ function InterruptChainHUD.Create(options)
     local nodeFills = {}
     ---@type Texture[]
     local nodeRims = {}
+    ---@param node Frame
+    local function AttachPulse(node)
+        local halo = node:CreateTexture(nil, "BACKGROUND", nil, -1)
+        halo:SetTexture(K.WHITE)
+        halo:SetPoint("TOPLEFT", node, "TOPLEFT", -K.PULSE_OUTSET, K.PULSE_OUTSET)
+        halo:SetPoint("BOTTOMRIGHT", node, "BOTTOMRIGHT", K.PULSE_OUTSET, -K.PULSE_OUTSET)
+        halo:Hide()
+        node.pulseHalo = halo
+
+        local pulseRim = CreateFrame("Frame", nil, node)
+        pulseRim:SetAllPoints(node)
+        pulseRim:EnableMouse(false)
+        pulseRim:Hide()
+        node.pulseRim = pulseRim
+
+        local function Edge(point, relativePoint, setWidth)
+            local edge = pulseRim:CreateTexture(nil, "OVERLAY")
+            edge:SetTexture(K.WHITE)
+            edge:SetPoint(point, pulseRim, point)
+            edge:SetPoint(relativePoint, pulseRim, relativePoint)
+            if setWidth then
+                edge:SetWidth(1)
+            else
+                edge:SetHeight(1)
+            end
+            return edge
+        end
+        node.pulseBorders = {
+            Edge("TOPLEFT", "TOPRIGHT", false),
+            Edge("BOTTOMLEFT", "BOTTOMRIGHT", false),
+            Edge("TOPLEFT", "BOTTOMLEFT", true),
+            Edge("TOPRIGHT", "BOTTOMRIGHT", true),
+        }
+
+        local pulseAnim = node:CreateAnimationGroup()
+        pulseAnim:SetLooping("BOUNCE")
+        local function PulseAlpha(target, fromAlpha, toAlpha)
+            local anim = pulseAnim:CreateAnimation("Alpha")
+            if anim.SetTarget then
+                anim:SetTarget(target)
+            elseif anim.SetChildKey then
+                anim:SetChildKey(target == halo and "pulseHalo" or "pulseRim")
+            end
+            anim:SetFromAlpha(fromAlpha)
+            anim:SetToAlpha(toAlpha)
+            anim:SetDuration(K.PULSE_DURATION)
+            anim:SetSmoothing("IN_OUT")
+            return anim
+        end
+        PulseAlpha(pulseRim, K.PULSE_RIM_FROM, K.PULSE_RIM_TO)
+        PulseAlpha(halo, K.PULSE_HALO_FROM, K.PULSE_HALO_TO)
+        node.pulseAnim = pulseAnim
+        node.pulseBaseLevel = node:GetFrameLevel() or 0
+        node.pulseRimBaseLevel = pulseRim:GetFrameLevel() or (node.pulseBaseLevel + 1)
+    end
+
     for index = 1, MAX_NODES do
         local node = Widgets.CreateSurface(track, Colors.TRANSPARENT, BORDER_UPCOMING)
         node:Hide()
         nodes[index] = node
+        AttachPulse(node)
         local fill = node:CreateTexture(nil, "BACKGROUND")
         fill:SetAllPoints(node)
         nodeFills[index] = fill
@@ -529,7 +616,7 @@ function InterruptChainHUD.Create(options)
     end
 
     local playhead = content:CreateTexture(nil, "OVERLAY")
-    playhead:SetTexture(Assets.Textures.WHITE)
+    playhead:SetTexture(Assets.Textures.ARROW_DOWN, "CLAMP", "CLAMP", "TRILINEAR")
     playhead:SetSize(PLAYHEAD_WIDTH, PLAYHEAD_HEIGHT)
     playhead:Hide()
 
@@ -648,11 +735,44 @@ function InterruptChainHUD.Create(options)
         end
     end
 
+    ---@param node Frame
+    local function StopPulse(node)
+        node.pulseAnim:Stop()
+        node.pulseRim:Hide()
+        node.pulseHalo:Hide()
+        node:SetFrameLevel(node.pulseBaseLevel)
+        node.pulseRim:SetFrameLevel(node.pulseRimBaseLevel)
+    end
+
+    ---@param node Frame
+    ---@param color { r: number, g: number, b: number }
+    local function StartPulse(node, color)
+        local pulseColor = alertPulse and K.ERROR or color
+        local rimColor = K.PulseRimColor(pulseColor, alertPulse)
+        local borders = node.pulseBorders
+        for i = 1, #borders do
+            borders[i]:SetVertexColor(rimColor.r, rimColor.g, rimColor.b, 1)
+        end
+        node.pulseHalo:SetVertexColor(pulseColor.r, pulseColor.g, pulseColor.b, 1)
+        node.pulseRim:Show()
+        node.pulseHalo:Show()
+        node:SetFrameLevel(node.pulseBaseLevel + K.PULSE_LEVEL_LIFT)
+        node.pulseRim:SetFrameLevel(node.pulseBaseLevel + K.PULSE_LEVEL_LIFT + 1)
+        if not node.pulseAnim:IsPlaying() then
+            node.pulseAnim:Play()
+        end
+    end
+
+    for index = 1, MAX_NODES do
+        ui.nodes[index]:HookScript("OnHide", StopPulse)
+    end
+
     local function ShowNodes(count)
         for index = 1, MAX_NODES do
             if index <= count then
                 ui.nodes[index]:Show()
             else
+                StopPulse(ui.nodes[index])
                 ui.nodes[index]:Hide()
             end
         end
@@ -755,8 +875,10 @@ function InterruptChainHUD.Create(options)
         PaintBorder(node, border)
         if showRim then
             rim:Show()
+            StartPulse(node, themeColor)
         else
             rim:Hide()
+            StopPulse(node)
         end
         K.ApplyNodeDigitFont(nodeLabel, showRim)
         nodeLabel:SetTextColor(Widgets.UnpackColor(text))
@@ -772,12 +894,15 @@ function InterruptChainHUD.Create(options)
         end
         if currentIndex >= 1 and currentIndex <= total then
             local color = Colors.TEXT_PRIMARY
-            if mode == MODE_YOUR_TURN then
+            if alertPulse then
+                color = K.ERROR
+            elseif mode == MODE_YOUR_TURN then
                 color = themeColor
             end
+            local r, g, b = Widgets.UnpackColor(color)
             ui.playhead:ClearAllPoints()
             ui.playhead:SetPoint("BOTTOM", ui.nodes[currentIndex], "TOP", 0, PLAYHEAD_GAP)
-            ui.playhead:SetVertexColor(Widgets.UnpackColor(color))
+            ui.playhead:SetVertexColor(r, g, b, 1)
             ui.playhead:Show()
         else
             ui.playhead:Hide()
@@ -969,11 +1094,19 @@ function InterruptChainHUD.Create(options)
             self:SetAlpha(K.ALPHA_ACTIVE)
         end
 
-        local showAccent = mode == K.MODE_ON_DECK or mode == K.MODE_YOUR_TURN
-        local showWash = mode == K.MODE_YOUR_TURN
         local glow = themeColor
+        local accentAlpha = K.ACCENT_IDLE_A
+        local showWash = false
+        if alertPulse then
+            glow = K.ERROR
+            accentAlpha = 1
+            showWash = true
+        elseif mode == K.MODE_ON_DECK or mode == K.MODE_YOUR_TURN then
+            accentAlpha = 1
+            showWash = mode == K.MODE_YOUR_TURN
+        end
         ui.accent:SetVertexColor(Widgets.UnpackColor(glow))
-        ui.accent:SetAlpha(showAccent and 1 or 0)
+        ui.accent:SetAlpha(accentAlpha)
         if showWash then
             K.PaintGradient(ui.wash, "HORIZONTAL", glow, K.WASH_A, glow, 0)
             ui.wash:Show()
@@ -1102,6 +1235,9 @@ function InterruptChainHUD.Create(options)
     local hide = frame.Hide
     function frame:Hide()
         StopCastUpdates()
+        for index = 1, MAX_NODES do
+            StopPulse(ui.nodes[index])
+        end
         hide(self)
     end
 

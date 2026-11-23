@@ -53,6 +53,25 @@ local function Current()
     return ns.CalloutManager.GetCurrent()
 end
 
+local function BindEntries()
+    local active = ns.CalloutManager.GetActive()
+    local entries = {}
+    for index = 1, #active do
+        local current = active[index]
+        local text = current.text
+        if current.wrap then
+            text = current.wrap:format(text)
+        end
+        entries[index] = {
+            key = current.key,
+            text = text,
+            expiresAt = current.expiresAt,
+            appendTimer = current.appendTimer,
+        }
+    end
+    return entries
+end
+
 local function ActivePreview()
     local scopeId = ns.LayoutEditor.GetActiveScopeId()
     return scopeId and scopePreviews[scopeId] or nil
@@ -87,6 +106,7 @@ local binding = ns.CalloutMessage.Bind({
         local current = Current()
         return current and current.appendTimer
     end,
+    getEntries = BindEntries,
     getPosition = function()
         return ns.CalloutAnchor.GetPosition()
     end,

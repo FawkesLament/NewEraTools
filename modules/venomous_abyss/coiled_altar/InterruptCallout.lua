@@ -156,6 +156,7 @@ function Internals.SyncInterruptCallout()
         round = task.round,
         handle = CalloutManager.Show({
             source = CALLOUT_SOURCE,
+            key = CALLOUT_SOURCE,
             text = L.COILED_ALTAR_INTERRUPT_CALLOUT,
             duration = CoiledAltar.INTERRUPT_CALLOUT_DURATION,
             appendTimer = true,

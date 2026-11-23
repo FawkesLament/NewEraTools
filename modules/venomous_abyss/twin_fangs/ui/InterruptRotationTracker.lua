@@ -113,7 +113,11 @@ local InterruptRotationTracker = ns.InterruptRotationTracker.Bind({
         return ns.InterruptRotationTrackerAnchor.DefaultPosition()
     end,
     previewState = function()
-        return HudState(TwinFangs:GetInterruptStatusPreview())
+        local state = HudState(TwinFangs:GetInterruptStatusPreview())
+        local name, classFile = ns.InterruptRotationTracker.PreviewAssignee()
+        state.currentAssignee = name
+        state.currentAssigneeClass = classFile
+        return state
     end,
     getState = function()
         return HudState(TwinFangs:GetInterruptStatus())

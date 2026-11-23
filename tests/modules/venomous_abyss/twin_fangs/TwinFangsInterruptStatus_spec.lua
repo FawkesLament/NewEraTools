@@ -643,19 +643,26 @@ describe("TwinFangs interrupt status", function()
             assert.is_true(Module:IsInterruptStatusTestMode())
         end)
 
-        it("lets a later soak callout replace the interrupt callout", function()
+        it("keeps an interrupt callout when a longer soak callout is also showing", function()
             AssignPrimary(1)
             Module:SetInterruptReminderEnabled(true)
             Module:SetInterruptStatusTestMode(true)
+            local interruptText = ns.L.TWIN_FANGS_INTERRUPT_CALLOUT:format(ns.L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT)
             Module:ShowCallout(ns.L.TWIN_FANGS_SOAK_ENTER, Timer.GetTime() + 20, {
                 kind = "soak",
                 appendTimer = true,
             })
-            assert.equals(ns.L.TWIN_FANGS_SOAK_ENTER, Module:GetDisplayedCallout())
-            assert.is_true(Module:GetCalloutAppendTimer())
+            assert.equals(interruptText, Module:GetDisplayedCallout())
+            assert.is_false(Module:GetCalloutAppendTimer())
+            local active = ns.CalloutManager.GetActive()
+            assert.equals(2, #active)
+            assert.equals(interruptText, active[1].text)
+            assert.equals(ns.L.TWIN_FANGS_SOAK_ENTER, active[2].text)
 
             GameEvents.Fire("CHAT_MSG_PARTY")
             assert.equals(ns.L.TWIN_FANGS_SOAK_ENTER, Module:GetDisplayedCallout())
+            assert.is_true(Module:GetCalloutAppendTimer())
+            assert.equals(1, #ns.CalloutManager.GetActive())
         end)
 
         it("hides the HUD when the player has no primary assignment", function()

@@ -163,6 +163,25 @@ describe("TwinFangs interrupt chain editor UI", function()
         function frame:GetFrameLevel()
             return 1
         end
+        function frame:CreateAnimationGroup()
+            local group = { playing = false, animations = {} }
+            function group:SetLooping() end
+            function group:CreateAnimation()
+                local anim = {}
+                function anim:SetTarget() end
+                function anim:SetFromAlpha() end
+                function anim:SetToAlpha() end
+                function anim:SetDuration() end
+                function anim:SetSmoothing() end
+                return anim
+            end
+            function group:Play() end
+            function group:Stop() end
+            function group:IsPlaying()
+                return false
+            end
+            return group
+        end
         function frame:EnableMouse() end
         function frame:ClearAllPoints()
             self.points = {}

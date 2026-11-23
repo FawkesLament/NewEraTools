@@ -84,6 +84,49 @@ describe("InterruptRotationTracker", function()
             self.alpha = alpha
         end
         function frame:EnableMouse() end
+        function frame:SetAllPoints() end
+        function frame:GetFrameLevel()
+            return self.frameLevel or 10
+        end
+        function frame:SetFrameLevel(level)
+            self.frameLevel = level
+        end
+        function frame:CreateAnimationGroup()
+            local group = { playing = false, animations = {} }
+            function group:SetLooping(mode)
+                self.looping = mode
+            end
+            function group:CreateAnimation(kind)
+                local anim = { kind = kind }
+                function anim:SetTarget(target)
+                    self.target = target
+                end
+                function anim:SetFromAlpha(value)
+                    self.fromAlpha = value
+                end
+                function anim:SetToAlpha(value)
+                    self.toAlpha = value
+                end
+                function anim:SetDuration(value)
+                    self.duration = value
+                end
+                function anim:SetSmoothing(value)
+                    self.smoothing = value
+                end
+                self.animations[#self.animations + 1] = anim
+                return anim
+            end
+            function group:Play()
+                self.playing = true
+            end
+            function group:Stop()
+                self.playing = false
+            end
+            function group:IsPlaying()
+                return self.playing == true
+            end
+            return group
+        end
         function frame:SetHeight(height)
             self.height = height
         end
@@ -98,14 +141,29 @@ describe("InterruptRotationTracker", function()
             self.fontStrings[#self.fontStrings + 1] = label
             return label
         end
-        function frame:CreateTexture()
-            local texture = { shown = true }
-            function texture:SetTexture() end
+        function frame:CreateTexture(_, layer, _, sublevel)
+            local texture = { shown = true, layer = layer, sublevel = sublevel }
+            function texture:SetTexture(path, horizWrap, vertWrap, filter)
+                self.texture = path
+                self.horizWrap = horizWrap
+                self.vertWrap = vertWrap
+                self.filter = filter
+            end
             function texture:SetVertexColor(r, g, b, a)
                 self.color = { r = r, g = g, b = b, a = a }
             end
-            function texture:ClearAllPoints() end
-            function texture:SetPoint() end
+            function texture:ClearAllPoints()
+                self.points = {}
+            end
+            function texture:SetPoint(point, _, relativePoint, x, y)
+                self.points = self.points or {}
+                self.points[#self.points + 1] = {
+                    point = point,
+                    relativePoint = relativePoint,
+                    x = x,
+                    y = y,
+                }
+            end
             function texture:SetSize(width, height)
                 self.width = width
                 self.height = height
@@ -245,7 +303,7 @@ describe("InterruptRotationTracker", function()
                         flags = "OUTLINE",
                     },
                 },
-                Textures = { WHITE = "white" },
+                Textures = { WHITE = "white", ARROW_DOWN = "arrow-down" },
                 Colors = {
                     BG = { r = 0.07, g = 0.07, b = 0.09, a = 0.95 },
                     BG_TRANSLUCENT = { r = 0.07, g = 0.07, b = 0.09, a = 0.6 },
@@ -535,15 +593,74 @@ describe("InterruptRotationTracker", function()
     end)
 
     local function FindPlayhead()
+        local hidden
         for _, frame in ipairs(createdFrames) do
             for _, texture in ipairs(frame.textures) do
-                if texture.width == 12 and texture.height == 2 then
-                    return texture
+                if texture.width == 12 and texture.height == 6 then
+                    if texture.shown then
+                        return texture
+                    end
+                    hidden = hidden or texture
                 end
             end
         end
-        return nil
+        return hidden
     end
+
+    local function TgaPixel(pixels, width, height, x, y)
+        -- Uncompressed TGA: bottom-up BGRA.
+        local row = height - 1 - y
+        local index = (row * width + x) * 4
+        local b, g, r, a = pixels:byte(index + 1, index + 4)
+        return r, g, b, a
+    end
+
+    it("ships an uncompressed 64x32 faceted dart TGA that points downward", function()
+        local file = assert(io.open("media/icons/arrow_down.tga", "rb"))
+        local header = file:read(18)
+        local rest = file:read("*a")
+        file:close()
+        local width = header:byte(13) + header:byte(14) * 256
+        local height = header:byte(15) + header:byte(16) * 256
+        local pixels = rest:sub(1, width * height * 4)
+
+        assert.equals(2, header:byte(3))
+        assert.equals(64, width)
+        assert.equals(32, height)
+        assert.equals(32, header:byte(17))
+        assert.equals(8, header:byte(18))
+        assert.equals(64 * 32 * 4, #pixels)
+
+        local function Alpha(x, y)
+            local _, _, _, a = TgaPixel(pixels, width, height, x, y)
+            return a
+        end
+        for x = 0, width - 1 do
+            assert.equals(0, Alpha(x, 0))
+            assert.equals(0, Alpha(x, height - 1))
+        end
+        for y = 1, height - 2 do
+            assert.equals(0, Alpha(0, y))
+            assert.equals(0, Alpha(width - 1, y))
+        end
+
+        local tipR, tipG, tipB, tipA = TgaPixel(pixels, width, height, 32, 26)
+        local aboveA = Alpha(32, 6)
+        local leftR, _, _, leftA = TgaPixel(pixels, width, height, 24, 16)
+        local rightR, _, _, rightA = TgaPixel(pixels, width, height, 40, 16)
+        local shadowR, shadowG, shadowB, shadowA = TgaPixel(pixels, width, height, 32, 28)
+        assert.is_true(tipA > 80)
+        assert.equals(0, aboveA)
+        assert.equals(tipR, tipG)
+        assert.equals(tipG, tipB)
+        assert.is_true(leftA > 200)
+        assert.is_true(rightA > 200)
+        assert.is_true(leftR > rightR)
+        assert.equals(0, shadowR)
+        assert.equals(0, shadowG)
+        assert.equals(0, shadowB)
+        assert.is_true(shadowA > 0)
+    end)
 
     it("shows a playhead glyph above the current slot", function()
         local bound = ns.InterruptRotationTracker.Bind(BindConfig({
@@ -559,6 +676,18 @@ describe("InterruptRotationTracker", function()
         bound.Update()
         local pointer = FindPlayhead()
         assert.equals(true, pointer.shown)
+        assert.equals(12, pointer.width)
+        assert.equals(6, pointer.height)
+        assert.equals("arrow-down", pointer.texture)
+        assert.equals("CLAMP", pointer.horizWrap)
+        assert.equals("CLAMP", pointer.vertWrap)
+        assert.equals("TRILINEAR", pointer.filter)
+        assert.equals("BOTTOM", pointer.points[1].point)
+        assert.equals("TOP", pointer.points[1].relativePoint)
+        assert.equals(0, pointer.points[1].x)
+        assert.equals(2, pointer.points[1].y)
+        assert.equals(ns.Assets.Colors.TEXT_PRIMARY.r, pointer.color.r)
+        assert.equals(1, pointer.color.a)
     end)
 
     it("hides the playhead when the chain is complete", function()
@@ -618,9 +747,11 @@ describe("InterruptRotationTracker", function()
 
     local function FindWash()
         for _, frame in ipairs(createdFrames) do
-            for _, texture in ipairs(frame.textures) do
-                if texture.width == 75 then
-                    return texture
+            if frame.shown ~= false then
+                for _, texture in ipairs(frame.textures) do
+                    if texture.width == 75 then
+                        return texture
+                    end
                 end
             end
         end
@@ -629,9 +760,11 @@ describe("InterruptRotationTracker", function()
 
     local function FindAccentBar()
         for _, frame in ipairs(createdFrames) do
-            for _, texture in ipairs(frame.textures) do
-                if texture.width == 3 then
-                    return texture
+            if frame.shown ~= false then
+                for _, texture in ipairs(frame.textures) do
+                    if texture.width == 3 and texture.height ~= 1 then
+                        return texture
+                    end
                 end
             end
         end
@@ -691,7 +824,8 @@ describe("InterruptRotationTracker", function()
         bound.Update()
         assert.equals(warning.r, FindLabelText("3").color.r)
         assert.equals(0.85, FindLabelText("3").color.a)
-        assert.equals(0, FindAccentBar().alpha)
+        assert.equals(0.38, FindAccentBar().alpha)
+        assert.equals(warning.r, FindAccentBar().color.r)
         assert.equals(false, FindWash().shown)
 
         state.completed = 1
@@ -709,6 +843,13 @@ describe("InterruptRotationTracker", function()
         assert.equals(warning.r, FindPlayhead().color.r)
         assert.equals(true, FindWash().shown)
         assert.equals("amber", bound.Ensure():GetState().theme)
+
+        state.completed = 3
+        bound.Update()
+        assert.equals(0.38, FindAccentBar().alpha)
+        assert.equals(warning.r, FindAccentBar().color.r)
+        assert.equals(false, FindWash().shown)
+        assert.equals(primary.r, FindPlayhead().color.r)
     end)
 
     it("accepts an explicit accentColor over the theme preset", function()
@@ -730,5 +871,155 @@ describe("InterruptRotationTracker", function()
         assert.equals(custom.g, digit.color.g)
         assert.equals(custom.b, digit.color.b)
         assert.same(custom, bound.Ensure():GetState().accentColor)
+    end)
+
+    local function PulseNodes()
+        local found = {}
+        for _, frame in ipairs(createdFrames) do
+            if frame.pulseAnim then
+                found[#found + 1] = frame
+            end
+        end
+        return found
+    end
+
+    local function PlayingPulse()
+        for _, node in ipairs(PulseNodes()) do
+            if node.pulseAnim:IsPlaying() then
+                return node
+            end
+        end
+        return nil
+    end
+
+    it("breathes only the your-turn rim and halo, leaving the digit fill steady", function()
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = function()
+                return {
+                    total = 4,
+                    completed = 1,
+                    myIndices = { 2 },
+                }
+            end,
+        }))
+        bound.Update()
+        local node = PlayingPulse()
+        assert(node)
+        assert.equals("BOUNCE", node.pulseAnim.looping)
+        assert.equals(true, node.pulseRim.shown)
+        assert.equals(true, node.pulseHalo.shown)
+        assert.equals("BACKGROUND", node.pulseHalo.layer)
+        assert.equals(-1, node.pulseHalo.sublevel)
+        assert.equals(12, node.frameLevel)
+
+        local rimAnim = node.pulseAnim.animations[1]
+        local haloAnim = node.pulseAnim.animations[2]
+        assert.equals(node.pulseRim, rimAnim.target)
+        assert.equals(0.30, rimAnim.fromAlpha)
+        assert.equals(1, rimAnim.toAlpha)
+        assert.equals(0.65, rimAnim.duration)
+        assert.equals("IN_OUT", rimAnim.smoothing)
+        assert.equals(node.pulseHalo, haloAnim.target)
+        assert.equals(0.05, haloAnim.fromAlpha)
+        assert.equals(0.42, haloAnim.toAlpha)
+        assert.equals(0.65, haloAnim.duration)
+
+        local accent = ns.Assets.Colors.ACCENT
+        local rim = node.pulseBorders[1].color
+        assert.equals(accent.r + (1 - accent.r) * 0.30, rim.r)
+        assert.equals(accent.g + (1 - accent.g) * 0.30, rim.g)
+        assert.equals(accent.b + (1 - accent.b) * 0.30, rim.b)
+        assert.equals(accent.r, node.pulseHalo.color.r)
+        assert.equals(accent.g, node.pulseHalo.color.g)
+        assert.equals(accent.b, node.pulseHalo.color.b)
+
+        local digit = FindLabelText("2")
+        assert.equals(ns.Assets.Colors.TEXT_ON_ACCENT.r, digit.color.r)
+        assert.equals(ns.Assets.Colors.TEXT_ON_ACCENT.g, digit.color.g)
+        assert.equals(ns.Assets.Colors.TEXT_ON_ACCENT.b, digit.color.b)
+        for _, anim in ipairs(node.pulseAnim.animations) do
+            assert(anim.target ~= node)
+        end
+
+        local playing = 0
+        for _, pulseNode in ipairs(PulseNodes()) do
+            if pulseNode.pulseAnim:IsPlaying() then
+                playing = playing + 1
+            end
+        end
+        assert.equals(1, playing)
+    end)
+
+    it("keeps on-deck and waiting slots static", function()
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = function()
+                return {
+                    total = 6,
+                    completed = 2,
+                    myIndices = { 4, 5 },
+                }
+            end,
+        }))
+        bound.Update()
+        assert.is_nil(PlayingPulse())
+        for _, node in ipairs(PulseNodes()) do
+            assert.equals(false, node.pulseRim.shown)
+            assert.equals(false, node.pulseHalo.shown)
+            assert.equals(10, node.frameLevel)
+        end
+        assert.equals(ns.Assets.Colors.TEXT_PRIMARY.r, FindLabelText("4").color.r)
+    end)
+
+    it("stops the breath as soon as the HUD hides", function()
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = function()
+                return {
+                    total = 3,
+                    completed = 0,
+                    myIndices = { 1 },
+                }
+            end,
+        }))
+        bound.Update()
+        local node = PlayingPulse()
+        assert(node)
+        bound.Ensure():Hide()
+        assert.is_nil(PlayingPulse())
+        assert.equals(false, node.pulseRim.shown)
+        assert.equals(false, node.pulseHalo.shown)
+        assert.equals(10, node.frameLevel)
+    end)
+
+    it("tints backup-alert breaths with ERROR instead of the region theme", function()
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = function()
+                return nil
+            end,
+            getBackupState = function()
+                return {
+                    total = 2,
+                    completed = 1,
+                    myIndices = { 2 },
+                    theme = "cyan",
+                }
+            end,
+        }))
+        bound.Update()
+        local node = PlayingPulse()
+        assert(node)
+        local error = ns.Assets.Colors.ERROR
+        local rim = node.pulseBorders[1].color
+        assert.equals(error.r + (1 - error.r) * 0.15, rim.r)
+        assert.equals(error.g + (1 - error.g) * 0.15, rim.g)
+        assert.equals(error.b + (1 - error.b) * 0.15, rim.b)
+        assert.equals(error.r, node.pulseHalo.color.r)
+        assert.equals(error.g, node.pulseHalo.color.g)
+        assert.equals(error.b, node.pulseHalo.color.b)
+        assert.equals(1, FindAccentBar().alpha)
+        assert.equals(error.r, FindAccentBar().color.r)
+        assert.equals(true, FindWash().shown)
+        local playhead = FindPlayhead()
+        assert.equals(error.r, playhead.color.r)
+        assert.equals(true, playhead.shown)
     end)
 end)

@@ -60,9 +60,12 @@ local broodToken = 0
 local calloutByKind = {}
 
 local function CurrentCallout()
-    local current = CalloutManager.GetCurrent()
-    if current and current.source == CALLOUT_SOURCE then
-        return current
+    local active = CalloutManager.GetActive()
+    for index = 1, #active do
+        local current = active[index]
+        if current.source == CALLOUT_SOURCE then
+            return current
+        end
     end
     return nil
 end
@@ -71,14 +74,19 @@ end
 ---@field kind string|nil
 ---@field appendTimer boolean|nil
 
----Shows `text` until `expiresAt`. A later show drops the current message immediately.
+---Shows `text` until `expiresAt`. Same `kind` upserts; other kinds stack.
 ---@param text string
 ---@param expiresAt number
 ---@param options TwinFangsCalloutOptions|nil
 function TwinFangs:ShowCallout(text, expiresAt, options)
     options = options or {}
+    local key = CALLOUT_SOURCE
+    if options.kind then
+        key = CALLOUT_SOURCE .. ":" .. options.kind
+    end
     local handle = CalloutManager.Show({
         source = CALLOUT_SOURCE,
+        key = key,
         text = text,
         expiresAt = expiresAt,
         appendTimer = options.appendTimer == true,

@@ -40,9 +40,10 @@ function InterruptRotationTracker.ThemeColor(theme)
     return ns.InterruptChainHUD.ThemeColor(theme)
 end
 
+---Local player's short name and class file for Edit Mode assignee previews.
 ---@return string|nil
 ---@return string|nil
-local function PreviewAssignee()
+function InterruptRotationTracker.PreviewAssignee()
     local Player = ns.Api and ns.Api.Player
     if not Player then
         return nil, nil
@@ -62,7 +63,7 @@ end
 ---Common-UI Edit Mode sample: six nodes, one done, one current, you as assignee.
 ---@return InterruptChainHUDState
 function InterruptRotationTracker.PreviewState()
-    local name, classFile = PreviewAssignee()
+    local name, classFile = InterruptRotationTracker.PreviewAssignee()
     return {
         total = 6,
         completed = 1,
@@ -224,6 +225,7 @@ function InterruptRotationTracker.Bind(config)
             width = config.width,
             theme = config.theme,
             accentColor = config.accentColor,
+            alert = true,
         })
         ListenForScale(backupWindow, function()
             if window and window:IsShown() then

@@ -64,6 +64,8 @@ Assets.Textures = {
     INTERRUPT_INDICATOR_BADGE_FILL = MEDIA_PATH .. "icons\\interrupt_indicator_badge_fill",
     -- White-on-alpha handwritten checkmark (128x128); tint with SetVertexColor.
     CHECKMARK = MEDIA_PATH .. "icons\\checkmark",
+    -- Faceted 64x32 downward dart for interrupt-chain playheads; tint with SetVertexColor.
+    ARROW_DOWN = MEDIA_PATH .. "icons\\arrow_down",
     MINIMAP_HIGHLIGHT = "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight",
     MINIMAP_BACKGROUND = "Interface\\Minimap\\UI-Minimap-Background",
     MINIMAP_BORDER = "Interface\\Minimap\\MiniMap-TrackingBorder",

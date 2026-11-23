@@ -123,9 +123,30 @@ local function RowFromSlot(slot, roster, playerName, index)
     }
 end
 
+---@param slot CoiledAltarInterruptSlot|nil
+---@return boolean
+local function SlotIsOccupied(slot)
+    return slot ~= nil and (slot.type == Assignments.TYPE_PLAYER or slot.type == Assignments.TYPE_TEXT)
+end
+
+---Last occupied slot, or 1 when the chain is empty so one unassigned row remains.
+---@return integer
+local function VisibleSlotCount()
+    local last = 0
+    for index = 1, Assignments.SLOT_COUNT do
+        if SlotIsOccupied(CoiledAltar:GetInterruptSlot(ACTIVE_CHAIN, index)) then
+            last = index
+        end
+    end
+    if last == 0 then
+        return 1
+    end
+    return last
+end
+
 ---@return number
 local function PanelHeight()
-    return HEADER_HEIGHT + Assignments.SLOT_COUNT * ROW_HEIGHT
+    return HEADER_HEIGHT + VisibleSlotCount() * ROW_HEIGHT
 end
 
 local function NotifyHeight()
@@ -229,9 +250,19 @@ local function Refresh()
     end
     local roster = Roster()
     local playerName = Player.GetFullName()
+    local visibleCount = VisibleSlotCount()
     for index = 1, Assignments.SLOT_COUNT do
-        local slot = CoiledAltar:GetInterruptSlot(ACTIVE_CHAIN, index) or { type = Assignments.TYPE_EMPTY }
-        ApplyRow(ui.rows[index], RowFromSlot(slot, roster, playerName, index))
+        local row = ui.rows[index]
+        if index <= visibleCount then
+            local slot = CoiledAltar:GetInterruptSlot(ACTIVE_CHAIN, index) or { type = Assignments.TYPE_EMPTY }
+            ApplyRow(row, RowFromSlot(slot, roster, playerName, index))
+            row:Show()
+            if row.divider then
+                row.divider:SetShown(index < visibleCount)
+            end
+        else
+            row:Hide()
+        end
     end
     NotifyHeight()
 end

@@ -128,9 +128,10 @@ describe("CalloutMessage", function()
                 CreateLabel = function()
                     local label = FakeLabel()
                     labels[#labels + 1] = label
-                    if #labels % 2 == 1 then
+                    -- First pair is the primary slot; later rows are secondary.
+                    if not messageLabel then
                         messageLabel = label
-                    else
+                    elseif not timerLabel then
                         timerLabel = label
                     end
                     return label
@@ -404,6 +405,24 @@ describe("CalloutMessage", function()
         assert.is_true(registered.global)
     end)
 
+    it("Bind paints keyed entries as a stack", function()
+        Timer.Advance(10)
+        local bound = ns.CalloutMessage.Bind(BindConfig({
+            getEntries = function()
+                return {
+                    { key = "soon", text = "Soon", expiresAt = 15, appendTimer = true },
+                    { key = "later", text = "Later", expiresAt = 22, appendTimer = true },
+                }
+            end,
+        }))
+        bound.Update()
+        assert.equals("Soon", labels[1].text)
+        assert.equals("Later", labels[3].text)
+        bound.Update()
+        assert.equals("Soon", labels[1].text)
+        assert.equals("Later", labels[3].text)
+    end)
+
     it("Bind paints from the logic expiry time", function()
         Timer.Advance(10)
         local bound = ns.CalloutMessage.Bind(BindConfig({
@@ -512,5 +531,63 @@ describe("CalloutMessage", function()
         text, expiresAt = nil, nil
         bound.Update()
         assert.is_false(bound.Ensure().shown)
+    end)
+
+    it("stacks a later keyed callout under the sooner primary", function()
+        local frame = NewCallout()
+        frame:SetMessage("Soon", { key = "a", duration = 5, appendTimer = true })
+        frame:SetMessage("Later", { key = "b", duration = 12, appendTimer = true })
+        assert.is_true(frame.shown)
+        assert.equals("Soon", labels[1].text)
+        assert.equals("5.0", labels[2].text)
+        assert.equals("Later", labels[3].text)
+        assert.equals("12", labels[4].text)
+    end)
+
+    it("promotes an earlier keyed callout into the primary slot", function()
+        local frame = NewCallout()
+        frame:SetMessage("Later", { key = "b", duration = 12, appendTimer = true })
+        frame:SetMessage("Soon", { key = "a", duration = 4, appendTimer = true })
+        assert.equals("Soon", labels[1].text)
+        assert.equals("Later", labels[3].text)
+    end)
+
+    it("promotes the next callout when the primary expires", function()
+        local frame = NewCallout()
+        frame:SetMessage("Soon", { key = "a", duration = 2, appendTimer = true })
+        frame:SetMessage("Later", { key = "b", duration = 10, appendTimer = true })
+        Timer.Advance(2)
+        assert.is_true(frame.shown)
+        assert.equals("Later", labels[1].text)
+    end)
+
+    it("replaces the whole stack when SetMessage has no key", function()
+        local frame = NewCallout()
+        frame:SetMessage("A", { key = "a", duration = 5 })
+        frame:SetMessage("B", { key = "b", duration = 8 })
+        frame:SetMessage("Only")
+        assert.equals("Only", labels[1].text)
+        Timer.Advance(10)
+        assert.is_false(frame.shown)
+    end)
+
+    it("clears a single keyed callout without dropping the rest", function()
+        local frame = NewCallout()
+        frame:SetMessage("A", { key = "a", duration = 5 })
+        frame:SetMessage("B", { key = "b", duration = 8 })
+        frame:Clear("a")
+        assert.is_true(frame.shown)
+        assert.equals("B", labels[1].text)
+        frame:Clear()
+        assert.is_false(frame.shown)
+    end)
+
+    it("upserts a keyed callout without dropping others", function()
+        local frame = NewCallout()
+        frame:SetMessage("A", { key = "a", duration = 5, appendTimer = true })
+        frame:SetMessage("B", { key = "b", duration = 8, appendTimer = true })
+        frame:SetMessage("A2", { key = "a", duration = 5, appendTimer = true })
+        assert.equals("A2", labels[1].text)
+        assert.equals("B", labels[3].text)
     end)
 end)

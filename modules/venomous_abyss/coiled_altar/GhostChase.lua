@@ -109,6 +109,7 @@ local function OnEncounterWarning(warningInfo, schedule, used)
     HidePresented()
     presented = CalloutManager.Show({
         source = CALLOUT_SOURCE,
+        key = CALLOUT_SOURCE,
         text = L.COILED_ALTAR_GHOST_CHASE_CALLOUT,
         duration = CALLOUT_DURATION,
         appendTimer = true,

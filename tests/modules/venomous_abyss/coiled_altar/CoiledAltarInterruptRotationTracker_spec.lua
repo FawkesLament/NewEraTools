@@ -85,6 +85,39 @@ describe("CoiledAltar InterruptRotationTracker", function()
             self.alpha = alpha
         end
         function frame:EnableMouse() end
+        function frame:SetAllPoints() end
+        function frame:GetFrameLevel()
+            return self.frameLevel or 10
+        end
+        function frame:SetFrameLevel(level)
+            self.frameLevel = level
+        end
+        function frame:CreateAnimationGroup()
+            local group = { playing = false, animations = {} }
+            function group:SetLooping(mode)
+                self.looping = mode
+            end
+            function group:CreateAnimation()
+                local anim = {}
+                function anim:SetTarget() end
+                function anim:SetFromAlpha() end
+                function anim:SetToAlpha() end
+                function anim:SetDuration() end
+                function anim:SetSmoothing() end
+                self.animations[#self.animations + 1] = anim
+                return anim
+            end
+            function group:Play()
+                self.playing = true
+            end
+            function group:Stop()
+                self.playing = false
+            end
+            function group:IsPlaying()
+                return self.playing == true
+            end
+            return group
+        end
         function frame:SetHeight(height)
             self.height = height
         end
@@ -282,6 +315,8 @@ describe("CoiledAltar InterruptRotationTracker", function()
             completed = 0,
             myIndices = { 3 },
             label = L.COILED_ALTAR_INTERRUPT_STATUS_TITLE,
+            currentAssignee = "Player",
+            currentAssigneeClass = "DRUID",
         }
     end
 
@@ -292,7 +327,7 @@ describe("CoiledAltar InterruptRotationTracker", function()
         local def = registered[binding.LAYOUT_ID]
         assert.equals("CoiledAltar:interrupt", binding.LAYOUT_ID)
         assert.is_false(def.global)
-        assert.equals(L.COILED_ALTAR_INTERRUPT_STATUS_TITLE, def.label)
+        assert.equals(L.INTERRUPT_CHAIN_HUD_PREVIEW_LABEL, def.label)
         assert.is_true(def.isEnabled())
         assert.is_false(hud.shown)
         assert.same(Module:GetInterruptRotationTrackerPosition(), hud.position)

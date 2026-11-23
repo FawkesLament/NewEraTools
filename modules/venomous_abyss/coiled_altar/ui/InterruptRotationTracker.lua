@@ -36,7 +36,7 @@ end
 
 ---@return InterruptChainHUDState
 local function PreviewState()
-    return HudState({
+    local state = HudState({
         chainId = Internals.InterruptAssignments.MELEE,
         indices = { PREVIEW_INDEX },
         index = PREVIEW_INDEX,
@@ -45,13 +45,17 @@ local function PreviewState()
         chainLength = PREVIEW_CHAIN_LENGTH,
         casting = false,
     })
+    local name, classFile = ns.InterruptRotationTracker.PreviewAssignee()
+    state.currentAssignee = name
+    state.currentAssigneeClass = classFile
+    return state
 end
 
 local InterruptRotationTracker = ns.InterruptRotationTracker.Bind({
     layoutId = "CoiledAltar:interrupt",
     name = ns.ADDON_NAME .. "CoiledAltarInterruptRotationTracker",
     backupName = ns.ADDON_NAME .. "CoiledAltarInterruptRotationTrackerBackup",
-    label = L.COILED_ALTAR_INTERRUPT_STATUS_TITLE,
+    label = L.INTERRUPT_CHAIN_HUD_PREVIEW_LABEL,
     isEnabled = function()
         return CoiledAltar:IsInterruptReminderEnabled()
     end,

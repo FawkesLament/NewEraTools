@@ -97,6 +97,7 @@ local function ShowReminder(kind, deadline)
     presentedKind = kind
     presented = CalloutManager.Show({
         source = CALLOUT_SOURCE,
+        key = CALLOUT_SOURCE,
         text = L.COILED_ALTAR_SOAK_CALLOUT,
         expiresAt = deadline,
         appendTimer = true,

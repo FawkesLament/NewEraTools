@@ -87,6 +87,39 @@ describe("TwinFangs InterruptRotationTracker", function()
             self.alpha = alpha
         end
         function frame:EnableMouse() end
+        function frame:SetAllPoints() end
+        function frame:GetFrameLevel()
+            return self.frameLevel or 10
+        end
+        function frame:SetFrameLevel(level)
+            self.frameLevel = level
+        end
+        function frame:CreateAnimationGroup()
+            local group = { playing = false, animations = {} }
+            function group:SetLooping(mode)
+                self.looping = mode
+            end
+            function group:CreateAnimation()
+                local anim = {}
+                function anim:SetTarget() end
+                function anim:SetFromAlpha() end
+                function anim:SetToAlpha() end
+                function anim:SetDuration() end
+                function anim:SetSmoothing() end
+                self.animations[#self.animations + 1] = anim
+                return anim
+            end
+            function group:Play()
+                self.playing = true
+            end
+            function group:Stop()
+                self.playing = false
+            end
+            function group:IsPlaying()
+                return self.playing == true
+            end
+            return group
+        end
         function frame:SetHeight(height)
             self.height = height
         end
@@ -296,19 +329,15 @@ describe("TwinFangs InterruptRotationTracker", function()
     end
 
     local function PreviewState()
-        local state = {
+        return {
             total = 5,
             completed = 0,
             myIndices = { 3 },
             label = L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT,
             theme = "cyan",
+            currentAssignee = "Player",
+            currentAssigneeClass = "DRUID",
         }
-        local players = Module.db.interruptReminder.chain.front_left.players
-        local name = players and players[1] and players[1].name
-        if type(name) == "string" then
-            state.currentAssignee = name:match("^([^-]+)") or name
-        end
-        return state
     end
 
     it("creates one instance, registers it, and stays hidden in normal play", function()
