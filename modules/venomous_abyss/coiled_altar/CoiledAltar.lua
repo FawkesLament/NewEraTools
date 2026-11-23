@@ -66,7 +66,7 @@ local SIDE_BOTTOM = "bottom"
 local CoiledAltar = ns.Modules.New("CoiledAltar", {
     defaults = {
         mechanicReminder = {
-            -- When true, the interrupt callout and status HUD are shown.
+            -- When true, the interrupt callout and rotation tracker are shown.
             interrupt = true,
             -- When true, a matched ENCOUNTER_WARNING shows the ghost-chase Callout.
             ghostChase = false,

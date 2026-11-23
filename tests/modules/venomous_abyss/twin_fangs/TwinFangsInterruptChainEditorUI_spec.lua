@@ -406,6 +406,8 @@ describe("TwinFangs interrupt chain editor UI", function()
         InterruptChainHelper.LoadLabels(ns)
         Preview = InterruptChainHelper.LoadPreview(ns)
         StubUi(ns)
+        assert(loadfile("ui/InterruptChainHUD.lua"))(Loader.ADDON_NAME, ns)
+        assert(loadfile("ui/InterruptRotationTracker.lua"))(Loader.ADDON_NAME, ns)
         assert(loadfile(EDITOR_UI_PATH))(Loader.ADDON_NAME, ns)
         Editor = ns.Modules.Internals("TwinFangs").InterruptChainEditor
     end)

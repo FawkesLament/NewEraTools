@@ -13,6 +13,25 @@ local function ShortName(name)
     return name:match("^([^-]+)") or name
 end
 
+local REGION_THEMES = {
+    [Chain.FRONT_LEFT] = "cyan",
+    [Chain.FRONT_RIGHT] = "blue",
+    [Chain.BACK_LEFT] = "violet",
+    [Chain.BACK_RIGHT] = "amber",
+}
+
+---@param regionId string|nil
+---@return InterruptChainHUDTheme
+function Labels.RegionTheme(regionId)
+    return REGION_THEMES[regionId] or "cyan"
+end
+
+---@param regionId string|nil
+---@return { r: number, g: number, b: number }
+function Labels.RegionAccent(regionId)
+    return ns.InterruptRotationTracker.ThemeColor(Labels.RegionTheme(regionId))
+end
+
 ---@return string
 function Labels.RegionLabel(regionId)
     if regionId == Chain.FRONT_LEFT then

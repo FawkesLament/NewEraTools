@@ -12,36 +12,84 @@ local function AssignmentIndices(snapshot)
     local last = snapshot.indexEnd or snapshot.index
     local indices = {}
     for index = first, last do
-        indices[#indices + 1] = index
+        if index >= 1 then
+            indices[#indices + 1] = index
+        end
     end
     return indices
 end
 
+---@param name string|nil
+---@return string|nil
+local function ShortName(name)
+    if type(name) ~= "string" or name == "" then
+        return nil
+    end
+    return name:match("^([^-]+)") or name
+end
+
+---@param snapshot TwinFangsInterruptStatus
+---@return string|nil
+local function AssigneeName(snapshot)
+    local chain = TwinFangs.db and TwinFangs.db.interruptReminder and TwinFangs.db.interruptReminder.chain
+    local region = chain and chain[snapshot.region]
+    if type(region) ~= "table" then
+        return nil
+    end
+    local currentIndex = snapshot.interruptCount + 1
+    local players = region.players
+    if type(players) == "table" and players[currentIndex] then
+        return ShortName(players[currentIndex].name)
+    end
+    local backup = region.backup
+    if currentIndex > snapshot.chainLength then
+        if type(backup) == "table" then
+            return ShortName(backup.name)
+        end
+        if type(backup) == "string" then
+            return ShortName(backup)
+        end
+    end
+    return nil
+end
+
 ---@param snapshot TwinFangsInterruptStatus|nil
 ---@param isBackup boolean|nil
----@return StatusHUDState|nil
+---@return InterruptChainHUDState|nil
 local function HudState(snapshot, isBackup)
     if not snapshot then
         return nil
     end
-    local region = Labels.RegionLabel(snapshot.region)
-    local title = region
-    if not isBackup then
-        title = L.TWIN_FANGS_INTERRUPT_STATUS_REGION_ROLE:format(region, L.TWIN_FANGS_INTERRUPT_STATUS_PRIMARY)
+    local total = snapshot.chainLength
+    if total > 6 then
+        total = 6
+    elseif total < 1 then
+        total = 1
     end
-    local detail
+    local completed = snapshot.interruptCount
+    if completed < 0 then
+        completed = 0
+    elseif completed > total then
+        completed = total
+    end
+    local myIndices
     if isBackup then
-        detail = L.TWIN_FANGS_INTERRUPT_STATUS_BACKUP
+        if snapshot.interruptCount >= snapshot.chainLength then
+            completed = math.max(total - 1, 0)
+            myIndices = { total }
+        else
+            myIndices = {}
+        end
     else
-        detail = ns.InterruptRotationTracker.FormatTask(AssignmentIndices(snapshot))
+        myIndices = AssignmentIndices(snapshot)
     end
     return {
-        title = title,
-        text = L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(snapshot.interruptCount + 1),
-        detail = detail,
-        progress = snapshot.interruptCount + 1,
-        maxProgress = snapshot.chainLength,
-        severity = ns.StatusHUD.SEVERITY_NORMAL,
+        total = total,
+        completed = completed,
+        myIndices = myIndices,
+        label = isBackup and L.TWIN_FANGS_INTERRUPT_STATUS_BACKUP or Labels.RegionLabel(snapshot.region),
+        currentAssignee = AssigneeName(snapshot),
+        theme = Labels.RegionTheme(snapshot.region),
     }
 end
 
@@ -50,8 +98,6 @@ local InterruptRotationTracker = ns.InterruptRotationTracker.Bind({
     name = ns.ADDON_NAME .. "TwinFangsInterruptRotationTracker",
     backupName = ns.ADDON_NAME .. "TwinFangsInterruptRotationTrackerBackup",
     label = L.TWIN_FANGS_INTERRUPT_STATUS_TITLE,
-    tone = ns.StatusHUD.TONE_EMPHASIS,
-    backupTone = ns.StatusHUD.TONE_STANDBY,
     -- Shared Common UI element. Combat visibility is assignment-gated.
     global = true,
     isEnabled = function()

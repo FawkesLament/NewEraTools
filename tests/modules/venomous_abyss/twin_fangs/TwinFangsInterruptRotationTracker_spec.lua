@@ -1,7 +1,7 @@
 local Loader = require("helpers.loader")
 
-local STATUS_HUD_PATH = "ui/StatusHUD.lua"
 local INTERRUPT_CHAIN_VIEW_PATH = "ui/InterruptChainView.lua"
+local SHARED_INTERRUPT_CHAIN_HUD_PATH = "ui/InterruptChainHUD.lua"
 local SHARED_INTERRUPT_ROTATION_TRACKER_PATH = "ui/InterruptRotationTracker.lua"
 local LABELS_PATH = "modules/venomous_abyss/twin_fangs/ui/interrupt_chain/Labels.lua"
 local INTERRUPT_ROTATION_TRACKER_PATH = "modules/venomous_abyss/twin_fangs/ui/InterruptRotationTracker.lua"
@@ -12,12 +12,17 @@ describe("TwinFangs InterruptRotationTracker", function()
     local registered
     local scopes
     local editing
+    local activeScopeId
 
     local function FakeLabel()
         local label = { shown = true }
         function label:SetJustifyH() end
         function label:SetWordWrap() end
         function label:SetPoint() end
+        function label:ClearAllPoints() end
+        function label:SetFont() end
+        function label:SetShadowOffset() end
+        function label:SetShadowColor() end
         function label:SetText(text)
             self.text = text
         end
@@ -46,7 +51,14 @@ describe("TwinFangs InterruptRotationTracker", function()
             textures = {},
             width = 0,
             height = 0,
+            scale = 1,
         }
+        function frame:SetScale(scale)
+            self.scale = scale
+        end
+        function frame:GetScale()
+            return self.scale
+        end
         function frame:SetFrameStrata() end
         function frame:SetToplevel() end
         function frame:SetClampedToScreen() end
@@ -70,6 +82,20 @@ describe("TwinFangs InterruptRotationTracker", function()
             return self.height
         end
         function frame:SetBackdropBorderColor() end
+        function frame:SetBackdropColor() end
+        function frame:SetAlpha(alpha)
+            self.alpha = alpha
+        end
+        function frame:EnableMouse() end
+        function frame:SetHeight(height)
+            self.height = height
+        end
+        function frame:SetParent(parent)
+            self.parent = parent
+        end
+        function frame:SetScript(name, handler)
+            self.scripts[name] = handler
+        end
         function frame:CreateFontString()
             local label = FakeLabel()
             self.fontStrings[#self.fontStrings + 1] = label
@@ -83,6 +109,11 @@ describe("TwinFangs InterruptRotationTracker", function()
             function texture:SetPoint() end
             function texture:SetSize() end
             function texture:SetWidth() end
+            function texture:SetHeight() end
+            function texture:SetAllPoints() end
+            function texture:SetGradient() end
+            function texture:SetColorTexture() end
+            function texture:SetAlpha() end
             function texture:Show()
                 self.shown = true
             end
@@ -112,6 +143,7 @@ describe("TwinFangs InterruptRotationTracker", function()
         registered = {}
         scopes = {}
         editing = {}
+        activeScopeId = nil
         namespace.Widgets = {
             UnpackColor = function(color)
                 return color.r, color.g, color.b, color.a
@@ -146,7 +178,11 @@ describe("TwinFangs InterruptRotationTracker", function()
             RegisterScope = function(def)
                 scopes[def.id] = def
             end,
+            GetActiveScopeId = function()
+                return activeScopeId
+            end,
             BeginScope = function(scopeId)
+                activeScopeId = scopeId
                 if scopeId == namespace.LayoutEditor.COMMON_SCOPE_ID then
                     for _, def in pairs(registered) do
                         if def.global and def.isEnabled() then
@@ -173,6 +209,7 @@ describe("TwinFangs InterruptRotationTracker", function()
                 return true
             end,
             End = function()
+                activeScopeId = nil
                 for id, def in pairs(registered) do
                     if editing[id] then
                         editing[id] = nil
@@ -189,8 +226,8 @@ describe("TwinFangs InterruptRotationTracker", function()
         CreateFrame = function()
             return FakeFrame()
         end
-        assert(loadfile(STATUS_HUD_PATH))(Loader.ADDON_NAME, namespace)
         assert(loadfile(INTERRUPT_CHAIN_VIEW_PATH))(Loader.ADDON_NAME, namespace)
+        assert(loadfile(SHARED_INTERRUPT_CHAIN_HUD_PATH))(Loader.ADDON_NAME, namespace)
         assert(loadfile(SHARED_INTERRUPT_ROTATION_TRACKER_PATH))(Loader.ADDON_NAME, namespace)
         assert(loadfile(LABELS_PATH))(Loader.ADDON_NAME, namespace)
         assert(loadfile(INTERRUPT_ROTATION_TRACKER_PATH))(Loader.ADDON_NAME, namespace)
@@ -258,26 +295,20 @@ describe("TwinFangs InterruptRotationTracker", function()
         return ns.Modules.Internals("TwinFangs").InterruptRotationTrackerUI
     end
 
-    local function Task(...)
-        return ns.InterruptRotationTracker.FormatTask({ ... })
-    end
-
     local function PreviewState()
-        return {
-            title = L.TWIN_FANGS_INTERRUPT_STATUS_REGION_ROLE:format(
-                L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT,
-                L.TWIN_FANGS_INTERRUPT_STATUS_PRIMARY
-            ),
-            text = L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1),
-            detail = Task(3),
-            progress = 1,
-            maxProgress = 5,
-            severity = ns.StatusHUD.SEVERITY_NORMAL,
+        local state = {
+            total = 5,
+            completed = 0,
+            myIndices = { 3 },
+            label = L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT,
+            theme = "cyan",
         }
-    end
-
-    local function PrimaryTitle(region)
-        return L.TWIN_FANGS_INTERRUPT_STATUS_REGION_ROLE:format(region, L.TWIN_FANGS_INTERRUPT_STATUS_PRIMARY)
+        local players = Module.db.interruptReminder.chain.front_left.players
+        local name = players and players[1] and players[1].name
+        if type(name) == "string" then
+            state.currentAssignee = name:match("^([^-]+)") or name
+        end
+        return state
     end
 
     it("creates one instance, registers it, and stays hidden in normal play", function()
@@ -293,7 +324,7 @@ describe("TwinFangs InterruptRotationTracker", function()
         assert.same(Module:GetInterruptRotationTrackerPosition(), hud.position)
     end)
 
-    it("supplies the mock interrupt preview in Common UI and Twin Fangs Edit Mode", function()
+    it("uses the shared HUD preview in Common UI and the Twin Fangs mock in Twin Fangs Edit Mode", function()
         LoadPanel()
         local binding = InterruptRotationTracker()
         local hud = binding.Ensure()
@@ -303,7 +334,7 @@ describe("TwinFangs InterruptRotationTracker", function()
 
         ns.LayoutEditor.BeginScope("common")
         assert.is_true(hud.shown)
-        assert.same(PreviewState(), hud:GetState())
+        assert.same(ns.InterruptRotationTracker.PreviewState(), hud:GetState())
 
         ns.LayoutEditor.BeginScope("twin_fangs")
         assert.is_false(Module:HasPrimaryInterruptAssignment())
@@ -384,19 +415,19 @@ describe("TwinFangs InterruptRotationTracker", function()
         local hud = binding.Ensure()
         assert.equals(hud, binding.Ensure())
         assert.is_true(hud.shown)
-        assert.equals(PrimaryTitle(L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT), hud:GetState().title)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1), hud:GetState().text)
-        assert.equals(Task(3), hud:GetState().detail)
-        assert.equals(1, hud:GetState().progress)
-        assert.equals(3, hud:GetState().maxProgress)
+        assert.equals(L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT, hud:GetState().label)
+        assert.equals("cyan", hud:GetState().theme)
+        assert.same({ 3 }, hud:GetState().myIndices)
+        assert.equals(0, hud:GetState().completed)
+        assert.equals(3, hud:GetState().total)
+        assert.equals("A", hud:GetState().currentAssignee)
 
         ns.Api.GameEvents.Fire("CHAT_MSG_PARTY")
         ns.Api.GameEvents.Fire("CHAT_MSG_PARTY")
         assert.equals(hud, binding.Ensure())
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(3), hud:GetState().text)
-        assert.equals(Task(3), hud:GetState().detail)
-        assert.equals(3, hud:GetState().progress)
-        assert.equals(3, hud:GetState().maxProgress)
+        assert.equals(2, hud:GetState().completed)
+        assert.equals(3, hud:GetState().total)
+        assert.equals("Player", hud:GetState().currentAssignee)
         assert.equals(2, Module:GetInterruptCount())
     end)
 
@@ -415,16 +446,15 @@ describe("TwinFangs InterruptRotationTracker", function()
         binding.Update()
         local hud = binding.Ensure()
         assert.is_true(hud.shown)
-        assert.equals(PrimaryTitle(L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT), hud:GetState().title)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1), hud:GetState().text)
-        assert.equals(Task(2), hud:GetState().detail)
-        assert.equals(1, hud:GetState().progress)
-        assert.equals(2, hud:GetState().maxProgress)
+        assert.equals(L.TWIN_FANGS_INTERRUPT_REGION_FRONT_LEFT, hud:GetState().label)
+        assert.same({ 2 }, hud:GetState().myIndices)
+        assert.equals(0, hud:GetState().completed)
+        assert.equals(2, hud:GetState().total)
+        assert.equals("A", hud:GetState().currentAssignee)
 
         ns.Api.GameEvents.Fire("CHAT_MSG_PARTY")
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), hud:GetState().text)
-        assert.equals(2, hud:GetState().progress)
-        assert.equals(2, hud:GetState().maxProgress)
+        assert.equals(1, hud:GetState().completed)
+        assert.equals(2, hud:GetState().total)
 
         Module:SetInterruptStatusTestMode(false)
         assert.is_false(hud.shown)
@@ -449,8 +479,8 @@ describe("TwinFangs InterruptRotationTracker", function()
         local binding = InterruptRotationTracker()
         binding.Update()
         local hud = binding.Ensure()
-        assert.equals(Task(2, 3, 4), hud:GetState().detail)
-        assert.equals(4, hud:GetState().maxProgress)
+        assert.same({ 2, 3, 4 }, hud:GetState().myIndices)
+        assert.equals(4, hud:GetState().total)
         Module:SetInterruptStatusTestMode(false)
     end)
 
@@ -472,7 +502,7 @@ describe("TwinFangs InterruptRotationTracker", function()
         assert.is_true(Module:IsInterruptStatusActive())
 
         def.onEditEnd()
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), hud:GetState().text)
+        assert.equals(1, hud:GetState().completed)
         assert.equals(1, Module:GetInterruptCount())
         assert.is_true(hud.shown)
     end)
@@ -495,15 +525,15 @@ describe("TwinFangs InterruptRotationTracker", function()
         assert.is_false(hud.shown)
         assert.is_true(backup.shown)
         assert.same(Module:GetInterruptRotationTrackerPosition(), backup.position)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_REGION_FRONT_RIGHT, backup:GetState().title)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1), backup:GetState().text)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_BACKUP, backup:GetState().detail)
-        assert.equals(1, backup:GetState().progress)
-        assert.equals(2, backup:GetState().maxProgress)
+        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_BACKUP, backup:GetState().label)
+        assert.equals(0, backup:GetState().completed)
+        assert.equals(2, backup:GetState().total)
+        assert.same({}, backup:GetState().myIndices)
+        assert.equals("A", backup:GetState().currentAssignee)
 
         ns.Api.GameEvents.Fire("CHAT_MSG_SAY", L.TWIN_FANGS_INTERRUPT_MACRO_BACKUP_REPORT)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), backup:GetState().text)
-        assert.equals(2, backup:GetState().progress)
+        assert.equals(1, backup:GetState().completed)
+        assert.equals("B", backup:GetState().currentAssignee)
         assert.equals(1, Module:GetBackupInterruptCount())
     end)
 
@@ -526,19 +556,19 @@ describe("TwinFangs InterruptRotationTracker", function()
         assert.is_true(hud.shown)
         assert.is_true(backup.shown)
         assert.equals(hud, backup.anchor[2])
-        assert.equals("TOP", backup.anchor[1])
-        assert.equals("BOTTOM", backup.anchor[3])
-        assert.equals(-ns.Assets.Spacing.SMALL, backup.anchor[5])
-        assert.equals(Task(1), hud:GetState().detail)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_BACKUP, backup:GetState().detail)
+        assert.equals("LEFT", backup.anchor[1])
+        assert.equals("RIGHT", backup.anchor[3])
+        assert.equals(ns.Assets.Spacing.SMALL, backup.anchor[4])
+        assert.same({ 1 }, hud:GetState().myIndices)
+        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_BACKUP, backup:GetState().label)
 
         ns.Api.GameEvents.Fire("CHAT_MSG_PARTY")
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), hud:GetState().text)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1), backup:GetState().text)
+        assert.equals(1, hud:GetState().completed)
+        assert.equals(0, backup:GetState().completed)
 
         ns.Api.GameEvents.Fire("CHAT_MSG_SAY", L.TWIN_FANGS_INTERRUPT_MACRO_BACKUP_REPORT)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), hud:GetState().text)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), backup:GetState().text)
+        assert.equals(1, hud:GetState().completed)
+        assert.same({ 1 }, backup:GetState().myIndices)
     end)
 
     it("paints backup progress in test mode from the backup zone channel", function()
@@ -555,12 +585,14 @@ describe("TwinFangs InterruptRotationTracker", function()
         binding.Update()
         local backup = binding.EnsureBackup()
         assert.is_true(backup.shown)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(1), backup:GetState().text)
+        assert.equals(0, backup:GetState().completed)
+        assert.equals(1, backup:GetState().total)
+        assert.same({}, backup:GetState().myIndices)
 
         ns.Api.GameEvents.Fire("CHAT_MSG_SAY", L.TWIN_FANGS_INTERRUPT_MACRO_BACKUP_REPORT)
-        assert.equals(L.TWIN_FANGS_INTERRUPT_STATUS_ROUND:format(2), backup:GetState().text)
-        assert.equals(1, backup:GetState().progress)
-        assert.equals(1, backup:GetState().maxProgress)
+        assert.equals(0, backup:GetState().completed)
+        assert.same({ 1 }, backup:GetState().myIndices)
+        assert.equals(1, backup:GetState().total)
 
         Module:SetInterruptStatusTestMode(false)
         assert.is_false(backup.shown)

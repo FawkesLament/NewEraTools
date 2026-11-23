@@ -17,13 +17,6 @@ local Preview = Internals.InterruptChainPreview
 
 local EMPTY_HEIGHT = 18
 
-local REGION_ACCENTS = {
-    [Chain.FRONT_LEFT] = { r = 0.31, g = 0.76, b = 0.71 },
-    [Chain.FRONT_RIGHT] = { r = 0.45, g = 0.62, b = 0.90 },
-    [Chain.BACK_LEFT] = { r = 0.62, g = 0.50, b = 0.86 },
-    [Chain.BACK_RIGHT] = { r = 0.95, g = 0.64, b = 0.27 },
-}
-
 local MemberView = {}
 Internals.InterruptChainMemberView = MemberView
 
@@ -67,7 +60,7 @@ end
 ---@param roster RaidMember[]
 ---@return InterruptChainViewChain
 local function ChainDisplay(assignment, playerName, roster)
-    local accent = REGION_ACCENTS[assignment.regionId] or Colors.ACCENT
+    local accent = Labels.RegionAccent(assignment.regionId)
     local entries = {}
     for _, block in ipairs(Chain.Blocks(assignment.players)) do
         local name = block.name

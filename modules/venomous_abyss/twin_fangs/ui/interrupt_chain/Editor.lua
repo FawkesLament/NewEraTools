@@ -30,13 +30,6 @@ local SEQUENCE_WIDTH = 56
 local COUNT_DROPDOWN_WIDTH = 54
 local SUMMARY_HEIGHT = LINE_HEIGHT
 
-local REGION_ACCENTS = {
-    [Chain.FRONT_LEFT] = { r = 0.31, g = 0.76, b = 0.71 },
-    [Chain.FRONT_RIGHT] = { r = 0.45, g = 0.62, b = 0.90 },
-    [Chain.BACK_LEFT] = { r = 0.62, g = 0.50, b = 0.86 },
-    [Chain.BACK_RIGHT] = { r = 0.95, g = 0.64, b = 0.27 },
-}
-
 local STATUS_COLORS = {
     error = Colors.ERROR,
     warning = Colors.WARNING,
@@ -186,7 +179,7 @@ local function BuildOverview(parent)
         card:SetAllPoints(cells[index])
         Widgets.ApplyBackdrop(card, Colors.SURFACE_RAISED, Colors.BORDER)
         Widgets.AddHoverHighlight(card)
-        AddAccentBar(card, REGION_ACCENTS[regionId])
+        AddAccentBar(card, Labels.RegionAccent(regionId))
         card:SetScript("OnClick", function()
             selectedRegion = regionId
             pendingAdd = nil
@@ -524,7 +517,7 @@ local function RefreshPlayerRows(editor)
             row.guid = entry.guid
             row.number:SetText(entry.sequence)
             local numberColor = entry.count > Preview.MIN_COUNT and Colors.TEXT_GOLD
-                or (REGION_ACCENTS[selectedRegion] or Colors.MENU_ACCENT)
+                or Labels.RegionAccent(selectedRegion)
             row.number:SetTextColor(Widgets.UnpackColor(numberColor))
             local member = Chain.GetMember(session, entry.player)
             row.name:SetText(Labels.DisplayName(session.roster, entry.player))

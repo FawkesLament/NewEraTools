@@ -9,30 +9,32 @@ local PREVIEW_ROUND = 1
 local PREVIEW_CHAIN_LENGTH = 6
 
 ---@param snapshot CoiledAltarInterruptStatus|nil
----@return StatusHUDState|nil
+---@return InterruptChainHUDState|nil
 local function HudState(snapshot)
     if not snapshot then
         return nil
     end
-    local title = L.COILED_ALTAR_INTERRUPT_STATUS_TITLE
-    local detail = ns.InterruptRotationTracker.FormatTask(snapshot.indices or { snapshot.index })
-    local text = L.COILED_ALTAR_INTERRUPT_STATUS_PENDING
-    local progress = 0
-    if not snapshot.pending then
-        text = L.COILED_ALTAR_INTERRUPT_STATUS_ROUND:format(snapshot.kicks + 1)
-        progress = snapshot.kicks + 1
+    local total = snapshot.chainLength
+    if total > 6 then
+        total = 6
+    elseif total < 1 then
+        total = 1
+    end
+    local completed = snapshot.kicks or 0
+    if snapshot.pending then
+        completed = 0
+    elseif completed > total then
+        completed = total
     end
     return {
-        title = title,
-        text = text,
-        detail = detail,
-        progress = progress,
-        maxProgress = snapshot.chainLength,
-        severity = ns.StatusHUD.SEVERITY_NORMAL,
+        total = total,
+        completed = completed,
+        myIndices = snapshot.indices or { snapshot.index },
+        label = L.COILED_ALTAR_INTERRUPT_STATUS_TITLE,
     }
 end
 
----@return StatusHUDState
+---@return InterruptChainHUDState
 local function PreviewState()
     return HudState({
         chainId = Internals.InterruptAssignments.MELEE,
@@ -50,7 +52,6 @@ local InterruptRotationTracker = ns.InterruptRotationTracker.Bind({
     name = ns.ADDON_NAME .. "CoiledAltarInterruptRotationTracker",
     backupName = ns.ADDON_NAME .. "CoiledAltarInterruptRotationTrackerBackup",
     label = L.COILED_ALTAR_INTERRUPT_STATUS_TITLE,
-    tone = ns.StatusHUD.TONE_EMPHASIS,
     isEnabled = function()
         return CoiledAltar:IsInterruptReminderEnabled()
     end,

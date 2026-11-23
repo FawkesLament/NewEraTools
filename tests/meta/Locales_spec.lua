@@ -42,4 +42,24 @@ describe("Locales", function()
             end
         end
     end)
+
+    it("does not keep unused keys in the base locale", function()
+        local defined = {}
+        CollectKeys(Fs.ReadFile(BASE_LOCALE_PATH), "\nL%.([%a_][%w_]*)%s*=", defined)
+
+        local used = {}
+        for _, path in ipairs(Fs.ListFiles()) do
+            if path:find("%.lua$") and not path:find("^locales/") then
+                local source = Fs.ReadFile(path)
+                CollectKeys(source, "%f[%w_]L%.([%a_][%w_]*)", used)
+                CollectKeys(source, '%f[%w_]L%["([^"]+)"%]', used)
+                -- Dynamic lookups such as Schema.CHANNEL_LABELS → L[key].
+                CollectKeys(source, '"([%a_][%w_]*)"', used)
+            end
+        end
+
+        for key in pairs(defined) do
+            assert(used[key], "unused locale key " .. key)
+        end
+    end)
 end)

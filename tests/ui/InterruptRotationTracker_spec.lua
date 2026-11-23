@@ -1,18 +1,32 @@
 describe("InterruptRotationTracker", function()
-    local ns, originalCreateFrame, registered
+    local ns, originalCreateFrame, registered, scaleListeners, panelScale, createdFrames
 
     local function FakeLabel()
         local label = { shown = true }
         function label:SetJustifyH() end
         function label:SetWordWrap() end
         function label:SetPoint() end
+        function label:ClearAllPoints() end
+        function label:SetFont(path, size, flags)
+            self.fontPath = path
+            self.fontSize = size
+            self.fontFlags = flags
+        end
+        function label:SetShadowOffset(x, y)
+            self.shadowOffset = { x, y }
+        end
+        function label:SetShadowColor(r, g, b, a)
+            self.shadowColor = { r, g, b, a }
+        end
         function label:SetText(text)
             self.text = text
         end
         function label:GetText()
             return self.text
         end
-        function label:SetTextColor() end
+        function label:SetTextColor(r, g, b, a)
+            self.color = { r = r, g = g, b = b, a = a }
+        end
         function label:Show()
             self.shown = true
         end
@@ -34,7 +48,14 @@ describe("InterruptRotationTracker", function()
             textures = {},
             width = 0,
             height = 0,
+            scale = 1,
         }
+        function frame:SetScale(scale)
+            self.scale = scale
+        end
+        function frame:GetScale()
+            return self.scale
+        end
         function frame:SetFrameStrata() end
         function frame:SetToplevel() end
         function frame:SetClampedToScreen() end
@@ -58,6 +79,20 @@ describe("InterruptRotationTracker", function()
             return self.height
         end
         function frame:SetBackdropBorderColor() end
+        function frame:SetBackdropColor() end
+        function frame:SetAlpha(alpha)
+            self.alpha = alpha
+        end
+        function frame:EnableMouse() end
+        function frame:SetHeight(height)
+            self.height = height
+        end
+        function frame:SetParent(parent)
+            self.parent = parent
+        end
+        function frame:SetScript(name, handler)
+            self.scripts[name] = handler
+        end
         function frame:CreateFontString()
             local label = FakeLabel()
             self.fontStrings[#self.fontStrings + 1] = label
@@ -66,11 +101,27 @@ describe("InterruptRotationTracker", function()
         function frame:CreateTexture()
             local texture = { shown = true }
             function texture:SetTexture() end
-            function texture:SetVertexColor() end
+            function texture:SetVertexColor(r, g, b, a)
+                self.color = { r = r, g = g, b = b, a = a }
+            end
             function texture:ClearAllPoints() end
             function texture:SetPoint() end
-            function texture:SetSize() end
-            function texture:SetWidth() end
+            function texture:SetSize(width, height)
+                self.width = width
+                self.height = height
+            end
+            function texture:SetWidth(width)
+                self.width = width
+            end
+            function texture:SetHeight(height)
+                self.height = height
+            end
+            function texture:SetAllPoints() end
+            function texture:SetGradient() end
+            function texture:SetColorTexture() end
+            function texture:SetAlpha(alpha)
+                self.alpha = alpha
+            end
             function texture:Show()
                 self.shown = true
             end
@@ -93,17 +144,17 @@ describe("InterruptRotationTracker", function()
             return self.shown
         end
         function frame:Raise() end
+        createdFrames[#createdFrames + 1] = frame
         return frame
     end
 
     local function SampleState(overrides)
         local state = {
-            title = "Primary",
-            text = "Round 1",
-            detail = "Task 1",
-            progress = 1,
-            maxProgress = 3,
-            severity = "normal",
+            total = 3,
+            completed = 0,
+            myIndices = {},
+            label = "Primary",
+            currentAssignee = "Task 1",
         }
         for key, value in pairs(overrides or {}) do
             state[key] = value
@@ -113,8 +164,8 @@ describe("InterruptRotationTracker", function()
 
     local function BackupState()
         return SampleState({
-            title = "Backup",
-            detail = "Standby",
+            label = "Backup",
+            currentAssignee = "Standby",
         })
     end
 
@@ -152,29 +203,78 @@ describe("InterruptRotationTracker", function()
     before_each(function()
         originalCreateFrame = CreateFrame
         registered = nil
+        scaleListeners = {}
+        panelScale = 1
+        createdFrames = {}
         ns = {
+            L = {
+                INTERRUPT_CHAIN_HUD_PREVIEW_LABEL = "预览",
+            },
+            Api = {
+                Player = {
+                    GetFullName = function()
+                        return "Fawkes-Realm"
+                    end,
+                    GetClassFile = function()
+                        return "MAGE"
+                    end,
+                },
+                Unit = {
+                    GetClassColor = function(classFile)
+                        if classFile == "MAGE" then
+                            return { r = 0.25, g = 0.78, b = 0.92, a = 1 }
+                        end
+                    end,
+                },
+            },
             Assets = {
-                Fonts = { STATUS_HUD_TITLE = "StatusHudTitle", STATUS_HUD_TEXT = "StatusHudText" },
+                Glyphs = {
+                    SORT_DESC = "▼",
+                },
+                Fonts = {
+                    STATUS_HUD_TITLE = "StatusHudTitle",
+                    SMALL_MUTED = "SmallMuted",
+                    TINY_MUTED = "TinyMuted",
+                    OVERLAY_DIGIT = "OverlayDigit",
+                    GLYPH = "Glyph",
+                },
+                FontStyles = {
+                    OverlayDigit = {
+                        path = "DAMAGE_TEXT_FONT",
+                        size = 22,
+                        flags = "OUTLINE",
+                    },
+                },
                 Textures = { WHITE = "white" },
                 Colors = {
+                    BG = { r = 0.07, g = 0.07, b = 0.09, a = 0.95 },
                     BG_TRANSLUCENT = { r = 0.07, g = 0.07, b = 0.09, a = 0.6 },
                     BORDER_SUBTLE = { r = 0.55, g = 0.58, b = 0.65, a = 0.55 },
                     BORDER_WARNING = { r = 0.90, g = 0.70, b = 0.25, a = 0.75 },
                     BORDER = { r = 0.18, g = 0.20, b = 0.23 },
+                    BLACK = { r = 0, g = 0, b = 0, a = 1 },
+                    WHITE = { r = 1, g = 1, b = 1, a = 1 },
+                    TRANSPARENT = { r = 0, g = 0, b = 0, a = 0 },
+                    MENU_CONTENT = { r = 0.09, g = 0.11, b = 0.14, a = 0.96 },
+                    FEATURE_CARD_BG = { r = 0.13, g = 0.15, b = 0.19, a = 1 },
+                    FEATURE_CARD_BORDER = { r = 0.22, g = 0.24, b = 0.28, a = 1 },
+                    MENU_DIVIDER = { r = 1, g = 1, b = 1, a = 0.06 },
+                    BORDER_FAINT = { r = 1, g = 1, b = 1, a = 0.08 },
+                    SURFACE = { r = 0.10, g = 0.11, b = 0.13 },
+                    SURFACE_RAISED = { r = 0.14, g = 0.15, b = 0.18 },
                     TEXT = { r = 0.90, g = 0.91, b = 0.92 },
                     TEXT_MUTED = { r = 0.55, g = 0.57, b = 0.60 },
                     TEXT_GOLD = { r = 0.93, g = 0.82, b = 0.48 },
+                    TEXT_PRIMARY = { r = 0.96, g = 0.97, b = 0.98 },
+                    TEXT_HEADING = { r = 0.88, g = 0.90, b = 0.94 },
+                    TEXT_BODY = { r = 0.68, g = 0.72, b = 0.78 },
+                    TEXT_ON_ACCENT = { r = 0.07, g = 0.07, b = 0.09 },
                     ACCENT = { r = 0.31, g = 0.77, b = 0.71 },
                     WARNING = { r = 0.95, g = 0.64, b = 0.27 },
+                    ERROR = { r = 0.90, g = 0.28, b = 0.30 },
                     STATUS_HUD_EMPHASIS_BORDER = { r = 0.31, g = 0.77, b = 0.71, a = 0.72 },
                     STATUS_HUD_REGION = { r = 0.89, g = 0.91, b = 0.94 },
                     STATUS_HUD_EMPHASIS_ROLE = { r = 0.53, g = 0.85, b = 1 },
-                    STATUS_HUD_STANDBY_ROLE = { r = 0.77, g = 0.68, b = 0.96 },
-                    STATUS_HUD_STANDBY = { r = 0.62, g = 0.50, b = 0.86 },
-                    STATUS_HUD_STANDBY_BORDER = { r = 0.62, g = 0.50, b = 0.86, a = 0.40 },
-                    STATUS_HUD_STANDBY_TEXT = { r = 0.78, g = 0.80, b = 0.84 },
-                    STATUS_HUD_STANDBY_EMPTY = { r = 0.22, g = 0.20, b = 0.28 },
-                    STATUS_HUD_STANDBY_BG = { r = 0.07, g = 0.07, b = 0.09, a = 0.48 },
                 },
                 Spacing = { TINY = 2, SMALL = 4, MEDIUM = 8 },
             },
@@ -203,6 +303,10 @@ describe("InterruptRotationTracker", function()
                 end,
             },
             LayoutEditor = {
+                COMMON_SCOPE_ID = "common",
+                GetActiveScopeId = function()
+                    return nil
+                end,
                 Register = function(def)
                     registered = def
                 end,
@@ -210,11 +314,19 @@ describe("InterruptRotationTracker", function()
                     frame.position = position
                 end,
             },
+            MainPanel = {
+                GetScale = function()
+                    return panelScale
+                end,
+                OnScaleChanged = function(callback)
+                    scaleListeners[#scaleListeners + 1] = callback
+                end,
+            },
         }
         CreateFrame = function()
             return FakeFrame()
         end
-        assert(loadfile("ui/StatusHUD.lua"))("NewEraTools", ns)
+        assert(loadfile("ui/InterruptChainHUD.lua"))("NewEraTools", ns)
         assert(loadfile("ui/InterruptRotationTracker.lua"))("NewEraTools", ns)
     end)
 
@@ -242,7 +354,7 @@ describe("InterruptRotationTracker", function()
         }))
     end)
 
-    it("stacks backup under a visible primary HUD", function()
+    it("places backup beside a visible primary HUD", function()
         local bound = ns.InterruptRotationTracker.Bind(BindConfig({
             getState = SampleState,
             getBackupState = BackupState,
@@ -253,10 +365,71 @@ describe("InterruptRotationTracker", function()
         assert.is_true(primary.shown)
         assert.is_true(backup.shown)
         assert.equals(primary, backup.anchor[2])
-        assert.equals("TOP", backup.anchor[1])
-        assert.equals("BOTTOM", backup.anchor[3])
-        assert.equals(-ns.Assets.Spacing.SMALL, backup.anchor[5])
-        assert.equals("Backup", backup:GetState().title)
+        assert.equals("LEFT", backup.anchor[1])
+        assert.equals("RIGHT", backup.anchor[3])
+        assert.equals(ns.Assets.Spacing.SMALL, backup.anchor[4])
+        assert.equals("Backup", backup:GetState().label)
+    end)
+
+    it("dims waiting cards and restores alpha on the player's turn", function()
+        local state = {
+            total = 6,
+            completed = 0,
+            myIndices = { 3 },
+        }
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = function()
+                return state
+            end,
+        }))
+        bound.Update()
+        local hud = bound.Ensure()
+        assert.equals(0.88, hud.alpha)
+
+        state.completed = 2
+        bound.Update()
+        assert.equals(1, hud.alpha)
+        assert.same({ 3 }, hud:GetState().myIndices)
+    end)
+
+    it("keeps done cards readable without crushing frame alpha", function()
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = function()
+                return {
+                    total = 4,
+                    completed = 1,
+                    myIndices = { 1 },
+                }
+            end,
+        }))
+        bound.Update()
+        assert.equals(0.82, bound.Ensure().alpha)
+    end)
+
+    it("attaches OnUpdate only while a cast is running", function()
+        local now = 10
+        GetTime = function()
+            return now
+        end
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = function()
+                return {
+                    total = 4,
+                    completed = 0,
+                    myIndices = { 1 },
+                    castSpellName = "Mind Flay",
+                    castStartTime = 10,
+                    castEndTime = 12,
+                }
+            end,
+        }))
+        bound.Update()
+        local hud = bound.Ensure()
+        assert.equals("function", type(hud.scripts.OnUpdate))
+        now = 12
+        hud.scripts.OnUpdate()
+        assert.is_nil(hud.scripts.OnUpdate)
+        GetTime = nil
     end)
 
     it("keeps backup at the saved point when primary is hidden", function()
@@ -287,5 +460,275 @@ describe("InterruptRotationTracker", function()
 
         registered.onEditEnd()
         assert.is_true(backup.shown)
+    end)
+
+    it("applies main-panel scale to primary and backup cards", function()
+        panelScale = 1.25
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = SampleState,
+            getBackupState = BackupState,
+        }))
+        bound.Update()
+        local primary = bound.Ensure()
+        local backup = bound.EnsureBackup()
+        assert.equals(1.25, primary:GetScale())
+        assert.equals(1.25, backup:GetScale())
+
+        for _, listener in ipairs(scaleListeners) do
+            listener(0.8)
+        end
+        assert.equals(0.8, primary:GetScale())
+        assert.equals(0.8, backup:GetScale())
+    end)
+
+    it("draws interrupt digits with the overlay damage font", function()
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = SampleState,
+        }))
+        bound.Update()
+        bound.Ensure()
+        local digitCount = 0
+        local digit
+        for _, frame in ipairs(createdFrames) do
+            for _, label in ipairs(frame.fontStrings) do
+                if label.fontPath == "DAMAGE_TEXT_FONT" then
+                    digitCount = digitCount + 1
+                    digit = label
+                end
+            end
+        end
+        assert.equals(6, digitCount)
+        assert.equals(14, digit.fontSize)
+        assert.equals("", digit.fontFlags)
+        assert.same({ 1, -1 }, digit.shadowOffset)
+    end)
+
+    local function FindLabelText(text)
+        for _, frame in ipairs(createdFrames) do
+            for _, label in ipairs(frame.fontStrings) do
+                if label.text == text then
+                    return label
+                end
+            end
+        end
+        return nil
+    end
+
+    it("uses the player's name and class color in Common UI preview", function()
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            global = true,
+            previewState = SampleState(),
+        }))
+        bound.Ensure()
+        ns.LayoutEditor.GetActiveScopeId = function()
+            return ns.LayoutEditor.COMMON_SCOPE_ID
+        end
+        registered.onEditBegin()
+        local state = bound.Ensure():GetState()
+        assert.same(ns.InterruptRotationTracker.PreviewState(), state)
+        assert.equals("Fawkes", state.currentAssignee)
+        assert.equals("MAGE", state.currentAssigneeClass)
+        local assignee = FindLabelText("Fawkes")
+        assert.equals(0.25, assignee.color.r)
+        assert.equals(0.78, assignee.color.g)
+        assert.equals(0.92, assignee.color.b)
+    end)
+
+    local function FindPlayhead()
+        for _, frame in ipairs(createdFrames) do
+            for _, texture in ipairs(frame.textures) do
+                if texture.width == 12 and texture.height == 2 then
+                    return texture
+                end
+            end
+        end
+        return nil
+    end
+
+    it("shows a playhead glyph above the current slot", function()
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = function()
+                return {
+                    total = 4,
+                    completed = 1,
+                    myIndices = { 4 },
+                    label = "左前",
+                }
+            end,
+        }))
+        bound.Update()
+        local pointer = FindPlayhead()
+        assert.equals(true, pointer.shown)
+    end)
+
+    it("hides the playhead when the chain is complete", function()
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = function()
+                return {
+                    total = 3,
+                    completed = 3,
+                    myIndices = { 1 },
+                }
+            end,
+        }))
+        bound.Update()
+        local pointer = FindPlayhead()
+        assert.equals(false, pointer.shown)
+    end)
+
+    it("uses the same waiting emphasis on every upcoming assigned slot", function()
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = function()
+                return {
+                    total = 6,
+                    completed = 0,
+                    myIndices = { 4, 5, 6 },
+                }
+            end,
+        }))
+        bound.Update()
+        local accent = ns.Assets.Colors.ACCENT
+        for _, slot in ipairs({ "4", "5", "6" }) do
+            local label = FindLabelText(slot)
+            assert.equals(accent.r, label.color.r)
+            assert.equals(accent.g, label.color.g)
+            assert.equals(accent.b, label.color.b)
+            assert.equals(0.85, label.color.a)
+        end
+    end)
+
+    it("upgrades only the next assigned slot when on deck", function()
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = function()
+                return {
+                    total = 6,
+                    completed = 2,
+                    myIndices = { 4, 5, 6 },
+                }
+            end,
+        }))
+        bound.Update()
+        local accent = ns.Assets.Colors.ACCENT
+        local primary = ns.Assets.Colors.TEXT_PRIMARY
+        assert.equals(primary.r, FindLabelText("4").color.r)
+        assert.equals(accent.r, FindLabelText("5").color.r)
+        assert.equals(0.85, FindLabelText("5").color.a)
+        assert.equals(accent.r, FindLabelText("6").color.r)
+    end)
+
+    local function FindWash()
+        for _, frame in ipairs(createdFrames) do
+            for _, texture in ipairs(frame.textures) do
+                if texture.width == 75 then
+                    return texture
+                end
+            end
+        end
+        return nil
+    end
+
+    local function FindAccentBar()
+        for _, frame in ipairs(createdFrames) do
+            for _, texture in ipairs(frame.textures) do
+                if texture.width == 3 then
+                    return texture
+                end
+            end
+        end
+        return nil
+    end
+
+    it("defaults ThemeColor to cyan ACCENT and reuses Twin Fangs region hues", function()
+        local Colors = ns.Assets.Colors
+        assert.equals(Colors.ACCENT, ns.InterruptRotationTracker.ThemeColor())
+        assert.equals(Colors.ACCENT, ns.InterruptRotationTracker.ThemeColor("cyan"))
+        assert.equals(Colors.WARNING, ns.InterruptRotationTracker.ThemeColor("amber"))
+        local blue = ns.InterruptRotationTracker.ThemeColor("blue")
+        assert.equals(0.45, blue.r)
+        assert.equals(0.62, blue.g)
+        assert.equals(0.90, blue.b)
+        local violet = ns.InterruptRotationTracker.ThemeColor("violet")
+        assert.equals(0.62, violet.r)
+        assert.equals(0.50, violet.g)
+        assert.equals(0.86, violet.b)
+        assert.equals(Colors.ACCENT, ns.InterruptRotationTracker.ThemeColor("unknown"))
+    end)
+
+    it("hides the wash on deck and uses the chain theme instead of warning amber", function()
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = function()
+                return {
+                    total = 4,
+                    completed = 1,
+                    myIndices = { 3 },
+                    theme = "cyan",
+                }
+            end,
+        }))
+        bound.Update()
+        local accent = ns.Assets.Colors.ACCENT
+        assert.equals(ns.Assets.Colors.TEXT_PRIMARY.r, FindLabelText("3").color.r)
+        assert.equals(1, FindAccentBar().alpha)
+        assert.equals(accent.r, FindAccentBar().color.r)
+        assert.equals(false, FindWash().shown)
+    end)
+
+    it("paints amber from quiet outline to solid keycap without using warning as on-deck identity", function()
+        local warning = ns.Assets.Colors.WARNING
+        local onAccent = ns.Assets.Colors.TEXT_ON_ACCENT
+        local primary = ns.Assets.Colors.TEXT_PRIMARY
+        local state = {
+            total = 4,
+            completed = 0,
+            myIndices = { 3 },
+            theme = "amber",
+        }
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = function()
+                return state
+            end,
+        }))
+        bound.Update()
+        assert.equals(warning.r, FindLabelText("3").color.r)
+        assert.equals(0.85, FindLabelText("3").color.a)
+        assert.equals(0, FindAccentBar().alpha)
+        assert.equals(false, FindWash().shown)
+
+        state.completed = 1
+        bound.Update()
+        assert.equals(primary.r, FindLabelText("3").color.r)
+        assert.equals(1, FindAccentBar().alpha)
+        assert.equals(warning.r, FindAccentBar().color.r)
+        assert.equals(false, FindWash().shown)
+
+        state.completed = 2
+        bound.Update()
+        local digit = FindLabelText("3")
+        assert.equals(onAccent.r, digit.color.r)
+        assert.same({ 0, 0 }, digit.shadowOffset)
+        assert.equals(warning.r, FindPlayhead().color.r)
+        assert.equals(true, FindWash().shown)
+        assert.equals("amber", bound.Ensure():GetState().theme)
+    end)
+
+    it("accepts an explicit accentColor over the theme preset", function()
+        local custom = { r = 0.2, g = 0.4, b = 0.8 }
+        local bound = ns.InterruptRotationTracker.Bind(BindConfig({
+            getState = function()
+                return {
+                    total = 3,
+                    completed = 0,
+                    myIndices = { 3 },
+                    theme = "amber",
+                    accentColor = custom,
+                }
+            end,
+        }))
+        bound.Update()
+        local digit = FindLabelText("3")
+        assert.equals(custom.r, digit.color.r)
+        assert.equals(custom.g, digit.color.g)
+        assert.equals(custom.b, digit.color.b)
+        assert.same(custom, bound.Ensure():GetState().accentColor)
     end)
 end)
