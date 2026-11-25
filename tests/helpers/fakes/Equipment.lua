@@ -106,6 +106,10 @@ return function()
         return nil, "pending"
     end
 
+    function Equipment.GetItemQualityHex()
+        return nil
+    end
+
     function Equipment.RequestItem(itemID)
         table.insert(Equipment.requestItemCalls, itemID)
     end

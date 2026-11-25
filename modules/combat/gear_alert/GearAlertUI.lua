@@ -1,7 +1,6 @@
 local _, ns = ...
 local L = ns.L
 local Assets = ns.Assets
-local Color = ns.Color
 local ActionRow = ns.ActionRow
 local Layout = ns.Layout
 local Widgets = ns.Widgets
@@ -10,6 +9,7 @@ local Colors = Assets.Colors
 local Fonts = Assets.Fonts
 local Spacing = Assets.Spacing
 
+local Equipment = ns.Api.Equipment
 local GearAlert = ns.Modules.Get("GearAlert")
 
 local TYPE_MISSING_TIER_SET = "MISSING_TIER_SET"
@@ -17,11 +17,22 @@ local TYPE_LOW_LEVEL_ITEM = "LOW_LEVEL_ITEM"
 
 ---@type AlertToast|nil
 local toast
+---@type GearAlertPayload[]|nil
+local lastFindings
 
----@param text string
+---@param link string
 ---@return string
-local function Emphasize(text)
-    return Color.Wrap(Colors.WARNING, text)
+local function ColoredItemName(link)
+    local info = Equipment.GetItemInfo(link)
+    if type(info) ~= "table" or type(info.name) ~= "string" or info.name == "" then
+        return link
+    end
+    local name = "[" .. info.name .. "]"
+    local hex = Equipment.GetItemQualityHex(info.quality)
+    if type(hex) == "string" and hex ~= "" then
+        return hex .. name .. "|r"
+    end
+    return name
 end
 
 ---@param finding GearAlertPayload
@@ -30,20 +41,20 @@ local function FormatFinding(finding)
     assert(type(finding) == "table", "GearAlert requires a finding")
     if finding.type == TYPE_LOW_LEVEL_ITEM then
         assert(type(finding.itemLevel) == "number", "Bad item level")
-        assert(type(finding.averageItemLevel) == "number", "Bad average item level")
+        assert(type(finding.slotName) == "string" and finding.slotName ~= "", "Bad slot name")
         if finding.itemLevel <= 0 then
-            assert(type(finding.slotName) == "string" and finding.slotName ~= "", "Bad slot name")
             return {
-                left = L.GEAR_ALERT_EMPTY_SLOT,
-                right = Emphasize(finding.slotName),
-                color = Colors.WARNING,
+                label = finding.slotName,
+                status = L.GEAR_ALERT_EMPTY_SLOT,
+                severity = "danger",
             }
         end
         assert(type(finding.itemLink) == "string" and finding.itemLink ~= "", "Bad item link")
         return {
-            left = L.GEAR_ALERT_LOW_LEVEL_ITEM,
-            right = finding.itemLink,
-            color = Colors.WARNING,
+            label = finding.slotName,
+            detail = ColoredItemName(finding.itemLink),
+            status = L.GEAR_ALERT_ITEM_LEVEL .. " " .. math.floor(finding.itemLevel),
+            severity = "danger",
         }
     end
     assert(finding.type == TYPE_MISSING_TIER_SET, "Unknown gear alert type")
@@ -51,11 +62,38 @@ local function FormatFinding(finding)
     assert(type(finding.required) == "number", "Bad required count")
     local equipped = math.floor(finding.equipped)
     local required = math.floor(finding.required)
+    local detail
+    local names = finding.missingSlotNames
+    if type(names) == "table" and #names > 0 then
+        detail = L.GEAR_ALERT_MISSING_SLOTS:format(table.concat(names, L.GEAR_ALERT_SLOT_JOIN))
+    end
     return {
-        left = L.GEAR_ALERT_MISSING_TIER_SET,
-        right = L.GEAR_ALERT_MISSING_TIER_SET_DETAIL:format(Emphasize(string.format("%d/%d", equipped, required))),
-        color = Colors.ERROR,
+        label = L.GEAR_ALERT_TAG_SET,
+        detail = detail,
+        status = equipped .. "/" .. required,
+        severity = "warning",
     }
+end
+
+---@param findings GearAlertPayload[]
+---@return AlertToastRow[]
+local function FormatFindings(findings)
+    local slotRows = {}
+    local setRows = {}
+    for index = 1, #findings do
+        local finding = findings[index]
+        local row = FormatFinding(finding)
+        if finding.type == TYPE_MISSING_TIER_SET then
+            setRows[#setRows + 1] = row
+        else
+            slotRows[#slotRows + 1] = row
+        end
+    end
+    local rows = slotRows
+    for index = 1, #setRows do
+        rows[#rows + 1] = setRows[index]
+    end
+    return rows
 end
 
 local function EnsureToast()
@@ -76,18 +114,25 @@ end
 ---@param findings GearAlertPayload[]|nil
 local function OnFindings(findings)
     if type(findings) == "table" and #findings > 0 then
-        local rows = {}
-        for index = 1, #findings do
-            rows[index] = FormatFinding(findings[index])
-        end
+        lastFindings = findings
         local frame = EnsureToast()
         frame:SetWindowPosition(GearAlert:GetPosition())
-        frame:SetRows(rows)
-        frame:Show()
+        frame:SetRows(FormatFindings(findings))
+        frame:PlayIn()
         frame:Raise()
-    elseif toast then
-        toast:Hide()
+    else
+        lastFindings = nil
+        if toast then
+            toast:Hide()
+        end
     end
+end
+
+local function OnItemInfoReceived()
+    if type(lastFindings) ~= "table" or not toast then
+        return
+    end
+    toast:SetRows(FormatFindings(lastFindings))
 end
 
 ---Fills the feature body. Returns the content height.
@@ -146,6 +191,7 @@ end
 function GearAlert:OnEnable()
     EnsureToast()
     GearAlert:SetFindingListener(OnFindings)
+    Equipment.OnItemInfoReceived(OnItemInfoReceived)
     self:StartMonitoring()
     ns.MainPanel:RegisterSection({
         title = L.GEAR_ALERT_TITLE,

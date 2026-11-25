@@ -7,11 +7,13 @@ describe("Equipment production", function()
         saved.GetInventoryItemID = GetInventoryItemID
         saved.GetAverageItemLevel = GetAverageItemLevel
         saved.GetDetailedItemLevelInfo = GetDetailedItemLevelInfo
+        saved.ItemLocation = ItemLocation
         saved.C_Item = C_Item
         saved.C_Container = C_Container
         saved.C_MythicPlus = C_MythicPlus
         saved.NUM_BAG_SLOTS = NUM_BAG_SLOTS
         saved.issecretvalue = issecretvalue
+        saved.ITEM_QUALITY_COLORS = ITEM_QUALITY_COLORS
         saved.HEADSLOT = _G.HEADSLOT
     end
 
@@ -58,7 +60,9 @@ describe("Equipment production", function()
         NUM_BAG_SLOTS = 4
         GetAverageItemLevel = nil
         GetDetailedItemLevelInfo = nil
+        ItemLocation = nil
         issecretvalue = nil
+        ITEM_QUALITY_COLORS = nil
     end)
 
     after_each(function()
@@ -67,11 +71,13 @@ describe("Equipment production", function()
         GetInventoryItemID = saved.GetInventoryItemID
         GetAverageItemLevel = saved.GetAverageItemLevel
         GetDetailedItemLevelInfo = saved.GetDetailedItemLevelInfo
+        ItemLocation = saved.ItemLocation
         C_Item = saved.C_Item
         C_Container = saved.C_Container
         C_MythicPlus = saved.C_MythicPlus
         NUM_BAG_SLOTS = saved.NUM_BAG_SLOTS
         issecretvalue = saved.issecretvalue
+        ITEM_QUALITY_COLORS = saved.ITEM_QUALITY_COLORS
         _G.HEADSLOT = saved.HEADSLOT
     end)
 
@@ -124,6 +130,41 @@ describe("Equipment production", function()
         local scan = Equipment.GetSlotScan(1)
         assert.equals("ready", scan.status)
         assert.equals(684, scan.itemLevel)
+    end)
+
+    it("prefers the equipped location item level over the link-based detailed level", function()
+        GetInventoryItemLink = function(_, slot)
+            if slot == 2 then
+                return "item:158075"
+            end
+        end
+        ItemLocation = {
+            CreateFromEquipmentSlot = function(_, slot)
+                return { slot = slot }
+            end,
+        }
+        GetDetailedItemLevelInfo = function()
+            return 207
+        end
+        C_Item = {
+            GetItemInfo = function(item)
+                if item == "item:158075" then
+                    return "Heart of Azeroth", nil, nil, 207, nil, nil, nil, nil, "INVTYPE_NECK"
+                end
+            end,
+            GetItemIDForItemInfo = function()
+                return 158075
+            end,
+            GetCurrentItemLevel = function(location)
+                if location and location.slot == 2 then
+                    return 35
+                end
+            end,
+        }
+        local Equipment = Load()
+        local scan = Equipment.GetSlotScan(2)
+        assert.equals("ready", scan.status)
+        assert.equals(35, scan.itemLevel)
     end)
 
     it("returns the equipped average item level", function()
@@ -202,6 +243,52 @@ describe("Equipment production", function()
         assert.same({ 1 }, scans[1].slots)
     end)
 
+    it("prefers a bag item's location item level over the link-based detailed level", function()
+        C_Container = {
+            GetContainerNumSlots = function(bag)
+                if bag == 0 then
+                    return 1
+                end
+                return 0
+            end,
+            GetContainerItemLink = function(bag, slot)
+                if bag == 0 and slot == 1 then
+                    return "item:12345"
+                end
+            end,
+            GetContainerItemID = function()
+                return 12345
+            end,
+        }
+        ItemLocation = {
+            CreateFromBagAndSlot = function(_, bag, slot)
+                return { bag = bag, slot = slot }
+            end,
+        }
+        GetDetailedItemLevelInfo = function()
+            return 710
+        end
+        C_Item = {
+            GetItemInfo = function(item)
+                if item == "item:12345" then
+                    return "Helm", nil, nil, 700, nil, nil, nil, nil, "INVTYPE_HEAD"
+                end
+            end,
+            GetItemIDForItemInfo = function()
+                return 12345
+            end,
+            GetCurrentItemLevel = function(location)
+                if location and location.bag == 0 and location.slot == 1 then
+                    return 35
+                end
+            end,
+        }
+        local Equipment = Load()
+        local scans = Equipment.GetBagScans()
+        assert.equals(1, #scans)
+        assert.equals(35, scans[1].itemLevel)
+    end)
+
     it("does not inspect secret inventory values", function()
         issecretvalue = function(value)
             return value == "secret-link"
@@ -258,5 +345,24 @@ describe("Equipment production", function()
         assert.equals(1, requested)
         Equipment.GetCurrentSeasonID()
         assert.equals(1, requested)
+    end)
+
+    it("returns cached item quality and quality hex", function()
+        ITEM_QUALITY_COLORS = { [1] = { hex = "|cff1eff00" } }
+        C_Item = {
+            GetItemInfo = function()
+                return "Helm", nil, 1, 700
+            end,
+            GetItemIDForItemInfo = function()
+                return 11
+            end,
+        }
+        local Equipment = Load()
+        local info, status = Equipment.GetItemInfo("item:11")
+        assert.equals("ready", status)
+        assert.equals("Helm", info.name)
+        assert.equals(1, info.quality)
+        assert.equals("|cff1eff00", Equipment.GetItemQualityHex(1))
+        assert.is_nil(Equipment.GetItemQualityHex(2))
     end)
 end)

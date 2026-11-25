@@ -14,6 +14,9 @@ describe("AlertToast", function()
             self.width = width
             self.height = height
         end
+        function texture:SetAllPoints()
+            self.allPoints = true
+        end
         function texture:SetPoint(...)
             self.points[#self.points + 1] = { ... }
         end
@@ -38,7 +41,9 @@ describe("AlertToast", function()
         function label:SetText(value)
             self.text = value
         end
-        function label:SetTextColor() end
+        function label:SetTextColor(r, g, b, a)
+            self.color = { r = r, g = g, b = b, a = a }
+        end
         function label:SetShadowOffset() end
         function label:SetJustifyH(value)
             self.justifyH = value
@@ -51,6 +56,9 @@ describe("AlertToast", function()
         end
         function label:SetWidth(width)
             self.width = width
+        end
+        function label:GetStringWidth()
+            return #self.text * 6
         end
         function label:SetPoint(...)
             self.points[#self.points + 1] = { ... }
@@ -97,6 +105,50 @@ describe("AlertToast", function()
         function frame:GetFrameLevel()
             return 1
         end
+        function frame:SetAlpha(alpha)
+            self.alpha = alpha
+        end
+        function frame:CreateAnimationGroup()
+            local group = { playing = false, animations = {}, scripts = {} }
+            function group:CreateAnimation(kind)
+                local anim = { kind = kind }
+                function anim:SetFromAlpha(value)
+                    self.fromAlpha = value
+                end
+                function anim:SetToAlpha(value)
+                    self.toAlpha = value
+                end
+                function anim:SetDuration(value)
+                    self.duration = value
+                end
+                function anim:SetSmoothing(value)
+                    self.smoothing = value
+                end
+                function anim:SetOffset(x, y)
+                    self.offsetX = x
+                    self.offsetY = y
+                end
+                group.animations[#group.animations + 1] = anim
+                return anim
+            end
+            function group:SetToFinalAlpha(enabled)
+                self.toFinalAlpha = enabled
+            end
+            function group:SetScript(event, handler)
+                self.scripts[event] = handler
+            end
+            function group:IsPlaying()
+                return self.playing == true
+            end
+            function group:Stop()
+                self.playing = false
+            end
+            function group:Play()
+                self.playing = true
+            end
+            frame.animGroups[#frame.animGroups + 1] = group
+            return group
+        end
         function frame:SetWindowPosition(position)
             self.position = position
         end
@@ -115,6 +167,7 @@ describe("AlertToast", function()
         function frame:Raise()
             self.raised = true
         end
+        frame.animGroups = {}
         lastWindow = frame
         return frame
     end
@@ -142,11 +195,14 @@ describe("AlertToast", function()
                 Textures = { WHITE = "white" },
                 Templates = { BACKDROP = "BackdropTemplate" },
                 Colors = {
-                    BG = { r = 0.07, g = 0.08, b = 0.09, a = 0.95 },
-                    BORDER_FAINT = { r = 1, g = 1, b = 1, a = 0.08 },
+                    FEATURE_CARD_BG = { r = 0.125, g = 0.149, b = 0.192, a = 1 },
+                    FEATURE_CARD_BORDER = { r = 0.220, g = 0.238, b = 0.280, a = 1 },
+                    MENU_TITLE_BAR = { r = 0.055, g = 0.067, b = 0.086, a = 1 },
+                    DIVIDER = { r = 0.180, g = 0.196, b = 0.231, a = 1 },
                     TEXT = { r = 1, g = 1, b = 1 },
                     TEXT_MUTED = { r = 0.55, g = 0.57, b = 0.60 },
                     WARNING = { r = 0.95, g = 0.64, b = 0.27 },
+                    DANGER = { r = 0.91, g = 0.44, b = 0.37 },
                 },
                 Sizes = { CLOSE_BUTTON = 22 },
                 Spacing = { SMALL = 4, MEDIUM = 8, LARGE = 12 },
@@ -202,51 +258,71 @@ describe("AlertToast", function()
         local toast = ns.AlertToast.Create(CreateOptions())
         assert.equals(1, created)
         assert.equals("Gear Alert", lastWindow.labels[1].text)
-        assert.equals(320, lastWindow.size.width)
-        assert.equals(41, lastWindow.size.height)
-        assert.equals(28, lastWindow.header.height)
-        assert.equals(20, lastWindow.closeButton.size.width)
+        assert.equals(260, lastWindow.size.width)
+        assert.equals(39, lastWindow.size.height)
+        assert.equals(26, lastWindow.header.height)
+        assert.equals(16, lastWindow.closeButton.size.width)
 
         toast:SetRows({
-            { left = "Four-piece incomplete", right = "Active 3/4 pieces" },
+            {
+                label = "Set",
+                detail = "Need Shoulder, Hands",
+                status = "3/4",
+                severity = "warning",
+            },
         })
         assert.equals(1, created)
-        assert.equals("Four-piece incomplete", lastWindow.labels[2].text)
-        assert.equals("Active 3/4 pieces", lastWindow.labels[3].text)
-        assert.equals(65, lastWindow.size.height)
+        assert.equals("Set", lastWindow.labels[2].text)
+        assert.equals("Need Shoulder, Hands", lastWindow.labels[3].text)
+        assert.equals("3/4", lastWindow.labels[4].text)
+        assert.is_true(lastWindow.labels[3].shown)
+        assert.equals(63, lastWindow.size.height)
 
         toast:SetRows({
-            { left = "A", right = "1" },
-            { left = "B", right = "2" },
+            { label = "A", status = "1", severity = "danger" },
+            { label = "B", detail = "Two", status = "2", severity = "warning" },
         })
         assert.equals("A", lastWindow.labels[2].text)
-        assert.equals("B", lastWindow.labels[4].text)
-        assert.equals(89, lastWindow.size.height)
-        assert.is_true(lastWindow.labels[4].shown)
+        assert.is_false(lastWindow.labels[3].shown)
+        assert.equals("B", lastWindow.labels[5].text)
+        assert.equals("Two", lastWindow.labels[6].text)
+        assert.is_true(lastWindow.labels[6].shown)
+        assert.equals(87, lastWindow.size.height)
 
         toast:SetRows({
-            { left = "Only", right = "one" },
+            { label = "Only", status = "one", severity = "danger" },
         })
         assert.equals("Only", lastWindow.labels[2].text)
-        assert.is_false(lastWindow.labels[4].shown)
-        assert.equals(65, lastWindow.size.height)
+        assert.is_false(lastWindow.labels[5].shown)
+        assert.equals(63, lastWindow.size.height)
     end)
 
     it("rejects non-string row text", function()
         local toast = ns.AlertToast.Create(CreateOptions())
         assert.is_false(pcall(toast.SetRows, toast, nil))
-        assert.is_false(pcall(toast.SetRows, toast, { { left = "t" } }))
-        assert.is_false(pcall(toast.SetRows, toast, { { left = "t", right = 3 } }))
+        assert.is_false(pcall(toast.SetRows, toast, { { status = "t" } }))
+        assert.is_false(pcall(toast.SetRows, toast, { { label = "t", status = 3 } }))
+        assert.is_false(pcall(toast.SetRows, toast, { { label = "t", status = "ok" } }))
+        assert.is_false(pcall(toast.SetRows, toast, { { label = "t", status = "ok", severity = "info" } }))
     end)
 
-    it("hides on close and can be shown again", function()
+    it("hides on close after the fade finishes and can be shown again", function()
         local toast = ns.AlertToast.Create(CreateOptions())
-        toast:Show()
+        toast:PlayIn()
+        assert.is_true(lastWindow.shown)
+        assert.is_true(lastWindow.animGroups[1].playing)
         lastWindow.closeOnClick()
+        assert.is_false(lastWindow.animGroups[1].playing)
+        assert.is_true(lastWindow.animGroups[2].playing)
+        assert.is_true(lastWindow.shown)
+        lastWindow.animGroups[2].playing = false
+        lastWindow.animGroups[2].scripts.OnFinished()
         assert.is_false(lastWindow.shown)
-        toast:Show()
+        toast:PlayIn()
         assert.equals(1, created)
         assert.is_true(lastWindow.shown)
+        assert.is_true(lastWindow.animGroups[1].playing)
+        assert.is_false(lastWindow.animGroups[2].playing)
     end)
 
     it("notifies the caller after a drag", function()

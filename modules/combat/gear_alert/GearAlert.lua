@@ -23,11 +23,12 @@ local ITEM_RETRY_LIMIT = 5
 ---@field type string
 ---@field equipped number|nil
 ---@field required number|nil
+---@field missingSlotNames string[]|nil  Localized armor slots without a current-season set piece.
 ---@field itemLevel number|nil
 ---@field averageItemLevel number|nil
 ---@field itemLink string|nil  Equipped item link for low-level rows.
 ---@field slot integer|nil
----@field slotName string|nil  Localized inventory slot label for empty-slot rows.
+---@field slotName string|nil  Localized inventory slot label.
 
 ---@class GearAlert: Module
 local GearAlert = ns.Modules.New("GearAlert", {

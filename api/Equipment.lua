@@ -10,6 +10,7 @@ local GetItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
 local GetItemIDForItemInfo = C_Item and C_Item.GetItemIDForItemInfo
 local RequestLoadItemDataByID = C_Item and C_Item.RequestLoadItemDataByID
 local GetDetailedItemLevelInfo = (C_Item and C_Item.GetDetailedItemLevelInfo) or GetDetailedItemLevelInfo
+local GetCurrentItemLevel = C_Item and C_Item.GetCurrentItemLevel
 local GetAverageItemLevel = GetAverageItemLevel
 local GetContainerNumSlots = C_Container and C_Container.GetContainerNumSlots or GetContainerNumSlots
 local GetContainerItemLink = C_Container and C_Container.GetContainerItemLink or GetContainerItemLink
@@ -197,6 +198,7 @@ end
 ---@class EquipmentItemInfo
 ---@field itemID integer|nil
 ---@field name string|nil
+---@field quality integer|nil
 ---@field setID integer|nil
 ---@field itemLevel integer|nil
 ---@field equipLoc string|nil
@@ -212,17 +214,26 @@ function Equipment.GetItemInfo(item)
     if not GetItemInfo then
         return nil, "pending"
     end
-    local name, _, _, itemLevel, _, _, _, _, equipLoc, _, _, _, _, _, _, setID = GetItemInfo(item)
+    local name, _, quality, itemLevel, _, _, _, _, equipLoc, _, _, _, _, _, _, setID = GetItemInfo(item)
     if name == nil then
         return nil, "pending"
     end
-    if Secrets.IsSecret(name) or Secrets.IsSecret(itemLevel) or Secrets.IsSecret(equipLoc) then
+    if
+        Secrets.IsSecret(name)
+        or Secrets.IsSecret(quality)
+        or Secrets.IsSecret(itemLevel)
+        or Secrets.IsSecret(equipLoc)
+    then
         return nil, "secret"
     end
     local itemID = ItemIdFromInfo(item)
     local normalizedName
     if type(name) == "string" and name ~= "" then
         normalizedName = name
+    end
+    local normalizedQuality
+    if type(quality) == "number" then
+        normalizedQuality = math.floor(quality)
     end
     local normalizedSetID
     if type(setID) == "number" and setID > 0 and not Secrets.IsSecret(setID) then
@@ -239,11 +250,33 @@ function Equipment.GetItemInfo(item)
     return {
         itemID = itemID,
         name = normalizedName,
+        quality = normalizedQuality,
         setID = normalizedSetID,
         itemLevel = normalizedItemLevel,
         equipLoc = normalizedEquipLoc,
     },
         "ready"
+end
+
+---Quality color markup prefix from `ITEM_QUALITY_COLORS` (includes `|c`).
+---@param quality integer|nil
+---@return string|nil
+function Equipment.GetItemQualityHex(quality)
+    if type(quality) ~= "number" then
+        return nil
+    end
+    local colors = ITEM_QUALITY_COLORS
+    if type(colors) ~= "table" then
+        return nil
+    end
+    local color = colors[quality]
+    if type(color) ~= "table" then
+        color = colors[math.floor(quality)]
+    end
+    if type(color) ~= "table" or type(color.hex) ~= "string" or color.hex == "" then
+        return nil
+    end
+    return color.hex
 end
 
 ---Asks the client to cache item metadata. No-op when the item id is unavailable.
@@ -272,18 +305,40 @@ end
 ---@field slots integer[]
 
 ---@param scan table
+local function MarkScanSecret(scan)
+    scan.status = "secret"
+    scan.name = nil
+    scan.setID = nil
+    scan.itemLevel = nil
+    scan.slots = nil
+end
+
+---Item links can report a scaled preview level (Heart of Azeroth) that does not match the
+---character-sheet item level. Prefer the location API; fall back to the link-based detailed level.
+---@param scan table
 ---@param item number|string
-local function OverlayDetailedItemLevel(scan, item)
-    if scan.status ~= "ready" or type(GetDetailedItemLevelInfo) ~= "function" then
+---@param location table|nil
+local function OverlayItemLevel(scan, item, location)
+    if scan.status ~= "ready" then
+        return
+    end
+    if location and type(GetCurrentItemLevel) == "function" then
+        local current = GetCurrentItemLevel(location)
+        if Secrets.IsSecret(current) then
+            MarkScanSecret(scan)
+            return
+        end
+        if type(current) == "number" and current > 0 then
+            scan.itemLevel = math.floor(current)
+            return
+        end
+    end
+    if type(GetDetailedItemLevelInfo) ~= "function" then
         return
     end
     local detailed = GetDetailedItemLevelInfo(item)
     if Secrets.IsSecret(detailed) then
-        scan.status = "secret"
-        scan.name = nil
-        scan.setID = nil
-        scan.itemLevel = nil
-        scan.slots = nil
+        MarkScanSecret(scan)
         return
     end
     if type(detailed) == "number" and detailed > 0 then
@@ -291,10 +346,30 @@ local function OverlayDetailedItemLevel(scan, item)
     end
 end
 
+---@param slot integer
+---@return table|nil
+local function EquipmentItemLocation(slot)
+    if type(ItemLocation) ~= "table" or type(ItemLocation.CreateFromEquipmentSlot) ~= "function" then
+        return nil
+    end
+    return ItemLocation:CreateFromEquipmentSlot(slot)
+end
+
+---@param bag integer
+---@param bagSlot integer
+---@return table|nil
+local function BagItemLocation(bag, bagSlot)
+    if type(ItemLocation) ~= "table" or type(ItemLocation.CreateFromBagAndSlot) ~= "function" then
+        return nil
+    end
+    return ItemLocation:CreateFromBagAndSlot(bag, bagSlot)
+end
+
 ---@param scan table
 ---@param item number|string
 ---@param itemID integer|nil
-local function FillItemScan(scan, item, itemID)
+---@param location table|nil
+local function FillItemScan(scan, item, itemID, location)
     local info, status = Equipment.GetItemInfo(item)
     scan.status = status
     if info then
@@ -308,7 +383,7 @@ local function FillItemScan(scan, item, itemID)
     else
         scan.itemID = ItemIdFromInfo(item)
     end
-    OverlayDetailedItemLevel(scan, item)
+    OverlayItemLevel(scan, item, location)
 end
 
 ---Reads one equipped armor slot. Empty is known; uncached or secret is not a missing piece.
@@ -338,7 +413,7 @@ function Equipment.GetSlotScan(slot)
         return scan
     end
 
-    FillItemScan(scan, item, itemID)
+    FillItemScan(scan, item, itemID, EquipmentItemLocation(slot))
     return scan
 end
 
@@ -378,7 +453,7 @@ function Equipment.GetBagScans()
                     end
                     if item ~= nil then
                         local scan = { status = "pending", slots = {} }
-                        FillItemScan(scan, item, itemID)
+                        FillItemScan(scan, item, itemID, BagItemLocation(bag, bagSlot))
                         if scan.status == "ready" then
                             scan.slots = SlotsForEquipLoc(scan.equipLoc)
                         end

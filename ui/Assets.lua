@@ -185,6 +185,8 @@ Assets.Colors = {
     SUCCESS = { r = 0.35, g = 0.80, b = 0.40 },
     WARNING = { r = 0.945, g = 0.643, b = 0.267, a = 1 },
     ERROR = { r = 0.898, g = 0.282, b = 0.302 },
+    -- Soft coral (#e8705e); warmer and less saturated than ERROR.
+    DANGER = { r = 0.910, g = 0.439, b = 0.369, a = 1 },
 
     -- 5. Layout Edit Mode & World Overlays / HUD
     BG = WithAlpha(Palette.OVERLAY_DARK, 0.95),

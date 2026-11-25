@@ -151,10 +151,10 @@ function Internals.CheckLowLevel(state)
                 type = "LOW_LEVEL_ITEM",
                 itemLevel = item.itemLevel,
                 averageItemLevel = state.averageItemLevel,
+                slot = item.slot,
+                slotName = Equipment.GetSlotName(item.slot),
             }
             if item.itemLevel <= 0 then
-                finding.slot = item.slot
-                finding.slotName = Equipment.GetSlotName(item.slot)
                 findings[#findings + 1] = finding
             else
                 local itemLink = Equipment.GetSlotLink(item.slot)

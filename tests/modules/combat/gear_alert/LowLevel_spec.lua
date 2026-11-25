@@ -268,6 +268,8 @@ describe("low-level gear detection", function()
                     type = "LOW_LEVEL_ITEM",
                     itemLevel = 30,
                     averageItemLevel = 100,
+                    slot = 1,
+                    slotName = Equipment.GetSlotName(1),
                     itemLink = ITEM_LINK,
                 },
             }, Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(100, {
@@ -315,6 +317,8 @@ describe("low-level gear detection", function()
                     type = "LOW_LEVEL_ITEM",
                     itemLevel = 30,
                     averageItemLevel = 700,
+                    slot = 2,
+                    slotName = Equipment.GetSlotName(2),
                     itemLink = ITEM_LINK,
                 },
             }, Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(700, {
@@ -335,6 +339,8 @@ describe("low-level gear detection", function()
                     type = "LOW_LEVEL_ITEM",
                     itemLevel = 30,
                     averageItemLevel = 700,
+                    slot = 1,
+                    slotName = Equipment.GetSlotName(1),
                     itemLink = ITEM_LINK,
                 },
             }, LowLevelReadyToAlert())
@@ -370,6 +376,8 @@ describe("low-level gear detection", function()
                     type = "LOW_LEVEL_ITEM",
                     itemLevel = 30,
                     averageItemLevel = 700,
+                    slot = 1,
+                    slotName = Equipment.GetSlotName(1),
                     itemLink = ITEM_LINK,
                 },
             }, LowLevelReadyToAlert())
@@ -431,12 +439,18 @@ describe("low-level gear detection", function()
                     type = "LOW_LEVEL_ITEM",
                     itemLevel = 30,
                     averageItemLevel = 700,
+                    slot = 1,
+                    slotName = Equipment.GetSlotName(1),
                     itemLink = ITEM_LINK,
                 },
                 {
                     type = "MISSING_TIER_SET",
                     equipped = 3,
                     required = 4,
+                    missingSlotNames = {
+                        Equipment.GetSlotName(10),
+                        Equipment.GetSlotName(7),
+                    },
                 },
             }, seen)
         end)

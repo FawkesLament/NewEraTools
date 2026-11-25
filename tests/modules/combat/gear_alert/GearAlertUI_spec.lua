@@ -33,6 +33,10 @@ describe("GearAlert UI", function()
                     Show = function(self)
                         self.shown = true
                     end,
+                    PlayIn = function(self)
+                        self.shown = true
+                        self.playedIn = true
+                    end,
                     Hide = function(self)
                         self.shown = false
                         shown.hidden = true
@@ -154,13 +158,22 @@ describe("GearAlert UI", function()
         }
         ns.Api.Instance.FireEnteringWorld()
         ns.Api.Timer.Advance(GearAlert.SCAN_DELAY)
-        assert.equals(ns.L.GEAR_ALERT_MISSING_TIER_SET, shown[1][1].left)
+        local missingNames = {
+            ns.Api.Equipment.GetSlotName(10),
+            ns.Api.Equipment.GetSlotName(7),
+        }
+        local row = shown[1][1]
+        assert.equals(ns.L.GEAR_ALERT_TAG_SET, row.label)
         assert.equals(
-            ns.L.GEAR_ALERT_MISSING_TIER_SET_DETAIL:format(ns.Color.Wrap(ns.Assets.Colors.WARNING, "3/4")),
-            shown[1][1].right
+            ns.L.GEAR_ALERT_MISSING_SLOTS:format(table.concat(missingNames, ns.L.GEAR_ALERT_SLOT_JOIN)),
+            row.detail
         )
+        assert.equals("3/4", row.status)
+        assert.equals("warning", row.severity)
+        assert.is_nil(row.statusColor)
         assert.equals(1, #shown[1])
         assert.is_true(toast.shown)
+        assert.is_true(toast.playedIn)
         assert.is_true(toast.raised)
         assert.equals(ns.L.GEAR_ALERT_HISTORY_DONE, statusLabel.text)
         assert.same(ns.Assets.Colors.SUCCESS, {
@@ -189,10 +202,15 @@ describe("GearAlert UI", function()
         }
         ns.Api.Instance.FireEnteringWorld()
         ns.Api.Timer.Advance(GearAlert.SCAN_DELAY)
-        assert.equals(ns.L.GEAR_ALERT_LOW_LEVEL_ITEM, shown[1][1].left)
-        assert.equals("|cffffffff|Hitem:11::::::::80:257::::::|h[Old Helm]|h|r", shown[1][1].right)
+        local row = shown[1][1]
+        assert.equals(ns.Api.Equipment.GetSlotName(1), row.label)
+        assert.equals("|cffffffff|Hitem:11::::::::80:257::::::|h[Old Helm]|h|r", row.detail)
+        assert.equals(ns.L.GEAR_ALERT_ITEM_LEVEL .. " 30", row.status)
+        assert.equals("danger", row.severity)
+        assert.is_nil(row.statusColor)
         assert.equals(1, #shown[1])
         assert.is_true(toast.shown)
+        assert.is_true(toast.playedIn)
         assert.is_true(toast.raised)
     end)
 
@@ -210,13 +228,15 @@ describe("GearAlert UI", function()
         }
         ns.Api.Instance.FireEnteringWorld()
         ns.Api.Timer.Advance(GearAlert.SCAN_DELAY)
-        assert.equals(ns.L.GEAR_ALERT_EMPTY_SLOT, shown[1][1].left)
-        assert.equals(
-            ns.Color.Wrap(ns.Assets.Colors.WARNING, ns.Api.Equipment.GetSlotName(1)),
-            shown[1][1].right
-        )
+        local row = shown[1][1]
+        assert.equals(ns.Api.Equipment.GetSlotName(1), row.label)
+        assert.is_nil(row.detail)
+        assert.equals(ns.L.GEAR_ALERT_EMPTY_SLOT, row.status)
+        assert.equals("danger", row.severity)
+        assert.is_nil(row.statusColor)
         assert.equals(1, #shown[1])
         assert.is_true(toast.shown)
+        assert.is_true(toast.playedIn)
         assert.is_true(toast.raised)
     end)
 
@@ -245,20 +265,64 @@ describe("GearAlert UI", function()
         }
         ns.Api.Instance.FireEnteringWorld()
         ns.Api.Timer.Advance(GearAlert.SCAN_DELAY)
+        local missingNames = {
+            ns.Api.Equipment.GetSlotName(10),
+            ns.Api.Equipment.GetSlotName(7),
+        }
         assert.equals(3, #shown[1])
-        assert.equals(ns.L.GEAR_ALERT_EMPTY_SLOT, shown[1][1].left)
+        assert.equals(ns.Api.Equipment.GetSlotName(2), shown[1][1].label)
+        assert.equals(ns.L.GEAR_ALERT_EMPTY_SLOT, shown[1][1].status)
+        assert.equals("danger", shown[1][1].severity)
+        assert.equals(ns.Api.Equipment.GetSlotName(6), shown[1][2].label)
+        assert.equals("|cffffffff|Hitem:11::::::::80:257::::::|h[Old Helm]|h|r", shown[1][2].detail)
+        assert.equals("danger", shown[1][2].severity)
+        assert.equals(ns.L.GEAR_ALERT_TAG_SET, shown[1][3].label)
         assert.equals(
-            ns.Color.Wrap(ns.Assets.Colors.WARNING, ns.Api.Equipment.GetSlotName(2)),
-            shown[1][1].right
+            ns.L.GEAR_ALERT_MISSING_SLOTS:format(table.concat(missingNames, ns.L.GEAR_ALERT_SLOT_JOIN)),
+            shown[1][3].detail
         )
-        assert.equals(ns.L.GEAR_ALERT_LOW_LEVEL_ITEM, shown[1][2].left)
-        assert.equals("|cffffffff|Hitem:11::::::::80:257::::::|h[Old Helm]|h|r", shown[1][2].right)
-        assert.equals(ns.L.GEAR_ALERT_MISSING_TIER_SET, shown[1][3].left)
-        assert.equals(
-            ns.L.GEAR_ALERT_MISSING_TIER_SET_DETAIL:format(ns.Color.Wrap(ns.Assets.Colors.WARNING, "3/4")),
-            shown[1][3].right
-        )
+        assert.equals("3/4", shown[1][3].status)
+        assert.equals("warning", shown[1][3].severity)
         assert.is_true(toast.shown)
+        assert.is_true(toast.playedIn)
         assert.is_true(toast.raised)
+    end)
+
+    it("replaces a pending item link with the quality-colored name when info arrives", function()
+        section.build({})
+        local link = "|cffffffff|Hitem:11::::::::80:257::::::|h[Old Helm]|h|r"
+        ns.Api.Equipment.averageItemLevel = 700
+        ns.Api.Equipment.SetSlotForTests(1, {
+            status = "ready",
+            itemID = 11,
+            itemLevel = 30,
+            link = link,
+        })
+        ns.Api.Equipment.SetBagItemForTests({ status = "ready", itemID = 22, itemLevel = 700, slots = { 1 } })
+        ns.Api.Instance.currentRaidIds[1001] = true
+        ns.Api.Instance.info = {
+            name = "Raid",
+            instanceType = "raid",
+            difficultyID = ns.Api.Instance.DIFFICULTY_MYTHIC_RAID,
+            instanceID = 1001,
+        }
+        ns.Api.Instance.FireEnteringWorld()
+        ns.Api.Timer.Advance(GearAlert.SCAN_DELAY)
+        assert.equals(link, shown[1][1].detail)
+
+        function ns.Api.Equipment.GetItemInfo(item)
+            if item == link then
+                return { name = "Old Helm", quality = 1 }, "ready"
+            end
+            return nil, "pending"
+        end
+        function ns.Api.Equipment.GetItemQualityHex(quality)
+            if quality == 1 then
+                return "|cff1eff00"
+            end
+        end
+        ns.Api.Equipment.FireItemInfoReceived(11, true)
+        assert.equals(2, #shown)
+        assert.equals("|cff1eff00[Old Helm]|r", shown[2][1].detail)
     end)
 end)

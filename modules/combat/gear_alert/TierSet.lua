@@ -24,6 +24,7 @@ Internals.STATUS_UNSUPPORTED = STATUS_UNSUPPORTED
 ---@field setIDs integer[]
 ---@field itemIDs integer[]
 ---@field equipped integer|nil
+---@field equippedSlots integer[]|nil  Armor slots wearing the winning current-season set.
 ---@field required integer
 ---@field complete boolean|nil
 
@@ -110,6 +111,7 @@ function Internals.Evaluate(scan, catalog)
 
     local counts = {}
     local itemIDsBySet = {}
+    local slotsBySet = {}
     local incomplete = false
     for _, slot in ipairs(scan.slots) do
         local status = slot.status
@@ -119,8 +121,12 @@ function Internals.Evaluate(scan, catalog)
             local setID = slot.setID
             counts[setID] = (counts[setID] or 0) + 1
             itemIDsBySet[setID] = itemIDsBySet[setID] or {}
+            slotsBySet[setID] = slotsBySet[setID] or {}
             if type(slot.itemID) == "number" then
                 itemIDsBySet[setID][#itemIDsBySet[setID] + 1] = slot.itemID
+            end
+            if type(slot.slot) == "number" then
+                slotsBySet[setID][#slotsBySet[setID] + 1] = slot.slot
             end
         end
     end
@@ -128,11 +134,13 @@ function Internals.Evaluate(scan, catalog)
     local equipped = 0
     local setIDs = {}
     local itemIDs = {}
+    local equippedSlots = {}
     for setID, count in pairs(counts) do
         if count > equipped then
             equipped = count
             setIDs = { setID }
             itemIDs = itemIDsBySet[setID] or {}
+            equippedSlots = slotsBySet[setID] or {}
         end
     end
 
@@ -151,9 +159,37 @@ function Internals.Evaluate(scan, catalog)
         setIDs = setIDs,
         itemIDs = itemIDs,
         equipped = equipped,
+        equippedSlots = equippedSlots,
         required = required,
         complete = equipped >= required,
     }
+end
+
+---Localized names of armor slots that are not wearing the winning set. Nil when slot ids are incomplete.
+---@param state TierSetState
+---@return string[]|nil
+local function MissingSlotNames(state)
+    if type(state.equippedSlots) ~= "table" or #state.equippedSlots ~= state.equipped then
+        return nil
+    end
+    local equipped = {}
+    for index = 1, #state.equippedSlots do
+        equipped[state.equippedSlots[index]] = true
+    end
+    local names = {}
+    for _, slot in ipairs(Equipment.GetArmorSlots()) do
+        if not equipped[slot] then
+            local name = Equipment.GetSlotName(slot)
+            if type(name) ~= "string" or name == "" then
+                return nil
+            end
+            names[#names + 1] = name
+        end
+    end
+    if #names == 0 then
+        return nil
+    end
+    return names
 end
 
 ---@param history table|nil
@@ -175,11 +211,16 @@ function Internals.CheckMissing(history, state)
     if state.equipped >= state.required then
         return nil
     end
-    return {
+    local finding = {
         type = "MISSING_TIER_SET",
         equipped = state.equipped,
         required = state.required,
     }
+    local missingSlotNames = MissingSlotNames(state)
+    if missingSlotNames then
+        finding.missingSlotNames = missingSlotNames
+    end
+    return finding
 end
 
 ---Sets hadFourPiece when four current-season pieces are positively confirmed. Never clears it.

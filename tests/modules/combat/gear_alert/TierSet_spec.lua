@@ -192,6 +192,12 @@ describe("tier-set detection", function()
                 type = "MISSING_TIER_SET",
                 equipped = 1,
                 required = 4,
+                missingSlotNames = {
+                    Equipment.GetSlotName(3),
+                    Equipment.GetSlotName(5),
+                    Equipment.GetSlotName(10),
+                    Equipment.GetSlotName(7),
+                },
             }, Internals.CheckMissing(GearAlert:GetTierSetHistory(), GearAlert:GetCurrentState()))
         end)
 
@@ -226,12 +232,32 @@ describe("tier-set detection", function()
 
         it("alerts in a current-expansion raid when four pieces were previously confirmed", function()
             EnterRaid()
-            assert.same({ { type = "MISSING_TIER_SET", equipped = 3, required = 4 } }, MissingSetReadyToAlert())
+            assert.same({
+                {
+                    type = "MISSING_TIER_SET",
+                    equipped = 3,
+                    required = 4,
+                    missingSlotNames = {
+                        Equipment.GetSlotName(10),
+                        Equipment.GetSlotName(7),
+                    },
+                },
+            }, MissingSetReadyToAlert())
         end)
 
         it("alerts in a current-expansion Mythic dungeon", function()
             EnterDungeon()
-            assert.same({ { type = "MISSING_TIER_SET", equipped = 3, required = 4 } }, MissingSetReadyToAlert())
+            assert.same({
+                {
+                    type = "MISSING_TIER_SET",
+                    equipped = 3,
+                    required = 4,
+                    missingSlotNames = {
+                        Equipment.GetSlotName(10),
+                        Equipment.GetSlotName(7),
+                    },
+                },
+            }, MissingSetReadyToAlert())
         end)
 
         it("does not pop the warning outside a current-expansion raid or Mythic dungeon", function()
@@ -278,7 +304,15 @@ describe("tier-set detection", function()
             GearAlert = ns.Modules.Get("GearAlert")
             Internals = ns.Modules.Internals("GearAlert")
             local finding = Internals.CheckMissing(GearAlert:GetTierSetHistory(), GearAlert:GetCurrentState())
-            assert.same({ type = "MISSING_TIER_SET", equipped = 3, required = 4 }, finding)
+            assert.same({
+                type = "MISSING_TIER_SET",
+                equipped = 3,
+                required = 4,
+                missingSlotNames = {
+                    Equipment.GetSlotName(10),
+                    Equipment.GetSlotName(7),
+                },
+            }, finding)
         end)
 
         it("ignores a stale item-info retry after a newer equipment change", function()
