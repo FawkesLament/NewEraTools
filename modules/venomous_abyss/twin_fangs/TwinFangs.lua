@@ -385,17 +385,23 @@ end
 local function SanitizeVenomRoster(settings)
     settings.enabled = settings.enabled ~= false
     settings.scale = nil
-    settings.rowSpacing = Util.Snap(
-        tonumber(settings.rowSpacing) or Schema.VENOM_ROSTER_ROW_SPACING_DEFAULT,
-        Schema.VENOM_ROSTER_ROW_SPACING_MIN,
-        Schema.VENOM_ROSTER_ROW_SPACING_MAX,
-        Schema.VENOM_ROSTER_ROW_SPACING_STEP
+    settings.rowHeight = Util.Snap(
+        tonumber(settings.rowHeight) or Schema.VENOM_ROSTER_ROW_HEIGHT_DEFAULT,
+        Schema.VENOM_ROSTER_ROW_HEIGHT_MIN,
+        Schema.VENOM_ROSTER_ROW_HEIGHT_MAX,
+        Schema.VENOM_ROSTER_ROW_HEIGHT_STEP
     )
-    settings.columnSpacing = Util.Snap(
-        tonumber(settings.columnSpacing) or Schema.VENOM_ROSTER_COLUMN_SPACING_DEFAULT,
-        Schema.VENOM_ROSTER_COLUMN_SPACING_MIN,
-        Schema.VENOM_ROSTER_COLUMN_SPACING_MAX,
-        Schema.VENOM_ROSTER_COLUMN_SPACING_STEP
+    settings.rowGap = Util.Snap(
+        tonumber(settings.rowGap) or Schema.VENOM_ROSTER_ROW_GAP_DEFAULT,
+        Schema.VENOM_ROSTER_ROW_GAP_MIN,
+        Schema.VENOM_ROSTER_ROW_GAP_MAX,
+        Schema.VENOM_ROSTER_ROW_GAP_STEP
+    )
+    settings.columnGap = Util.Snap(
+        tonumber(settings.columnGap) or Schema.VENOM_ROSTER_COLUMN_GAP_DEFAULT,
+        Schema.VENOM_ROSTER_COLUMN_GAP_MIN,
+        Schema.VENOM_ROSTER_COLUMN_GAP_MAX,
+        Schema.VENOM_ROSTER_COLUMN_GAP_STEP
     )
     settings.nameColumnWidth = Util.Snap(
         tonumber(settings.nameColumnWidth) or Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_DEFAULT,
@@ -414,6 +420,27 @@ local function SanitizeVenomRoster(settings)
         Schema.VENOM_ROSTER_STACK_FONT_SIZE_MIN,
         Schema.VENOM_ROSTER_STACK_FONT_SIZE_MAX,
         Schema.VENOM_ROSTER_STACK_FONT_SIZE_STEP
+    )
+    if not ns.SharedMedia.IsKnownStatusBarTexture(settings.barTexture) then
+        settings.barTexture = Schema.VENOM_ROSTER_BAR_TEXTURE_DEFAULT
+    end
+    local barColor = Color.Normalize(settings.barColor) or Schema.VENOM_ROSTER_BAR_COLOR_DEFAULT
+    if type(settings.barColor) ~= "table" then
+        settings.barColor = { r = barColor.r, g = barColor.g, b = barColor.b }
+    else
+        Color.Copy(settings.barColor, barColor)
+    end
+    settings.backgroundOpacity = Util.Snap(
+        tonumber(settings.backgroundOpacity) or Schema.VENOM_ROSTER_BACKGROUND_OPACITY_DEFAULT,
+        Schema.VENOM_ROSTER_BACKGROUND_OPACITY_MIN,
+        Schema.VENOM_ROSTER_BACKGROUND_OPACITY_MAX,
+        Schema.VENOM_ROSTER_BACKGROUND_OPACITY_STEP
+    )
+    settings.barOpacity = Util.Snap(
+        tonumber(settings.barOpacity) or Schema.VENOM_ROSTER_BAR_OPACITY_DEFAULT,
+        Schema.VENOM_ROSTER_BAR_OPACITY_MIN,
+        Schema.VENOM_ROSTER_BAR_OPACITY_MAX,
+        Schema.VENOM_ROSTER_BAR_OPACITY_STEP
     )
 end
 
@@ -445,42 +472,62 @@ function TwinFangs:SetVenomRosterEnabled(enabled)
 end
 
 ---@return number
-function TwinFangs:GetVenomRosterRowSpacing()
-    return self.db.venomRoster.rowSpacing
+function TwinFangs:GetVenomRosterRowHeight()
+    return self.db.venomRoster.rowHeight
 end
 
----@param spacing number
-function TwinFangs:SetVenomRosterRowSpacing(spacing)
-    spacing = Util.Snap(
-        spacing,
-        Schema.VENOM_ROSTER_ROW_SPACING_MIN,
-        Schema.VENOM_ROSTER_ROW_SPACING_MAX,
-        Schema.VENOM_ROSTER_ROW_SPACING_STEP
+---@param height number
+function TwinFangs:SetVenomRosterRowHeight(height)
+    height = Util.Snap(
+        height,
+        Schema.VENOM_ROSTER_ROW_HEIGHT_MIN,
+        Schema.VENOM_ROSTER_ROW_HEIGHT_MAX,
+        Schema.VENOM_ROSTER_ROW_HEIGHT_STEP
     )
-    if self.db.venomRoster.rowSpacing == spacing then
+    if self.db.venomRoster.rowHeight == height then
         return
     end
-    self.db.venomRoster.rowSpacing = spacing
+    self.db.venomRoster.rowHeight = height
     NotifyVenomRosterAppearance()
 end
 
 ---@return number
-function TwinFangs:GetVenomRosterColumnSpacing()
-    return self.db.venomRoster.columnSpacing
+function TwinFangs:GetVenomRosterRowGap()
+    return self.db.venomRoster.rowGap
 end
 
----@param spacing number
-function TwinFangs:SetVenomRosterColumnSpacing(spacing)
-    spacing = Util.Snap(
-        spacing,
-        Schema.VENOM_ROSTER_COLUMN_SPACING_MIN,
-        Schema.VENOM_ROSTER_COLUMN_SPACING_MAX,
-        Schema.VENOM_ROSTER_COLUMN_SPACING_STEP
+---@param gap number
+function TwinFangs:SetVenomRosterRowGap(gap)
+    gap = Util.Snap(
+        gap,
+        Schema.VENOM_ROSTER_ROW_GAP_MIN,
+        Schema.VENOM_ROSTER_ROW_GAP_MAX,
+        Schema.VENOM_ROSTER_ROW_GAP_STEP
     )
-    if self.db.venomRoster.columnSpacing == spacing then
+    if self.db.venomRoster.rowGap == gap then
         return
     end
-    self.db.venomRoster.columnSpacing = spacing
+    self.db.venomRoster.rowGap = gap
+    NotifyVenomRosterAppearance()
+end
+
+---@return number
+function TwinFangs:GetVenomRosterColumnGap()
+    return self.db.venomRoster.columnGap
+end
+
+---@param gap number
+function TwinFangs:SetVenomRosterColumnGap(gap)
+    gap = Util.Snap(
+        gap,
+        Schema.VENOM_ROSTER_COLUMN_GAP_MIN,
+        Schema.VENOM_ROSTER_COLUMN_GAP_MAX,
+        Schema.VENOM_ROSTER_COLUMN_GAP_STEP
+    )
+    if self.db.venomRoster.columnGap == gap then
+        return
+    end
+    self.db.venomRoster.columnGap = gap
     NotifyVenomRosterAppearance()
 end
 
@@ -541,6 +588,117 @@ function TwinFangs:SetVenomRosterStackFontSize(size)
         return
     end
     self.db.venomRoster.stackFontSize = size
+    NotifyVenomRosterAppearance()
+end
+
+---@return string
+function TwinFangs:GetVenomRosterBarTexture()
+    local textureId = self.db.venomRoster.barTexture
+    if ns.SharedMedia.IsKnownStatusBarTexture(textureId) then
+        return textureId
+    end
+    return Schema.VENOM_ROSTER_BAR_TEXTURE_DEFAULT
+end
+
+---@return string
+function TwinFangs:GetVenomRosterBarTexturePath()
+    return ns.SharedMedia.ResolveStatusBarTexturePath(self:GetVenomRosterBarTexture())
+end
+
+---@param textureId string
+function TwinFangs:SetVenomRosterBarTexture(textureId)
+    assert(ns.SharedMedia.IsKnownStatusBarTexture(textureId), "Unknown texture: " .. tostring(textureId))
+    if self.db.venomRoster.barTexture == textureId then
+        return
+    end
+    self.db.venomRoster.barTexture = textureId
+    NotifyVenomRosterAppearance()
+end
+
+---@return RgbColor
+function TwinFangs:GetVenomRosterBarColor()
+    return Color.Normalize(self.db.venomRoster.barColor)
+        or {
+            r = Schema.VENOM_ROSTER_BAR_COLOR_DEFAULT.r,
+            g = Schema.VENOM_ROSTER_BAR_COLOR_DEFAULT.g,
+            b = Schema.VENOM_ROSTER_BAR_COLOR_DEFAULT.b,
+        }
+end
+
+---@param color RgbColor
+function TwinFangs:SetVenomRosterBarColor(color)
+    local next = Color.Normalize(color)
+    assert(next ~= nil, "Bad venom roster bar color")
+    local saved = self.db.venomRoster.barColor
+    if type(saved) ~= "table" then
+        self.db.venomRoster.barColor = { r = next.r, g = next.g, b = next.b }
+        NotifyVenomRosterAppearance()
+        return
+    end
+    if Color.Equal(saved, next) then
+        return
+    end
+    Color.Copy(saved, next)
+    NotifyVenomRosterAppearance()
+end
+
+---@return number
+function TwinFangs:GetVenomRosterBackgroundOpacity()
+    return self.db.venomRoster.backgroundOpacity
+end
+
+---@param opacity number
+function TwinFangs:SetVenomRosterBackgroundOpacity(opacity)
+    opacity = Util.Snap(
+        opacity,
+        Schema.VENOM_ROSTER_BACKGROUND_OPACITY_MIN,
+        Schema.VENOM_ROSTER_BACKGROUND_OPACITY_MAX,
+        Schema.VENOM_ROSTER_BACKGROUND_OPACITY_STEP
+    )
+    if self.db.venomRoster.backgroundOpacity == opacity then
+        return
+    end
+    self.db.venomRoster.backgroundOpacity = opacity
+    NotifyVenomRosterAppearance()
+end
+
+---@return number
+function TwinFangs:GetVenomRosterBarOpacity()
+    return self.db.venomRoster.barOpacity
+end
+
+---@param opacity number
+function TwinFangs:SetVenomRosterBarOpacity(opacity)
+    opacity = Util.Snap(
+        opacity,
+        Schema.VENOM_ROSTER_BAR_OPACITY_MIN,
+        Schema.VENOM_ROSTER_BAR_OPACITY_MAX,
+        Schema.VENOM_ROSTER_BAR_OPACITY_STEP
+    )
+    if self.db.venomRoster.barOpacity == opacity then
+        return
+    end
+    self.db.venomRoster.barOpacity = opacity
+    NotifyVenomRosterAppearance()
+end
+
+function TwinFangs:ResetVenomRosterAppearance()
+    local defaults = Schema.NewVenomRoster()
+    local saved = self.db.venomRoster
+    saved.rowHeight = defaults.rowHeight
+    saved.rowGap = defaults.rowGap
+    saved.columnGap = defaults.columnGap
+    saved.nameColumnWidth = defaults.nameColumnWidth
+    saved.nameFontSize = defaults.nameFontSize
+    saved.stackFontSize = defaults.stackFontSize
+    saved.barTexture = defaults.barTexture
+    saved.backgroundOpacity = defaults.backgroundOpacity
+    saved.barOpacity = defaults.barOpacity
+    if type(saved.barColor) ~= "table" then
+        saved.barColor = defaults.barColor
+    else
+        Color.Copy(saved.barColor, defaults.barColor)
+    end
     NotifyVenomRosterAppearance()
 end
 

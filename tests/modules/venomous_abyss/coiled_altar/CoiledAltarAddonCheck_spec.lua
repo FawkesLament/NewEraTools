@@ -481,18 +481,12 @@ describe("CoiledAltar AddonCheck", function()
             })
             local byKey = AddonCheckPanel.IndexRowsByKey(model.rows)
             assert.equals(AddonCheckPanel.Category.OK, byKey.ok.category)
-            assert.equals(
-                table.concat({ "1", "3" }, L.COILED_ALTAR_ADDONCHECK_SLOT_JOIN),
-                byKey.ok.configValues[1]
-            )
+            assert.equals(table.concat({ "1", "3" }, L.COILED_ALTAR_ADDONCHECK_SLOT_JOIN), byKey.ok.configValues[1])
             assert.equals(L.COILED_ALTAR_ADDONCHECK_REMINDER_ON, byKey.ok.configValues[2])
 
             assert.equals(AddonCheckPanel.Category.ATTENTION, byKey.both.category)
             assert.same({ "assignments" }, byKey.both.invalidColumns)
-            assert.equals(
-                string.format(L.COILED_ALTAR_ADDONCHECK_MISMATCH, "5", "2"),
-                byKey.both.configValues[1]
-            )
+            assert.equals(string.format(L.COILED_ALTAR_ADDONCHECK_MISMATCH, "5", "2"), byKey.both.configValues[1])
             assert.equals(L.COILED_ALTAR_ADDONCHECK_REMINDER_OFF, byKey.both.configValues[2])
 
             assert.equals(AddonCheckPanel.Category.NO_RESPONSE, byKey.missing.category)

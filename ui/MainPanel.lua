@@ -347,6 +347,11 @@ end
 -- Frames created under a hidden page can keep an unresolved 0x0 rect, and the scroll child starts
 -- at 1x1 until the scroll frame is sized. `build` waits until the page is visible and the scroll
 -- frame has a positive width; Layout.OnWidth retries when that width arrives.
+--
+-- `built` is set before `SetWidth`. After the window has been dragged, GetWidth can carry
+-- sub-pixel noise, so SetWidth synchronously fires the scroll frame's OnSizeChanged and
+-- re-enters this function. A second `build` leaves a second widget tree in the same body;
+-- later relayout only updates one of them, so sections overlap.
 local function EnsureSectionBuilt(frame, section)
     if not section or section.built or not section:IsVisible() then
         return
@@ -356,8 +361,8 @@ local function EnsureSectionBuilt(frame, section)
     if type(width) ~= "number" or width <= 0 then
         return
     end
-    frame.content:SetWidth(width)
     section.built = true
+    frame.content:SetWidth(width)
     local body = section.body
     local height = section.def.build and section.def.build(body)
     if type(height) ~= "number" then

@@ -263,71 +263,92 @@ describe("low-level gear detection", function()
     describe("CheckLowLevel", function()
         it("returns a payload for each low or empty slot that has a bag replacement", function()
             Equipment.SetSlotForTests(1, { link = ITEM_LINK })
-            assert.same({
+            assert.same(
                 {
-                    type = "LOW_LEVEL_ITEM",
-                    itemLevel = 30,
-                    averageItemLevel = 100,
-                    slot = 1,
-                    slotName = Equipment.GetSlotName(1),
-                    itemLink = ITEM_LINK,
+                    {
+                        type = "LOW_LEVEL_ITEM",
+                        itemLevel = 30,
+                        averageItemLevel = 100,
+                        slot = 1,
+                        slotName = Equipment.GetSlotName(1),
+                        itemLink = ITEM_LINK,
+                    },
                 },
-            }, Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(100, {
-                Slot(1, "ready", 30),
-            }, {
-                Bag("ready", 80, { 1 }),
-            }))))
-            assert.same({}, Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(100, {
-                Slot(1, "ready", 30),
-            }))))
-            assert.same({}, Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(100, {
-                Slot(1, "ready", 100),
-            }, {
-                Bag("ready", 80, { 1 }),
-            }))))
-            assert.same({}, Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(100, {
-                Slot(1, "pending", nil, 1),
-            }))))
-            assert.same({
+                Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(100, {
+                    Slot(1, "ready", 30),
+                }, {
+                    Bag("ready", 80, { 1 }),
+                })))
+            )
+            assert.same(
+                {},
+                Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(100, {
+                    Slot(1, "ready", 30),
+                })))
+            )
+            assert.same(
+                {},
+                Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(100, {
+                    Slot(1, "ready", 100),
+                }, {
+                    Bag("ready", 80, { 1 }),
+                })))
+            )
+            assert.same(
+                {},
+                Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(100, {
+                    Slot(1, "pending", nil, 1),
+                })))
+            )
+            assert.same(
                 {
-                    type = "LOW_LEVEL_ITEM",
-                    itemLevel = 0,
-                    averageItemLevel = 100,
-                    slot = 1,
-                    slotName = Equipment.GetSlotName(1),
+                    {
+                        type = "LOW_LEVEL_ITEM",
+                        itemLevel = 0,
+                        averageItemLevel = 100,
+                        slot = 1,
+                        slotName = Equipment.GetSlotName(1),
+                    },
                 },
-            }, Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(100, {
-                Slot(1, "empty"),
-            }, {
-                Bag("ready", 80, { 1 }),
-            }))))
-            assert.same({}, Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(100, {
-                Slot(1, "empty"),
-            }))))
+                Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(100, {
+                    Slot(1, "empty"),
+                }, {
+                    Bag("ready", 80, { 1 }),
+                })))
+            )
+            assert.same(
+                {},
+                Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(100, {
+                    Slot(1, "empty"),
+                })))
+            )
             Equipment.SetSlotForTests(2, { link = ITEM_LINK })
-            assert.same({
+            assert.same(
                 {
-                    type = "LOW_LEVEL_ITEM",
-                    itemLevel = 0,
-                    averageItemLevel = 700,
-                    slot = 1,
-                    slotName = Equipment.GetSlotName(1),
+                    {
+                        type = "LOW_LEVEL_ITEM",
+                        itemLevel = 0,
+                        averageItemLevel = 700,
+                        slot = 1,
+                        slotName = Equipment.GetSlotName(1),
+                    },
+                    {
+                        type = "LOW_LEVEL_ITEM",
+                        itemLevel = 30,
+                        averageItemLevel = 700,
+                        slot = 2,
+                        slotName = Equipment.GetSlotName(2),
+                        itemLink = ITEM_LINK,
+                    },
                 },
-                {
-                    type = "LOW_LEVEL_ITEM",
-                    itemLevel = 30,
-                    averageItemLevel = 700,
-                    slot = 2,
-                    slotName = Equipment.GetSlotName(2),
-                    itemLink = ITEM_LINK,
-                },
-            }, Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(700, {
-                Slot(1, "empty"),
-                Slot(2, "ready", 30),
-            }, {
-                Bag("ready", 700, { 1 }),
-                Bag("ready", 700, { 2 }),
-            }))))
+                Internals.CheckLowLevel(Internals.EvaluateLowLevel(Scan(700, {
+                    Slot(1, "empty"),
+                    Slot(2, "ready", 30),
+                }, {
+                    Bag("ready", 700, { 1 }),
+                    Bag("ready", 700, { 2 }),
+                })))
+            )
         end)
     end)
 

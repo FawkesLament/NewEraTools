@@ -198,6 +198,7 @@ describe("CoiledAltar InterruptRotationTracker", function()
                     end,
                 }
             end,
+            PlaceSlider = function() end,
         }
         namespace.LayoutEditor = {
             Register = function(def)

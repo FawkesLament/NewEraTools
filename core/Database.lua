@@ -3,7 +3,7 @@ local _, ns = ...
 local Database = {}
 ns.Database = Database
 
-local SCHEMA_VERSION = 16
+local SCHEMA_VERSION = 17
 
 -- migrations[n] upgrades saved data from version n - 1 to version n, in place.
 local migrations = {}
@@ -200,6 +200,25 @@ migrations[16] = function(saved)
         assignments.MELEE = {}
     end
     settings.markedChain = "MELEE"
+end
+
+local function RenameSavedKey(tbl, from, to)
+    if tbl[to] == nil and tbl[from] ~= nil then
+        tbl[to] = tbl[from]
+    end
+    tbl[from] = nil
+end
+
+-- Twin Fangs venom roster: rowSpacing was row height; columnSpacing was the gap between columns.
+migrations[17] = function(saved)
+    local modules = saved.modules
+    local settings = type(modules) == "table" and modules.TwinFangs or nil
+    local roster = type(settings) == "table" and settings.venomRoster or nil
+    if type(roster) ~= "table" then
+        return
+    end
+    RenameSavedKey(roster, "rowSpacing", "rowHeight")
+    RenameSavedKey(roster, "columnSpacing", "columnGap")
 end
 
 ---Upgrades saved variables to the current schema, creating them if missing.

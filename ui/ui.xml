@@ -27,6 +27,8 @@
     <Script file="CalloutMessage.lua"/>
     <Script file="InterruptChainHUD.lua"/>
     <Script file="InterruptRotationTracker.lua"/>
+    <Script file="DebuffMonitorColumns.lua"/>
+    <Script file="DebuffMonitor.lua"/>
     <Script file="CollapsiblePanel.lua"/>
     <Script file="LayoutCoordinateInspector.lua"/>
     <Script file="LayoutEditor.lua"/>

@@ -161,7 +161,8 @@ function Layout.OnWidth(frame, callback)
             lastWidth = nil
             return false
         end
-        if running or lastWidth == width then
+        -- Dragging the parent can report the same layout width with sub-pixel noise.
+        if running or (lastWidth and math.abs(lastWidth - width) < 0.01) then
             return true
         end
         running = true
@@ -243,6 +244,31 @@ function Layout.Row(row, widgets, spacing, inset)
         end
         previous = widget
     end
+end
+
+---Label on the left, value box (and optional suffix) on the right; the slider fills the gap.
+---@param row Frame
+---@param label FontString
+---@param slider SliderControl
+function Layout.PlaceSlider(row, label, slider)
+    local Spacing = ns.Assets.Spacing
+    label:SetJustifyH("LEFT")
+    label:ClearAllPoints()
+    label:SetPoint("LEFT", row, "LEFT")
+    local box = slider.valueBox
+    local suffix = slider.valueSuffix
+    if suffix then
+        suffix:ClearAllPoints()
+        suffix:SetPoint("RIGHT", row, "RIGHT")
+        box:ClearAllPoints()
+        box:SetPoint("RIGHT", suffix, "LEFT", -Spacing.TINY, 0)
+    else
+        box:ClearAllPoints()
+        box:SetPoint("RIGHT", row, "RIGHT")
+    end
+    slider:ClearAllPoints()
+    slider:SetPoint("LEFT", label, "RIGHT", Spacing.LARGE, 0)
+    slider:SetPoint("RIGHT", box, "LEFT", -Spacing.MEDIUM, 0)
 end
 
 ---Splits `row` into `count` equal-width cells with `gap` between neighbors.

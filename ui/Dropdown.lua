@@ -351,3 +351,63 @@ function Dropdown.CreateFont(parent, labelText, onSelect)
     end)
     return dropdown
 end
+
+local STATUS_BAR_TEXTURE_LABELS = {
+    flat = L.AURA_TRACKER_TEXTURE_FLAT,
+    default = L.AURA_TRACKER_TEXTURE_DEFAULT,
+    raid = L.AURA_TRACKER_TEXTURE_RAID,
+}
+
+---@class StatusBarTextureDropdown: Dropdown
+---@field label FontString
+---@field RefreshItems fun(self: StatusBarTextureDropdown)
+
+---Labeled dropdown of built-in status-bar fills plus LibSharedMedia statusbars. Stretches to fill `parent`.
+---@param parent Frame
+---@param labelText string
+---@param onSelect fun(textureId: string)
+---@return StatusBarTextureDropdown
+function Dropdown.CreateStatusBarTexture(parent, labelText, onSelect)
+    local SharedMedia = ns.SharedMedia
+    local nameLabel = Widgets.CreateLabel(parent, Fonts.BODY, labelText)
+    nameLabel:SetJustifyH("LEFT")
+    nameLabel:SetPoint("LEFT", parent, "LEFT")
+
+    local function BuildItems()
+        local items = {}
+        for _, textureId in ipairs(SharedMedia.ListStatusBarTextureIds()) do
+            items[#items + 1] = {
+                value = textureId,
+                text = STATUS_BAR_TEXTURE_LABELS[textureId] or textureId,
+            }
+        end
+        return items
+    end
+
+    local dropdown = Dropdown.Create(parent, BuildItems(), onSelect) --[[@as StatusBarTextureDropdown]]
+    dropdown.label = nameLabel
+    dropdown:SetAutoWidth(false)
+    dropdown:ClearAllPoints()
+    dropdown:SetPoint("LEFT", nameLabel, "RIGHT", Spacing.LARGE, 0)
+    dropdown:SetHeight(Sizes.CONTROL_HEIGHT)
+
+    local function SyncWidth()
+        local parentWidth = parent:GetWidth()
+        if parentWidth <= 0 then
+            return
+        end
+        local width = parentWidth - nameLabel:GetStringWidth() - Spacing.LARGE
+        dropdown:SetWidth(math.max(width, Sizes.DROPDOWN_MIN_WIDTH))
+    end
+    parent:HookScript("OnSizeChanged", SyncWidth)
+    SyncWidth()
+
+    function dropdown:RefreshItems()
+        self:SetItems(BuildItems())
+    end
+
+    SharedMedia.OnStatusBarsRegistered(function()
+        dropdown:RefreshItems()
+    end)
+    return dropdown
+end

@@ -49,20 +49,6 @@ local function FormatTitle(saved)
     return L.EVENT_LOG_ENTRY_TITLE:format(name, saved.startedAt, duration)
 end
 
----@param row Frame
----@param label FontString
----@param slider SliderControl
-local function PlaceSlider(row, label, slider)
-    label:SetJustifyH("LEFT")
-    label:SetPoint("LEFT", row, "LEFT")
-    local box = slider.valueBox
-    box:ClearAllPoints()
-    box:SetPoint("RIGHT", row, "RIGHT")
-    slider:ClearAllPoints()
-    slider:SetPoint("LEFT", label, "RIGHT", Spacing.LARGE, 0)
-    slider:SetPoint("RIGHT", box, "LEFT", -Spacing.MEDIUM, 0)
-end
-
 ---@param index integer
 ---@return EventLogRow row, boolean created
 local function EnsureRow(index)
@@ -148,7 +134,7 @@ local function BuildContent(content)
     maxSlider:SetScript("OnValueChanged", function(_, rawValue)
         EventLog:SetMaxLogs(rawValue)
     end)
-    PlaceSlider(maxRow, maxLabel, maxSlider)
+    Layout.PlaceSlider(maxRow, maxLabel, maxSlider)
 
     listFrame = bodyStack:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     listStack = Layout.Stack(listFrame, { spacing = Spacing.SMALL })

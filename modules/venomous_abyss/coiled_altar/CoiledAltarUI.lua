@@ -127,28 +127,6 @@ local function BeginEditPosition()
     LayoutEditor.BeginScope(SCOPE_ID)
 end
 
----@param row Frame
----@param label FontString
----@param slider SliderControl
-local function PlaceSlider(row, label, slider)
-    label:SetJustifyH("LEFT")
-    label:SetPoint("LEFT", row, "LEFT")
-    local box = slider.valueBox
-    local suffix = slider.valueSuffix
-    if suffix then
-        suffix:ClearAllPoints()
-        suffix:SetPoint("RIGHT", row, "RIGHT")
-        box:ClearAllPoints()
-        box:SetPoint("RIGHT", suffix, "LEFT", -Spacing.TINY, 0)
-    else
-        box:ClearAllPoints()
-        box:SetPoint("RIGHT", row, "RIGHT")
-    end
-    slider:ClearAllPoints()
-    slider:SetPoint("LEFT", label, "RIGHT", Spacing.LARGE, 0)
-    slider:SetPoint("RIGHT", box, "LEFT", -Spacing.MEDIUM, 0)
-end
-
 ---@param content Frame
 ---@return number
 local function BuildContent(content)
@@ -487,7 +465,7 @@ local function BuildContent(content)
         end
         CoiledAltar:SetNameplateHintScale(rawValue)
     end)
-    PlaceSlider(scaleCell, scaleLabel, scaleSlider)
+    Layout.PlaceSlider(scaleCell, scaleLabel, scaleSlider)
 
     local offsetRow = hintBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local offsetXCell, offsetYCell = Layout.SplitRow(offsetRow, Spacing.MEDIUM)
@@ -547,7 +525,7 @@ local function BuildContent(content)
         end
         CoiledAltar:SetNameplateHintNumberFontSize(rawValue)
     end)
-    PlaceSlider(numberFontCell, numberFontLabel, numberFontSlider)
+    Layout.PlaceSlider(numberFontCell, numberFontLabel, numberFontSlider)
 
     local nameFontLabel = Widgets.CreateLabel(nameFontCell, Fonts.BODY, L.COILED_ALTAR_NAMEPLATE_HINT_NAME_FONT_SIZE)
     local nameFontSlider = Slider.Create(
@@ -563,7 +541,7 @@ local function BuildContent(content)
         end
         CoiledAltar:SetNameplateHintNameFontSize(rawValue)
     end)
-    PlaceSlider(nameFontCell, nameFontLabel, nameFontSlider)
+    Layout.PlaceSlider(nameFontCell, nameFontLabel, nameFontSlider)
 
     hint:SetContentHeight(hintBody:GetHeight())
     hint:RefreshContentInteractive()

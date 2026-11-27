@@ -115,11 +115,11 @@ local function RowFromSlot(slot, roster, playerName, index)
         }
     end
     return {
-            slot = label,
-            text = L.COILED_ALTAR_INTERRUPT_SLOT_EMPTY,
-            highlight = false,
-            slotColor = Colors.TEXT_MUTED,
-            textColor = Colors.TEXT_MUTED,
+        slot = label,
+        text = L.COILED_ALTAR_INTERRUPT_SLOT_EMPTY,
+        highlight = false,
+        slotColor = Colors.TEXT_MUTED,
+        textColor = Colors.TEXT_MUTED,
     }
 end
 

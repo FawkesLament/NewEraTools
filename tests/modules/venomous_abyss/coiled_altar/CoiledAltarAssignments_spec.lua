@@ -114,7 +114,7 @@ describe("CoiledAltar interrupt assignments", function()
         Module:AssignInterruptPlayer(Assignments.RANGED, 6, "PlayerC")
 
         local snapshot = {
-            schemaVersion = 16,
+            schemaVersion = 17,
             modules = {
                 CoiledAltar = {
                     nameplateHint = Module.db.nameplateHint,

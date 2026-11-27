@@ -38,11 +38,16 @@ local Internals = ns.Modules.Internals("TwinFangs")
 
 ---@class TwinFangsVenomRosterSettings
 ---@field enabled boolean
----@field rowSpacing number
----@field columnSpacing number
+---@field rowHeight number
+---@field rowGap number
+---@field columnGap number
 ---@field nameColumnWidth number
 ---@field nameFontSize number
 ---@field stackFontSize number
+---@field barTexture string
+---@field barColor RgbColor
+---@field backgroundOpacity number
+---@field barOpacity number
 
 ---@class TwinFangsSettings
 ---@field soakReminder TwinFangsSoakReminder
@@ -110,26 +115,41 @@ local Schema = {
     FONT_SIZE_MAX = 32,
     FONT_SIZE_STEP = 1,
 
-    VENOM_ROSTER_ROW_SPACING_DEFAULT = 20,
-    VENOM_ROSTER_ROW_SPACING_MIN = 16,
-    VENOM_ROSTER_ROW_SPACING_MAX = 32,
-    VENOM_ROSTER_ROW_SPACING_STEP = 1,
-    VENOM_ROSTER_COLUMN_SPACING_DEFAULT = 12,
-    VENOM_ROSTER_COLUMN_SPACING_MIN = 4,
-    VENOM_ROSTER_COLUMN_SPACING_MAX = 24,
-    VENOM_ROSTER_COLUMN_SPACING_STEP = 1,
-    VENOM_ROSTER_NAME_COLUMN_WIDTH_DEFAULT = 120,
+    VENOM_ROSTER_ROW_HEIGHT_DEFAULT = 27,
+    VENOM_ROSTER_ROW_HEIGHT_MIN = 16,
+    VENOM_ROSTER_ROW_HEIGHT_MAX = 32,
+    VENOM_ROSTER_ROW_HEIGHT_STEP = 1,
+    VENOM_ROSTER_ROW_GAP_DEFAULT = 2,
+    VENOM_ROSTER_ROW_GAP_MIN = 0,
+    VENOM_ROSTER_ROW_GAP_MAX = 5,
+    VENOM_ROSTER_ROW_GAP_STEP = 1,
+    VENOM_ROSTER_COLUMN_GAP_DEFAULT = 4,
+    VENOM_ROSTER_COLUMN_GAP_MIN = 0,
+    VENOM_ROSTER_COLUMN_GAP_MAX = 24,
+    VENOM_ROSTER_COLUMN_GAP_STEP = 1,
+    VENOM_ROSTER_BACKGROUND_OPACITY_DEFAULT = 0.03,
+    VENOM_ROSTER_BACKGROUND_OPACITY_MIN = 0,
+    VENOM_ROSTER_BACKGROUND_OPACITY_MAX = 1,
+    VENOM_ROSTER_BACKGROUND_OPACITY_STEP = 0.01,
+    VENOM_ROSTER_BAR_OPACITY_DEFAULT = 0.24,
+    VENOM_ROSTER_BAR_OPACITY_MIN = 0,
+    VENOM_ROSTER_BAR_OPACITY_MAX = 1,
+    VENOM_ROSTER_BAR_OPACITY_STEP = 0.01,
+    VENOM_ROSTER_NAME_COLUMN_WIDTH_DEFAULT = 80,
     VENOM_ROSTER_NAME_COLUMN_WIDTH_MIN = 64,
     VENOM_ROSTER_NAME_COLUMN_WIDTH_MAX = 200,
     VENOM_ROSTER_NAME_COLUMN_WIDTH_STEP = 1,
-    VENOM_ROSTER_NAME_FONT_SIZE_DEFAULT = 12,
+    VENOM_ROSTER_NAME_FONT_SIZE_DEFAULT = 15,
     VENOM_ROSTER_NAME_FONT_SIZE_MIN = 8,
     VENOM_ROSTER_NAME_FONT_SIZE_MAX = 20,
     VENOM_ROSTER_NAME_FONT_SIZE_STEP = 1,
-    VENOM_ROSTER_STACK_FONT_SIZE_DEFAULT = 16,
+    VENOM_ROSTER_STACK_FONT_SIZE_DEFAULT = 15,
     VENOM_ROSTER_STACK_FONT_SIZE_MIN = 10,
     VENOM_ROSTER_STACK_FONT_SIZE_MAX = 28,
     VENOM_ROSTER_STACK_FONT_SIZE_STEP = 1,
+    VENOM_ROSTER_BAR_TEXTURE_DEFAULT = ns.Assets.STATUS_BAR_TEXTURE_DEFAULT,
+    -- Ice-blue fill (#7DD3FC).
+    VENOM_ROSTER_BAR_COLOR_DEFAULT = { r = 125 / 255, g = 211 / 255, b = 252 / 255 },
     -- Ice-blue number fill (#7DD6FF).
     FONT_COLOR_DEFAULT = { r = 125 / 255, g = 214 / 255, b = 1 },
 
@@ -352,11 +372,20 @@ end
 function Schema.NewVenomRoster()
     return {
         enabled = false,
-        rowSpacing = Schema.VENOM_ROSTER_ROW_SPACING_DEFAULT,
-        columnSpacing = Schema.VENOM_ROSTER_COLUMN_SPACING_DEFAULT,
+        rowHeight = Schema.VENOM_ROSTER_ROW_HEIGHT_DEFAULT,
+        rowGap = Schema.VENOM_ROSTER_ROW_GAP_DEFAULT,
+        columnGap = Schema.VENOM_ROSTER_COLUMN_GAP_DEFAULT,
         nameColumnWidth = Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_DEFAULT,
         nameFontSize = Schema.VENOM_ROSTER_NAME_FONT_SIZE_DEFAULT,
         stackFontSize = Schema.VENOM_ROSTER_STACK_FONT_SIZE_DEFAULT,
+        barTexture = Schema.VENOM_ROSTER_BAR_TEXTURE_DEFAULT,
+        barColor = {
+            r = Schema.VENOM_ROSTER_BAR_COLOR_DEFAULT.r,
+            g = Schema.VENOM_ROSTER_BAR_COLOR_DEFAULT.g,
+            b = Schema.VENOM_ROSTER_BAR_COLOR_DEFAULT.b,
+        },
+        backgroundOpacity = Schema.VENOM_ROSTER_BACKGROUND_OPACITY_DEFAULT,
+        barOpacity = Schema.VENOM_ROSTER_BAR_OPACITY_DEFAULT,
     }
 end
 

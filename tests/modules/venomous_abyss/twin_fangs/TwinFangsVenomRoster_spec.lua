@@ -183,19 +183,32 @@ describe("TwinFangs venom roster", function()
 
     it("defaults the venom roster off and restores appearance from SavedVariables", function()
         assert.is_false(Module:IsVenomRosterEnabled())
-        assert.equals(20, Module:GetVenomRosterRowSpacing())
-        assert.equals(12, Module:GetVenomRosterColumnSpacing())
-        assert.equals(12, Module:GetVenomRosterNameFontSize())
-        assert.equals(16, Module:GetVenomRosterStackFontSize())
-        assert.equals(120, Module:GetVenomRosterNameColumnWidth())
+        assert.equals(Schema.VENOM_ROSTER_ROW_HEIGHT_DEFAULT, Module:GetVenomRosterRowHeight())
+        assert.equals(Schema.VENOM_ROSTER_ROW_GAP_DEFAULT, Module:GetVenomRosterRowGap())
+        assert.equals(Schema.VENOM_ROSTER_COLUMN_GAP_DEFAULT, Module:GetVenomRosterColumnGap())
+        assert.equals(Schema.VENOM_ROSTER_BACKGROUND_OPACITY_DEFAULT, Module:GetVenomRosterBackgroundOpacity())
+        assert.equals(Schema.VENOM_ROSTER_BAR_OPACITY_DEFAULT, Module:GetVenomRosterBarOpacity())
+        assert.equals(Schema.VENOM_ROSTER_NAME_FONT_SIZE_DEFAULT, Module:GetVenomRosterNameFontSize())
+        assert.equals(Schema.VENOM_ROSTER_STACK_FONT_SIZE_DEFAULT, Module:GetVenomRosterStackFontSize())
+        assert.equals(Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_DEFAULT, Module:GetVenomRosterNameColumnWidth())
+        assert.equals("flat", Module:GetVenomRosterBarTexture())
+        assert.equals(ns.Assets.Textures.WHITE, Module:GetVenomRosterBarTexturePath())
+        assert.same(Schema.VENOM_ROSTER_BAR_COLOR_DEFAULT, Module:GetVenomRosterBarColor())
         assert.same(Schema.DefaultVenomRosterPosition(), Module:GetVenomRosterPosition())
 
         Module:SetVenomRosterEnabled(true)
-        Module:SetVenomRosterRowSpacing(24)
-        Module:SetVenomRosterColumnSpacing(8)
+        Module:SetVenomRosterRowHeight(24)
+        Module:SetVenomRosterRowGap(3)
+        Module:SetVenomRosterColumnGap(0)
+        Module:SetVenomRosterBackgroundOpacity(0.4)
+        Module:SetVenomRosterBarOpacity(0.25)
         Module:SetVenomRosterNameColumnWidth(80)
         Module:SetVenomRosterNameFontSize(14)
         Module:SetVenomRosterStackFontSize(18)
+        Module:SetVenomRosterBarTexture("raid")
+        assert.is_false(pcall(Module.SetVenomRosterBarTexture, Module, "missing"))
+        Module:SetVenomRosterBarColor({ r = 0.2, g = 0.8, b = 0.3 })
+        assert.is_false(pcall(Module.SetVenomRosterBarColor, Module, { r = 1 }))
         local position = { point = "TOP", relativePoint = "TOP", x = 12, y = -8 }
         Module:SetVenomRosterPosition(position)
 
@@ -205,11 +218,16 @@ describe("TwinFangs venom roster", function()
                 TwinFangs = {
                     venomRoster = {
                         enabled = true,
-                        rowSpacing = 24,
-                        columnSpacing = 8,
+                        rowHeight = 24,
+                        rowGap = 3,
+                        columnGap = 0,
+                        backgroundOpacity = 0.4,
+                        barOpacity = 0.25,
                         nameColumnWidth = 80,
                         nameFontSize = 14,
                         stackFontSize = 18,
+                        barTexture = "raid",
+                        barColor = { r = 0.2, g = 0.8, b = 0.3 },
                     },
                     venomRosterPosition = position,
                 },
@@ -217,12 +235,44 @@ describe("TwinFangs venom roster", function()
         }))
         local loaded = reloaded.Modules.Get("TwinFangs")
         assert.is_true(loaded:IsVenomRosterEnabled())
-        assert.equals(24, loaded:GetVenomRosterRowSpacing())
-        assert.equals(8, loaded:GetVenomRosterColumnSpacing())
+        assert.equals(24, loaded:GetVenomRosterRowHeight())
+        assert.equals(3, loaded:GetVenomRosterRowGap())
+        assert.equals(0, loaded:GetVenomRosterColumnGap())
+        assert.equals(0.4, loaded:GetVenomRosterBackgroundOpacity())
+        assert.equals(0.25, loaded:GetVenomRosterBarOpacity())
         assert.equals(80, loaded:GetVenomRosterNameColumnWidth())
         assert.equals(14, loaded:GetVenomRosterNameFontSize())
         assert.equals(18, loaded:GetVenomRosterStackFontSize())
+        assert.equals("raid", loaded:GetVenomRosterBarTexture())
+        assert.equals(reloaded.Assets.Textures.RAID_BAR, loaded:GetVenomRosterBarTexturePath())
+        assert.same({ r = 0.2, g = 0.8, b = 0.3 }, loaded:GetVenomRosterBarColor())
         assert.same(position, loaded:GetVenomRosterPosition())
+    end)
+
+    it("restores appearance without turning the roster off", function()
+        Module:SetVenomRosterEnabled(true)
+        Module:SetVenomRosterRowHeight(24)
+        Module:SetVenomRosterRowGap(5)
+        Module:SetVenomRosterColumnGap(20)
+        Module:SetVenomRosterNameColumnWidth(160)
+        Module:SetVenomRosterNameFontSize(10)
+        Module:SetVenomRosterStackFontSize(20)
+        Module:SetVenomRosterBarTexture("raid")
+        Module:SetVenomRosterBarColor({ r = 1, g = 0, b = 0 })
+        Module:SetVenomRosterBackgroundOpacity(0.9)
+        Module:SetVenomRosterBarOpacity(0.5)
+        Module:ResetVenomRosterAppearance()
+        assert.is_true(Module:IsVenomRosterEnabled())
+        assert.equals(Schema.VENOM_ROSTER_ROW_HEIGHT_DEFAULT, Module:GetVenomRosterRowHeight())
+        assert.equals(Schema.VENOM_ROSTER_ROW_GAP_DEFAULT, Module:GetVenomRosterRowGap())
+        assert.equals(Schema.VENOM_ROSTER_COLUMN_GAP_DEFAULT, Module:GetVenomRosterColumnGap())
+        assert.equals(Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_DEFAULT, Module:GetVenomRosterNameColumnWidth())
+        assert.equals(Schema.VENOM_ROSTER_NAME_FONT_SIZE_DEFAULT, Module:GetVenomRosterNameFontSize())
+        assert.equals(Schema.VENOM_ROSTER_STACK_FONT_SIZE_DEFAULT, Module:GetVenomRosterStackFontSize())
+        assert.equals(Schema.VENOM_ROSTER_BAR_TEXTURE_DEFAULT, Module:GetVenomRosterBarTexture())
+        assert.same(Schema.VENOM_ROSTER_BAR_COLOR_DEFAULT, Module:GetVenomRosterBarColor())
+        assert.equals(Schema.VENOM_ROSTER_BACKGROUND_OPACITY_DEFAULT, Module:GetVenomRosterBackgroundOpacity())
+        assert.equals(Schema.VENOM_ROSTER_BAR_OPACITY_DEFAULT, Module:GetVenomRosterBarOpacity())
     end)
 
     it("detects Pit of Fangs in instance 3004 for either locale name", function()
@@ -286,11 +336,16 @@ describe("TwinFangs venom roster", function()
             modules = {
                 TwinFangs = {
                     venomRoster = {
-                        rowSpacing = 1,
-                        columnSpacing = 99,
+                        rowHeight = 1,
+                        rowGap = 9,
+                        columnGap = -1,
+                        backgroundOpacity = 2,
+                        barOpacity = -1,
                         nameColumnWidth = 1,
                         nameFontSize = 0,
                         stackFontSize = 100,
+                        barTexture = "missing",
+                        barColor = { r = "bad", g = 0, b = 0 },
                     },
                     venomRosterPosition = { point = "CENTER", relativePoint = "CENTER", x = "bad", y = 0 },
                 },
@@ -300,11 +355,16 @@ describe("TwinFangs venom roster", function()
         local loadedSchema = fresh.Modules.Internals("TwinFangs").Schema
         assert.is_false(loaded:IsVenomRosterEnabled())
         assert.is_nil(loaded.db.venomRoster.scale)
-        assert.equals(loadedSchema.VENOM_ROSTER_ROW_SPACING_MIN, loaded:GetVenomRosterRowSpacing())
-        assert.equals(loadedSchema.VENOM_ROSTER_COLUMN_SPACING_MAX, loaded:GetVenomRosterColumnSpacing())
+        assert.equals(loadedSchema.VENOM_ROSTER_ROW_HEIGHT_MIN, loaded:GetVenomRosterRowHeight())
+        assert.equals(loadedSchema.VENOM_ROSTER_ROW_GAP_MAX, loaded:GetVenomRosterRowGap())
+        assert.equals(loadedSchema.VENOM_ROSTER_COLUMN_GAP_MIN, loaded:GetVenomRosterColumnGap())
+        assert.equals(loadedSchema.VENOM_ROSTER_BACKGROUND_OPACITY_MAX, loaded:GetVenomRosterBackgroundOpacity())
+        assert.equals(loadedSchema.VENOM_ROSTER_BAR_OPACITY_MIN, loaded:GetVenomRosterBarOpacity())
         assert.equals(loadedSchema.VENOM_ROSTER_NAME_COLUMN_WIDTH_MIN, loaded:GetVenomRosterNameColumnWidth())
         assert.equals(loadedSchema.VENOM_ROSTER_NAME_FONT_SIZE_MIN, loaded:GetVenomRosterNameFontSize())
         assert.equals(loadedSchema.VENOM_ROSTER_STACK_FONT_SIZE_MAX, loaded:GetVenomRosterStackFontSize())
+        assert.equals(loadedSchema.VENOM_ROSTER_BAR_TEXTURE_DEFAULT, loaded:GetVenomRosterBarTexture())
+        assert.same(loadedSchema.VENOM_ROSTER_BAR_COLOR_DEFAULT, loaded:GetVenomRosterBarColor())
         assert.same(loadedSchema.DefaultVenomRosterPosition(), loaded:GetVenomRosterPosition())
     end)
 end)

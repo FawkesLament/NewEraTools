@@ -1,6 +1,8 @@
 local Loader = require("helpers.loader")
 local Fs = require("helpers.fs")
 
+local COLUMNS_PATH = "ui/DebuffMonitorColumns.lua"
+local MONITOR_PATH = "ui/DebuffMonitor.lua"
 local UI_PATH = "modules/venomous_abyss/twin_fangs/ui/VenomRoster.lua"
 
 describe("TwinFangs venom roster UI", function()
@@ -11,6 +13,9 @@ describe("TwinFangs venom roster UI", function()
         local label = { parent = parent, text = "", shown = true, points = {} }
         function label:SetJustifyH() end
         function label:SetWordWrap() end
+        function label:ClearAllPoints()
+            self.points = {}
+        end
         function label:SetPoint(point, relative, relativePoint, x, y)
             self.points[#self.points + 1] = { point, relative, relativePoint, x, y }
         end
@@ -45,6 +50,8 @@ describe("TwinFangs venom roster UI", function()
         function label:GetStringWidth()
             return #(self.text or "") * 8
         end
+        function label:SetShadowOffset() end
+        function label:SetShadowColor() end
         return label
     end
 
@@ -112,8 +119,54 @@ describe("TwinFangs venom roster UI", function()
             return self.shown
         end
         function frame:Raise() end
+        function frame:SetFrameLevel(level)
+            self.frameLevel = level
+        end
+        function frame:GetFrameLevel()
+            return self.frameLevel or 0
+        end
         function frame:CreateFontString()
             return FakeLabel(self)
+        end
+        function frame:CreateTexture()
+            local texture = { parent = self, shown = true, points = {} }
+            function texture:SetColorTexture() end
+            function texture:SetAllPoints() end
+            function texture:SetPoint(...)
+                self.points[#self.points + 1] = { ... }
+            end
+            function texture:ClearAllPoints()
+                self.points = {}
+            end
+            function texture:SetWidth(width)
+                self.width = width
+            end
+            function texture:SetHeight(height)
+                self.height = height
+            end
+            function texture:Show()
+                self.shown = true
+            end
+            function texture:Hide()
+                self.shown = false
+            end
+            return texture
+        end
+        function frame:SetMinMaxValues() end
+        function frame:SetValue(value)
+            self.value = value
+        end
+        function frame:SetStatusBarTexture()
+            self.statusBarTexture = self.statusBarTexture or self:CreateTexture()
+        end
+        function frame:SetStatusBarColor() end
+        function frame:GetStatusBarTexture()
+            return self.statusBarTexture
+        end
+        function frame:HookScript(script, handler)
+            self.hooks = self.hooks or {}
+            self.hooks[script] = self.hooks[script] or {}
+            self.hooks[script][#self.hooks[script] + 1] = handler
         end
         if kind == "AuraContainer" then
             auraContainers[#auraContainers + 1] = frame
@@ -122,6 +175,15 @@ describe("TwinFangs venom roster UI", function()
                 local button = FakeFrame(self, "AuraButton", "AuraButton")
                 function button:SetApplicationCount(fontString, countOptions)
                     self.applicationCount = { fontString = fontString, options = countOptions }
+                end
+                function button:SetApplicationBar(bar, options)
+                    self.applicationBar = { bar = bar, options = options }
+                end
+                function button:SetDurationText(fontString, options)
+                    self.durationText = { fontString = fontString, options = options }
+                end
+                function button:SetDurationBar(bar, options)
+                    self.durationBar = { bar = bar, options = options }
                 end
                 self.slotButton = button
                 if options and options.initializeFrame then
@@ -224,6 +286,8 @@ describe("TwinFangs venom roster UI", function()
                 end
             end,
         }
+        assert(loadfile(COLUMNS_PATH))(Loader.ADDON_NAME, ns)
+        assert(loadfile(MONITOR_PATH))(Loader.ADDON_NAME, ns)
         assert(loadfile(UI_PATH))(Loader.ADDON_NAME, ns)
         Module:SetVenomRosterEnabled(true)
     end)
@@ -239,6 +303,23 @@ describe("TwinFangs venom roster UI", function()
 
     local function UI()
         return ns.Modules.Internals("TwinFangs").VenomRosterUI
+    end
+
+    local function ColumnWidth(nameWidth)
+        return ns.DebuffMonitor.ColumnWidth({
+            nameColumnWidth = nameWidth or Module:GetVenomRosterNameColumnWidth(),
+        })
+    end
+
+    local function RosterWidth(columns, nameWidth)
+        local gap = Module:GetVenomRosterColumnGap()
+        return ColumnWidth(nameWidth) * columns + gap * math.max(columns - 1, 0)
+    end
+
+    local function RosterHeight(rows)
+        local height = Module:GetVenomRosterRowHeight()
+        local gap = Module:GetVenomRosterRowGap()
+        return rows * height + math.max(rows - 1, 0) * gap
     end
 
     local function VisibleColumns(instance)
@@ -267,8 +348,8 @@ describe("TwinFangs venom roster UI", function()
         local instance = ui.Ensure()
         assert.is_true(instance.root.shown)
         assert.equals(3, #VisibleColumns(instance))
-        assert.equals(136 * 3 + 12 * 2, instance.root.width)
-        assert.equals(5 * 20, instance.root.height)
+        assert.equals(RosterWidth(3), instance.root.width)
+        assert.equals(RosterHeight(5), instance.root.height)
         assert.equals(5, #VisibleRows(instance.columns[1]))
         assert.equals(1, #VisibleRows(instance.columns[2]))
         assert.equals(3, #VisibleRows(instance.columns[3]))
@@ -315,8 +396,8 @@ describe("TwinFangs venom roster UI", function()
         assert.equals(1, #VisibleRows(instance.columns[1]))
         assert.is_false(instance.columns[2].frame.shown)
         assert.is_false(instance.columns[6].rows[5].frame.shown)
-        assert.equals(20, instance.root.height)
-        assert.equals(136, instance.root.width)
+        assert.equals(RosterHeight(1), instance.root.height)
+        assert.equals(ColumnWidth(), instance.root.width)
 
         ui.ShowPreview(30)
         assert.equals(afterCreate, #created)
@@ -380,21 +461,21 @@ describe("TwinFangs venom roster UI", function()
         local afterCreate = #created
         local root = instance.root
         assert.equals(1, root.scale)
-        assert.equals(5 * 20, root.height)
-        assert.equals(136 * 4 + 12 * 3, root.width)
-        assert.equals(12, instance.columns[1].rows[1].nameText.fontSize)
-        assert.equals(16, instance.columns[1].rows[1].stackText.fontSize)
+        assert.equals(RosterHeight(5), root.height)
+        assert.equals(RosterWidth(4), root.width)
+        assert.equals(Module:GetVenomRosterNameFontSize(), instance.columns[1].rows[1].nameText.fontSize)
+        assert.equals(Module:GetVenomRosterStackFontSize(), instance.columns[1].rows[1].stackText.fontSize)
 
         onScaleChanged(1.25)
-        Module:SetVenomRosterRowSpacing(24)
-        Module:SetVenomRosterColumnSpacing(8)
+        Module:SetVenomRosterRowHeight(24)
+        Module:SetVenomRosterColumnGap(8)
         Module:SetVenomRosterNameFontSize(14)
         Module:SetVenomRosterStackFontSize(20)
         assert.equals(afterCreate, #created)
         assert.equals(root, instance.root)
         assert.equals(1.25, root.scale)
-        assert.equals(5 * 24, root.height)
-        assert.equals(136 * 4 + 8 * 3, root.width)
+        assert.equals(RosterHeight(5), root.height)
+        assert.equals(RosterWidth(4), root.width)
         assert.equals(14, instance.columns[1].rows[1].nameText.fontSize)
         assert.equals(20, instance.columns[1].rows[1].stackText.fontSize)
     end)
@@ -404,13 +485,13 @@ describe("TwinFangs venom roster UI", function()
         ui.ShowPreview(20)
         local instance = ui.Ensure()
         local afterCreate = #created
-        assert.equals(120, instance.columns[1].rows[1].nameText.width)
+        assert.equals(Module:GetVenomRosterNameColumnWidth(), instance.columns[1].rows[1].nameText.width)
         assert.equals("Player1", instance.columns[1].rows[1].nameText.text)
 
-        Module:SetVenomRosterNameColumnWidth(80)
+        Module:SetVenomRosterNameColumnWidth(120)
         assert.equals(afterCreate, #created)
-        assert.equals(80, instance.columns[1].rows[1].nameText.width)
-        assert.equals((80 + 16) * 4 + 12 * 3, instance.root.width)
+        assert.equals(120, instance.columns[1].rows[1].nameText.width)
+        assert.equals(RosterWidth(4, 120), instance.root.width)
         assert.equals("Player1", instance.columns[1].rows[1].nameText.text)
 
         Module:SetVenomRosterNameColumnWidth(64)
@@ -423,7 +504,7 @@ describe("TwinFangs venom roster UI", function()
             },
         })
         assert.equals(64, instance.columns[1].rows[1].nameText.width)
-        assert.equals(64 + 16, instance.root.width)
+        assert.equals(ColumnWidth(64), instance.root.width)
         assert.equals("VeryL…", instance.columns[1].rows[1].nameText.text)
     end)
 
@@ -499,7 +580,7 @@ describe("TwinFangs venom roster UI", function()
         local alpha = instance.columns[1].rows[1]
         local beta = instance.columns[2].rows[1]
         assert.equals(2, #auraContainers)
-        assert.equals(alpha.stackHost, alpha.container.parent)
+        assert.equals(alpha.frame, alpha.container.parent)
         assert.equals("raid4", alpha.container.unit)
         assert.equals("raid12", beta.container.unit)
         local slot = alpha.container.auraSlot
@@ -662,11 +743,13 @@ describe("TwinFangs venom roster UI", function()
     end)
 
     it("does not read aura application counts from Lua", function()
-        local source = Fs.ReadFile(UI_PATH)
-        assert.is_nil(source:find("applications", 1, true))
-        assert.is_nil(source:find("GetAuraData", 1, true))
-        assert.is_nil(source:find("UNIT_AURA", 1, true))
-        assert.is_nil(source:find("C_UnitAuras", 1, true))
+        for _, path in ipairs({ UI_PATH, COLUMNS_PATH, MONITOR_PATH }) do
+            local source = Fs.ReadFile(path)
+            assert.is_nil(source:find("applications", 1, true), path)
+            assert.is_nil(source:find("GetAuraData", 1, true), path)
+            assert.is_nil(source:find("UNIT_AURA", 1, true), path)
+            assert.is_nil(source:find("C_UnitAuras", 1, true), path)
+        end
     end)
 
     it("exposes /netvenom live without encounter wiring", function()

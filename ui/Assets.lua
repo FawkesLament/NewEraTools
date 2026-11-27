@@ -52,6 +52,8 @@ Assets.PrewarmFontFiles()
 Assets.Textures = {
     -- A plain white square; tinted with SetVertexColor or used as a backdrop for flat fills.
     WHITE = "Interface\\Buttons\\WHITE8x8",
+    -- Soft vertical flare used as a progress-bar playhead glow (tinted, ADD blend).
+    CASTING_SPARK = "Interface\\CastingBar\\UI-CastingBar-Spark",
     -- Built-in status-bar fills (also listed in STATUS_BAR_TEXTURES for pickers).
     STATUS_BAR = "Interface\\TargetingFrame\\UI-StatusBar",
     RAID_BAR = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",

@@ -12,6 +12,8 @@ local function FakeFrame()
         self.points[point] = { relativeTo = relativeTo, relativePoint = relativePoint, x = x or 0, y = y or 0 }
     end
 
+    function frame:SetJustifyH() end
+
     function frame:SetHeight(height)
         self.height = height
     end
@@ -66,6 +68,9 @@ describe("Layout", function()
                         afterQueue[#afterQueue + 1] = callback
                     end,
                 },
+            },
+            Assets = {
+                Spacing = { TINY = 2, MEDIUM = 8, LARGE = 12 },
             },
         }
         assert(loadfile("ui/Layout.lua"))(Loader.ADDON_NAME, ns)
@@ -158,6 +163,26 @@ describe("Layout", function()
         assert.same({ relativeTo = a, relativePoint = "RIGHT", x = 12, y = 0 }, b.points.LEFT)
     end)
 
+    it("PlaceSlider stretches the track between the label and value box", function()
+        local row, label, slider, box = FakeFrame(), FakeFrame(), FakeFrame(), FakeFrame()
+        slider.valueBox = box
+        Layout.PlaceSlider(row, label, slider)
+        assert.same({ relativeTo = row, relativePoint = "LEFT", x = 0, y = 0 }, label.points.LEFT)
+        assert.same({ relativeTo = row, relativePoint = "RIGHT", x = 0, y = 0 }, box.points.RIGHT)
+        assert.same({ relativeTo = label, relativePoint = "RIGHT", x = 12, y = 0 }, slider.points.LEFT)
+        assert.same({ relativeTo = box, relativePoint = "LEFT", x = -8, y = 0 }, slider.points.RIGHT)
+    end)
+
+    it("PlaceSlider parks a suffix at the row edge ahead of the value box", function()
+        local row, label, slider, box, suffix = FakeFrame(), FakeFrame(), FakeFrame(), FakeFrame(), FakeFrame()
+        slider.valueBox = box
+        slider.valueSuffix = suffix
+        Layout.PlaceSlider(row, label, slider)
+        assert.same({ relativeTo = row, relativePoint = "RIGHT", x = 0, y = 0 }, suffix.points.RIGHT)
+        assert.same({ relativeTo = suffix, relativePoint = "LEFT", x = -2, y = 0 }, box.points.RIGHT)
+        assert.same({ relativeTo = box, relativePoint = "LEFT", x = -8, y = 0 }, slider.points.RIGHT)
+    end)
+
     it("Columns divides a row into equal cells and follows resizes", function()
         local row = FakeFrame()
         row:SetWidth(332)
@@ -228,6 +253,17 @@ describe("Layout", function()
                 frame.hooks.OnSizeChanged(frame, 100)
             end)
             assert.equals(1, calls)
+        end)
+
+        it("ignores sub-pixel width noise from parent movement", function()
+            local frame = FakeFrame()
+            frame:SetWidth(494)
+            local seen = {}
+            Layout.OnWidth(frame, function(width)
+                seen[#seen + 1] = width
+            end)
+            frame.hooks.OnSizeChanged(frame, 494.00003051758)
+            assert.same({ 494 }, seen)
         end)
     end)
 

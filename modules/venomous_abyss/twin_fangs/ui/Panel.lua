@@ -356,28 +356,6 @@ local function BuildContent(content)
         content:SetContentHeight(body:GetHeight())
     end
 
-    ---@param row Frame
-    ---@param label FontString
-    ---@param slider SliderControl
-    local function PlaceSlider(row, label, slider)
-        label:SetJustifyH("LEFT")
-        label:SetPoint("LEFT", row, "LEFT")
-        local box = slider.valueBox
-        local suffix = slider.valueSuffix
-        if suffix then
-            suffix:ClearAllPoints()
-            suffix:SetPoint("RIGHT", row, "RIGHT")
-            box:ClearAllPoints()
-            box:SetPoint("RIGHT", suffix, "LEFT", -Spacing.TINY, 0)
-        else
-            box:ClearAllPoints()
-            box:SetPoint("RIGHT", row, "RIGHT")
-        end
-        slider:ClearAllPoints()
-        slider:SetPoint("LEFT", label, "RIGHT", Spacing.LARGE, 0)
-        slider:SetPoint("RIGHT", box, "LEFT", -Spacing.MEDIUM, 0)
-    end
-
     local positionSizeRow = hintBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local positionCell, sizeCell = Layout.SplitRow(positionSizeRow, Spacing.MEDIUM)
 
@@ -400,6 +378,7 @@ local function BuildContent(content)
     Layout.Row(positionCell, { positionLabel, positionControl }, Spacing.LARGE)
 
     local sizeLabel = Widgets.CreateLabel(sizeCell, Fonts.BODY, L.TWIN_FANGS_NAMEPLATE_HINT_SIZE)
+    sizeLabel:SetJustifyH("LEFT")
     local sizeSlider = Slider.Create(sizeCell, Schema.SIZE_MIN, Schema.SIZE_MAX, Schema.SIZE_STEP)
     sizeSlider:SetValue(TwinFangs:GetNameplateHintSize())
     sizeSlider:SetScript("OnValueChanged", function(_, rawValue)
@@ -408,7 +387,7 @@ local function BuildContent(content)
         end
         TwinFangs:SetNameplateHintSize(rawValue)
     end)
-    PlaceSlider(sizeCell, sizeLabel, sizeSlider)
+    Layout.PlaceSlider(sizeCell, sizeLabel, sizeSlider)
 
     local offsetRow = hintBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local offsetXCell, offsetYCell = Layout.SplitRow(offsetRow, Spacing.MEDIUM)
@@ -460,6 +439,7 @@ local function BuildContent(content)
     local advancedBody = Layout.Stack(advanced.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
     local opacityRow = advancedBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local opacityLabel = Widgets.CreateLabel(opacityRow, Fonts.BODY, L.TWIN_FANGS_NAMEPLATE_HINT_OPACITY)
+    opacityLabel:SetJustifyH("LEFT")
     local opacitySlider =
         Slider.Create(opacityRow, Schema.OPACITY_MIN, Schema.OPACITY_MAX, Schema.OPACITY_STEP, { percentage = true })
     opacitySlider:SetValue(TwinFangs:GetNameplateHintOpacity())
@@ -469,7 +449,7 @@ local function BuildContent(content)
         end
         TwinFangs:SetNameplateHintOpacity(rawValue)
     end)
-    PlaceSlider(opacityRow, opacityLabel, opacitySlider)
+    Layout.PlaceSlider(opacityRow, opacityLabel, opacitySlider)
 
     local fontRow = advancedBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local fontCell, fontSizeCell = Layout.SplitRow(fontRow, Spacing.MEDIUM)
@@ -494,7 +474,7 @@ local function BuildContent(content)
         end
         TwinFangs:SetNameplateHintFontSize(rawValue)
     end)
-    Layout.Row(fontSizeCell, { fontSizeLabel, fontSizeSlider }, Spacing.LARGE)
+    Layout.PlaceSlider(fontSizeCell, fontSizeLabel, fontSizeSlider)
 
     local fontColorRow = advancedBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local fontColorLabel = Widgets.CreateLabel(fontColorRow, Fonts.BODY, L.TWIN_FANGS_NAMEPLATE_HINT_FONT_COLOR)
@@ -537,7 +517,7 @@ local function BuildContent(content)
     hint:RefreshContentInteractive()
 
     local venom = FeatureSection.Create(body, {
-        title = L.TWIN_FANGS_VENOM_STACKS,
+        title = L.TWIN_FANGS_VENOM_ROSTER_SHOW,
         divider = true,
         enabled = TwinFangs:IsVenomRosterEnabled(),
         onEnabledChanged = function(enabled)
@@ -548,62 +528,82 @@ local function BuildContent(content)
         end,
     })
     local venomBody = Layout.Stack(venom.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
-    local venomSpacingRow = venomBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local rowSpacingCell, columnSpacingCell = Layout.SplitRow(venomSpacingRow, Spacing.MEDIUM)
-    local rowSpacingLabel = Widgets.CreateLabel(rowSpacingCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_ROW_SPACING)
-    rowSpacingLabel:SetJustifyH("LEFT")
-    local rowSpacingSlider = Slider.Create(
-        rowSpacingCell,
-        Schema.VENOM_ROSTER_ROW_SPACING_MIN,
-        Schema.VENOM_ROSTER_ROW_SPACING_MAX,
-        Schema.VENOM_ROSTER_ROW_SPACING_STEP
+    local venomRowHeightRow = venomBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local rowHeightCell, rowGapCell = Layout.SplitRow(venomRowHeightRow, Spacing.MEDIUM)
+    local rowHeightLabel = Widgets.CreateLabel(rowHeightCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_ROW_HEIGHT)
+    rowHeightLabel:SetJustifyH("LEFT")
+    local rowHeightSlider = Slider.Create(
+        rowHeightCell,
+        Schema.VENOM_ROSTER_ROW_HEIGHT_MIN,
+        Schema.VENOM_ROSTER_ROW_HEIGHT_MAX,
+        Schema.VENOM_ROSTER_ROW_HEIGHT_STEP
     )
-    rowSpacingSlider:SetValue(TwinFangs:GetVenomRosterRowSpacing())
-    rowSpacingSlider:SetScript("OnValueChanged", function(_, rawValue)
+    rowHeightSlider:SetValue(TwinFangs:GetVenomRosterRowHeight())
+    rowHeightSlider:SetScript("OnValueChanged", function(_, rawValue)
         if not TwinFangs:IsVenomRosterEnabled() then
             return
         end
-        TwinFangs:SetVenomRosterRowSpacing(rawValue)
-        rowSpacingSlider:SetValue(TwinFangs:GetVenomRosterRowSpacing())
+        TwinFangs:SetVenomRosterRowHeight(rawValue)
+        rowHeightSlider:SetValue(TwinFangs:GetVenomRosterRowHeight())
     end)
-    Layout.Row(rowSpacingCell, { rowSpacingLabel, rowSpacingSlider }, Spacing.LARGE)
+    Layout.PlaceSlider(rowHeightCell, rowHeightLabel, rowHeightSlider)
 
-    local columnSpacingLabel =
-        Widgets.CreateLabel(columnSpacingCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_COLUMN_SPACING)
-    columnSpacingLabel:SetJustifyH("LEFT")
-    local columnSpacingSlider = Slider.Create(
-        columnSpacingCell,
-        Schema.VENOM_ROSTER_COLUMN_SPACING_MIN,
-        Schema.VENOM_ROSTER_COLUMN_SPACING_MAX,
-        Schema.VENOM_ROSTER_COLUMN_SPACING_STEP
+    local rowGapLabel = Widgets.CreateLabel(rowGapCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_ROW_GAP)
+    rowGapLabel:SetJustifyH("LEFT")
+    local rowGapSlider = Slider.Create(
+        rowGapCell,
+        Schema.VENOM_ROSTER_ROW_GAP_MIN,
+        Schema.VENOM_ROSTER_ROW_GAP_MAX,
+        Schema.VENOM_ROSTER_ROW_GAP_STEP
     )
-    columnSpacingSlider:SetValue(TwinFangs:GetVenomRosterColumnSpacing())
-    columnSpacingSlider:SetScript("OnValueChanged", function(_, rawValue)
+    rowGapSlider:SetValue(TwinFangs:GetVenomRosterRowGap())
+    rowGapSlider:SetScript("OnValueChanged", function(_, rawValue)
         if not TwinFangs:IsVenomRosterEnabled() then
             return
         end
-        TwinFangs:SetVenomRosterColumnSpacing(rawValue)
-        columnSpacingSlider:SetValue(TwinFangs:GetVenomRosterColumnSpacing())
+        TwinFangs:SetVenomRosterRowGap(rawValue)
+        rowGapSlider:SetValue(TwinFangs:GetVenomRosterRowGap())
     end)
-    Layout.Row(columnSpacingCell, { columnSpacingLabel, columnSpacingSlider }, Spacing.LARGE)
+    Layout.PlaceSlider(rowGapCell, rowGapLabel, rowGapSlider)
 
-    local nameWidthRow = venomBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local nameWidthLabel = Widgets.CreateLabel(nameWidthRow, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_NAME_WIDTH)
-    local nameWidthSlider = Slider.Create(
-        nameWidthRow,
+    local venomColumnRow = venomBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local nameColumnWidthCell, columnGapCell = Layout.SplitRow(venomColumnRow, Spacing.MEDIUM)
+    local nameColumnWidthLabel =
+        Widgets.CreateLabel(nameColumnWidthCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_NAME_COLUMN_WIDTH)
+    nameColumnWidthLabel:SetJustifyH("LEFT")
+    local nameColumnWidthSlider = Slider.Create(
+        nameColumnWidthCell,
         Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_MIN,
         Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_MAX,
         Schema.VENOM_ROSTER_NAME_COLUMN_WIDTH_STEP
     )
-    nameWidthSlider:SetValue(TwinFangs:GetVenomRosterNameColumnWidth())
-    nameWidthSlider:SetScript("OnValueChanged", function(_, rawValue)
+    nameColumnWidthSlider:SetValue(TwinFangs:GetVenomRosterNameColumnWidth())
+    nameColumnWidthSlider:SetScript("OnValueChanged", function(_, rawValue)
         if not TwinFangs:IsVenomRosterEnabled() then
             return
         end
         TwinFangs:SetVenomRosterNameColumnWidth(rawValue)
-        nameWidthSlider:SetValue(TwinFangs:GetVenomRosterNameColumnWidth())
+        nameColumnWidthSlider:SetValue(TwinFangs:GetVenomRosterNameColumnWidth())
     end)
-    PlaceSlider(nameWidthRow, nameWidthLabel, nameWidthSlider)
+    Layout.PlaceSlider(nameColumnWidthCell, nameColumnWidthLabel, nameColumnWidthSlider)
+
+    local columnGapLabel = Widgets.CreateLabel(columnGapCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_COLUMN_GAP)
+    columnGapLabel:SetJustifyH("LEFT")
+    local columnGapSlider = Slider.Create(
+        columnGapCell,
+        Schema.VENOM_ROSTER_COLUMN_GAP_MIN,
+        Schema.VENOM_ROSTER_COLUMN_GAP_MAX,
+        Schema.VENOM_ROSTER_COLUMN_GAP_STEP
+    )
+    columnGapSlider:SetValue(TwinFangs:GetVenomRosterColumnGap())
+    columnGapSlider:SetScript("OnValueChanged", function(_, rawValue)
+        if not TwinFangs:IsVenomRosterEnabled() then
+            return
+        end
+        TwinFangs:SetVenomRosterColumnGap(rawValue)
+        columnGapSlider:SetValue(TwinFangs:GetVenomRosterColumnGap())
+    end)
+    Layout.PlaceSlider(columnGapCell, columnGapLabel, columnGapSlider)
 
     local venomFontRow = venomBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local nameFontCell, stackFontCell = Layout.SplitRow(venomFontRow, Spacing.MEDIUM)
@@ -623,7 +623,7 @@ local function BuildContent(content)
         TwinFangs:SetVenomRosterNameFontSize(rawValue)
         nameFontSlider:SetValue(TwinFangs:GetVenomRosterNameFontSize())
     end)
-    Layout.Row(nameFontCell, { nameFontLabel, nameFontSlider }, Spacing.LARGE)
+    Layout.PlaceSlider(nameFontCell, nameFontLabel, nameFontSlider)
 
     local stackFontLabel = Widgets.CreateLabel(stackFontCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_STACK_FONT_SIZE)
     stackFontLabel:SetJustifyH("LEFT")
@@ -641,7 +641,102 @@ local function BuildContent(content)
         TwinFangs:SetVenomRosterStackFontSize(rawValue)
         stackFontSlider:SetValue(TwinFangs:GetVenomRosterStackFontSize())
     end)
-    Layout.Row(stackFontCell, { stackFontLabel, stackFontSlider }, Spacing.LARGE)
+    Layout.PlaceSlider(stackFontCell, stackFontLabel, stackFontSlider)
+
+    local barRow = venomBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local colorCell, textureCell = Layout.SplitRow(barRow, Spacing.MEDIUM)
+    local barColorLabel = Widgets.CreateLabel(colorCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_BAR_COLOR)
+    barColorLabel:SetJustifyH("LEFT")
+    local barColorSwatch
+    barColorSwatch = ColorSwatch.Create(colorCell, TwinFangs:GetVenomRosterBarColor(), function(color)
+        if not TwinFangs:IsVenomRosterEnabled() then
+            barColorSwatch:SetColor(TwinFangs:GetVenomRosterBarColor())
+            return
+        end
+        TwinFangs:SetVenomRosterBarColor(color)
+        barColorSwatch:SetColor(TwinFangs:GetVenomRosterBarColor())
+    end)
+    Layout.Row(colorCell, { barColorLabel, barColorSwatch }, Spacing.LARGE)
+
+    local textureDropdown
+    textureDropdown = Dropdown.CreateStatusBarTexture(
+        textureCell,
+        L.TWIN_FANGS_VENOM_ROSTER_BAR_TEXTURE,
+        function(textureId)
+            if not TwinFangs:IsVenomRosterEnabled() then
+                return
+            end
+            TwinFangs:SetVenomRosterBarTexture(textureId)
+            textureDropdown:SetSelected(TwinFangs:GetVenomRosterBarTexture())
+        end
+    )
+    textureDropdown:SetSelected(TwinFangs:GetVenomRosterBarTexture())
+
+    local opacityRow = venomBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local backgroundCell, barOpacityCell = Layout.SplitRow(opacityRow, Spacing.MEDIUM)
+    local opacityLabel = Widgets.CreateLabel(backgroundCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_BACKGROUND_OPACITY)
+    opacityLabel:SetJustifyH("LEFT")
+    local opacitySlider = Slider.Create(
+        backgroundCell,
+        Schema.VENOM_ROSTER_BACKGROUND_OPACITY_MIN,
+        Schema.VENOM_ROSTER_BACKGROUND_OPACITY_MAX,
+        Schema.VENOM_ROSTER_BACKGROUND_OPACITY_STEP,
+        { percentage = true }
+    )
+    opacitySlider:SetValue(TwinFangs:GetVenomRosterBackgroundOpacity())
+    opacitySlider:SetScript("OnValueChanged", function(_, rawValue)
+        if not TwinFangs:IsVenomRosterEnabled() then
+            return
+        end
+        TwinFangs:SetVenomRosterBackgroundOpacity(rawValue)
+        opacitySlider:SetValue(TwinFangs:GetVenomRosterBackgroundOpacity())
+    end)
+    Layout.PlaceSlider(backgroundCell, opacityLabel, opacitySlider)
+
+    local barOpacityLabel = Widgets.CreateLabel(barOpacityCell, Fonts.BODY, L.TWIN_FANGS_VENOM_ROSTER_BAR_OPACITY)
+    barOpacityLabel:SetJustifyH("LEFT")
+    local barOpacitySlider = Slider.Create(
+        barOpacityCell,
+        Schema.VENOM_ROSTER_BAR_OPACITY_MIN,
+        Schema.VENOM_ROSTER_BAR_OPACITY_MAX,
+        Schema.VENOM_ROSTER_BAR_OPACITY_STEP,
+        { percentage = true }
+    )
+    barOpacitySlider:SetValue(TwinFangs:GetVenomRosterBarOpacity())
+    barOpacitySlider:SetScript("OnValueChanged", function(_, rawValue)
+        if not TwinFangs:IsVenomRosterEnabled() then
+            return
+        end
+        TwinFangs:SetVenomRosterBarOpacity(rawValue)
+        barOpacitySlider:SetValue(TwinFangs:GetVenomRosterBarOpacity())
+    end)
+    Layout.PlaceSlider(barOpacityCell, barOpacityLabel, barOpacitySlider)
+
+    local venomHeaderActions = CreateFrame("Frame", nil, venom)
+    venomHeaderActions:SetHeight(Sizes.CONTROL_HEIGHT)
+    local venomResetButton = Widgets.CreateTextButton(venomHeaderActions, L.TWIN_FANGS_VENOM_ROSTER_RESET, function()
+        if not TwinFangs:IsVenomRosterEnabled() then
+            return
+        end
+        TwinFangs:ResetVenomRosterAppearance()
+        rowHeightSlider:SetValue(TwinFangs:GetVenomRosterRowHeight())
+        rowGapSlider:SetValue(TwinFangs:GetVenomRosterRowGap())
+        nameColumnWidthSlider:SetValue(TwinFangs:GetVenomRosterNameColumnWidth())
+        columnGapSlider:SetValue(TwinFangs:GetVenomRosterColumnGap())
+        nameFontSlider:SetValue(TwinFangs:GetVenomRosterNameFontSize())
+        stackFontSlider:SetValue(TwinFangs:GetVenomRosterStackFontSize())
+        barColorSwatch:SetColor(TwinFangs:GetVenomRosterBarColor())
+        textureDropdown:RefreshItems()
+        textureDropdown:SetSelected(TwinFangs:GetVenomRosterBarTexture())
+        opacitySlider:SetValue(TwinFangs:GetVenomRosterBackgroundOpacity())
+        barOpacitySlider:SetValue(TwinFangs:GetVenomRosterBarOpacity())
+    end)
+    venomResetButton:SetPoint("RIGHT", venomHeaderActions, "RIGHT")
+    venomHeaderActions:SetWidth(venomResetButton:GetWidth())
+    function venomHeaderActions:SetEnabled(enabled)
+        venomResetButton:SetEnabled(enabled)
+    end
+    venom:SetHeaderAction(venomHeaderActions)
 
     venom:SetContentHeight(venomBody:GetHeight())
     venom:RefreshContentInteractive()

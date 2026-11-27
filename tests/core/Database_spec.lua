@@ -93,7 +93,7 @@ describe("Database", function()
                 },
             })
 
-            assert.equals(16, saved.schemaVersion)
+            assert.equals(17, saved.schemaVersion)
             assert.is_nil(saved.modules.InterruptClaim)
             assert.is_true(saved.modules.CombatTimer.enabled)
         end)
@@ -197,7 +197,7 @@ describe("Database", function()
                 },
             })
 
-            assert.equals(16, saved.schemaVersion)
+            assert.equals(17, saved.schemaVersion)
             assert.is_nil(saved.modules.CoiledAltar.mechanicReminder.enabled)
             assert.is_true(saved.modules.CoiledAltar.mechanicReminder.interrupt)
         end)
@@ -214,7 +214,7 @@ describe("Database", function()
                 },
             })
 
-            assert.equals(16, saved.schemaVersion)
+            assert.equals(17, saved.schemaVersion)
             assert.equals(48, saved.modules.BossAlert.callout.countdownFontSize)
             assert.is_nil(saved.modules.BossAlert.callout.fontSize)
             assert.equals(1.1, saved.modules.BossAlert.callout.scale)
@@ -278,7 +278,7 @@ describe("Database", function()
             })
 
             local coiled = saved.modules.CoiledAltar
-            assert.equals(16, saved.schemaVersion)
+            assert.equals(17, saved.schemaVersion)
             assert.equals("MELEE", coiled.markedChain)
             assert.same({}, coiled.assignments.MELEE)
             assert.same({ { type = "player", value = "Alice-TestRealm" } }, coiled.assignments.RANGED)
@@ -322,6 +322,56 @@ describe("Database", function()
             assert.equals("MELEE", coiled.markedChain)
             assert.same({}, coiled.assignments.MELEE)
             assert.same({ { type = "player", value = "Melee-TestRealm" } }, coiled.assignments.RANGED)
+        end)
+    end)
+
+    describe("Twin Fangs venom roster appearance keys", function()
+        it("renames rowSpacing and columnSpacing without overwriting newer keys", function()
+            local saved = Database.Load({
+                schemaVersion = 16,
+                modules = {
+                    TwinFangs = {
+                        venomRoster = {
+                            enabled = true,
+                            rowSpacing = 24,
+                            rowGap = 2,
+                            columnSpacing = 8,
+                            nameColumnWidth = 90,
+                        },
+                    },
+                },
+            })
+
+            local roster = saved.modules.TwinFangs.venomRoster
+            assert.equals(17, saved.schemaVersion)
+            assert.equals(24, roster.rowHeight)
+            assert.equals(8, roster.columnGap)
+            assert.equals(2, roster.rowGap)
+            assert.equals(90, roster.nameColumnWidth)
+            assert.is_nil(roster.rowSpacing)
+            assert.is_nil(roster.columnSpacing)
+        end)
+
+        it("keeps already-renamed keys when both old and new names are present", function()
+            local saved = Database.Load({
+                schemaVersion = 16,
+                modules = {
+                    TwinFangs = {
+                        venomRoster = {
+                            rowSpacing = 18,
+                            rowHeight = 26,
+                            columnSpacing = 4,
+                            columnGap = 10,
+                        },
+                    },
+                },
+            })
+
+            local roster = saved.modules.TwinFangs.venomRoster
+            assert.equals(26, roster.rowHeight)
+            assert.equals(10, roster.columnGap)
+            assert.is_nil(roster.rowSpacing)
+            assert.is_nil(roster.columnSpacing)
         end)
     end)
 end)

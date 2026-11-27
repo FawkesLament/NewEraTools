@@ -167,6 +167,7 @@ describe("RLToolbar UI", function()
                 }
             end,
             Row = function() end,
+            PlaceSlider = function() end,
         }
         ns.FloatingWindow = {
             Create = function()

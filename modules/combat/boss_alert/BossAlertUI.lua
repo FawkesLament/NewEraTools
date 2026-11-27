@@ -19,28 +19,6 @@ local function ApplyCalloutAppearance()
     ns.CalloutMessage.SetAppearance(BossAlert:GetCalloutAppearance())
 end
 
----@param row Frame
----@param label FontString
----@param slider SliderControl
-local function PlaceSlider(row, label, slider)
-    label:SetJustifyH("LEFT")
-    label:SetPoint("LEFT", row, "LEFT")
-    local box = slider.valueBox
-    local suffix = slider.valueSuffix
-    if suffix then
-        suffix:ClearAllPoints()
-        suffix:SetPoint("RIGHT", row, "RIGHT")
-        box:ClearAllPoints()
-        box:SetPoint("RIGHT", suffix, "LEFT", -Spacing.TINY, 0)
-    else
-        box:ClearAllPoints()
-        box:SetPoint("RIGHT", row, "RIGHT")
-    end
-    slider:ClearAllPoints()
-    slider:SetPoint("LEFT", label, "RIGHT", Spacing.LARGE, 0)
-    slider:SetPoint("RIGHT", box, "LEFT", -Spacing.MEDIUM, 0)
-end
-
 ---Fills the feature body. Returns the content height.
 ---@param content Frame
 ---@return number
@@ -72,7 +50,7 @@ local function BuildContent(content)
     scaleSlider:SetScript("OnValueChanged", function(_, rawValue)
         BossAlert:SetCalloutScale(rawValue)
     end)
-    PlaceSlider(scaleRow, scaleLabel, scaleSlider)
+    Layout.PlaceSlider(scaleRow, scaleLabel, scaleSlider)
 
     local fontRow = calloutBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local fontCell, fontColorCell = Layout.SplitRow(fontRow, Spacing.MEDIUM)
@@ -105,7 +83,7 @@ local function BuildContent(content)
     countdownFontSizeSlider:SetScript("OnValueChanged", function(_, rawValue)
         BossAlert:SetCalloutCountdownFontSize(rawValue)
     end)
-    PlaceSlider(countdownFontSizeRow, countdownFontSizeLabel, countdownFontSizeSlider)
+    Layout.PlaceSlider(countdownFontSizeRow, countdownFontSizeLabel, countdownFontSizeSlider)
 
     local ttsRow = calloutBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
     local ttsBox = Checkbox.Create(ttsRow)
