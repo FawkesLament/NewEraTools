@@ -54,6 +54,11 @@ local BUTTONS = {
         label = L.RL_TOOLBAR_COUNTDOWN_15_LABEL,
     },
     {
+        action = "countdown20",
+        tooltip = L.RL_TOOLBAR_COUNTDOWN_20,
+        label = L.RL_TOOLBAR_COUNTDOWN_20_LABEL,
+    },
+    {
         action = "cancelCountdown",
         tooltip = L.RL_TOOLBAR_CANCEL_COUNTDOWN,
         closeMark = true,
@@ -337,6 +342,14 @@ local function BuildContent(content)
         return RLToolbar:IsCountdown15Shown()
     end, function(shown)
         RLToolbar:SetCountdown15Shown(shown)
+    end)
+
+    local extraButtonsRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local twentyCell = Layout.SplitRow(extraButtonsRow, Spacing.MEDIUM)
+    CreateShownCheckbox(twentyCell, L.RL_TOOLBAR_SHOW_COUNTDOWN_20, function()
+        return RLToolbar:IsCountdown20Shown()
+    end, function(shown)
+        RLToolbar:SetCountdown20Shown(shown)
     end)
 
     return body:GetHeight()

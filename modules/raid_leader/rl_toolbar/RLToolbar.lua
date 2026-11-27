@@ -9,7 +9,7 @@ local SCALE_MIN = 0.8
 local SCALE_MAX = 1.5
 local SCALE_STEP = 0.05
 
----@alias RLToolbarAction "readyCheck"|"countdown5"|"countdown10"|"countdown15"|"cancelCountdown"
+---@alias RLToolbarAction "readyCheck"|"countdown5"|"countdown10"|"countdown15"|"countdown20"|"cancelCountdown"
 
 local DEFAULT_POSITION = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 200 }
 
@@ -18,6 +18,7 @@ local ACTIONS = {
     countdown5 = true,
     countdown10 = true,
     countdown15 = true,
+    countdown20 = true,
     cancelCountdown = true,
 }
 
@@ -25,6 +26,7 @@ local COUNTDOWN_SECONDS = {
     countdown5 = 5,
     countdown10 = 10,
     countdown15 = 15,
+    countdown20 = 20,
 }
 
 ---@class RLToolbar: Module
@@ -39,6 +41,7 @@ local RLToolbar = ns.Modules.New("RLToolbar", {
         -- Optional countdown buttons; ready check, 10s, and cancel stay visible.
         showCountdown5 = true,
         showCountdown15 = true,
+        showCountdown20 = false,
         ---@type FloatingWindowPosition
         position = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 200 },
     },
@@ -53,6 +56,7 @@ RLToolbar.ACTIONS = {
     "countdown5",
     "countdown10",
     "countdown15",
+    "countdown20",
     "cancelCountdown",
 }
 
@@ -146,7 +150,24 @@ function RLToolbar:SetCountdown15Shown(shown)
     end
 end
 
----Ready check, 10s, and cancel are always on the bar; 5s and 15s follow their toggles.
+---@return boolean
+function RLToolbar:IsCountdown20Shown()
+    return self.db.showCountdown20 == true
+end
+
+---@param shown boolean
+function RLToolbar:SetCountdown20Shown(shown)
+    shown = shown == true
+    if self.db.showCountdown20 == shown then
+        return
+    end
+    self.db.showCountdown20 = shown
+    if self.OnLayoutChanged then
+        self:OnLayoutChanged()
+    end
+end
+
+---Ready check, 10s, and cancel are always on the bar; 5s, 15s, and 20s follow their toggles.
 ---@param action RLToolbarAction
 ---@return boolean
 function RLToolbar:IsButtonShown(action)
@@ -155,6 +176,9 @@ function RLToolbar:IsButtonShown(action)
     end
     if action == "countdown15" then
         return self:IsCountdown15Shown()
+    end
+    if action == "countdown20" then
+        return self:IsCountdown20Shown()
     end
     return ACTIONS[action] == true
 end

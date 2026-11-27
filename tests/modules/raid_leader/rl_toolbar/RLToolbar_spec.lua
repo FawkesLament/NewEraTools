@@ -89,11 +89,13 @@ describe("RLToolbar", function()
     end)
 
     describe("optional countdown buttons", function()
-        it("shows the 5s and 15s buttons by default", function()
+        it("shows the 5s and 15s buttons by default and hides 20s", function()
             assert.is_true(RLToolbar:IsCountdown5Shown())
             assert.is_true(RLToolbar:IsCountdown15Shown())
+            assert.is_false(RLToolbar:IsCountdown20Shown())
             assert.is_true(RLToolbar:IsButtonShown("readyCheck"))
             assert.is_true(RLToolbar:IsButtonShown("countdown10"))
+            assert.is_false(RLToolbar:IsButtonShown("countdown20"))
             assert.is_true(RLToolbar:IsButtonShown("cancelCountdown"))
         end)
 
@@ -105,12 +107,14 @@ describe("RLToolbar", function()
             RLToolbar:SetCountdown5Shown(false)
             RLToolbar:SetCountdown5Shown(false)
             RLToolbar:SetCountdown15Shown(false)
+            RLToolbar:SetCountdown20Shown(true)
             assert.is_false(RLToolbar:IsButtonShown("countdown5"))
             assert.is_false(RLToolbar:IsButtonShown("countdown15"))
+            assert.is_true(RLToolbar:IsButtonShown("countdown20"))
             assert.is_true(RLToolbar:IsButtonShown("readyCheck"))
             assert.is_true(RLToolbar:IsButtonShown("countdown10"))
             assert.is_true(RLToolbar:IsButtonShown("cancelCountdown"))
-            assert.equals(2, seen)
+            assert.equals(3, seen)
         end)
     end)
 
@@ -163,10 +167,11 @@ describe("RLToolbar", function()
                 "countdown5",
                 "countdown10",
                 "countdown15",
+                "countdown20",
                 "cancelCountdown",
             }, seen)
             assert.equals(1, Group.readyChecks)
-            assert.same({ 5, 10, 15 }, Group.countdowns)
+            assert.same({ 5, 10, 15, 20 }, Group.countdowns)
             assert.equals(1, Group.cancels)
         end)
 
