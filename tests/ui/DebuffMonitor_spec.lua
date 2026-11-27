@@ -231,11 +231,10 @@ describe("DebuffMonitor", function()
 
     it("packs roster columns by subgroup and keeps empty groups omitted", function()
         local monitor = Create({
-            layoutMode = ns.DebuffMonitor.LAYOUT_ROSTER,
+            splitBy = ns.DebuffMonitor.SPLIT_BY_SUBGROUP,
+            collapseEmpty = false,
             displayMode = ns.DebuffMonitor.DISPLAY_STACKS,
-            groupBy = "subgroup",
-            omitEmptyGroups = true,
-            showGroupHeaders = false,
+            showSubgroupHeaders = false,
         })
         local members = ns.DebuffMonitor.BuildPreviewMembers(20)
         monitor:Apply(members, { values = ns.DebuffMonitor.PreviewValues(members) })
@@ -255,7 +254,8 @@ describe("DebuffMonitor", function()
 
     it("collapses empty mock rows in single layout", function()
         local monitor = Create({
-            layoutMode = ns.DebuffMonitor.LAYOUT_SINGLE,
+            splitBy = ns.DebuffMonitor.SPLIT_BY_PLAYER,
+            collapseEmpty = true,
             displayMode = ns.DebuffMonitor.DISPLAY_DURATION,
         })
         local members = ns.DebuffMonitor.BuildPreviewMembers(5)
@@ -272,14 +272,17 @@ describe("DebuffMonitor", function()
 
     it("splits subgroups into two headed columns", function()
         local monitor = Create({
-            layoutMode = ns.DebuffMonitor.LAYOUT_SPLIT,
+            splitBy = ns.DebuffMonitor.SPLIT_BY_SUBGROUP,
+            columns = 2,
+            collapseEmpty = false,
             displayMode = ns.DebuffMonitor.DISPLAY_STACKS,
+            showSubgroupHeaders = true,
         })
         local members = ns.DebuffMonitor.BuildPreviewMembers(20)
         monitor:Apply(members, { values = ns.DebuffMonitor.PreviewValues(members) })
         assert.equals(2, #monitor.boundColumns)
-        assert.equals(ns.L.DEBUFF_MONITOR_GROUP_RANGE:format(1, 2), monitor.columns[1].headerText.text)
-        assert.equals(ns.L.DEBUFF_MONITOR_GROUP_RANGE:format(3, 4), monitor.columns[2].headerText.text)
+        assert.equals("1-2", monitor.columns[1].headerText.text)
+        assert.equals("3-4", monitor.columns[2].headerText.text)
         assert.equals(10, #VisibleRows(monitor.columns[1]))
         assert.equals(10, #VisibleRows(monitor.columns[2]))
         assert.equals(16 + 10 * 22, monitor.root.height)
@@ -287,10 +290,10 @@ describe("DebuffMonitor", function()
 
     it("fills a roster grid when columnCount is set", function()
         local monitor = Create({
-            layoutMode = ns.DebuffMonitor.LAYOUT_ROSTER,
+            splitBy = ns.DebuffMonitor.SPLIT_BY_PLAYER,
+            columns = 2,
+            collapseEmpty = false,
             displayMode = ns.DebuffMonitor.DISPLAY_STACKS,
-            columnCount = 2,
-            rowsPerColumn = 10,
         })
         local members = ns.DebuffMonitor.BuildPreviewMembers(20)
         monitor:Apply(members, { values = ns.DebuffMonitor.PreviewValues(members) })
@@ -304,11 +307,10 @@ describe("DebuffMonitor", function()
 
     it("adds rowGap between stacked rows", function()
         local monitor = Create({
-            layoutMode = ns.DebuffMonitor.LAYOUT_ROSTER,
+            splitBy = ns.DebuffMonitor.SPLIT_BY_SUBGROUP,
+            collapseEmpty = false,
             displayMode = ns.DebuffMonitor.DISPLAY_STACKS,
-            groupBy = "subgroup",
-            omitEmptyGroups = true,
-            showGroupHeaders = false,
+            showSubgroupHeaders = false,
             getAppearance = function()
                 return { rowGap = 2 }
             end,
@@ -321,11 +323,10 @@ describe("DebuffMonitor", function()
 
     it("honors a zero column gap and background opacity", function()
         local monitor = Create({
-            layoutMode = ns.DebuffMonitor.LAYOUT_ROSTER,
+            splitBy = ns.DebuffMonitor.SPLIT_BY_SUBGROUP,
+            collapseEmpty = false,
             displayMode = ns.DebuffMonitor.DISPLAY_STACKS,
-            groupBy = "subgroup",
-            omitEmptyGroups = true,
-            showGroupHeaders = false,
+            showSubgroupHeaders = false,
             getAppearance = function()
                 return { columnGap = 0, backgroundOpacity = 0.4, barOpacity = 0.25, spark = true }
             end,
@@ -354,7 +355,8 @@ describe("DebuffMonitor", function()
 
     it("anchors live spark to the status bar fill even at zero", function()
         local monitor = Create({
-            layoutMode = ns.DebuffMonitor.LAYOUT_SINGLE,
+            splitBy = ns.DebuffMonitor.SPLIT_BY_PLAYER,
+            collapseEmpty = true,
             displayMode = ns.DebuffMonitor.DISPLAY_STACKS,
             getAppearance = function()
                 return { spark = true }

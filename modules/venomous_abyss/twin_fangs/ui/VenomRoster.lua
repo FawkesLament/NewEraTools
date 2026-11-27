@@ -31,6 +31,7 @@ local ApplyPreview, ShowRoot, ClearBoundRoster
 ---@return DebuffMonitorAppearance
 local function Appearance()
     local barColor = TwinFangs:GetVenomRosterBarColor()
+    local numberColor = TwinFangs:GetVenomRosterNumberColor()
     return {
         rowHeight = TwinFangs:GetVenomRosterRowHeight(),
         rowGap = TwinFangs:GetVenomRosterRowGap(),
@@ -40,6 +41,7 @@ local function Appearance()
         valueFontSize = TwinFangs:GetVenomRosterStackFontSize(),
         barTexture = TwinFangs:GetVenomRosterBarTexturePath(),
         barColor = { r = barColor.r, g = barColor.g, b = barColor.b },
+        valueColor = { r = numberColor.r, g = numberColor.g, b = numberColor.b },
         spark = true,
         backgroundOpacity = TwinFangs:GetVenomRosterBackgroundOpacity(),
         barOpacity = TwinFangs:GetVenomRosterBarOpacity(),
@@ -83,17 +85,25 @@ local function Register(frame)
     })
 end
 
+local function SyncMonitorLayout(monitor)
+    if not monitor then
+        return
+    end
+    monitor.config.splitBy = ns.DebuffMonitor.SPLIT_BY_PLAYER
+    monitor.config.columns = TwinFangs:GetVenomRosterColumns()
+end
+
 local function CreateInstance()
     instance = ns.DebuffMonitor.Create({
         name = ns.ADDON_NAME .. "TwinFangsVenomRoster",
-        layoutMode = ns.DebuffMonitor.LAYOUT_ROSTER,
+        splitBy = ns.DebuffMonitor.SPLIT_BY_PLAYER,
+        columns = TwinFangs:GetVenomRosterColumns(),
+        collapseEmpty = false,
         displayMode = ns.DebuffMonitor.DISPLAY_STACKS,
         slotKey = SLOT_KEY,
-        groupBy = "subgroup",
         maxGroups = VenomRoster.MAX_GROUPS,
         maxGroupSize = VenomRoster.MAX_GROUP_SIZE,
-        omitEmptyGroups = true,
-        showGroupHeaders = false,
+        showSubgroupHeaders = false,
         showTitle = false,
         spark = true,
         maxStacks = 10,
@@ -127,9 +137,10 @@ function ClearBoundRoster()
     instance:Apply({}, { live = false })
 end
 
-function ApplyPreview(spec)
-    local members = VenomRoster.BuildPreviewMembers(VenomRoster.CoercePreviewSpec(spec))
+function ApplyPreview(_spec)
+    local members = VenomRoster.BuildPreviewMembers(VenomRoster.DEFAULT_PREVIEW_SPEC)
     local rosterInstance = VenomRosterUI.Ensure()
+    SyncMonitorLayout(rosterInstance)
     rosterInstance:Apply(members, {
         live = false,
         values = VenomRoster.PreviewStacksByIndex(members),
@@ -139,6 +150,7 @@ end
 ---@param enableAuras boolean|nil
 local function ApplyLiveRoster(enableAuras)
     local rosterInstance = VenomRosterUI.Ensure()
+    SyncMonitorLayout(rosterInstance)
     rosterInstance:Apply(VenomRoster.CollectLiveMembers(), {
         live = true,
         enableAuras = enableAuras ~= false,
@@ -199,6 +211,7 @@ function VenomRosterUI.RefreshAppearance()
     if not instance then
         return
     end
+    SyncMonitorLayout(instance)
     instance:Refresh()
 end
 
@@ -238,6 +251,7 @@ end
 ---@param stacks table<number, number>|nil
 function VenomRosterUI.Apply(members, stacks)
     local rosterInstance = VenomRosterUI.Ensure()
+    SyncMonitorLayout(rosterInstance)
     rosterInstance:Apply(members, { live = false, values = stacks })
 end
 

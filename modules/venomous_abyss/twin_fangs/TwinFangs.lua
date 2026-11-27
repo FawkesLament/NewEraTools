@@ -385,6 +385,12 @@ end
 local function SanitizeVenomRoster(settings)
     settings.enabled = settings.enabled ~= false
     settings.scale = nil
+    settings.columns = Util.Snap(
+        tonumber(settings.columns) or Schema.VENOM_ROSTER_COLUMNS_DEFAULT,
+        Schema.VENOM_ROSTER_COLUMNS_MIN,
+        Schema.VENOM_ROSTER_COLUMNS_MAX,
+        Schema.VENOM_ROSTER_COLUMNS_STEP
+    )
     settings.rowHeight = Util.Snap(
         tonumber(settings.rowHeight) or Schema.VENOM_ROSTER_ROW_HEIGHT_DEFAULT,
         Schema.VENOM_ROSTER_ROW_HEIGHT_MIN,
@@ -430,6 +436,12 @@ local function SanitizeVenomRoster(settings)
     else
         Color.Copy(settings.barColor, barColor)
     end
+    local numberColor = Color.Normalize(settings.numberColor) or Schema.VENOM_ROSTER_NUMBER_COLOR_DEFAULT
+    if type(settings.numberColor) ~= "table" then
+        settings.numberColor = { r = numberColor.r, g = numberColor.g, b = numberColor.b }
+    else
+        Color.Copy(settings.numberColor, numberColor)
+    end
     settings.backgroundOpacity = Util.Snap(
         tonumber(settings.backgroundOpacity) or Schema.VENOM_ROSTER_BACKGROUND_OPACITY_DEFAULT,
         Schema.VENOM_ROSTER_BACKGROUND_OPACITY_MIN,
@@ -469,6 +481,26 @@ function TwinFangs:SetVenomRosterEnabled(enabled)
     end
     self.db.venomRoster.enabled = enabled
     NotifyVenomRosterEnabled()
+end
+
+---@return number
+function TwinFangs:GetVenomRosterColumns()
+    return self.db.venomRoster.columns
+end
+
+---@param columns number
+function TwinFangs:SetVenomRosterColumns(columns)
+    columns = Util.Snap(
+        columns,
+        Schema.VENOM_ROSTER_COLUMNS_MIN,
+        Schema.VENOM_ROSTER_COLUMNS_MAX,
+        Schema.VENOM_ROSTER_COLUMNS_STEP
+    )
+    if self.db.venomRoster.columns == columns then
+        return
+    end
+    self.db.venomRoster.columns = columns
+    NotifyVenomRosterAppearance()
 end
 
 ---@return number
@@ -591,6 +623,33 @@ function TwinFangs:SetVenomRosterStackFontSize(size)
     NotifyVenomRosterAppearance()
 end
 
+---@return RgbColor
+function TwinFangs:GetVenomRosterNumberColor()
+    return Color.Normalize(self.db.venomRoster.numberColor)
+        or {
+            r = Schema.VENOM_ROSTER_NUMBER_COLOR_DEFAULT.r,
+            g = Schema.VENOM_ROSTER_NUMBER_COLOR_DEFAULT.g,
+            b = Schema.VENOM_ROSTER_NUMBER_COLOR_DEFAULT.b,
+        }
+end
+
+---@param color RgbColor
+function TwinFangs:SetVenomRosterNumberColor(color)
+    local next = Color.Normalize(color)
+    assert(next ~= nil, "Bad venom roster number color")
+    local saved = self.db.venomRoster.numberColor
+    if type(saved) ~= "table" then
+        self.db.venomRoster.numberColor = { r = next.r, g = next.g, b = next.b }
+        NotifyVenomRosterAppearance()
+        return
+    end
+    if Color.Equal(saved, next) then
+        return
+    end
+    Color.Copy(saved, next)
+    NotifyVenomRosterAppearance()
+end
+
 ---@return string
 function TwinFangs:GetVenomRosterBarTexture()
     local textureId = self.db.venomRoster.barTexture
@@ -685,6 +744,7 @@ end
 function TwinFangs:ResetVenomRosterAppearance()
     local defaults = Schema.NewVenomRoster()
     local saved = self.db.venomRoster
+    saved.columns = defaults.columns
     saved.rowHeight = defaults.rowHeight
     saved.rowGap = defaults.rowGap
     saved.columnGap = defaults.columnGap
@@ -698,6 +758,11 @@ function TwinFangs:ResetVenomRosterAppearance()
         saved.barColor = defaults.barColor
     else
         Color.Copy(saved.barColor, defaults.barColor)
+    end
+    if type(saved.numberColor) ~= "table" then
+        saved.numberColor = defaults.numberColor
+    else
+        Color.Copy(saved.numberColor, defaults.numberColor)
     end
     NotifyVenomRosterAppearance()
 end

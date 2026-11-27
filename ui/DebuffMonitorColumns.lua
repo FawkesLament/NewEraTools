@@ -1,30 +1,36 @@
 ---Pure column planner for DebuffMonitor: members and layout config to column data. No frames.
 local _, ns = ...
-local L = ns.L
 
 local Columns = {}
 ns.DebuffMonitorColumns = Columns
 
-local LAYOUT_SINGLE = "single"
-local LAYOUT_SPLIT = "split"
-local LAYOUT_ROSTER = "roster"
-local DEFAULT_MAX_GROUPS = 8
-local DEFAULT_MAX_GROUP_SIZE = 5
+local SPLIT_PLAYER = "player"
+local SPLIT_SUBGROUP = "subgroup"
 
 ---@param subgroups number[]
----@param explicit string|nil
 ---@return string|nil
-local function GroupLabel(subgroups, explicit)
-    if type(explicit) == "string" and explicit ~= "" then
-        return explicit
-    end
+local function SubgroupHeader(subgroups)
     if type(subgroups) ~= "table" or #subgroups == 0 then
         return nil
     end
     if #subgroups == 1 then
-        return string.format(L.DEBUFF_MONITOR_GROUP, subgroups[1])
+        return tostring(subgroups[1])
     end
-    return string.format(L.DEBUFF_MONITOR_GROUP_RANGE, subgroups[1], subgroups[#subgroups])
+    local consecutive = true
+    for index = 2, #subgroups do
+        if subgroups[index] ~= subgroups[index - 1] + 1 then
+            consecutive = false
+            break
+        end
+    end
+    if consecutive then
+        return string.format("%d-%d", subgroups[1], subgroups[#subgroups])
+    end
+    local parts = {}
+    for index, group in ipairs(subgroups) do
+        parts[index] = tostring(group)
+    end
+    return table.concat(parts, ",")
 end
 
 ---@param members DebuffMonitorMember[]|nil
@@ -49,68 +55,124 @@ local function OrderedMembers(members)
     return ordered
 end
 
+---@param n number
+---@param columnCount number
+---@return number[]
+local function LeftHeavySizes(n, columnCount)
+    local sizes = {}
+    if n <= 0 then
+        return sizes
+    end
+    local cols = math.max(1, math.min(math.floor(columnCount), n))
+    local base = math.floor(n / cols)
+    local extra = n % cols
+    for slot = 1, cols do
+        sizes[slot] = base + (slot <= extra and 1 or 0)
+    end
+    return sizes
+end
+
 ---@param members DebuffMonitorMember[]
----@param maxGroups number
----@param maxGroupSize number
----@param omitEmpty boolean
+---@param columnCount number
 ---@param collapse boolean
 ---@return DebuffMonitorColumnData[]
-local function OrganizeBySubgroup(members, maxGroups, maxGroupSize, omitEmpty, collapse)
-    local buckets = {}
-    for group = 1, maxGroups do
-        buckets[group] = {}
+local function OrganizeByPlayer(members, columnCount, collapse)
+    local ordered = OrderedMembers(members)
+    local cols = columnCount
+    if type(cols) ~= "number" or cols < 1 then
+        cols = 1
     end
-    for _, member in ipairs(OrderedMembers(members)) do
-        local group = member.subgroup
-        if type(group) == "number" and group >= 1 and group <= maxGroups then
-            local list = buckets[group]
-            if #list < maxGroupSize then
-                list[#list + 1] = member
-            end
-        end
+    local sizes = LeftHeavySizes(#ordered, cols)
+    if #sizes == 0 then
+        return {
+            {
+                group = 1,
+                label = nil,
+                members = {},
+                collapse = collapse,
+            },
+        }
     end
     local columns = {}
-    for group = 1, maxGroups do
-        local list = buckets[group]
-        if not omitEmpty or #list > 0 then
-            columns[#columns + 1] = {
-                group = group,
-                label = GroupLabel({ group }),
-                members = list,
-                collapse = collapse,
-            }
+    local cursor = 1
+    for slot, size in ipairs(sizes) do
+        local list = {}
+        for offset = 1, size do
+            list[offset] = ordered[cursor]
+            cursor = cursor + 1
         end
+        columns[slot] = {
+            group = slot,
+            label = nil,
+            members = list,
+            collapse = collapse,
+        }
     end
     return columns
 end
 
 ---@param members DebuffMonitorMember[]
----@param columnCount number
----@param rowsPerColumn number|nil
+---@param maxGroups number|nil
+---@return number[]
+---@return table<number, DebuffMonitorMember[]>
+local function ActiveSubgroupBuckets(members, maxGroups, maxGroupSize)
+    local buckets = {}
+    local groups = {}
+    for _, member in ipairs(OrderedMembers(members)) do
+        local group = member.subgroup
+        if type(group) == "number" and group >= 1 then
+            if maxGroups == nil or group <= maxGroups then
+                local list = buckets[group]
+                if not list then
+                    list = {}
+                    buckets[group] = list
+                    groups[#groups + 1] = group
+                end
+                if type(maxGroupSize) ~= "number" or maxGroupSize < 1 or #list < maxGroupSize then
+                    list[#list + 1] = member
+                end
+            end
+        end
+    end
+    table.sort(groups)
+    return groups, buckets
+end
+
+---@param config DebuffMonitorConfig
+---@param members DebuffMonitorMember[]
 ---@param collapse boolean
 ---@return DebuffMonitorColumnData[]
-local function OrganizeGrid(members, columnCount, rowsPerColumn, collapse)
-    local ordered = OrderedMembers(members)
-    local cols = math.max(1, columnCount)
-    local rows = rowsPerColumn
-    if type(rows) ~= "number" or rows < 1 then
-        rows = math.max(1, math.ceil(math.max(#ordered, 1) / cols))
+local function OrganizeBySubgroup(config, members, collapse)
+    local groups, buckets = ActiveSubgroupBuckets(members, config.maxGroups, config.maxGroupSize)
+    local columnCount = config.columns
+    if type(columnCount) ~= "number" or columnCount < 1 then
+        columnCount = math.max(#groups, 1)
+    end
+    local sizes = LeftHeavySizes(#groups, columnCount)
+    if #sizes == 0 then
+        return {}
     end
     local columns = {}
-    for slot = 1, cols do
-        columns[slot] = {
-            group = slot,
-            label = nil,
-            members = {},
-            collapse = collapse,
-        }
-    end
-    for index, member in ipairs(ordered) do
-        local col = math.floor((index - 1) / rows) + 1
-        if col >= 1 and col <= cols then
-            local list = columns[col].members
-            list[#list + 1] = member
+    local cursor = 1
+    for slot, size in ipairs(sizes) do
+        local subgroups = {}
+        local list = {}
+        for offset = 1, size do
+            local group = groups[cursor]
+            subgroups[offset] = group
+            local bucket = buckets[group]
+            for _, member in ipairs(bucket) do
+                list[#list + 1] = member
+            end
+            cursor = cursor + 1
         end
+        columns[slot] = {
+            group = subgroups[1] or slot,
+            label = SubgroupHeader(subgroups),
+            members = list,
+            collapse = collapse,
+            subgroups = subgroups,
+        }
     end
     return columns
 end
@@ -120,59 +182,20 @@ end
 ---@return DebuffMonitorColumnData[]
 function Columns.BuildColumns(config, members)
     members = members or {}
-    local layoutMode = config.layoutMode or LAYOUT_ROSTER
-    local maxGroups = config.maxGroups or DEFAULT_MAX_GROUPS
-    local maxGroupSize = config.maxGroupSize or DEFAULT_MAX_GROUP_SIZE
-    local omitEmpty = config.omitEmptyGroups ~= false
-    if layoutMode == LAYOUT_SINGLE then
-        return {
-            {
-                group = 1,
-                label = nil,
-                members = OrderedMembers(members),
-                collapse = true,
-            },
-        }
-    end
-    if layoutMode == LAYOUT_SPLIT then
-        local splitGroups = config.splitGroups
-        if type(splitGroups) ~= "table" or #splitGroups == 0 then
-            splitGroups = {
-                { subgroups = { 1, 2 } },
-                { subgroups = { 3, 4 } },
-            }
-        end
-        local wanted = {}
-        for slot, spec in ipairs(splitGroups) do
-            wanted[slot] = {}
-            for _, group in ipairs(spec.subgroups or {}) do
-                wanted[slot][group] = true
-            end
-        end
-        local columns = {}
-        for slot, spec in ipairs(splitGroups) do
-            columns[slot] = {
-                group = spec.subgroups and spec.subgroups[1] or slot,
-                label = GroupLabel(spec.subgroups or {}, spec.label),
-                members = {},
-                collapse = true,
-            }
-        end
-        for _, member in ipairs(OrderedMembers(members)) do
-            for slot, spec in ipairs(splitGroups) do
-                if wanted[slot][member.subgroup] then
-                    local list = columns[slot].members
-                    if #list < maxGroupSize * #(spec.subgroups or {}) then
-                        list[#list + 1] = member
-                    end
-                    break
+    if type(config.organize) == "function" then
+        local custom = config.organize(members)
+        if type(custom) == "table" then
+            for _, column in ipairs(custom) do
+                if column.collapse == nil then
+                    column.collapse = config.collapseEmpty == true
                 end
             end
+            return custom
         end
-        return columns
     end
-    if type(config.columnCount) == "number" and config.columnCount > 0 and config.groupBy ~= "subgroup" then
-        return OrganizeGrid(members, config.columnCount, config.rowsPerColumn, false)
+    local collapse = config.collapseEmpty == true
+    if config.splitBy == SPLIT_SUBGROUP then
+        return OrganizeBySubgroup(config, members, collapse)
     end
-    return OrganizeBySubgroup(members, maxGroups, maxGroupSize, omitEmpty, false)
+    return OrganizeByPlayer(members, config.columns, collapse)
 end

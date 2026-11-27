@@ -10,9 +10,8 @@ local Fonts = Assets.Fonts
 local DebuffMonitor = {}
 ns.DebuffMonitor = DebuffMonitor
 
-DebuffMonitor.LAYOUT_SINGLE = "single"
-DebuffMonitor.LAYOUT_SPLIT = "split"
-DebuffMonitor.LAYOUT_ROSTER = "roster"
+DebuffMonitor.SPLIT_BY_PLAYER = "player"
+DebuffMonitor.SPLIT_BY_SUBGROUP = "subgroup"
 DebuffMonitor.DISPLAY_DURATION = "duration"
 DebuffMonitor.DISPLAY_STACKS = "stacks"
 
@@ -79,6 +78,7 @@ local NAME_SHADOW_ALPHA = 0.9
 ---@field headerHeight number|nil
 ---@field titleHeight number|nil
 ---@field barColor { r: number, g: number, b: number, a: number|nil }|nil
+---@field valueColor { r: number, g: number, b: number, a: number|nil }|nil
 ---@field barTexture string|nil
 ---@field spark boolean|nil
 ---@field backgroundOpacity number|nil
@@ -94,7 +94,10 @@ local NAME_SHADOW_ALPHA = 0.9
 ---@class DebuffMonitorConfig
 ---@field name string
 ---@field parent Frame|nil
----@field layoutMode "single"|"split"|"roster"
+---@field splitBy "player"|"subgroup"|nil
+---@field columns number|nil
+---@field collapseEmpty boolean|nil
+---@field organize (fun(members: DebuffMonitorMember[]): DebuffMonitorColumnData[])|nil
 ---@field displayMode "duration"|"stacks"
 ---@field slotKey string
 ---@field spellId number|nil
@@ -102,14 +105,9 @@ local NAME_SHADOW_ALPHA = 0.9
 ---@field candidateFilters table|nil
 ---@field title string|nil
 ---@field showTitle boolean|nil
----@field showGroupHeaders boolean|nil
----@field groupBy "subgroup"|nil
----@field columnCount number|nil
----@field rowsPerColumn number|nil
----@field omitEmptyGroups boolean|nil
+---@field showSubgroupHeaders boolean|nil
 ---@field maxGroups number|nil
 ---@field maxGroupSize number|nil
----@field splitGroups { subgroups: number[], label: string|nil }[]|nil
 ---@field spark boolean|nil
 ---@field maxStacks number|nil
 ---@field barColor { r: number, g: number, b: number, a: number|nil }|nil
@@ -122,6 +120,7 @@ local NAME_SHADOW_ALPHA = 0.9
 ---@field label string|nil
 ---@field members DebuffMonitorMember[]
 ---@field collapse boolean
+---@field subgroups number[]|nil
 
 ---@class DebuffMonitorRow
 ---@field frame Frame
@@ -322,7 +321,7 @@ local function ResolveAppearance(config, appearance)
         spark = config.spark
     end
     if spark == nil then
-        spark = config.layoutMode ~= DebuffMonitor.LAYOUT_ROSTER
+        spark = true
     end
     return {
         rowHeight = CoalesceNumber(appearance.rowHeight, DEFAULT_ROW_HEIGHT),
@@ -335,6 +334,7 @@ local function ResolveAppearance(config, appearance)
         headerHeight = CoalesceNumber(appearance.headerHeight, DEFAULT_HEADER_HEIGHT),
         titleHeight = CoalesceNumber(appearance.titleHeight, DEFAULT_TITLE_HEIGHT),
         barColor = appearance.barColor or config.barColor or BAR_COLOR,
+        valueColor = appearance.valueColor or VALUE_COLOR,
         barTexture = appearance.barTexture or config.barTexture or Assets.Textures.WHITE,
         spark = spark,
         backgroundOpacity = CoalesceNumber(appearance.backgroundOpacity, ROW_BG.a),
@@ -532,9 +532,10 @@ end
 
 local function ApplyRowFonts(row, appearance, displayMode)
     ApplyFont(row.nameText, Fonts.BODY, appearance.nameFontSize)
-    ApplyFont(row.stackText, Fonts.OVERLAY_DIGIT, appearance.valueFontSize, VALUE_COLOR)
+    local valueColor = appearance.valueColor or VALUE_COLOR
+    ApplyFont(row.stackText, Fonts.OVERLAY_DIGIT, appearance.valueFontSize, valueColor)
     if row.liveStackText then
-        ApplyFont(row.liveStackText, Fonts.OVERLAY_DIGIT, appearance.valueFontSize, VALUE_COLOR)
+        ApplyFont(row.liveStackText, Fonts.OVERLAY_DIGIT, appearance.valueFontSize, valueColor)
     end
 end
 
@@ -1113,9 +1114,8 @@ function DebuffMonitor.Create(config)
     assert(type(config) == "table", "DebuffMonitor.Create requires config")
     assert(type(config.name) == "string", "DebuffMonitor.Create requires name")
     assert(type(config.slotKey) == "string", "DebuffMonitor.Create requires slotKey")
-    local layoutMode = config.layoutMode or DebuffMonitor.LAYOUT_ROSTER
     local displayMode = config.displayMode or DebuffMonitor.DISPLAY_STACKS
-    config.layoutMode = layoutMode
+    config.splitBy = config.splitBy or DebuffMonitor.SPLIT_BY_PLAYER
     config.displayMode = displayMode
 
     local parent = config.parent or UIParent
@@ -1325,7 +1325,7 @@ function DebuffMonitor.Create(config)
             self.titleText:SetText("")
             self.titleHost:Hide()
         end
-        local showHeaders = config.showGroupHeaders == true or layoutMode == DebuffMonitor.LAYOUT_SPLIT
+        local showHeaders = config.showSubgroupHeaders == true
         local populated = #columns
         local maxBody = 0
         for slot = 1, populated do

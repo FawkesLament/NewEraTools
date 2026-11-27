@@ -38,12 +38,14 @@ local Internals = ns.Modules.Internals("TwinFangs")
 
 ---@class TwinFangsVenomRosterSettings
 ---@field enabled boolean
+---@field columns number
 ---@field rowHeight number
 ---@field rowGap number
 ---@field columnGap number
 ---@field nameColumnWidth number
 ---@field nameFontSize number
 ---@field stackFontSize number
+---@field numberColor RgbColor
 ---@field barTexture string
 ---@field barColor RgbColor
 ---@field backgroundOpacity number
@@ -115,7 +117,11 @@ local Schema = {
     FONT_SIZE_MAX = 32,
     FONT_SIZE_STEP = 1,
 
-    VENOM_ROSTER_ROW_HEIGHT_DEFAULT = 27,
+    VENOM_ROSTER_COLUMNS_DEFAULT = 2,
+    VENOM_ROSTER_COLUMNS_MIN = 1,
+    VENOM_ROSTER_COLUMNS_MAX = 4,
+    VENOM_ROSTER_COLUMNS_STEP = 1,
+    VENOM_ROSTER_ROW_HEIGHT_DEFAULT = 20,
     VENOM_ROSTER_ROW_HEIGHT_MIN = 16,
     VENOM_ROSTER_ROW_HEIGHT_MAX = 32,
     VENOM_ROSTER_ROW_HEIGHT_STEP = 1,
@@ -135,7 +141,7 @@ local Schema = {
     VENOM_ROSTER_BAR_OPACITY_MIN = 0,
     VENOM_ROSTER_BAR_OPACITY_MAX = 1,
     VENOM_ROSTER_BAR_OPACITY_STEP = 0.01,
-    VENOM_ROSTER_NAME_COLUMN_WIDTH_DEFAULT = 80,
+    VENOM_ROSTER_NAME_COLUMN_WIDTH_DEFAULT = 140,
     VENOM_ROSTER_NAME_COLUMN_WIDTH_MIN = 64,
     VENOM_ROSTER_NAME_COLUMN_WIDTH_MAX = 200,
     VENOM_ROSTER_NAME_COLUMN_WIDTH_STEP = 1,
@@ -150,6 +156,7 @@ local Schema = {
     VENOM_ROSTER_BAR_TEXTURE_DEFAULT = ns.Assets.STATUS_BAR_TEXTURE_DEFAULT,
     -- Ice-blue fill (#7DD3FC).
     VENOM_ROSTER_BAR_COLOR_DEFAULT = { r = 125 / 255, g = 211 / 255, b = 252 / 255 },
+    VENOM_ROSTER_NUMBER_COLOR_DEFAULT = { r = 0.94, g = 0.96, b = 0.98 },
     -- Ice-blue number fill (#7DD6FF).
     FONT_COLOR_DEFAULT = { r = 125 / 255, g = 214 / 255, b = 1 },
 
@@ -372,6 +379,7 @@ end
 function Schema.NewVenomRoster()
     return {
         enabled = false,
+        columns = Schema.VENOM_ROSTER_COLUMNS_DEFAULT,
         rowHeight = Schema.VENOM_ROSTER_ROW_HEIGHT_DEFAULT,
         rowGap = Schema.VENOM_ROSTER_ROW_GAP_DEFAULT,
         columnGap = Schema.VENOM_ROSTER_COLUMN_GAP_DEFAULT,
@@ -383,6 +391,11 @@ function Schema.NewVenomRoster()
             r = Schema.VENOM_ROSTER_BAR_COLOR_DEFAULT.r,
             g = Schema.VENOM_ROSTER_BAR_COLOR_DEFAULT.g,
             b = Schema.VENOM_ROSTER_BAR_COLOR_DEFAULT.b,
+        },
+        numberColor = {
+            r = Schema.VENOM_ROSTER_NUMBER_COLOR_DEFAULT.r,
+            g = Schema.VENOM_ROSTER_NUMBER_COLOR_DEFAULT.g,
+            b = Schema.VENOM_ROSTER_NUMBER_COLOR_DEFAULT.b,
         },
         backgroundOpacity = Schema.VENOM_ROSTER_BACKGROUND_OPACITY_DEFAULT,
         barOpacity = Schema.VENOM_ROSTER_BAR_OPACITY_DEFAULT,
