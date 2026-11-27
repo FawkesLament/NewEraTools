@@ -629,9 +629,11 @@ local function PlaceSpark(row)
         SetSparkShown(row, false)
         return
     end
-    -- Live bars are secret-driven; follow the fill texture instead of reading GetValue.
+    local fill = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
+    -- Live bars are secret-driven; follow the fill instead of reading GetValue.
+    -- Mock bars pin to the fill as well: GetWidth is 0 until the first layout pass
+    -- (hidden until edit mode), and an offset from TOPLEFT would stick on the left.
     if row.sparkFollowFill then
-        local fill = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
         if not fill then
             SetSparkShown(row, false)
             return
@@ -658,6 +660,10 @@ local function PlaceSpark(row)
         return
     end
     SetSparkShown(row, true)
+    if fill then
+        PlaceSparkParts(row, fill)
+        return
+    end
     local width = bar.GetWidth and bar:GetWidth() or 0
     PlaceSparkParts(row, nil, width * ratio)
 end

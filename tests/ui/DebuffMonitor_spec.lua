@@ -353,6 +353,34 @@ describe("DebuffMonitor", function()
         assert.is_true((layer.frameLevel or 0) >= (bar.frameLevel or 0) + 2)
     end)
 
+    it("anchors mock spark to the fill even when the bar has no laid-out width", function()
+        local monitor = Create({
+            splitBy = ns.DebuffMonitor.SPLIT_BY_PLAYER,
+            collapseEmpty = false,
+            displayMode = ns.DebuffMonitor.DISPLAY_STACKS,
+            getAppearance = function()
+                return { spark = true, maxStacks = 10 }
+            end,
+        })
+        local members = ns.DebuffMonitor.BuildPreviewMembers(1)
+        monitor:Apply(members, { live = false, values = { [1] = 10 } })
+        local row = monitor.columns[1].rows[1]
+        assert.equals(0, row.bar:GetWidth())
+        assert.is_true(row.spark.shown)
+        assert.is_true(row.sparkGlow.shown)
+        local fill = row.bar:GetStatusBarTexture()
+        local anchored
+        for _, point in ipairs(row.spark.points) do
+            if point[2] == fill and point[3] == "TOPRIGHT" then
+                anchored = true
+            end
+        end
+        assert.is_true(anchored)
+        for _, point in ipairs(row.spark.points) do
+            assert.is_false(point[1] == "TOPLEFT" and point[2] == row.bar)
+        end
+    end)
+
     it("anchors live spark to the status bar fill even at zero", function()
         local monitor = Create({
             splitBy = ns.DebuffMonitor.SPLIT_BY_PLAYER,
