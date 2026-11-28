@@ -3,6 +3,7 @@ local _, ns = ...
 local Internals = ns.Modules.Internals("Ulatek")
 local L = ns.L
 local Assets = ns.Assets
+local Combat = ns.Api.Combat
 local Timer = ns.Api.Timer
 local Widgets = ns.Widgets
 
@@ -24,9 +25,14 @@ local WAVE_FLASH_DURATION = 0.2
 -- Transparent boss-rise hit targets; dashed circles are tinted addon textures.
 local BOSS_HIT_SIZE = 36
 local BOSS_ICON_SIZE = 45
+-- Clicked icon scale; the secure hit box stays the same size.
+local CALLOUT_SELECTED_SCALE = 1.3
+local CALLOUT_DIMMED_ALPHA = 0.35
 -- Gap from the octagon's vertical edge to the near side of the hit box.
 local BOSS_OUTSIDE_GAP = 11
 local BOSS_FLASH_DURATION = 0.2
+-- Test-mode clock in the pad's bottom-left; hidden during a live pull.
+local TEST_CLOCK_INSET = Spacing.SMALL
 -- Wave chevrons (#34D399 idle, #6EE7B7 hover).
 local WAVE_ARROW_IDLE = { r = 0.20, g = 0.83, b = 0.60, a = 0.85 }
 local WAVE_ARROW_HOVER = { r = 0.43, g = 0.91, b = 0.72, a = 1 }
@@ -39,15 +45,48 @@ local WAVE_LEFT = "WAVE_LEFT"
 local WAVE_RIGHT = "WAVE_RIGHT"
 local BOSS_LEFT = "BOSS_LEFT"
 local BOSS_RIGHT = "BOSS_RIGHT"
+local GROUP_WAVE = Internals.Timeline.PAD_WAVE
+local GROUP_BOSS = Internals.Timeline.PAD_BOSS
+local GROUP_MARKERS = Internals.Timeline.PAD_MARKERS
+local GROUP_BUTTON_IDS = {
+    [GROUP_WAVE] = { WAVE_LEFT, WAVE_RIGHT },
+    [GROUP_BOSS] = { BOSS_LEFT, BOSS_RIGHT },
+    [GROUP_MARKERS] = { 4, 5, 7 },
+}
+-- Named macros stay in sync via EditMacro; the button only needs the stable name.
+local CALLOUT_MACRO_INDEX = {
+    [WAVE_LEFT] = 1,
+    [WAVE_RIGHT] = 2,
+    [BOSS_LEFT] = 1,
+    [BOSS_RIGHT] = 2,
+}
+local MARKER_MACRO_INDEX = {
+    [4] = 1,
+    [5] = 2,
+    [7] = 3,
+}
+local GROUP_HINTS = {
+    [GROUP_WAVE] = L.ULATEK_PAD_HINT_WAVE,
+    [GROUP_BOSS] = L.ULATEK_PAD_HINT_BOSS,
+    [GROUP_MARKERS] = L.ULATEK_PAD_HINT_MARKERS,
+}
+-- Pad world-markers stay hidden; corners 4, 5, and 7 fade in for [325s, 340s].
+local MARKER_CLICK_CORNERS = {
+    [4] = true,
+    [5] = true,
+    [7] = true,
+}
 -- Clickable frame around each marker; larger than the icon so markers are easy to hit.
 local CORNER_MARKER_HIT_SIZE = 56
--- Gap between a vertex and the near side of its marker icon.
+-- Gap from a vertex inward to the near side of its marker icon.
 local CORNER_MARKER_GAP = Spacing.MEDIUM
+-- Entrance caption sits just outside the bottom wall.
+local ENTRANCE_LABEL_REACH = Spacing.MEDIUM + Assets.FontStyles[Fonts.BODY].size
 
 ---@param markerSize number
 ---@return number
-local function CornerMarkerReach(markerSize)
-    return CORNER_MARKER_GAP + markerSize / 2 + CORNER_MARKER_HIT_SIZE / 2
+local function MarkerInset(markerSize)
+    return CORNER_MARKER_GAP + markerSize / 2
 end
 
 ---@param options ArenaCanvasOptions
@@ -78,7 +117,11 @@ local MARKER_NAMES = {
 ---@field placements function[]
 ---@field cornerIcons table<integer, Texture>
 ---@field cornerButtons table<integer, Button>
+---@field markerStates table<integer, UlatekCalloutButtonState>|nil
 ---@field calloutButtons table<string, Button>|nil
+---@field calloutStates table<string, UlatekCalloutButtonState>|nil
+---@field testClock FontString|nil
+---@field windowHint FontString|nil
 
 ---@class ArenaRow
 ---@field row Frame
@@ -89,8 +132,38 @@ local MARKER_NAMES = {
 
 local canvases = {}
 
+---@class UlatekPadGroupState
+---@field active boolean
+---@field locked boolean
+---@field selected string|nil
+
+---@class UlatekCalloutButtonState
+---@field id string
+---@field group UlatekPadGroupId
+---@field button Button
+---@field icon Texture
+---@field lockMask Frame
+---@field defaultSize number
+---@field idleColor table
+---@field hoverColor table
+---@field flashColor table
+---@field hovered boolean
+---@field flashing boolean
+---@field flashGeneration number
+---@field flashDuration number
+
+---@type table<UlatekPadGroupId, UlatekPadGroupState>
+local groupStates = {
+    [GROUP_WAVE] = { active = false, locked = true, selected = nil },
+    [GROUP_BOSS] = { active = false, locked = true, selected = nil },
+    [GROUP_MARKERS] = { active = false, locked = true, selected = nil },
+}
+
 local Map = {
     MARKER_NAMES = MARKER_NAMES,
+    GROUP_WAVE = GROUP_WAVE,
+    GROUP_BOSS = GROUP_BOSS,
+    GROUP_MARKERS = GROUP_MARKERS,
 }
 Internals.Map = Map
 
@@ -134,40 +207,6 @@ local function CreateCornerMarkerButton(canvas, corner, options)
     return button, icon
 end
 
----@param options ArenaCanvasOptions
-local function CreateCornerMarkers(canvas, options)
-    local circumradius = 1 / math.cos(math.pi / Ulatek.ARENA_SIDES)
-    local markerSize = CornerMarkerSize(options)
-    local distance = circumradius + (CORNER_MARKER_GAP + markerSize / 2) / canvas.scale
-    canvas.cornerIcons = {}
-    canvas.cornerButtons = {}
-    local clickable = options.onCornerMarkerClick ~= nil
-    for _, cornerMarker in ipairs(Ulatek:GetCornerMarkers()) do
-        local region, icon
-        if clickable then
-            region, icon = CreateCornerMarkerButton(canvas, cornerMarker.corner, options)
-            canvas.cornerButtons[cornerMarker.corner] = region
-        else
-            icon = canvas:CreateTexture(nil, "OVERLAY")
-            icon:SetSize(markerSize, markerSize)
-            region = icon
-        end
-        icon:SetTexture(Assets.WORLD_MARKER_ICONS[cornerMarker.marker])
-        canvas.cornerIcons[cornerMarker.corner] = icon
-        local unit = circumradius
-        local x, y = cornerMarker.x / unit * distance, cornerMarker.y / unit * distance
-        AddPlacement(canvas, function()
-            region:SetPoint("CENTER", canvas, "CENTER", ToCanvas(canvas, x, y))
-        end)
-    end
-end
-
-local function RefreshCornerMarkers(canvas)
-    for _, cornerMarker in ipairs(Ulatek:GetCornerMarkers()) do
-        canvas.cornerIcons[cornerMarker.corner]:SetTexture(Assets.WORLD_MARKER_ICONS[cornerMarker.marker])
-    end
-end
-
 ---@param region Region
 local function SnapToPixel(region)
     if region.SetSnapToPixelGrid then
@@ -176,113 +215,419 @@ local function SnapToPixel(region)
     end
 end
 
----Transparent secure hit target with a tinted double-chevron texture. No box; color-only hover.
----@param canvas ArenaCanvas
----@param spec { pointingLeft: boolean, x: number, y: number }
----@return Button
-local function CreateWaveButton(canvas, spec)
-    local button = CreateFrame("Button", nil, canvas, Assets.Templates.SECURE_ACTION_BUTTON)
-    button:SetSize(WAVE_BUTTON_WIDTH, WAVE_BUTTON_HEIGHT)
-    SnapToPixel(button)
-    button:SetPoint("CENTER", canvas, "CENTER", math.floor(spec.x + 0.5), math.floor(spec.y + 0.5))
-
-    local arrow = button:CreateTexture(nil, "ARTWORK")
-    local path = spec.pointingLeft and Assets.Textures.ARROW_DOUBLE_CHEVRON_LEFT
-        or Assets.Textures.ARROW_DOUBLE_CHEVRON_RIGHT
-    arrow:SetTexture(path, "CLAMP", "CLAMP", "TRILINEAR")
-    arrow:SetSize(WAVE_ARROW_SIZE, WAVE_ARROW_SIZE)
-    arrow:SetPoint("CENTER")
-
-    local hovered = false
-    local flashing = false
-    local function PaintArrow()
-        local color = WAVE_ARROW_IDLE
-        if flashing then
-            color = WAVE_ARROW_FLASH
-        elseif hovered then
-            color = WAVE_ARROW_HOVER
-        end
-        arrow:SetVertexColor(Widgets.UnpackColor(color))
+---@param button Button
+---@param macroName string|nil
+local function ApplyMacroAttribute(button, macroName)
+    if macroName then
+        button:SetAttribute("type", "macro")
+        button:SetAttribute("macro", macroName)
+    else
+        button:SetAttribute("type", nil)
+        button:SetAttribute("macro", nil)
     end
-    PaintArrow()
-
-    button:SetScript("OnEnter", function()
-        hovered = true
-        PaintArrow()
-    end)
-    button:SetScript("OnLeave", function()
-        hovered = false
-        PaintArrow()
-    end)
-    local flashGeneration = 0
-    button:RegisterForClicks("AnyDown", "AnyUp")
-    button:HookScript("PostClick", function()
-        flashGeneration = flashGeneration + 1
-        local id = flashGeneration
-        flashing = true
-        PaintArrow()
-        Timer.After(WAVE_FLASH_DURATION, function()
-            if id ~= flashGeneration then
-                return
-            end
-            flashing = false
-            PaintArrow()
-        end)
-    end)
-    return button
 end
 
----Transparent secure hit target with a tinted dashed-circle texture. No box; color-only hover.
+---Unprotected cover above a secure callout. Showing it swallows clicks and stays legal in lockdown.
+---@param button Button
+---@return Frame
+local function CreateCalloutLockMask(button)
+    local mask = CreateFrame("Frame", nil, button)
+    mask:SetAllPoints()
+    mask:EnableMouse(true)
+    if button.GetFrameLevel and mask.SetFrameLevel then
+        mask:SetFrameLevel(button:GetFrameLevel() + 5)
+    end
+    mask:Show()
+    return mask
+end
+
+---@param state UlatekCalloutButtonState
+local function PaintMarker(state)
+    local group = groupStates[GROUP_MARKERS]
+    local selected = group.selected == state.id
+    local dimmed = group.active and group.locked and group.selected ~= nil and not selected
+    local size = selected and (state.defaultSize * CALLOUT_SELECTED_SCALE) or state.defaultSize
+    state.icon:SetSize(size, size)
+    local alpha = 0
+    if group.active then
+        alpha = dimmed and CALLOUT_DIMMED_ALPHA or 1
+    end
+    state.icon:SetAlpha(alpha)
+    state.lockMask:SetShown(not group.active or group.locked)
+end
+
+local function PaintMarkerGroup()
+    for _, canvas in ipairs(canvases) do
+        local states = canvas.markerStates
+        if states then
+            for _, corner in ipairs(GROUP_BUTTON_IDS[GROUP_MARKERS]) do
+                if states[corner] then
+                    PaintMarker(states[corner])
+                end
+            end
+        end
+    end
+end
+
 ---@param canvas ArenaCanvas
----@param spec { x: number, y: number }
----@return Button
-local function CreateBossButton(canvas, spec)
+---@param corner integer
+---@param options ArenaCanvasOptions
+---@param x number
+---@param y number
+local function CreatePadMarkerButton(canvas, corner, options, x, y)
     local button = CreateFrame("Button", nil, canvas, Assets.Templates.SECURE_ACTION_BUTTON)
-    button:SetSize(BOSS_HIT_SIZE, BOSS_HIT_SIZE)
+    button:SetSize(CORNER_MARKER_HIT_SIZE, CORNER_MARKER_HIT_SIZE)
+    SnapToPixel(button)
+    button:SetPoint("CENTER", canvas, "CENTER", ToCanvas(canvas, x, y))
+
+    local icon = button:CreateTexture(nil, "ARTWORK")
+    local markerSize = CornerMarkerSize(options)
+    icon:SetSize(markerSize, markerSize)
+    icon:SetPoint("CENTER")
+
+    local lockMask = CreateCalloutLockMask(button)
+    ---@type UlatekCalloutButtonState
+    local state = {
+        id = corner,
+        group = GROUP_MARKERS,
+        button = button,
+        icon = icon,
+        lockMask = lockMask,
+        defaultSize = markerSize,
+        idleColor = WAVE_ARROW_IDLE,
+        hoverColor = WAVE_ARROW_HOVER,
+        flashColor = WAVE_ARROW_FLASH,
+        hovered = false,
+        flashing = false,
+        flashGeneration = 0,
+        flashDuration = WAVE_FLASH_DURATION,
+    }
+    canvas.markerStates[corner] = state
+    canvas.cornerButtons[corner] = button
+    button.calloutIcon = icon
+    button.lockMask = lockMask
+    button:RegisterForClicks("AnyDown", "AnyUp")
+    ApplyMacroAttribute(button, Ulatek:GetSignalMacroName(MARKER_MACRO_INDEX[corner]))
+    button:HookScript("PostClick", function()
+        local group = groupStates[GROUP_MARKERS]
+        if not group.active or group.locked then
+            return
+        end
+        group.selected = corner
+        group.locked = true
+        PaintMarkerGroup()
+    end)
+    PaintMarker(state)
+    return button, icon
+end
+
+---@param options ArenaCanvasOptions
+local function CreateCornerMarkers(canvas, options)
+    local circumradius = 1 / math.cos(math.pi / Ulatek.ARENA_SIDES)
+    local markerSize = CornerMarkerSize(options)
+    local distance = circumradius - MarkerInset(markerSize) / canvas.scale
+    canvas.cornerIcons = {}
+    canvas.cornerButtons = {}
+    local clickable = options.onCornerMarkerClick ~= nil
+    local padMarkers = options.showCalloutButtons == true
+    if padMarkers then
+        canvas.markerStates = {}
+    end
+    for _, cornerMarker in ipairs(Ulatek:GetCornerMarkers()) do
+        local unit = circumradius
+        local x, y = cornerMarker.x / unit * distance, cornerMarker.y / unit * distance
+        local region, icon
+        if clickable then
+            region, icon = CreateCornerMarkerButton(canvas, cornerMarker.corner, options)
+            canvas.cornerButtons[cornerMarker.corner] = region
+        elseif padMarkers and MARKER_CLICK_CORNERS[cornerMarker.corner] then
+            region, icon = CreatePadMarkerButton(canvas, cornerMarker.corner, options, x, y)
+        else
+            icon = canvas:CreateTexture(nil, "OVERLAY")
+            icon:SetSize(markerSize, markerSize)
+            region = icon
+        end
+        icon:SetTexture(Assets.WORLD_MARKER_ICONS[cornerMarker.marker])
+        canvas.cornerIcons[cornerMarker.corner] = icon
+        if padMarkers and not MARKER_CLICK_CORNERS[cornerMarker.corner] then
+            icon:SetAlpha(0)
+        end
+        if not (region.IsProtected and region:IsProtected()) then
+            AddPlacement(canvas, function()
+                region:SetPoint("CENTER", canvas, "CENTER", ToCanvas(canvas, x, y))
+            end)
+        end
+    end
+end
+
+local function RefreshCornerMarkers(canvas)
+    for _, cornerMarker in ipairs(Ulatek:GetCornerMarkers()) do
+        local icon = canvas.cornerIcons[cornerMarker.corner]
+        icon:SetTexture(Assets.WORLD_MARKER_ICONS[cornerMarker.marker])
+        if canvas.markerStates then
+            local state = canvas.markerStates[cornerMarker.corner]
+            if state then
+                PaintMarker(state)
+            else
+                icon:SetAlpha(0)
+            end
+        end
+    end
+end
+
+---@param state UlatekCalloutButtonState
+local function PaintCallout(state)
+    local group = groupStates[state.group]
+    local selected = group.selected == state.id
+    local dimmed = group.active and group.locked and group.selected ~= nil and not selected
+    local size = selected and (state.defaultSize * CALLOUT_SELECTED_SCALE) or state.defaultSize
+    state.icon:SetSize(size, size)
+
+    local color = state.idleColor
+    if state.flashing then
+        color = state.flashColor
+    elseif selected then
+        color = state.hoverColor
+    elseif state.hovered and group.active and not group.locked then
+        color = state.hoverColor
+    end
+    state.icon:SetVertexColor(Widgets.UnpackColor(color))
+
+    local alpha = 0
+    if group.active then
+        alpha = dimmed and CALLOUT_DIMMED_ALPHA or 1
+    end
+    state.icon:SetAlpha(alpha)
+    state.lockMask:SetShown(not group.active or group.locked)
+end
+
+local function PaintCalloutGroup(group)
+    for _, canvas in ipairs(canvases) do
+        local states = canvas.calloutStates
+        if states then
+            for _, id in ipairs(GROUP_BUTTON_IDS[group]) do
+                if states[id] then
+                    PaintCallout(states[id])
+                end
+            end
+        end
+    end
+end
+
+local function ActiveWindowHintText()
+    for _, group in ipairs({ GROUP_WAVE, GROUP_BOSS, GROUP_MARKERS }) do
+        if groupStates[group].active then
+            return GROUP_HINTS[group]
+        end
+    end
+    return nil
+end
+
+---Combat-safe: SetText / SetAlpha only.
+local function PaintWindowHint()
+    local text = ActiveWindowHintText()
+    local alpha = text and 1 or 0
+    for _, canvas in ipairs(canvases) do
+        local hint = canvas.windowHint
+        if hint then
+            hint:SetText(text or "")
+            hint:SetAlpha(alpha)
+        end
+    end
+end
+
+---@param group UlatekPadGroupId
+---@param active boolean
+function Map.SetCalloutGroupActive(group, active)
+    local state = groupStates[group]
+    if not state then
+        return
+    end
+    if active then
+        state.active = true
+        state.locked = false
+        state.selected = nil
+    else
+        state.active = false
+        state.locked = true
+        state.selected = nil
+    end
+    for _, canvas in ipairs(canvases) do
+        local states = canvas.calloutStates
+        if states then
+            for _, id in ipairs(GROUP_BUTTON_IDS[group]) do
+                local buttonState = states[id]
+                if buttonState then
+                    buttonState.hovered = false
+                    buttonState.flashing = false
+                    buttonState.flashGeneration = buttonState.flashGeneration + 1
+                end
+            end
+        end
+    end
+    if group == GROUP_MARKERS then
+        PaintMarkerGroup()
+    else
+        PaintCalloutGroup(group)
+    end
+    PaintWindowHint()
+end
+
+function Map.ResetCalloutGroups()
+    Map.SetCalloutGroupActive(GROUP_WAVE, false)
+    Map.SetCalloutGroupActive(GROUP_BOSS, false)
+    Map.SetCalloutGroupActive(GROUP_MARKERS, false)
+end
+
+---@param seconds number
+---@return string
+local function FormatTimelineTime(seconds)
+    seconds = math.floor(seconds + 1e-6)
+    if seconds < 0 then
+        seconds = 0
+    end
+    return string.format("%d:%02d", math.floor(seconds / 60), seconds % 60)
+end
+
+---Combat-safe: only SetText / SetAlpha on the test clock, never the secure buttons.
+---@param elapsed number
+---@param duration number
+---@param visible boolean
+function Map.SetTestTimer(elapsed, duration, visible)
+    if elapsed < 0 then
+        elapsed = 0
+    elseif duration and elapsed > duration then
+        elapsed = duration
+    end
+    local text = FormatTimelineTime(elapsed)
+    local alpha = visible and 1 or 0
+    for _, canvas in ipairs(canvases) do
+        local clock = canvas.testClock
+        if clock then
+            clock:SetText(text)
+            clock:SetAlpha(alpha)
+        end
+    end
+end
+
+---@param parent Frame
+---@param canvas ArenaCanvas
+local function CreateTestClock(parent, canvas)
+    local clock = Widgets.CreateLabel(parent, Fonts.BODY)
+    clock:SetJustifyH("LEFT")
+    clock:SetWordWrap(false)
+    clock:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", TEST_CLOCK_INSET, TEST_CLOCK_INSET)
+    clock:SetAlpha(0)
+    canvas.testClock = clock
+end
+
+---Centered instruction on the floating pad header. Combat-safe after create: SetText / SetAlpha only.
+---@param parent Frame
+---@param canvas ArenaCanvas
+function Map.AttachWindowHint(parent, canvas)
+    local hint = Widgets.CreateLabel(parent, Fonts.EMPHASIS)
+    hint:SetJustifyH("CENTER")
+    hint:SetWordWrap(false)
+    hint:SetPoint("CENTER", parent, "CENTER")
+    hint:SetAlpha(0)
+    canvas.windowHint = hint
+end
+
+Internals.BindPadTestUi({
+    OnTick = function(elapsed, duration)
+        Map.SetTestTimer(elapsed, duration, true)
+    end,
+    OnFinished = function()
+        Ulatek:EndPadTest()
+    end,
+    OnEnded = function()
+        Map.SetTestTimer(0, Internals.Timeline.PAD_TEST_DURATION, false)
+    end,
+})
+
+Internals.BindPadCallouts({
+    SetCalloutGroupActive = Map.SetCalloutGroupActive,
+    ResetCalloutGroups = Map.ResetCalloutGroups,
+})
+
+---@param canvas ArenaCanvas
+---@param spec {
+---    id: string,
+---    group: UlatekPadGroupId,
+---    width: number,
+---    height: number,
+---    x: number,
+---    y: number,
+---    texture: string,
+---    iconSize: number,
+---    idleColor: table,
+---    hoverColor: table,
+---    flashColor: table,
+---    flashDuration: number,
+---}
+---@return Button
+local function CreateCalloutButton(canvas, spec)
+    local button = CreateFrame("Button", nil, canvas, Assets.Templates.SECURE_ACTION_BUTTON)
+    button:SetSize(spec.width, spec.height)
     SnapToPixel(button)
     button:SetPoint("CENTER", canvas, "CENTER", math.floor(spec.x + 0.5), math.floor(spec.y + 0.5))
 
     local icon = button:CreateTexture(nil, "ARTWORK")
-    icon:SetTexture(Assets.Textures.DASHED_CIRCLE_8_DOT, "CLAMP", "CLAMP", "TRILINEAR")
-    icon:SetSize(BOSS_ICON_SIZE, BOSS_ICON_SIZE)
+    icon:SetTexture(spec.texture, "CLAMP", "CLAMP", "TRILINEAR")
+    icon:SetSize(spec.iconSize, spec.iconSize)
     icon:SetPoint("CENTER")
 
-    local hovered = false
-    local flashing = false
-    local function PaintIcon()
-        local color = BOSS_ICON_IDLE
-        if flashing then
-            color = BOSS_ICON_FLASH
-        elseif hovered then
-            color = BOSS_ICON_HOVER
-        end
-        icon:SetVertexColor(Widgets.UnpackColor(color))
-    end
-    PaintIcon()
+    local lockMask = CreateCalloutLockMask(button)
+    ---@type UlatekCalloutButtonState
+    local state = {
+        id = spec.id,
+        group = spec.group,
+        button = button,
+        icon = icon,
+        lockMask = lockMask,
+        defaultSize = spec.iconSize,
+        idleColor = spec.idleColor,
+        hoverColor = spec.hoverColor,
+        flashColor = spec.flashColor,
+        hovered = false,
+        flashing = false,
+        flashGeneration = 0,
+        flashDuration = spec.flashDuration,
+    }
+    canvas.calloutStates[spec.id] = state
+    button.calloutIcon = icon
+    button.lockMask = lockMask
 
     button:SetScript("OnEnter", function()
-        hovered = true
-        PaintIcon()
+        state.hovered = true
+        PaintCallout(state)
     end)
     button:SetScript("OnLeave", function()
-        hovered = false
-        PaintIcon()
+        state.hovered = false
+        PaintCallout(state)
     end)
-    local flashGeneration = 0
     button:RegisterForClicks("AnyDown", "AnyUp")
+    ApplyMacroAttribute(button, Ulatek:GetSignalMacroName(CALLOUT_MACRO_INDEX[spec.id]))
     button:HookScript("PostClick", function()
-        flashGeneration = flashGeneration + 1
-        local id = flashGeneration
-        flashing = true
-        PaintIcon()
-        Timer.After(BOSS_FLASH_DURATION, function()
-            if id ~= flashGeneration then
+        local group = groupStates[state.group]
+        if not group.active or group.locked then
+            return
+        end
+        group.selected = state.id
+        group.locked = true
+        state.flashGeneration = state.flashGeneration + 1
+        local flashId = state.flashGeneration
+        state.flashing = true
+        PaintCalloutGroup(state.group)
+        Timer.After(state.flashDuration, function()
+            if flashId ~= state.flashGeneration then
                 return
             end
-            flashing = false
-            PaintIcon()
+            state.flashing = false
+            PaintCallout(state)
         end)
     end)
+    PaintCallout(state)
     return button
 end
 
@@ -301,24 +646,63 @@ local function CreateCalloutButtons(canvas)
     local leftX, leftY = BossButtonOffset(canvas, Ulatek.LEFT_EDGE)
     local rightX, rightY = BossButtonOffset(canvas, Ulatek.RIGHT_EDGE)
 
+    canvas.calloutStates = {}
     canvas.calloutButtons = {
-        [WAVE_LEFT] = CreateWaveButton(canvas, {
-            pointingLeft = true,
+        [WAVE_LEFT] = CreateCalloutButton(canvas, {
+            id = WAVE_LEFT,
+            group = GROUP_WAVE,
+            width = WAVE_BUTTON_WIDTH,
+            height = WAVE_BUTTON_HEIGHT,
             x = -waveOffsetX,
             y = 0,
+            texture = Assets.Textures.ARROW_DOUBLE_CHEVRON_LEFT,
+            iconSize = WAVE_ARROW_SIZE,
+            idleColor = WAVE_ARROW_IDLE,
+            hoverColor = WAVE_ARROW_HOVER,
+            flashColor = WAVE_ARROW_FLASH,
+            flashDuration = WAVE_FLASH_DURATION,
         }),
-        [WAVE_RIGHT] = CreateWaveButton(canvas, {
-            pointingLeft = false,
+        [WAVE_RIGHT] = CreateCalloutButton(canvas, {
+            id = WAVE_RIGHT,
+            group = GROUP_WAVE,
+            width = WAVE_BUTTON_WIDTH,
+            height = WAVE_BUTTON_HEIGHT,
             x = waveOffsetX,
             y = 0,
+            texture = Assets.Textures.ARROW_DOUBLE_CHEVRON_RIGHT,
+            iconSize = WAVE_ARROW_SIZE,
+            idleColor = WAVE_ARROW_IDLE,
+            hoverColor = WAVE_ARROW_HOVER,
+            flashColor = WAVE_ARROW_FLASH,
+            flashDuration = WAVE_FLASH_DURATION,
         }),
-        [BOSS_LEFT] = CreateBossButton(canvas, {
+        [BOSS_LEFT] = CreateCalloutButton(canvas, {
+            id = BOSS_LEFT,
+            group = GROUP_BOSS,
+            width = BOSS_HIT_SIZE,
+            height = BOSS_HIT_SIZE,
             x = leftX,
             y = leftY,
+            texture = Assets.Textures.DASHED_CIRCLE_8_DOT,
+            iconSize = BOSS_ICON_SIZE,
+            idleColor = BOSS_ICON_IDLE,
+            hoverColor = BOSS_ICON_HOVER,
+            flashColor = BOSS_ICON_FLASH,
+            flashDuration = BOSS_FLASH_DURATION,
         }),
-        [BOSS_RIGHT] = CreateBossButton(canvas, {
+        [BOSS_RIGHT] = CreateCalloutButton(canvas, {
+            id = BOSS_RIGHT,
+            group = GROUP_BOSS,
+            width = BOSS_HIT_SIZE,
+            height = BOSS_HIT_SIZE,
             x = rightX,
             y = rightY,
+            texture = Assets.Textures.DASHED_CIRCLE_8_DOT,
+            iconSize = BOSS_ICON_SIZE,
+            idleColor = BOSS_ICON_IDLE,
+            hoverColor = BOSS_ICON_HOVER,
+            flashColor = BOSS_ICON_FLASH,
+            flashDuration = BOSS_FLASH_DURATION,
         }),
     }
 end
@@ -376,7 +760,8 @@ function Map.LayoutArenaRow(arena)
     local canvas = arena.canvas
     canvas:ClearAllPoints()
     local left = arena.inset + (arena.width - canvas:GetWidth()) / 2
-    canvas:SetPoint("LEFT", arena.row, "LEFT", left, 0)
+    -- Extra row height is for the entrance label below the octagon, not empty space above it.
+    canvas:SetPoint("LEFT", arena.row, "LEFT", left, ENTRANCE_LABEL_REACH / 2)
 end
 
 ---Fills `row` with the octagon. Call LayoutArenaRow once `inset` is final.
@@ -385,6 +770,9 @@ end
 ---@return ArenaRow
 function Map.CreateArenaRow(row, options)
     local canvas = CreateArenaCanvas(row, options)
+    if options.showCalloutButtons then
+        CreateTestClock(row, canvas)
+    end
     local entranceLabel = CreateEntranceLabel(canvas)
     AddPlacement(canvas, function()
         PlaceEntranceLabel(canvas, entranceLabel)
@@ -394,24 +782,46 @@ function Map.CreateArenaRow(row, options)
         row = row,
         canvas = canvas,
         entranceLabel = entranceLabel,
-        width = options.size + 2 * math.max(
-            CornerMarkerReach(CornerMarkerSize(options)),
-            options.showCalloutButtons and (BOSS_OUTSIDE_GAP + BOSS_HIT_SIZE / 2 + Spacing.SMALL) or 0
-        ),
+        width = options.size
+            + 2 * (options.showCalloutButtons and (BOSS_OUTSIDE_GAP + BOSS_HIT_SIZE / 2 + Spacing.SMALL) or 0),
         inset = 0,
     }
 end
 
----Height of a row holding an arena, with room for the marker icons outside the top and bottom walls.
+---Height of a row holding an arena, with room for the entrance label outside the bottom wall.
 ---@param size number
----@param markerSize number|nil
 ---@return number
-function Map.GetArenaRowHeight(size, markerSize)
-    return size + 2 * CornerMarkerReach(markerSize or CORNER_MARKER_SIZE)
+function Map.GetArenaRowHeight(size)
+    return size + ENTRANCE_LABEL_REACH
 end
 
 function Map.RefreshCornerMarkers()
     for _, canvas in ipairs(canvases) do
         RefreshCornerMarkers(canvas)
     end
+end
+
+---Binds or clears SecureActionButton macros on pad callouts and soak markers.
+---Editor markers (plain buttons) are left alone. Blocked during combat lockdown.
+---@param enabled boolean
+---@return boolean applied
+function Map.SetCalloutMacroClicksEnabled(enabled)
+    if Combat.IsLockedDown() then
+        return false
+    end
+    for _, canvas in ipairs(canvases) do
+        for id, button in pairs(canvas.calloutButtons or {}) do
+            if button.IsProtected and button:IsProtected() then
+                local index = CALLOUT_MACRO_INDEX[id]
+                ApplyMacroAttribute(button, enabled and Ulatek:GetSignalMacroName(index) or nil)
+            end
+        end
+        for corner, button in pairs(canvas.cornerButtons or {}) do
+            local index = MARKER_MACRO_INDEX[corner]
+            if index and button.IsProtected and button:IsProtected() then
+                ApplyMacroAttribute(button, enabled and Ulatek:GetSignalMacroName(index) or nil)
+            end
+        end
+    end
+    return true
 end

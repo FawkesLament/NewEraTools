@@ -8,8 +8,12 @@ local function AssertNear(expected, actual)
     end
 end
 
+local TOMB_INSTANCE_ID = 3004
+local TOMB_SUBZONE_EN = "The Tomb of Ula'tek"
+local TOMB_SUBZONE_ZH = "乌拉特克之墓"
+
 describe("Ulatek tactical pad window", function()
-    local ns, Ulatek, Window, Group
+    local ns, Ulatek, Window, Group, Instance
     local frames
     local registered
     local arenaCreates
@@ -62,6 +66,7 @@ describe("Ulatek tactical pad window", function()
         ns.Modules.Start(ns.Database.Load(nil))
         Ulatek = ns.Modules.Get("Ulatek")
         Group = ns.Api.Group
+        Instance = ns.Api.Instance
         ns.FloatingWindow = {
             Create = function(options)
                 lastCreateOptions = options
@@ -97,11 +102,27 @@ describe("Ulatek tactical pad window", function()
                 return { width = 10 }
             end,
             LayoutArenaRow = function() end,
+            AttachWindowHint = function() end,
+            SetTestTimer = function() end,
+            SetCalloutMacroClicksEnabled = function()
+                return true
+            end,
         }
         assert(loadfile("modules/venomous_abyss/ulatek/ui/Window.lua"))("NewEraTools", ns)
         Window = ns.Modules.Internals("Ulatek").Window
         Group.isRaidLeader = true
     end)
+
+    local function EnterTomb(subZone, difficultyID)
+        Instance.info.instanceID = TOMB_INSTANCE_ID
+        Instance.info.instanceType = "raid"
+        Instance.info.difficultyID = difficultyID or Instance.DIFFICULTY_MYTHIC_RAID
+        Instance.subZoneText = subZone or TOMB_SUBZONE_EN
+    end
+
+    local function LeaveTomb()
+        Instance.subZoneText = "The Venomous Abyss"
+    end
 
     it("opens a closable map with assigned markers when a commander starts the test", function()
         Window.StartPreview()
@@ -190,6 +211,85 @@ describe("Ulatek tactical pad window", function()
         assert.is_true(frames[1]:IsShown())
     end)
 
+    it("shows the pad at the English or Chinese tomb and hides it elsewhere", function()
+        Window.ListenForCombatDeferral()
+        EnterTomb(TOMB_SUBZONE_EN)
+        Window.Update()
+        assert.is_true(frames[1]:IsShown())
+        assert.is_false(frames[1].closeButton.shown)
+
+        LeaveTomb()
+        Instance.FireZoneChangedIndoors()
+        assert.is_false(frames[1]:IsShown())
+
+        EnterTomb(TOMB_SUBZONE_ZH)
+        Instance.FireZoneChangedIndoors()
+        assert.is_true(frames[1]:IsShown())
+
+        Instance.info.instanceID = 0
+        Window.Update()
+        assert.is_false(frames[1]:IsShown())
+    end)
+
+    it("stays hidden at the tomb unless the raid is Mythic", function()
+        Window.ListenForCombatDeferral()
+        EnterTomb(TOMB_SUBZONE_EN, Instance.DIFFICULTY_HEROIC_RAID)
+        Window.Update()
+        assert.equals(0, #frames)
+
+        EnterTomb(TOMB_SUBZONE_EN, Instance.DIFFICULTY_MYTHIC_RAID)
+        Instance.FireEnteringWorld()
+        assert.is_true(frames[1]:IsShown())
+
+        Instance.info.difficultyID = Instance.DIFFICULTY_HEROIC_RAID
+        Instance.FireEnteringWorld()
+        assert.is_false(frames[1]:IsShown())
+    end)
+
+    it("stays hidden at the tomb for a raid member, unless a commander opens preview", function()
+        Window.ListenForCombatDeferral()
+        Group.isRaidLeader = false
+        EnterTomb()
+        Window.Update()
+        assert.equals(0, #frames)
+
+        Window.StartPreview()
+        assert.equals(0, #frames)
+
+        Group.isRaidLeader = true
+        Window.Update()
+        assert.is_true(frames[1]:IsShown())
+    end)
+
+    it("defers Show until combat ends when the tomb is entered during lockdown", function()
+        local Combat = ns.Api.Combat
+        Window.ListenForCombatDeferral()
+        Combat.inCombat = true
+        EnterTomb()
+        Instance.FireZoneChangedIndoors()
+        assert.equals(0, #frames)
+
+        Combat.FireLeave()
+        assert.equals(1, #frames)
+        assert.is_true(frames[1]:IsShown())
+    end)
+
+    it("defers Hide until combat ends when the tomb is left during lockdown", function()
+        local Combat = ns.Api.Combat
+        Window.ListenForCombatDeferral()
+        EnterTomb()
+        Window.Update()
+        assert.is_true(frames[1]:IsShown())
+
+        Combat.inCombat = true
+        LeaveTomb()
+        Instance.FireZoneChangedIndoors()
+        assert.is_true(frames[1]:IsShown())
+
+        Combat.FireLeave()
+        assert.is_false(frames[1]:IsShown())
+    end)
+
     it("does not hide the pad when combat starts", function()
         local Combat = ns.Api.Combat
         Window.ListenForCombatDeferral()
@@ -207,5 +307,33 @@ describe("Ulatek tactical pad window", function()
         Combat.inCombat = true
         Window.Update()
         assert.is_true(frames[1]:IsShown())
+    end)
+
+    it("ends the test on combat start but keeps the pad at the Mythic tomb without a close button", function()
+        Window.ListenForCombatDeferral()
+        EnterTomb()
+        Window.StartPreview()
+        assert.is_true(frames[1]:IsShown())
+        assert.is_true(frames[1].closeButton.shown)
+        assert.is_true(Ulatek:IsPadTestActive())
+
+        local Combat = ns.Api.Combat
+        Combat.FireEnter()
+        assert.is_false(Ulatek:IsPadTestActive())
+        assert.is_true(frames[1]:IsShown())
+        assert.is_false(frames[1].closeButton.shown)
+    end)
+
+    it("hides the pad when combat starts the test outside the tomb", function()
+        Window.ListenForCombatDeferral()
+        Window.StartPreview()
+        assert.is_true(frames[1]:IsShown())
+        local Combat = ns.Api.Combat
+        Combat.inCombat = true
+        Combat.FireEnter()
+        assert.is_true(frames[1]:IsShown())
+        Combat.FireLeave()
+        assert.is_false(frames[1]:IsShown())
+        assert.is_false(Ulatek:IsPadTestActive())
     end)
 end)

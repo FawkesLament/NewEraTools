@@ -1,14 +1,16 @@
--- Floating arena map for Ulatek's tactical pad preview and layout editing.
+-- Floating arena map for Ulatek's tactical pad: tomb auto-show, preview, and layout editing.
 local _, ns = ...
 local Internals = ns.Modules.Internals("Ulatek")
 local L = ns.L
 local Assets = ns.Assets
 local Combat = ns.Api.Combat
 local FloatingWindow = ns.FloatingWindow
+local Instance = ns.Api.Instance
 local Layout = ns.Layout
 local LayoutEditor = ns.LayoutEditor
 
 local Spacing = Assets.Spacing
+local Sizes = Assets.Sizes
 
 local Ulatek = ns.Modules.Get("Ulatek")
 local Map = Internals.Map
@@ -35,9 +37,31 @@ local layoutEditCount = 0
 local previewVisible = false
 -- True when Show/Hide was skipped because secure callout buttons cannot change during lockdown.
 local visibilityDirty = false
+-- True when role-driven macro click binding couldn't apply during combat lockdown.
+local macroClicksDirty = false
+
+-- Venomous Abyss. GetInstanceInfo instanceID.
+local TOMB_INSTANCE_ID = 3004
+-- Exact GetSubZoneText values for Ulatek's room (enUS / zhCN).
+local TOMB_SUBZONES = {
+    ["The Tomb of Ula'tek"] = true,
+    ["乌拉特克之墓"] = true,
+}
 
 local function CanChangeVisibility()
     return not Combat.IsLockedDown()
+end
+
+---@param frame Frame|nil
+local function CanConfigure(frame)
+    return not Combat.IsLockedDown() or not frame or not frame.IsProtected or not frame:IsProtected()
+end
+
+local function IsAtTomb()
+    local info = Instance.GetInfo()
+    return info.instanceID == TOMB_INSTANCE_ID
+        and info.difficultyID == Instance.DIFFICULTY_MYTHIC_RAID
+        and TOMB_SUBZONES[Instance.GetSubZoneText()] == true
 end
 
 ---@param frame Frame
@@ -58,8 +82,15 @@ local function IsFactoryPadPosition(position)
     return position.point == "CENTER" and position.relativePoint == "CENTER" and position.x == 0 and position.y == 0
 end
 
+---What the commander should see. Preview always shows; otherwise only in Mythic Ulatek's tomb.
 local function IsPadVisible()
-    return previewVisible and Ulatek:IsRaidCommander()
+    if not Ulatek:IsRaidCommander() then
+        return false
+    end
+    if previewVisible then
+        return true
+    end
+    return IsAtTomb()
 end
 
 function Window.IsLayoutEditing()
@@ -90,6 +121,7 @@ function Window.Update()
     end
     if not Ulatek:IsRaidCommander() then
         previewVisible = false
+        Ulatek:EndPadTest()
     end
     local visible = IsPadVisible()
     if not visible and not window then
@@ -103,7 +135,7 @@ function Window.Update()
         end
         window = Window.Create()
     end
-    if windowCloseButton and CanChangeVisibility() then
+    if windowCloseButton and CanConfigure(windowCloseButton) then
         windowCloseButton:SetShown(previewVisible)
     end
     if not CanChangeVisibility() then
@@ -121,26 +153,21 @@ function Window.Update()
     end
 end
 
-local function SetPreviewVisible(visible)
-    visible = visible == true and Ulatek:IsRaidCommander()
-    if previewVisible == visible then
-        Window.Update()
-        return
-    end
-    previewVisible = visible
+---Clears the 3x test. The pad stays up when the commander is still in Mythic Ulatek's tomb.
+function Window.DismissPreview()
+    previewVisible = false
+    Ulatek:EndPadTest()
     Window.Update()
 end
 
----Opens the floating pad. Closing is via the window's X; never toggles to "End Test".
+---Opens the floating pad and starts the 3x timeline. Closing is via the window's X.
 function Window.StartPreview()
     if not Ulatek:IsRaidCommander() then
         return
     end
-    if previewVisible then
-        Window.Update()
-        return
-    end
-    SetPreviewVisible(true)
+    previewVisible = true
+    Window.Update()
+    Ulatek:StartPadTest()
 end
 
 local function RegisterPadLayoutElement(frame)
@@ -195,7 +222,7 @@ function Window.Create()
         end,
         closable = true,
         onClose = function()
-            SetPreviewVisible(false)
+            Window.DismissPreview()
         end,
     })
     windowCloseButton = frame.closeButton
@@ -204,6 +231,8 @@ function Window.Create()
         paddingX = Spacing.LARGE,
         paddingY = Spacing.MEDIUM,
     })
+    -- Header overlays the top of the stack; keep a small gap below it.
+    stack:AddRow(Sizes.FLOATING_HEADER_HEIGHT - Spacing.MEDIUM + Spacing.SMALL)
     local body = stack:AddRow(Map.GetArenaRowHeight(ARENA_SIZE, MARKER_SIZE))
 
     local arena = Map.CreateArenaRow(body, {
@@ -211,7 +240,9 @@ function Window.Create()
         markerSize = MARKER_SIZE,
         showCalloutButtons = true,
     })
+    Map.AttachWindowHint(frame.header, arena.canvas)
     Map.LayoutArenaRow(arena)
+    Window.UpdateMacroClicks()
 
     frame:SetSize(arena.width + 2 * Spacing.LARGE, stack:GetHeight())
     if IsFactoryPadPosition(Ulatek:GetTacticalPadPosition()) then
@@ -238,11 +269,53 @@ function Window.Ensure()
     return window
 end
 
+---Members' pad clicks must not fire signal macros; commanders keep them bound.
+function Window.UpdateMacroClicks()
+    if Map.SetCalloutMacroClicksEnabled(Ulatek:IsRaidCommander()) then
+        macroClicksDirty = false
+    else
+        macroClicksDirty = true
+    end
+end
+
 ---Applies Show/Hide that combat lockdown deferred. Called from OnEnable.
 function Window.ListenForCombatDeferral()
+    Combat.OnEnter(function()
+        Window.DismissPreview()
+    end)
     Combat.OnLeave(function()
+        if macroClicksDirty then
+            Window.UpdateMacroClicks()
+        end
         if visibilityDirty then
             Window.Update()
         end
     end)
+    -- Zoning into the raid is out of combat, which is the last chance to Show the protected pad.
+    Instance.OnEnteringWorld(function()
+        Window.Update()
+    end)
+    Instance.OnZoneChangedIndoors(function()
+        Window.Update()
+    end)
 end
+
+function Ulatek.OnEncounterChanged()
+    Window.DismissPreview()
+end
+
+Internals.BindPadTestUi({
+    OnTick = function(elapsed, duration)
+        if Map.SetTestTimer then
+            Map.SetTestTimer(elapsed, duration, true)
+        end
+    end,
+    OnFinished = function()
+        Window.DismissPreview()
+    end,
+    OnEnded = function()
+        if Map.SetTestTimer then
+            Map.SetTestTimer(0, Internals.Timeline.PAD_TEST_DURATION, false)
+        end
+    end,
+})

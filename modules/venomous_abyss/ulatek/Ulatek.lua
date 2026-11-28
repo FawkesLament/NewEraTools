@@ -30,6 +30,8 @@ local PAD_SCALE_STEP = 0.05
 ---@class Ulatek: Module
 ---@field db UlatekSettings
 ---@field OnCornerMarkersChanged fun(self: Ulatek)|nil  Defined by the UI; called after the assignment changes.
+---@field OnEncounterChanged fun(self: Ulatek)|nil  Defined by the UI; fight start/end ends the 3x pad test.
+---@field OnMacrosChanged fun(self: Ulatek)|nil  Defined by the UI; called after the player's macros change.
 local Ulatek = ns.Modules.New("Ulatek", {
     defaults = {
         mechanicReminder = {

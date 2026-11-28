@@ -63,6 +63,7 @@
     <Script file="ulatek\Markers.lua"/>
     <Script file="ulatek\Timeline.lua"/>
     <Script file="ulatek\Encounter.lua"/>
+    <Script file="ulatek\Macros.lua"/>
     <Script file="ulatek\ui\Map.lua"/>
     <Script file="ulatek\ui\Window.lua"/>
     <Script file="ulatek\UlatekUI.lua"/>

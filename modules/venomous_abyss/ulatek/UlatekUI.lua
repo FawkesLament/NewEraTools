@@ -49,8 +49,12 @@ local resetButton
 local syncButton
 local markersHeaderActions
 local roleLabel
+local roleStatus
+local createMacrosButton
 local panelBody
 local panelContainer
+local commanderActionsGap
+local commanderActionsRow
 local tacticalPad
 local tacticalPadGap
 
@@ -228,6 +232,45 @@ local function UpdateResetButton()
     LayoutMarkersHeaderActions()
 end
 
+---Macro status beside the create button: green when macros exist, red on create failure, empty otherwise.
+---@param message string|nil
+---@param color table|nil  Assets color; defaults to ERROR when message is set.
+local function SetRoleStatus(message, color)
+    if not roleStatus then
+        return
+    end
+    roleStatus:SetText(message or "")
+    if message and message ~= "" then
+        roleStatus:SetTextColor(Widgets.UnpackColor(color or Colors.ERROR))
+    end
+end
+
+---Restores lasting macro status for the raid leader (drops transient create errors).
+local function UpdateRoleStatus()
+    if not Ulatek:IsRaidCommander() then
+        SetRoleStatus(nil)
+        return
+    end
+    if Ulatek:HasAllSignalMacros() then
+        SetRoleStatus(L.ULATEK_MACROS_READY, Colors.SUCCESS)
+    else
+        SetRoleStatus(L.ULATEK_MACROS_NEEDED, Colors.WARNING)
+    end
+end
+
+local function SyncCommanderActions()
+    if not panelBody or not commanderActionsRow then
+        return
+    end
+    local shown = Ulatek:IsRaidCommander()
+    commanderActionsRow:SetShown(shown)
+    panelBody:SetEntryHeight(commanderActionsRow, shown and Sizes.CONTROL_ROW_HEIGHT or 0)
+    if commanderActionsGap then
+        commanderActionsGap:SetShown(shown)
+        panelBody:SetEntryHeight(commanderActionsGap, shown and Spacing.MEDIUM or 0)
+    end
+end
+
 local function SyncTacticalPadVisibility()
     if not panelBody or not tacticalPad then
         return
@@ -249,8 +292,15 @@ local function UpdateCommanderControls()
         ns.RaidRoleModeLabel.Update(roleLabel)
     end
     LayoutMarkersHeaderActions()
+    SyncCommanderActions()
+    if createMacrosButton then
+        createMacrosButton:SetEnabled(Ulatek:IsRaidCommander())
+        createMacrosButton:SetAlpha(1)
+    end
+    UpdateRoleStatus()
     SyncTacticalPadVisibility()
     Window.Update()
+    Window.UpdateMacroClicks()
     if LayoutEditor.IsEditing() then
         LayoutEditor.Refresh()
     end
@@ -284,6 +334,39 @@ local function BuildContent(content)
 
     local roleRow = body:AddRow(ns.RaidRoleModeLabel.HEIGHT)
     roleLabel = ns.RaidRoleModeLabel.Create(roleRow, L.ULATEK_RAID_ROLE_MODE_TOOLTIP)
+
+    -- Zero spacing so a hidden commander row does not leave a gap under the role label.
+    commanderActionsGap = body:AddRow(0, 0)
+    commanderActionsRow = body:AddRow(Sizes.CONTROL_ROW_HEIGHT, 0)
+    local macrosCell, addonCheckCell = Layout.SplitRow(commanderActionsRow, Spacing.MEDIUM)
+    createMacrosButton = Widgets.CreateButton(macrosCell, L.ULATEK_CREATE_MACROS, function()
+        if not Ulatek:IsRaidCommander() then
+            return
+        end
+        if Combat.IsInCombat() or Combat.IsLockedDown() then
+            SetRoleStatus(L.ULATEK_RAID_ROLE_IN_COMBAT, Colors.ERROR)
+            return
+        end
+        local ok, createReason = Ulatek:CreateSignalMacros()
+        if not ok then
+            SetRoleStatus(
+                createReason == "combat" and L.ULATEK_RAID_ROLE_IN_COMBAT or L.ULATEK_MACROS_FAILED,
+                Colors.ERROR
+            )
+            return
+        end
+        SetRoleStatus(L.ULATEK_MACROS_READY, Colors.SUCCESS)
+    end, "primary")
+    roleStatus = Widgets.CreateLabel(macrosCell, Fonts.SMALL_MUTED)
+    roleStatus:SetJustifyH("LEFT")
+    createMacrosButton:SetPoint("LEFT", macrosCell, "LEFT")
+    roleStatus:SetPoint("LEFT", createMacrosButton, "RIGHT", Spacing.MEDIUM, 0)
+    roleStatus:SetPoint("RIGHT", macrosCell, "RIGHT")
+    local addonCheckButton = Widgets.CreateButton(addonCheckCell, L.ADDONCHECK_BUTTON, function() end, "primary")
+    Widgets.AttachTooltip(addonCheckButton, "ANCHOR_TOP", function(tooltip)
+        tooltip:SetText(L.ADDONCHECK_BUTTON_TOOLTIP)
+    end)
+    addonCheckButton:SetPoint("LEFT", addonCheckCell, "LEFT")
 
     local reminder = FeatureSection.Create(body, {
         title = L.ULATEK_MECHANIC_REMINDER,
@@ -421,6 +504,7 @@ local function BuildContent(content)
     tacticalPad:SetContentHeight(padBody:GetHeight())
     tacticalPad:RefreshContentInteractive()
 
+    SyncCommanderActions()
     SyncTacticalPadVisibility()
     return body:GetHeight()
 end
@@ -448,6 +532,7 @@ function Ulatek:OnEnable()
     ns.Api.Group.OnChanged(UpdateCommanderControls)
     self:ListenForBroadcasts()
     self:ListenForEncounter()
+    self:ListenForMacroSync()
     -- Secure callout buttons must be created out of combat; OnEnable runs before pulls.
     Window.Ensure()
     Window.ListenForCombatDeferral()
@@ -456,4 +541,8 @@ end
 function Ulatek:OnCornerMarkersChanged()
     Map.RefreshCornerMarkers()
     UpdateResetButton()
+end
+
+function Ulatek:OnMacrosChanged()
+    UpdateRoleStatus()
 end
