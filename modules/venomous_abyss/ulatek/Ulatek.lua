@@ -1,5 +1,11 @@
 local _, ns = ...
 local Internals = ns.Modules.Internals("Ulatek")
+local Util = ns.Util
+
+-- Same range as the Sszorak arena map and the main panel scale control.
+local PAD_SCALE_MIN = 0.8
+local PAD_SCALE_MAX = 1.5
+local PAD_SCALE_STEP = 0.05
 
 -- Ulatek, the eighth boss of The Venomous Abyss.
 -- There is no module-wide enable. Each reminder keeps its own saved settings.
@@ -9,9 +15,17 @@ local Internals = ns.Modules.Internals("Ulatek")
 ---@field causticWaves boolean
 ---@field wretchAoe boolean
 
+---@class UlatekPadPosition
+---@field point string  e.g. "CENTER".
+---@field relativePoint string
+---@field x number
+---@field y number
+
 ---@class UlatekSettings
 ---@field mechanicReminder UlatekMechanicReminder
 ---@field cornerMarkers table<integer, WorldMarker>
+---@field tacticalPadPosition UlatekPadPosition
+---@field tacticalPadScale number
 
 ---@class Ulatek: Module
 ---@field db UlatekSettings
@@ -37,8 +51,17 @@ local Ulatek = ns.Modules.New("Ulatek", {
             [7] = "CROSS",
             [8] = "SKULL",
         },
+        -- Unset factory default (center). The window places this at 80% of max X, y = 0.
+        ---@type UlatekPadPosition
+        tacticalPadPosition = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 0 },
+        -- Scale of the floating tactical pad.
+        tacticalPadScale = 1,
     },
 })
+
+Ulatek.PAD_SCALE_MIN = PAD_SCALE_MIN
+Ulatek.PAD_SCALE_MAX = PAD_SCALE_MAX
+Ulatek.PAD_SCALE_STEP = PAD_SCALE_STEP
 
 ns.RaidRole.Attach(Ulatek)
 
@@ -81,6 +104,11 @@ end
 function Ulatek:OnInit()
     self.db.mechanicReminder = SanitizeMechanicReminder(self.db.mechanicReminder)
     self:RepairCornerMarkers()
+    if not ns.Position.IsValid(self.db.tacticalPadPosition) then
+        self.db.tacticalPadPosition = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 0 }
+    end
+    self.db.tacticalPadScale =
+        Util.Snap(tonumber(self.db.tacticalPadScale) or 1, PAD_SCALE_MIN, PAD_SCALE_MAX, PAD_SCALE_STEP)
 end
 
 ---@return boolean
@@ -111,4 +139,28 @@ end
 ---@param enabled boolean
 function Ulatek:SetWretchAoeReminderEnabled(enabled)
     SetReminderEnabled("wretchAoe", enabled)
+end
+
+---@return UlatekPadPosition
+function Ulatek:GetTacticalPadPosition()
+    return self.db.tacticalPadPosition
+end
+
+---@param position UlatekPadPosition
+function Ulatek:SetTacticalPadPosition(position)
+    assert(ns.Position.IsValid(position), "Bad position")
+    local saved = self.db.tacticalPadPosition
+    saved.point, saved.relativePoint = position.point, position.relativePoint
+    saved.x, saved.y = position.x, position.y
+end
+
+---@return number
+function Ulatek:GetTacticalPadScale()
+    return Util.Snap(self.db.tacticalPadScale, PAD_SCALE_MIN, PAD_SCALE_MAX, PAD_SCALE_STEP)
+end
+
+---@param scale number
+function Ulatek:SetTacticalPadScale(scale)
+    assert(type(scale) == "number", "Bad scale")
+    self.db.tacticalPadScale = Util.Snap(scale, PAD_SCALE_MIN, PAD_SCALE_MAX, PAD_SCALE_STEP)
 end

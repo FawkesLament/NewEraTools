@@ -116,7 +116,12 @@ local function OnEncounterWarning(warningInfo, earlyOpen)
         return
     end
     local duration = warningInfo.duration
-    if type(duration) ~= "number" or math.abs(duration - WARNING_DURATION) > WARNING_DURATION_TOLERANCE then
+    -- Inclusive range: abs(duration - 4) > 0.2 rejects 3.8/4.2 because those floats are not exact.
+    if
+        type(duration) ~= "number"
+        or duration < WARNING_DURATION - WARNING_DURATION_TOLERANCE
+        or duration > WARNING_DURATION + WARNING_DURATION_TOLERANCE
+    then
         return
     end
     local phase = Internals.PhaseDetector.GetPhase()

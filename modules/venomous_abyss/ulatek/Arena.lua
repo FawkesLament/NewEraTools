@@ -10,9 +10,14 @@ local Ulatek = ns.Modules.Get("Ulatek")
 local ARENA_SIDES = 8
 -- Bottom horizontal edge of the octagon (vertices 7–8).
 local ENTRANCE_EDGE = 7
+-- Vertical edges: 1 is +X (right of the entrance), 5 is -X.
+local RIGHT_EDGE = 1
+local LEFT_EDGE = 5
 
 Ulatek.ARENA_SIDES = ARENA_SIDES
 Ulatek.ENTRANCE_EDGE = ENTRANCE_EDGE
+Ulatek.RIGHT_EDGE = RIGHT_EDGE
+Ulatek.LEFT_EDGE = LEFT_EDGE
 
 ---@param corner integer
 ---@return boolean

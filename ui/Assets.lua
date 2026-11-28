@@ -68,6 +68,11 @@ Assets.Textures = {
     CHECKMARK = MEDIA_PATH .. "icons\\checkmark",
     -- Faceted 64x32 downward dart for interrupt-chain playheads; tint with SetVertexColor.
     ARROW_DOWN = MEDIA_PATH .. "icons\\arrow_down",
+    -- White-on-alpha double chevrons for the Ulatek wave-order pad; tint with SetVertexColor.
+    ARROW_DOUBLE_CHEVRON_LEFT = MEDIA_PATH .. "icons\\arrow_double_chevron_left",
+    ARROW_DOUBLE_CHEVRON_RIGHT = MEDIA_PATH .. "icons\\arrow_double_chevron_right",
+    -- White-on-alpha 8-dot dashed circle for the Ulatek boss-rise pad; tint with SetVertexColor.
+    DASHED_CIRCLE_8_DOT = MEDIA_PATH .. "icons\\dashed_circle_8_dot",
     MINIMAP_HIGHLIGHT = "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight",
     MINIMAP_BACKGROUND = "Interface\\Minimap\\UI-Minimap-Background",
     MINIMAP_BORDER = "Interface\\Minimap\\MiniMap-TrackingBorder",

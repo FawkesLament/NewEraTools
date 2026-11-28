@@ -155,7 +155,7 @@ describe("CoiledAltar ghost chase", function()
             assert.is_nil(CalloutManager.GetDisplayed())
         end)
 
-        it("accepts duration at both ends of the ±0.5 window", function()
+        it("accepts duration at both ends of the ±0.2 window", function()
             StartEncounter()
             EnterP2()
             Timer.Advance(12.5)

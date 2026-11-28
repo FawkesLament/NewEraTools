@@ -3,9 +3,13 @@ local _, ns = ...
 local Internals = ns.Modules.Internals("Ulatek")
 local L = ns.L
 local Assets = ns.Assets
+local Combat = ns.Api.Combat
 local Checkbox = ns.Checkbox
 local FeatureSection = ns.FeatureSection
 local Layout = ns.Layout
+local LayoutEditor = ns.LayoutEditor
+local Slider = ns.Slider
+local Util = ns.Util
 local Widgets = ns.Widgets
 
 local Colors = Assets.Colors
@@ -15,7 +19,10 @@ local Spacing = Assets.Spacing
 
 local Ulatek = ns.Modules.Get("Ulatek")
 local Map = Internals.Map
+local Window = Internals.Window
 local Spell = ns.Api.Spell
+
+local SCOPE_ID = "ulatek"
 
 local EGG_DEADLINE_SPELL_ID = 1301268
 local CAUSTIC_WAVES_SPELL_ID = 1298570
@@ -42,6 +49,10 @@ local resetButton
 local syncButton
 local markersHeaderActions
 local roleLabel
+local panelBody
+local panelContainer
+local tacticalPad
+local tacticalPadGap
 
 ---@param holder Frame
 ---@param texture Texture
@@ -217,21 +228,59 @@ local function UpdateResetButton()
     LayoutMarkersHeaderActions()
 end
 
+local function SyncTacticalPadVisibility()
+    if not panelBody or not tacticalPad then
+        return
+    end
+    local shown = Ulatek:IsRaidCommander()
+    tacticalPad:SetShown(shown)
+    if tacticalPadGap then
+        tacticalPadGap:SetShown(shown)
+        panelBody:SetEntryHeight(tacticalPadGap, shown and Spacing.MEDIUM or 0)
+    end
+    panelBody:SetEntryHeight(tacticalPad, shown and tacticalPad:GetHeight() or 0)
+    if panelContainer then
+        panelContainer:SetContentHeight(panelBody:GetHeight())
+    end
+end
+
 local function UpdateCommanderControls()
     if roleLabel then
         ns.RaidRoleModeLabel.Update(roleLabel)
     end
     LayoutMarkersHeaderActions()
+    SyncTacticalPadVisibility()
+    Window.Update()
+    if LayoutEditor.IsEditing() then
+        LayoutEditor.Refresh()
+    end
+end
+
+local function BeginEditPosition()
+    if Combat.IsInCombat() or Combat.IsLockedDown() then
+        Util.Print(L.LAYOUT_EDIT_IN_COMBAT)
+        return
+    end
+    if not Ulatek:IsRaidCommander() then
+        Util.Print(L.LAYOUT_EDIT_NONE)
+        return
+    end
+    LayoutEditor.BeginScope(SCOPE_ID)
 end
 
 ---@param content Frame
 ---@return number
 local function BuildContent(content)
+    panelContainer = content
     local body = Layout.Stack(content, {
         paddingX = Spacing.SMALL,
         paddingY = Spacing.SMALL,
         spacing = Spacing.MEDIUM,
     })
+    panelBody = body
+
+    local editLayout = Widgets.CreateLayoutEditButton(content.header, L.ULATEK_EDIT_POSITION, BeginEditPosition)
+    content:SetHeaderAction(editLayout)
 
     local roleRow = body:AddRow(ns.RaidRoleModeLabel.HEIGHT)
     roleLabel = ns.RaidRoleModeLabel.Create(roleRow, L.ULATEK_RAID_ROLE_MODE_TOOLTIP)
@@ -331,10 +380,61 @@ local function BuildContent(content)
     markersSection:SetContentHeight(markersBody:GetHeight())
     markersSection:RefreshContentInteractive()
 
+    -- Zero default spacing so a hidden pad does not leave a gap after markers.
+    tacticalPadGap = body:AddRow(0, 0)
+    tacticalPad = FeatureSection.Create(body, {
+        title = L.ULATEK_SECTION_TACTICAL_PAD,
+        divider = true,
+        toggle = false,
+        spacingBefore = 0,
+        onStackHeightChanged = SyncTacticalPadVisibility,
+    })
+    local startTest = Widgets.CreateButton(tacticalPad, L.ULATEK_START_TEST, Window.StartPreview)
+    tacticalPad:SetHeaderAction(startTest)
+
+    local padHint = Widgets.CreateLabel(tacticalPad.titleLabel:GetParent(), Fonts.SMALL_MUTED, L.ULATEK_TACTICAL_PAD_HINT)
+    padHint:SetJustifyH("LEFT")
+    padHint:SetWordWrap(false)
+    padHint:SetPoint("LEFT", tacticalPad.titleLabel, "RIGHT", Spacing.MEDIUM, 0)
+    padHint:SetPoint("RIGHT", startTest, "LEFT", -Spacing.MEDIUM, 0)
+
+    local padBody = Layout.Stack(tacticalPad.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
+    local scaleRow = padBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
+    local scaleLabel = Widgets.CreateLabel(scaleRow, Fonts.BODY, L.ULATEK_TACTICAL_PAD_SCALE)
+    local scaleSlider = Slider.Create(
+        scaleRow,
+        Ulatek.PAD_SCALE_MIN,
+        Ulatek.PAD_SCALE_MAX,
+        Ulatek.PAD_SCALE_STEP,
+        { percentage = true }
+    )
+    Widgets.AttachTooltip(scaleSlider, "ANCHOR_BOTTOM", function(tooltip)
+        tooltip:SetText(L.ULATEK_TACTICAL_PAD_SCALE_TOOLTIP)
+    end)
+    scaleSlider:SetValue(Ulatek:GetTacticalPadScale())
+    scaleSlider:SetScript("OnValueChanged", function(_, rawValue)
+        Ulatek:SetTacticalPadScale(rawValue)
+        Window.ApplyScale(Ulatek:GetTacticalPadScale())
+    end)
+    Layout.PlaceSlider(scaleRow, scaleLabel, scaleSlider)
+
+    tacticalPad:SetContentHeight(padBody:GetHeight())
+    tacticalPad:RefreshContentInteractive()
+
+    SyncTacticalPadVisibility()
     return body:GetHeight()
 end
 
 function Ulatek:OnEnable()
+    LayoutEditor.RegisterScope({
+        id = SCOPE_ID,
+        label = L.ULATEK_LAYOUT_SCOPE,
+        order = 8,
+        elementIds = { Window.LAYOUT_ID },
+        prepare = function()
+            Window.Ensure()
+        end,
+    })
     ns.MainPanel:RegisterSection({
         title = L.ULATEK_TITLE,
         group = ns.PanelGroups.VENOMOUS_ABYSS,
@@ -348,6 +448,9 @@ function Ulatek:OnEnable()
     ns.Api.Group.OnChanged(UpdateCommanderControls)
     self:ListenForBroadcasts()
     self:ListenForEncounter()
+    -- Secure callout buttons must be created out of combat; OnEnable runs before pulls.
+    Window.Ensure()
+    Window.ListenForCombatDeferral()
 end
 
 function Ulatek:OnCornerMarkersChanged()
