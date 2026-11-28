@@ -31,7 +31,6 @@ local PICKER_CELL_SIZE = PICKER_ICON_SIZE + 2 * Spacing.SMALL
 local PICKER_CELL_STEP = PICKER_CELL_SIZE + Spacing.TINY
 -- Markers on other walls stay clickable (picking one swaps), but recede so the free ones stand out.
 local PICKER_IN_USE_ALPHA = 0.45
-local HINT_ROW_HEIGHT = 16
 
 local MARKER_NAMES = Map.MARKER_NAMES
 
@@ -39,10 +38,11 @@ local picker
 local modeCell
 local modeControl
 local resetButton
+local syncButton
+local markersHeaderActions
 local createMacrosRow
 local createMacrosButton
 local addonCheckButton
-local syncRow
 local mapSection
 local mapBody
 local basicSection
@@ -144,11 +144,40 @@ local function ShowPicker(anchor, edge)
     picker:Show()
 end
 
+local function LayoutMarkersHeaderActions()
+    if not markersHeaderActions or not syncButton then
+        return
+    end
+    local showSync = Sszorak:IsRaidCommander()
+    syncButton:SetShown(showSync)
+    local showReset = resetButton and resetButton:IsShown()
+    if resetButton then
+        resetButton:ClearAllPoints()
+        if showSync then
+            resetButton:SetPoint("RIGHT", syncButton, "LEFT", -Spacing.MEDIUM, 0)
+        else
+            resetButton:SetPoint("RIGHT", markersHeaderActions, "RIGHT")
+        end
+    end
+    local width = 0
+    if showSync then
+        width = width + syncButton:GetWidth()
+    end
+    if showReset then
+        if width > 0 then
+            width = width + Spacing.MEDIUM
+        end
+        width = width + resetButton:GetWidth()
+    end
+    markersHeaderActions:SetWidth(width)
+end
+
 local function UpdateResetButton()
     if not resetButton then
         return
     end
     resetButton:SetShown(Sszorak:IsMapEnabled() and not Sszorak:IsDefaultEdgeMarkers())
+    LayoutMarkersHeaderActions()
 end
 
 ---Shows or collapses a commander-only row inside a FeatureSection and refreshes heights.
@@ -206,7 +235,7 @@ local function UpdateCommanderControls()
         ns.RaidRoleModeLabel.Update(roleLabel)
     end
     SetCommanderRowShown(basicSection, basicBody, createMacrosRow, isCommander)
-    SetCommanderRowShown(markersSection, markersBody, syncRow, isCommander)
+    LayoutMarkersHeaderActions()
     if not isCommander then
         HideAddonCheckPanel()
     end
@@ -342,10 +371,11 @@ local function ResetBuiltControls()
     modeCell = nil
     modeControl = nil
     resetButton = nil
+    syncButton = nil
+    markersHeaderActions = nil
     createMacrosRow = nil
     createMacrosButton = nil
     addonCheckButton = nil
-    syncRow = nil
     mapBody = nil
     basicSection = nil
     basicBody = nil
@@ -458,14 +488,32 @@ local function BuildMapContent(content)
         divider = true,
         toggle = false,
     })
-    resetButton = Widgets.CreateTextButton(markersSection, L.SSZORAK_MARKERS_RESET, function()
+    local headerActions = CreateFrame("Frame", nil, markersSection)
+    headerActions:SetHeight(Sizes.CONTROL_HEIGHT)
+    syncButton = Widgets.CreateButton(headerActions, L.SSZORAK_BROADCAST, function()
+        Sszorak:BroadcastEdgeMarkers()
+    end, "accent")
+    resetButton = Widgets.CreateTextButton(headerActions, L.SSZORAK_MARKERS_RESET, function()
         if not Sszorak:IsMapEnabled() then
             return
         end
         Sszorak:ResetEdgeMarkers()
     end)
-    markersSection:SetHeaderAction(resetButton)
+    syncButton:SetPoint("RIGHT", headerActions, "RIGHT")
+    resetButton:SetPoint("RIGHT", syncButton, "LEFT", -Spacing.MEDIUM, 0)
+    function headerActions:SetEnabled(isEnabled)
+        syncButton:SetEnabled(isEnabled)
+        resetButton:SetEnabled(isEnabled)
+        self:SetAlpha(1)
+    end
+    markersHeaderActions = headerActions
+    markersSection:SetHeaderAction(headerActions)
     UpdateResetButton()
+
+    local hint = Widgets.CreateLabel(markersSection.titleLabel:GetParent(), Fonts.SMALL_MUTED, L.SSZORAK_MARKERS_HINT)
+    hint:SetJustifyH("LEFT")
+    hint:SetWordWrap(false)
+    hint:SetPoint("LEFT", markersSection.titleLabel, "RIGHT", Spacing.MEDIUM, 0)
 
     markersBody = Layout.Stack(markersSection.content, { paddingY = Spacing.SMALL, spacing = Spacing.SMALL })
     local editorRow = markersBody:AddRow(Map.GetArenaRowHeight(EDITOR_ARENA_SIZE))
@@ -480,17 +528,6 @@ local function BuildMapContent(content)
     editorRow:SetScript("OnSizeChanged", CenterEditorArena)
     CenterEditorArena()
 
-    local hintRow = markersBody:AddRow(HINT_ROW_HEIGHT)
-    local hint = Widgets.CreateLabel(hintRow, Fonts.SMALL_MUTED, L.SSZORAK_MARKERS_HINT)
-    hint:SetJustifyH("LEFT")
-    hint:SetPoint("LEFT", hintRow, "LEFT")
-    hint:SetPoint("RIGHT", hintRow, "RIGHT")
-
-    syncRow = markersBody:AddRow(Sizes.CONTROL_ROW_HEIGHT)
-    local syncButton = Widgets.CreateButton(syncRow, L.SSZORAK_BROADCAST, function()
-        Sszorak:BroadcastEdgeMarkers()
-    end, "primary")
-    syncButton:SetPoint("RIGHT", syncRow, "RIGHT")
     markersSection:SetContentHeight(markersBody:GetHeight())
     markersSection:RefreshContentInteractive()
 

@@ -58,4 +58,11 @@
     <Script file="coiled_altar\ui\Assignments.lua"/>
     <Script file="coiled_altar\ui\MemberView.lua"/>
     <Script file="coiled_altar\CoiledAltarUI.lua"/>
+    <Script file="ulatek\Ulatek.lua"/>
+    <Script file="ulatek\Arena.lua"/>
+    <Script file="ulatek\Markers.lua"/>
+    <Script file="ulatek\Timeline.lua"/>
+    <Script file="ulatek\Encounter.lua"/>
+    <Script file="ulatek\ui\Map.lua"/>
+    <Script file="ulatek\UlatekUI.lua"/>
 </Ui>

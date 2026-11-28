@@ -3,7 +3,7 @@ local _, ns = ...
 local Database = {}
 ns.Database = Database
 
-local SCHEMA_VERSION = 17
+local SCHEMA_VERSION = 18
 
 -- migrations[n] upgrades saved data from version n - 1 to version n, in place.
 local migrations = {}
@@ -219,6 +219,16 @@ migrations[17] = function(saved)
     end
     RenameSavedKey(roster, "rowSpacing", "rowHeight")
     RenameSavedKey(roster, "columnSpacing", "columnGap")
+end
+
+-- Ulatek Wretch AoE reminder was stored as addSoak.
+migrations[18] = function(saved)
+    local modules = saved.modules
+    local settings = type(modules) == "table" and modules.Ulatek or nil
+    local reminder = type(settings) == "table" and settings.mechanicReminder or nil
+    if type(reminder) == "table" then
+        RenameSavedKey(reminder, "addSoak", "wretchAoe")
+    end
 end
 
 ---Upgrades saved variables to the current schema, creating them if missing.
