@@ -56,18 +56,13 @@ describe("InterruptRotationTrackerAnchor", function()
         )
     end)
 
-    it("reads the anchor inherited from Twin Fangs", function()
+    it("reads a saved shared interrupt rotation tracker anchor", function()
         Start({
-            schemaVersion = 10,
-            modules = {
-                TwinFangs = {
-                    interruptStatusHudPosition = {
-                        point = "TOPLEFT",
-                        relativePoint = "TOPLEFT",
-                        x = 20,
-                        y = -30,
-                    },
-                },
+            interruptRotationTrackerPosition = {
+                point = "TOPLEFT",
+                relativePoint = "TOPLEFT",
+                x = 20,
+                y = -30,
             },
         })
 

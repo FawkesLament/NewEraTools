@@ -97,13 +97,11 @@ describe("Sszorak", function()
         it("keeps a saved right-side map turned 180 degrees", function()
             ns = Loader.Load()
             local saved = ns.Database.Load({
-                schemaVersion = 6,
-                modules = { Sszorak = { mapRotated = true } },
+                modules = { Sszorak = { playerSide = "right", mapRotation = 180 } },
             })
             ns.Modules.Start(saved)
             Sszorak = ns.Modules.Get("Sszorak")
             assert.equals(Sszorak.SIDE_RIGHT, Sszorak:GetPlayerSide())
-            assert.is_nil(Sszorak.db.mapRotated)
             AssertNear(180, Sszorak:GetMapRotation())
         end)
     end)

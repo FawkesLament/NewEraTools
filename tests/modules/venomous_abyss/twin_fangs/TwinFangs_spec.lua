@@ -382,17 +382,17 @@ describe("TwinFangs", function()
             )
         end)
 
-        it("adopts a leftover Twin Fangs statusHudPosition key", function()
-            local position = { point = "TOP", relativePoint = "TOP", x = 4, y = -8 }
+        it("drops leftover Twin Fangs HUD keys without adopting them", function()
             local fresh = Loader.Load()
             fresh.Modules.Start(fresh.Database.Load({
-                schemaVersion = 10,
                 modules = {
-                    TwinFangs = { statusHudPosition = position },
+                    TwinFangs = {
+                        statusHudPosition = { point = "TOP", relativePoint = "TOP", x = 4, y = -8 },
+                    },
                 },
             }))
             local module = fresh.Modules.Get("TwinFangs")
-            assert.same(position, module:GetInterruptRotationTrackerPosition())
+            assert.same(Schema.DefaultInterruptRotationTrackerPosition(), module:GetInterruptRotationTrackerPosition())
             assert.is_nil(module.db.statusHudPosition)
             assert.is_nil(module.db.interruptStatusHudPosition)
         end)

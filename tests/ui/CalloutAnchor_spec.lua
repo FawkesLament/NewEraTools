@@ -50,29 +50,13 @@ describe("CalloutAnchor", function()
         assert.same({ point = "LEFT", relativePoint = "LEFT", x = 4, y = 5 }, Sszorak:GetCalloutPosition())
     end)
 
-    it("reads the anchor inherited from Sszorak", function()
+    it("reads a saved shared callout anchor", function()
         Start({
-            schemaVersion = 7,
-            modules = {
-                Sszorak = { calloutPosition = { point = "TOPLEFT", relativePoint = "TOPLEFT", x = 20, y = -30 } },
-                TheLostExplorers = { calloutPosition = { point = "BOTTOM", relativePoint = "BOTTOM", x = 1, y = 2 } },
-            },
+            calloutPosition = { point = "TOPLEFT", relativePoint = "TOPLEFT", x = 20, y = -30 },
         })
 
         assert.same({ point = "TOPLEFT", relativePoint = "TOPLEFT", x = 20, y = -30 }, TwinFangs:GetCalloutPosition())
         assert.equals(TwinFangs:GetCalloutPosition(), TheLostExplorers:GetCalloutPosition())
-    end)
-
-    it("reads the anchor inherited from The Lost Explorers when Sszorak has none", function()
-        Start({
-            schemaVersion = 7,
-            modules = {
-                TheLostExplorers = {
-                    calloutPosition = { point = "BOTTOMLEFT", relativePoint = "BOTTOMLEFT", x = -4, y = 8 },
-                },
-            },
-        })
-
-        assert.same({ point = "BOTTOMLEFT", relativePoint = "BOTTOMLEFT", x = -4, y = 8 }, Sszorak:GetCalloutPosition())
+        assert.equals(TwinFangs:GetCalloutPosition(), Sszorak:GetCalloutPosition())
     end)
 end)
